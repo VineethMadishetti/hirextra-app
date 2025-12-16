@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
 
   // Configure Axios globally
   axios.defaults.withCredentials = true; // Important for Cookies!
-  axios.defaults.baseURL = 'http://localhost:5002/api'; // Point to your Port 5002
+  axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
 
   useEffect(() => {
     // Check local storage on load to persist login state visually
