@@ -1,0 +1,20 @@
+import mongoose from 'mongoose';
+
+const uploadJobSchema = new mongoose.Schema({
+  fileName: String,
+  originalName: String,
+  uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  status: { 
+    type: String, 
+    enum: ['UPLOADING', 'MAPPING_PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'], 
+    default: 'UPLOADING' 
+  },
+  totalRows: { type: Number, default: 0 },
+  successRows: { type: Number, default: 0 },
+  failedRows: { type: Number, default: 0 },
+  mapping: Object, // Store what mapping was used
+  startedAt: Date,
+  completedAt: Date
+}, { timestamps: true });
+
+export default mongoose.model('UploadJob', uploadJobSchema);
