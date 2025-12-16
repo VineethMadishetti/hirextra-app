@@ -68,7 +68,7 @@ This guide will help you deploy Hirextra to free hosting services for demonstrat
 
 3. **Environment Variables:**
    ```
-   VITE_API_URL=https://hirextra-backend.onrender.com
+   VITE_API_URL=https://hirextra-backend.onrender.com/api
    ```
 
 4. **Deploy:** Click "Create Static Site"

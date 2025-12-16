@@ -5,14 +5,18 @@ import { useNavigate } from 'react-router-dom';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const { login } = useContext(AuthContext);
+  const [isRegister, setIsRegister] = useState(false);
+  const { login, register } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const result = await login(email, password);
+    const result = isRegister 
+      ? await register(name, email, password)
+      : await login(email, password);
 
     if (result.success) {
       navigate('/dashboard');
@@ -64,10 +68,10 @@ const Login = () => {
           {/* Header */}
           <div className="mb-8 text-center">
             <h2 className="text-3xl font-semibold text-gray-900 tracking-tight">
-              Welcome back
+              {isRegister ? 'Create Account' : 'Welcome back'}
             </h2>
             <p className="text-gray-500 mt-2 text-sm">
-              Sign in to continue
+              {isRegister ? 'Sign up to get started' : 'Sign in to continue'}
             </p>
           </div>
 
@@ -78,6 +82,21 @@ const Login = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {isRegister && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="John Doe"
+                  className="w-full rounded-md border border-gray-300 px-4 py-3 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email address
@@ -110,12 +129,19 @@ const Login = () => {
               type="submit"
               className="w-full rounded-md bg-gray-900 px-4 py-3 text-white font-medium hover:bg-gray-800 transition"
             >
-              Sign in
+              {isRegister ? 'Create Account' : 'Sign in'}
             </button>
           </form>
 
           <p className="mt-6 text-center text-xs text-gray-400">
-            Enterprise-grade authentication
+            {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <button
+              type="button"
+              onClick={() => setIsRegister(!isRegister)}
+              className="text-gray-600 hover:text-gray-900 font-medium"
+            >
+              {isRegister ? 'Sign in' : 'Sign up'}
+            </button>
           </p>
         </div>
       </div>
