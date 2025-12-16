@@ -14,16 +14,16 @@ const generateToken = (res, userId) => {
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
   try {
-    // Prevent public registration of admin users
-    if (role === 'ADMIN') {
-      return res.status(403).json({ message: 'Admin registration not allowed through public API' });
-    }
+    // Allow admin registration for demo purposes
+    // if (role === 'ADMIN') {
+    //   return res.status(403).json({ message: 'Admin registration not allowed through public API' });
+    // }
 
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
 
-    // Default to USER role if not specified or invalid
-    const userRole = (role === 'USER') ? 'USER' : 'USER';
+    // Allow specified role or default to USER
+    const userRole = (role === 'ADMIN' || role === 'USER') ? role : 'USER';
 
     const user = await User.create({ name, email, password, role: userRole });
     if (user) {

@@ -6,6 +6,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [role, setRole] = useState('USER');
   const [error, setError] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const { login, register } = useContext(AuthContext);
@@ -15,7 +16,7 @@ const Login = () => {
     e.preventDefault();
     setError('');
     const result = isRegister 
-      ? await register(name, email, password)
+      ? await register(name, email, password, role)
       : await login(email, password);
 
     if (result.success) {
@@ -124,6 +125,22 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+
+            {isRegister && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-4 py-3 text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition"
+                >
+                  <option value="USER">User</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </div>
+            )}
 
             <button
               type="submit"
