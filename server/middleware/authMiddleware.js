@@ -2,18 +2,45 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 export const protect = async (req, res, next) => {
-  let token = req.cookies.jwt;
+  const accessToken = req.cookies.jwt;
 
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = await User.findById(decoded.userId).select('-password');
-      next();
-    } catch (error) {
-      res.status(401).json({ message: 'Not authorized, invalid token' });
+  // 1️⃣ No access token at all
+  if (!accessToken) {
+    return res.status(401).json({
+      message: 'Access token missing',
+      code: 'NO_ACCESS_TOKEN',
+    });
+  }
+
+  try {
+    // 2️⃣ Verify access token
+    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+
+    // 3️⃣ Attach user to request
+    req.user = await User.findById(decoded.userId).select('-password');
+
+    if (!req.user) {
+      return res.status(401).json({
+        message: 'User not found',
+        code: 'USER_NOT_FOUND',
+      });
     }
-  } else {
-    res.status(401).json({ message: 'Not authorized, no token' });
+
+    next();
+  } catch (error) {
+    // 4️⃣ Token expired → frontend should refresh
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        message: 'Access token expired',
+        code: 'ACCESS_TOKEN_EXPIRED',
+      });
+    }
+
+    // 5️⃣ Invalid token
+    return res.status(401).json({
+      message: 'Invalid access token',
+      code: 'INVALID_ACCESS_TOKEN',
+    });
   }
 };
 

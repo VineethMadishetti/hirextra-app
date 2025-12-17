@@ -16,6 +16,10 @@ const generateToken = (res, userId) => {
   });
 };
 
+const generateRefreshToken = (userId) =>
+  jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, {
+    expiresIn: '30d',
+  });
 
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
@@ -41,25 +45,76 @@ export const registerUser = async (req, res) => {
   }
 };
 
+export const refreshAccessToken = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+
+    if (!token) {
+      return res.status(401).json({ message: 'No refresh token' });
+    }
+
+    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+
+    const accessToken = generateAccessToken(decoded.userId);
+
+    res.cookie('jwt', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.json({ message: 'Access token refreshed' });
+  } catch (err) {
+    return res.status(403).json({ message: 'Invalid refresh token' });
+  }
+};
+
+
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
+
   try {
     const user = await User.findOne({ email });
-    if (user && (await user.matchPassword(password))) {
-      generateToken(res, user._id);
-      res.json({ _id: user._id, name: user.name, role: user.role });
-    } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
+
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+
+    res.cookie('jwt', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 15 * 60 * 1000, // 15 min
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
+
 export const logoutUser = (req, res) => {
   res.cookie('jwt', '', { httpOnly: true, expires: new Date(0) });
+  res.cookie('refreshToken', '', { httpOnly: true, expires: new Date(0) });
   res.status(200).json({ message: 'Logged out' });
 };
+
 
 // User Management (Admin Only)
 export const getAllUsers = async (req, res) => {
