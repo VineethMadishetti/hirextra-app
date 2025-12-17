@@ -433,3 +433,5 @@ try {
   logger.warn('⚠️ File processing will not work without Redis. Please set REDIS_URL in environment variables.');
   // Worker will be undefined, but queue.add() will already handle the error
 }
+
+export default importQueue;
