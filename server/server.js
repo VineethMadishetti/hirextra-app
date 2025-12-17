@@ -14,6 +14,24 @@ import candidateRoutes from './routes/candidateRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
+
+// Validate critical environment variables
+const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  logger.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`);
+  logger.error('Please set these variables in your Render environment settings.');
+  process.exit(1);
+}
+
+// Validate JWT_SECRET is not default/empty
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-super-secure-jwt-secret-key-here') {
+  logger.error('❌ JWT_SECRET is not set or is using default value!');
+  logger.error('Please set a secure JWT_SECRET in your Render environment variables.');
+  process.exit(1);
+}
+
 connectDB();
 
 /* ---------------------------------------------------

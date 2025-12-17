@@ -1,7 +1,12 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import logger from '../utils/logger.js';
 
 const generateToken = (res, userId) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  
   const token = jwt.sign(
     { userId },
     process.env.JWT_SECRET,
@@ -17,22 +22,41 @@ const generateToken = (res, userId) => {
 };
 
 const generateAccessToken = (userId) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  
   return jwt.sign(
     { userId },
     process.env.JWT_SECRET,
     { expiresIn: '15m' } // 15 minutes
   );
 };
+
 const generateRefreshToken = (userId) => {
+  const refreshSecret = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET;
+  if (!refreshSecret) {
+    throw new Error('REFRESH_TOKEN_SECRET or JWT_SECRET is not configured');
+  }
+  
   return jwt.sign(
     { userId },
-    process.env.REFRESH_TOKEN_SECRET || 'your-refresh-token-secret', // Make sure to set this in your .env
+    refreshSecret,
     { expiresIn: '30d' } // 30 days
   );
 };
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
   try {
+    // Check JWT_SECRET is configured
+    if (!process.env.JWT_SECRET) {
+      logger.error('❌ JWT_SECRET is not configured - cannot create tokens');
+      return res.status(500).json({ 
+        message: 'Server configuration error: JWT_SECRET is not set',
+        code: 'JWT_CONFIG_ERROR'
+      });
+    }
+
     // Allow admin registration for demo purposes
     // if (role === 'ADMIN') {
     //   return res.status(403).json({ message: 'Admin registration not allowed through public API' });
@@ -50,7 +74,11 @@ export const registerUser = async (req, res) => {
       res.status(201).json({ _id: user._id, name: user.name, role: user.role });
     }
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    logger.error('Registration error:', err);
+    res.status(500).json({ 
+      message: err.message || 'Registration failed',
+      code: err.message?.includes('JWT') ? 'JWT_CONFIG_ERROR' : 'REGISTRATION_ERROR'
+    });
   }
 };
 
@@ -84,6 +112,15 @@ export const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Check JWT_SECRET is configured
+    if (!process.env.JWT_SECRET) {
+      logger.error('❌ JWT_SECRET is not configured - cannot create tokens');
+      return res.status(500).json({ 
+        message: 'Server configuration error: JWT_SECRET is not set',
+        code: 'JWT_CONFIG_ERROR'
+      });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user || !(await user.matchPassword(password))) {
@@ -113,7 +150,11 @@ export const loginUser = async (req, res) => {
       role: user.role,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    logger.error('Login error:', err);
+    res.status(500).json({ 
+      message: err.message || 'Login failed',
+      code: err.message?.includes('JWT') ? 'JWT_CONFIG_ERROR' : 'LOGIN_ERROR'
+    });
   }
 };
 
