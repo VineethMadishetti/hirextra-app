@@ -8,7 +8,8 @@ import logger from './logger.js';
 
 const connection = {
   host: process.env.REDIS_HOST || 'localhost',
-  port: Number(process.env.REDIS_PORT) || 6379
+  port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD
 };
 
 export const importQueue = new Queue('csv-import', { connection });
