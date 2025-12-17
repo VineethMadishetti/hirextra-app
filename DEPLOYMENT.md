@@ -81,7 +81,9 @@ After both are deployed, update the backend's `FRONTEND_URL` environment variabl
 
 After deployment:
 1. Visit your frontend URL
-2. Try registering a new user
+2. Login with the default admin credentials:
+   - **Email:** admin@test.com
+   - **Password:** password123
 3. Test the search functionality
 4. **Note:** File upload processing may be slow on free tiers due to queue processing
 5. For demo, use small CSV files (< 1MB) for best performance

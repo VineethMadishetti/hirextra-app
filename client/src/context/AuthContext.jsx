@@ -32,18 +32,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, role = 'USER') => {
-    try {
-      const { data } = await axios.post('/auth/register', { name, email, password, role });
-      setUser(data);
-      localStorage.setItem('userInfo', JSON.stringify(data));
-      return { success: true };
-    } catch (error) {
-      console.error("Register Error:", error.response?.data?.message);
-      return { success: false, message: error.response?.data?.message || 'Registration failed' };
-    }
-  };
-
   const logout = async () => {
     try {
       await axios.post('/auth/logout');
@@ -55,7 +43,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   );

@@ -16,6 +16,27 @@ import adminRoutes from './routes/adminRoutes.js';
 dotenv.config();
 connectDB();
 
+// Create default admin user if it doesn't exist
+const createDefaultAdmin = async () => {
+  try {
+    const User = (await import('./models/User.js')).default;
+    const adminExists = await User.findOne({ email: 'admin@test.com' });
+    if (!adminExists) {
+      const admin = await User.create({
+        name: 'Super Admin',
+        email: 'admin@test.com',
+        password: 'password123',
+        role: 'ADMIN'
+      });
+      logger.info('Default admin user created');
+    }
+  } catch (error) {
+    logger.error('Error creating default admin:', error);
+  }
+};
+
+createDefaultAdmin();
+
 const app = express();
 
 // Security middleware
