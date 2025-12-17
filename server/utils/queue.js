@@ -93,116 +93,114 @@ const worker = new Worker('csv-import', async (job) => {
     // 1. Auto-Detect where the headers are
     const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
 
-  const batchSize = 5000;
-  let candidates = [];
-  let successCount = 0;
-  let rowCounter = 0;
+    const batchSize = 5000;
+    let candidates = [];
+    let successCount = 0;
+    let rowCounter = 0;
 
-  // Helper to parse CSV line with proper quote handling
-  const parseCSVLine = (csvLine) => {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < csvLine.length; i++) {
-      const char = csvLine[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim()); // Add last field
-    return result;
-  };
-
-  // First, read the actual headers from the file
-  const readHeaders = async () => {
-    return new Promise((resolveHeaders, rejectHeaders) => {
-      let headerStream;
-      let headerRl;
-      let resolved = false;
+    // Helper to parse CSV line with proper quote handling
+    const parseCSVLine = (csvLine) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
       
-      // Wrap async operation
-      (async () => {
-        try {
-          headerStream = await getFileStream(filePath);
-          headerRl = readline.createInterface({ input: headerStream, crlfDelay: Infinity });
-          let headerLineNumber = 0;
-          
-          headerRl.on('line', (line) => {
-            if (resolved) return; // Prevent multiple resolutions
+      for (let i = 0; i < csvLine.length; i++) {
+        const char = csvLine[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim()); // Add last field
+      return result;
+    };
+
+    // First, read the actual headers from the file
+    const readHeaders = async () => {
+      return new Promise((resolveHeaders, rejectHeaders) => {
+        let headerStream;
+        let headerRl;
+        let resolved = false;
+        
+        // Wrap async operation
+        (async () => {
+          try {
+            headerStream = await getFileStream(filePath);
+            headerRl = readline.createInterface({ input: headerStream, crlfDelay: Infinity });
+            let headerLineNumber = 0;
             
-            if (headerLineNumber === skipLinesCount && line && line.trim()) {
-              const headers = parseCSVLine(line).map((h, idx) => {
-                // Remove quotes if present
-                let header = h.replace(/^["']|["']$/g, '');
-                return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
-              });
+            headerRl.on('line', (line) => {
+              if (resolved) return; // Prevent multiple resolutions
               
-              logger.info(`📋 Actual headers found (${headers.length} columns):`, headers.slice(0, 10).join(', '), '...');
-              resolved = true;
-              if (headerRl) headerRl.close();
-              if (headerStream) headerStream.destroy();
-              resolveHeaders(headers);
-            } else {
-              headerLineNumber++;
-              if (headerLineNumber > skipLinesCount + 5) {
-                // Fallback: use CSV parser default
-                if (!resolved) {
-                  resolved = true;
-                  if (headerRl) headerRl.close();
-                  if (headerStream) headerStream.destroy();
-                  logger.warn('⚠️ Could not read header line manually, using CSV parser');
-                  resolveHeaders(null);
+              if (headerLineNumber === skipLinesCount && line && line.trim()) {
+                const headers = parseCSVLine(line).map((h, idx) => {
+                  // Remove quotes if present
+                  let header = h.replace(/^["']|["']$/g, '');
+                  return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
+                });
+                
+                logger.info(`📋 Actual headers found (${headers.length} columns):`, headers.slice(0, 10).join(', '), '...');
+                resolved = true;
+                if (headerRl) headerRl.close();
+                if (headerStream) headerStream.destroy();
+                resolveHeaders(headers);
+              } else {
+                headerLineNumber++;
+                if (headerLineNumber > skipLinesCount + 5) {
+                  // Fallback: use CSV parser default
+                  if (!resolved) {
+                    resolved = true;
+                    if (headerRl) headerRl.close();
+                    if (headerStream) headerStream.destroy();
+                    logger.warn('⚠️ Could not read header line manually, using CSV parser');
+                    resolveHeaders(null);
+                  }
                 }
               }
-            }
-          });
-          
-          headerRl.on('close', () => {
+            });
+            
+            headerRl.on('close', () => {
+              if (!resolved) {
+                resolved = true;
+                resolveHeaders(null);
+              }
+            });
+            
+            headerRl.on('error', (err) => {
+              if (!resolved) {
+                resolved = true;
+                logger.error('❌ Error reading headers:', err);
+                if (headerRl) headerRl.close();
+                if (headerStream) headerStream.destroy();
+                rejectHeaders(err);
+              }
+            });
+            
+            headerStream.on('error', (err) => {
+              if (!resolved) {
+                resolved = true;
+                logger.error('❌ Stream error reading headers:', err);
+                if (headerRl) headerRl.close();
+                if (headerStream) headerStream.destroy();
+                rejectHeaders(err);
+              }
+            });
+          } catch (error) {
             if (!resolved) {
               resolved = true;
-              resolveHeaders(null);
-            }
-          });
-          
-          headerRl.on('error', (err) => {
-            if (!resolved) {
-              resolved = true;
-              logger.error('❌ Error reading headers:', err);
+              logger.error('❌ Failed to get file stream for headers:', error);
               if (headerRl) headerRl.close();
               if (headerStream) headerStream.destroy();
-              rejectHeaders(err);
+              rejectHeaders(error);
             }
-          });
-          
-          headerStream.on('error', (err) => {
-            if (!resolved) {
-              resolved = true;
-              logger.error('❌ Stream error reading headers:', err);
-              if (headerRl) headerRl.close();
-              if (headerStream) headerStream.destroy();
-              rejectHeaders(err);
-            }
-          });
-        } catch (error) {
-          if (!resolved) {
-            resolved = true;
-            logger.error('❌ Failed to get file stream for headers:', error);
-            if (headerRl) headerRl.close();
-            if (headerStream) headerStream.destroy();
-            rejectHeaders(error);
           }
-        }
-      })();
-    });
-  };
-
-  try {
+        })();
+      });
+    };
     return await new Promise(async (resolve, reject) => {
       // Read headers first
       const actualHeaders = await readHeaders();
