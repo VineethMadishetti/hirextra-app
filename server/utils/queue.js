@@ -131,10 +131,12 @@ try {
     // 1. Auto-Detect where the headers are
     const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
 
-    const batchSize = 5000;
+    const batchSize = 1000; // Smaller batches for better performance and memory management
     let candidates = [];
     let successCount = 0;
+    let failedCount = 0;
     let rowCounter = 0;
+    let pendingBatch = null;
 
     // Helper to parse CSV line with proper quote handling
     const parseCSVLine = (csvLine) => {
@@ -328,48 +330,121 @@ try {
 
         candidates.push(candidateData);
 
+        // Process batch when it reaches batchSize
         if (candidates.length >= batchSize) {
-           Candidate.insertMany(candidates, { ordered: false })
-             .then(docs => { 
-               successCount += docs.length;
-               // Update job progress every batch
-               UploadJob.findByIdAndUpdate(jobId, { 
-                 successRows: successCount,
-                 totalRows: rowCounter
-               }).catch(() => {});
-             })
-             .catch(() => {});
-           candidates = [];
+          // Wait for previous batch to complete if it exists
+          if (pendingBatch) {
+            try {
+              await pendingBatch;
+            } catch (err) {
+              logger.error('Previous batch error (continuing):', err.message);
+            }
+          }
+          
+          // Process current batch with retry logic
+          const batchToInsert = [...candidates];
+          candidates = []; // Clear array immediately
+          
+          pendingBatch = (async () => {
+            let retries = 3;
+            let lastError = null;
+            
+            while (retries > 0) {
+              try {
+                const docs = await Candidate.insertMany(batchToInsert, { 
+                  ordered: false,
+                  lean: false
+                });
+                
+                const inserted = docs.length;
+                successCount += inserted;
+                logger.debug(`✅ Batch inserted: ${inserted} rows. Total: ${successCount}`);
+                
+                // Update job progress every batch
+                await UploadJob.findByIdAndUpdate(jobId, { 
+                  successRows: successCount,
+                  totalRows: rowCounter,
+                  failedRows: failedCount
+                }, { new: true }).catch(err => {
+                  logger.error('Error updating job progress:', err);
+                });
+                
+                return; // Success, exit retry loop
+              } catch (err) {
+                lastError = err;
+                retries--;
+                
+                // Check if it's a connection error
+                if (err.name === 'MongoNetworkError' || err.message.includes('connection')) {
+                  logger.warn(`⚠️ Connection error, retrying... (${retries} attempts left)`);
+                  await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries))); // Exponential backoff
+                } else {
+                  // Non-connection error, don't retry
+                  break;
+                }
+              }
+            }
+            
+            // All retries failed
+            failedCount += batchToInsert.length;
+            logger.error(`❌ Batch insert failed after retries (${batchToInsert.length} rows):`, lastError?.message);
+          })();
         }
         
-        // Update progress every 1000 rows for live updates
-        if (rowCounter % 1000 === 0) {
+        // Update progress every 500 rows for live updates (more frequent for large files)
+        if (rowCounter % 500 === 0) {
           UploadJob.findByIdAndUpdate(jobId, { 
             successRows: successCount,
-            totalRows: rowCounter
-          }).catch(() => {});
+            totalRows: rowCounter,
+            failedRows: failedCount
+          }, { new: true }).catch(() => {});
         }
       })
       .on('end', async () => {
-        // Clean up stream
-        if (fileStream) {
-          fileStream.destroy();
-        }
-        
-        if (candidates.length > 0) {
-           const docs = await Candidate.insertMany(candidates, { ordered: false }).catch(() => []);
-           successCount += docs.length || 0;
-        }
+        try {
+          // Wait for any pending batch to complete
+          if (pendingBatch) {
+            await pendingBatch;
+          }
+          
+          // Clean up stream
+          if (fileStream) {
+            fileStream.destroy();
+          }
+          
+          // Insert remaining candidates
+          if (candidates.length > 0) {
+            try {
+              const docs = await Candidate.insertMany(candidates, { ordered: false });
+              successCount += docs.length;
+              logger.debug(`✅ Final batch inserted: ${docs.length} rows`);
+            } catch (err) {
+              failedCount += candidates.length;
+              logger.error(`❌ Final batch insert failed (${candidates.length} rows):`, err.message);
+            }
+          }
 
-        await UploadJob.findByIdAndUpdate(jobId, { 
+          await UploadJob.findByIdAndUpdate(jobId, { 
             status: 'COMPLETED', 
             completedAt: new Date(),
             successRows: successCount,
-            totalRows: successCount
-        });
+            totalRows: rowCounter,
+            failedRows: failedCount
+          });
 
-        logger.info(`✅ Job ${jobId} Completed. Rows Imported: ${successCount}`);
-        resolve();
+          logger.info(`✅ Job ${jobId} Completed. Total Rows: ${rowCounter}, Success: ${successCount}, Failed: ${failedCount}`);
+          resolve();
+        } catch (err) {
+          logger.error(`❌ Error in end handler for job ${jobId}:`, err);
+          await UploadJob.findByIdAndUpdate(jobId, { 
+            status: 'FAILED',
+            error: err.message,
+            successRows: successCount,
+            totalRows: rowCounter,
+            failedRows: failedCount
+          });
+          reject(err);
+        }
       })
       .on('error', async (err) => {
           // Clean up stream on error
@@ -424,6 +499,13 @@ try {
     limiter: {
       max: 1,
       duration: 1000,
+    },
+    removeOnComplete: {
+      age: 24 * 3600, // Keep completed jobs for 24 hours
+      count: 1000, // Keep max 1000 completed jobs
+    },
+    removeOnFail: {
+      age: 7 * 24 * 3600, // Keep failed jobs for 7 days
     },
   });
   

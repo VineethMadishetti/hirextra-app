@@ -39,43 +39,90 @@ export const getFileHeaders = async (req, res) => {
     
     if (isS3Key) {
       // Download from S3
-      const s3Stream = await downloadFromS3(filePath);
-      const headers = [];
-      
-      s3Stream
-        .pipe(csv({
+      try {
+        const s3Stream = await downloadFromS3(filePath);
+        let headersReceived = false;
+        
+        const csvStream = s3Stream.pipe(csv({
           headers: true,
           skipEmptyLines: false,
           mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
-        }))
-        .on('headers', (csvHeaders) => {
-          res.json({ headers: csvHeaders, filePath });
-          s3Stream.destroy();
-        })
-        .on('error', (err) => {
-          console.error('Error reading headers from S3:', err);
-          res.status(500).json({ message: 'Failed to read file headers from S3' });
+        }));
+        
+        csvStream.on('headers', (csvHeaders) => {
+          if (!headersReceived) {
+            headersReceived = true;
+            res.json({ headers: csvHeaders, filePath });
+            s3Stream.destroy();
+            csvStream.destroy();
+          }
         });
+        
+        csvStream.on('error', (err) => {
+          if (!headersReceived) {
+            headersReceived = true;
+            console.error('Error reading headers from S3:', err);
+            res.status(500).json({ message: 'Failed to read file headers from S3', error: err.message });
+            s3Stream.destroy();
+          }
+        });
+        
+        s3Stream.on('error', (err) => {
+          if (!headersReceived) {
+            headersReceived = true;
+            console.error('S3 stream error:', err);
+            res.status(500).json({ message: 'Failed to download file from S3', error: err.message });
+          }
+        });
+        
+        // Timeout after 30 seconds
+        setTimeout(() => {
+          if (!headersReceived) {
+            headersReceived = true;
+            res.status(500).json({ message: 'Timeout reading file headers from S3' });
+            s3Stream.destroy();
+            csvStream.destroy();
+          }
+        }, 30000);
+      } catch (s3Error) {
+        console.error('S3 download error:', s3Error);
+        return res.status(500).json({ message: 'Failed to download file from S3', error: s3Error.message });
+      }
     } else {
       // Legacy local file support
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: 'Original file not found on server' });
       }
 
-      const headers = [];
-      fs.createReadStream(filePath)
+      let headersReceived = false;
+      const stream = fs.createReadStream(filePath)
         .pipe(csv({
           headers: true,
           skipEmptyLines: false,
           mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
-        }))
-        .on('headers', (csvHeaders) => {
+        }));
+      
+      stream.on('headers', (csvHeaders) => {
+        if (!headersReceived) {
+          headersReceived = true;
           res.json({ headers: csvHeaders, filePath });
-        });
+          stream.destroy();
+        }
+      });
+      
+      stream.on('error', (err) => {
+        if (!headersReceived) {
+          headersReceived = true;
+          console.error('Error reading headers:', err);
+          res.status(500).json({ message: 'Failed to read file headers', error: err.message });
+        }
+      });
     }
   } catch (error) {
     console.error('Error getting file headers:', error);
-    res.status(500).json({ message: 'Failed to read file headers', error: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Failed to read file headers', error: error.message });
+    }
   }
 };
 
@@ -296,12 +343,21 @@ export const processFile = async (req, res) => {
         mapping
     });
 
-    // 2. Add to Queue
+    // 2. Add to Queue with immediate processing priority
     try {
       await importQueue.add('import-job', { 
           filePath, 
           mapping, 
           jobId: newJob._id 
+      }, {
+        priority: 1, // High priority for immediate processing
+        attempts: 3, // Retry up to 3 times on failure
+        backoff: {
+          type: 'exponential',
+          delay: 2000, // Start with 2 second delay
+        },
+        removeOnComplete: true, // Remove completed jobs to save memory
+        removeOnFail: false, // Keep failed jobs for debugging
       });
     } catch (queueError) {
       // If queue fails, update job status to FAILED
