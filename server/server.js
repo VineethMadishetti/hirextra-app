@@ -5,10 +5,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import connectDB from './config/db.js'; // Note .js extension!
+import connectDB from './config/db.js';
 import logger from './utils/logger.js';
 
-// Import Routes
+// Routes
 import authRoutes from './routes/authRoutes.js';
 import candidateRoutes from './routes/candidateRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
@@ -16,17 +16,17 @@ import adminRoutes from './routes/adminRoutes.js';
 dotenv.config();
 connectDB();
 
-// Create default admin user if it doesn't exist
+// Create default admin user
 const createDefaultAdmin = async () => {
   try {
     const User = (await import('./models/User.js')).default;
     const adminExists = await User.findOne({ email: 'admin@test.com' });
     if (!adminExists) {
-      const admin = await User.create({
+      await User.create({
         name: 'Super Admin',
         email: 'admin@test.com',
         password: 'password123',
-        role: 'ADMIN'
+        role: 'ADMIN',
       });
       logger.info('Default admin user created');
     }
@@ -38,110 +38,144 @@ const createDefaultAdmin = async () => {
 createDefaultAdmin();
 
 const app = express();
+
+/* ---------------------------------------------------
+   REQUIRED FOR RENDER (SECURE COOKIES)
+--------------------------------------------------- */
 app.set('trust proxy', 1);
 
+/* ---------------------------------------------------
+   SECURITY
+--------------------------------------------------- */
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+/* ---------------------------------------------------
+   CORS (FIXED FOR FILE UPLOADS)
+--------------------------------------------------- */
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://hirextra-frontend.onrender.com',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow server-to-server, health checks, Postman
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     },
-  },
-}));
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+    ],
+  })
+);
 
-// CORS configuration
-// In server.js, update the CORS configuration:
-const corsOptions = {
-  origin: [
-    'http://localhost:5173', 
-    'https://hirextra-frontend.onrender.com',
-    'https://hirextra-app.onrender.com',
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar']
-};
+/* ---------------------------------------------------
+   BODY & COOKIES
+--------------------------------------------------- */
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Rate limiting
+/* ---------------------------------------------------
+   RATE LIMIT (AFTER CORS)
+--------------------------------------------------- */
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10000, // limit each IP to 10000 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
+  windowMs: 15 * 60 * 1000,
+  max: 10000,
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 app.use(limiter);
 
-app.use(express.json({ limit: '50mb' }));
-app.use(cookieParser());
+/* ---------------------------------------------------
+   COMPRESSION
+--------------------------------------------------- */
+app.use(compression());
 
-// Health check endpoint
+/* ---------------------------------------------------
+   HEALTH CHECKS
+--------------------------------------------------- */
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
-    timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
   });
 });
 
 app.get('/test', (req, res) => res.send('Server is alive!'));
 
-// Use Routes
+/* ---------------------------------------------------
+   ROUTES
+--------------------------------------------------- */
 app.use('/api/auth', authRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Global error handling middleware
+/* ---------------------------------------------------
+   GLOBAL ERROR HANDLER
+--------------------------------------------------- */
 app.use((err, req, res, next) => {
-  logger.error(`${err.status || 500} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
+  logger.error(
+    `${err.status || 500} - ${err.message} - ${req.originalUrl} - ${req.method}`
+  );
 
-  // Don't leak error details in production
-  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const isDev = process.env.NODE_ENV !== 'production';
 
   res.status(err.status || 500).json({
-    message: isDevelopment ? err.message : 'Internal Server Error',
-    ...(isDevelopment && { stack: err.stack })
+    message: isDev ? err.message : 'Internal Server Error',
+    ...(isDev && { stack: err.stack }),
   });
 });
 
-// 404 handler
+/* ---------------------------------------------------
+   404 HANDLER
+--------------------------------------------------- */
 app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
+/* ---------------------------------------------------
+   SERVER START
+--------------------------------------------------- */
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  logger.info(
+    `🚀 Server running on port ${PORT} in ${
+      process.env.NODE_ENV || 'development'
+    } mode`
+  );
 });
 
-// Graceful shutdown
+/* ---------------------------------------------------
+   GRACEFUL SHUTDOWN
+--------------------------------------------------- */
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Process terminated');
-    process.exit(0);
-  });
+  logger.info('SIGTERM received, shutting down');
+  server.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Process terminated');
-    process.exit(0);
-  });
+  logger.info('SIGINT received, shutting down');
+  server.close(() => process.exit(0));
 });
 
 export default app;
