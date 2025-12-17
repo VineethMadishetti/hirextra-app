@@ -155,7 +155,7 @@ const AdminDashboard = () => {
 
     // Create an axios instance with the correct backend URL
     const api = axios.create({
-      baseURL: 'http://localhost:5002/api', // Update this to your backend URL
+      baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api',
       withCredentials: true
     });
 

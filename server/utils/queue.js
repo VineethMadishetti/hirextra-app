@@ -8,9 +8,44 @@ import readline from 'readline';
 import logger from './logger.js';
 import { downloadFromS3 } from './s3Service.js';
 
-const connection = process.env.REDIS_URL || 'redis://localhost:6379';
+// Redis connection configuration
+const getRedisConnection = () => {
+  // Try REDIS_URL first (for cloud Redis services)
+  if (process.env.REDIS_URL) {
+    return process.env.REDIS_URL;
+  }
+  
+  // Try individual Redis config
+  if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
+    return {
+      host: process.env.REDIS_HOST,
+      port: parseInt(process.env.REDIS_PORT),
+      password: process.env.REDIS_PASSWORD,
+    };
+  }
+  
+  // Fallback to localhost (for development)
+  return 'redis://localhost:6379';
+};
 
-export const importQueue = new Queue('csv-import', { connection });
+const connection = getRedisConnection();
+
+// Create queue with error handling
+let importQueue;
+try {
+  importQueue = new Queue('csv-import', { connection });
+  logger.info('✅ Redis queue initialized');
+} catch (error) {
+  logger.error('❌ Failed to initialize Redis queue:', error);
+  logger.warn('⚠️ Queue processing will not work without Redis. Please set REDIS_URL in environment variables.');
+  // Create a dummy queue that will fail gracefully
+  importQueue = {
+    add: async (name, data) => {
+      logger.error('❌ Cannot add job to queue: Redis not available');
+      throw new Error('Redis connection not available. Please configure REDIS_URL.');
+    }
+  };
+}
 
 // Helper to get file stream (from S3 or local)
 const getFileStream = async (filePath) => {
@@ -83,7 +118,10 @@ const findHeaderRowIndex = async (filePath, mapping) => {
     }
 };
 
-const worker = new Worker('csv-import', async (job) => {
+// Create worker with error handling
+let worker;
+try {
+  worker = new Worker('csv-import', async (job) => {
   const { filePath, mapping, jobId } = job.data;
   logger.info(`🚀 Processing UploadJob ID: ${jobId}, File: ${filePath}`);
 
@@ -380,4 +418,18 @@ const worker = new Worker('csv-import', async (job) => {
     });
     throw error;
   }
-}, { connection });
+  }, { 
+    connection,
+    concurrency: 1, // Process one job at a time
+    limiter: {
+      max: 1,
+      duration: 1000,
+    },
+  });
+  
+  logger.info('✅ Redis worker initialized');
+} catch (error) {
+  logger.error('❌ Failed to initialize Redis worker:', error);
+  logger.warn('⚠️ File processing will not work without Redis. Please set REDIS_URL in environment variables.');
+  // Worker will be undefined, but queue.add() will already handle the error
+}

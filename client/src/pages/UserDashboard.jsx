@@ -7,7 +7,10 @@ const UserDashboard = () => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const api = axios.create({ withCredentials: true, baseURL: 'http://localhost:5000/api' });
+  const api = axios.create({ 
+    withCredentials: true, 
+    baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api' 
+  });
 
   const search = async () => {
     setLoading(true);
