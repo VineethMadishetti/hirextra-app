@@ -16,11 +16,14 @@ import adminRoutes from './routes/adminRoutes.js';
 dotenv.config();
 connectDB();
 
-// Create default admin user
+/* ---------------------------------------------------
+   CREATE DEFAULT ADMIN
+--------------------------------------------------- */
 const createDefaultAdmin = async () => {
   try {
     const User = (await import('./models/User.js')).default;
     const adminExists = await User.findOne({ email: 'admin@test.com' });
+
     if (!adminExists) {
       await User.create({
         name: 'Super Admin',
@@ -54,26 +57,14 @@ app.use(
 );
 
 /* ---------------------------------------------------
-   CORS (FIXED FOR FILE UPLOADS)
+   CORS (STABLE – DO NOT OVER-ENGINEER)
 --------------------------------------------------- */
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://hirextra-frontend.onrender.com',
-  process.env.FRONTEND_URL,
-].filter(Boolean);
-
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow server-to-server, health checks, Postman
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: [
+      'http://localhost:5173',
+      'https://hirextra-frontend.onrender.com',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -86,7 +77,7 @@ app.use(
 );
 
 /* ---------------------------------------------------
-   BODY & COOKIES
+   BODY PARSERS & COOKIES
 --------------------------------------------------- */
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
