@@ -16,11 +16,20 @@ const generateToken = (res, userId) => {
   });
 };
 
-const generateRefreshToken = (userId) =>
-  jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, {
-    expiresIn: '30d',
-  });
-
+const generateAccessToken = (userId) => {
+  return jwt.sign(
+    { userId },
+    process.env.JWT_SECRET,
+    { expiresIn: '15m' } // 15 minutes
+  );
+};
+const generateRefreshToken = (userId) => {
+  return jwt.sign(
+    { userId },
+    process.env.REFRESH_TOKEN_SECRET || 'your-refresh-token-secret', // Make sure to set this in your .env
+    { expiresIn: '30d' } // 30 days
+  );
+};
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
   try {
