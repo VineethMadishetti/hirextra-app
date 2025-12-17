@@ -332,20 +332,21 @@ try {
 
         // Process batch when it reaches batchSize
         if (candidates.length >= batchSize) {
-          // Wait for previous batch to complete if it exists
-          if (pendingBatch) {
-            try {
-              await pendingBatch;
-            } catch (err) {
-              logger.error('Previous batch error (continuing):', err.message);
-            }
-          }
-          
-          // Process current batch with retry logic
+          // Process current batch with retry logic (non-blocking)
           const batchToInsert = [...candidates];
           candidates = []; // Clear array immediately
           
-          pendingBatch = (async () => {
+          // Chain the batch processing to ensure sequential execution
+          const processBatch = async () => {
+            // Wait for previous batch to complete if it exists
+            if (pendingBatch) {
+              try {
+                await pendingBatch;
+              } catch (err) {
+                logger.error('Previous batch error (continuing):', err.message);
+              }
+            }
+            
             let retries = 3;
             let lastError = null;
             
@@ -388,7 +389,10 @@ try {
             // All retries failed
             failedCount += batchToInsert.length;
             logger.error(`❌ Batch insert failed after retries (${batchToInsert.length} rows):`, lastError?.message);
-          })();
+          };
+          
+          // Update pendingBatch to chain batches sequentially
+          pendingBatch = pendingBatch ? pendingBatch.then(() => processBatch()) : processBatch();
         }
         
         // Update progress every 500 rows for live updates (more frequent for large files)
