@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useRef } from "react";
+import api from "../api/axios";
 import FileUploader from "../components/FileUploader";
 import {
 	FileText,
@@ -18,10 +18,12 @@ const AdminDashboard = () => {
 	const [uploadData, setUploadData] = useState(null);
 	const [mapping, setMapping] = useState({});
 	const [processingJobId, setProcessingJobId] = useState(null);
+	const [isProcessing, setIsProcessing] = useState(false);
 	const [processingProgress, setProcessingProgress] = useState({
 		successRows: 0,
 		totalRows: 0,
 	});
+	const pollingIntervalRef = useRef(null);
 
 	// Password Modal State
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -30,7 +32,7 @@ const AdminDashboard = () => {
 
 	const fetchHistory = async () => {
 		try {
-			const { data } = await axios.get("/candidates/history");
+			const { data } = await api.get("/candidates/history");
 			setJobs(data);
 		} catch (e) {
 			toast.error("Failed to load history");
@@ -38,8 +40,17 @@ const AdminDashboard = () => {
 	};
 
 	useEffect(() => {
-		if (activeTab === "history") fetchHistory();
+		if (activeTab === "history") {
+			fetchHistory();
+		}
 	}, [activeTab]);
+
+	// Also fetch history when processing starts to show the new job
+	useEffect(() => {
+		if (processingJobId && activeTab === "history") {
+			fetchHistory();
+		}
+	}, [processingJobId, activeTab]);
 
   const fields = [
   'fullName',
@@ -58,8 +69,14 @@ const AdminDashboard = () => {
 
 	// --- MAPPING LOGIC ---
 	const handleProcess = async () => {
+		if (!uploadData?.filePath) {
+			toast.error("No file selected for processing");
+			return;
+		}
+
+		setIsProcessing(true);
 		try {
-			const { data } = await axios.post("/candidates/process", {
+			const { data } = await api.post("/candidates/process", {
 				filePath: uploadData.filePath,
 				mapping,
 			});
@@ -70,38 +87,57 @@ const AdminDashboard = () => {
 			setActiveTab("history");
 			startProgressPolling(data.jobId);
 		} catch (e) {
-			toast.error("Error processing file");
+			console.error("Process error:", e);
+			const errorMessage = e.response?.data?.message || e.message || "Error processing file";
+			toast.error(errorMessage);
+			setIsProcessing(false);
 		}
 	};
 
 	// Poll for job progress updates
 	const startProgressPolling = (jobId) => {
-		const interval = setInterval(async () => {
+		// Clear any existing polling
+		if (pollingIntervalRef.current) {
+			clearInterval(pollingIntervalRef.current);
+		}
+
+		pollingIntervalRef.current = setInterval(async () => {
 			try {
-				const { data } = await axios.get(`/candidates/job/${jobId}/status`);
+				const { data } = await api.get(`/candidates/job/${jobId}/status`);
 				setProcessingProgress({
 					successRows: data.successRows || 0,
 					totalRows: data.totalRows || 0,
 				});
 
 				if (data.status === "COMPLETED" || data.status === "FAILED") {
-					clearInterval(interval);
+					clearInterval(pollingIntervalRef.current);
+					pollingIntervalRef.current = null;
 					setProcessingJobId(null);
+					setIsProcessing(false);
 					fetchHistory(); // Refresh history
 				}
 			} catch (error) {
 				console.error("Error polling job status:", error);
+				// Don't stop polling on error, just log it
 			}
 		}, 2000); // Poll every 2 seconds
-
-		// Cleanup on unmount
-		return () => clearInterval(interval);
 	};
+
+	// Cleanup polling on unmount
+	useEffect(() => {
+		return () => {
+			if (pollingIntervalRef.current) {
+				clearInterval(pollingIntervalRef.current);
+			}
+		};
+	}, []);
 
 	useEffect(() => {
 		// Check if there's a processing job on mount
-		const processingJob = jobs.find((j) => j.status === "PROCESSING");
-		if (processingJob) {
+		const processingJob = jobs.find((j) => 
+			j.status === "PROCESSING" || j.status === "MAPPING_PENDING"
+		);
+		if (processingJob && !processingJobId) {
 			setProcessingJobId(processingJob._id);
 			startProgressPolling(processingJob._id);
 		}
@@ -116,7 +152,7 @@ const AdminDashboard = () => {
 		try {
 			toast.loading("Loading file headers...", { id: "reprocess" });
 			const filePath = job.fileName;
-			const { data } = await axios.post("/candidates/headers", { filePath });
+			const { data } = await api.post("/candidates/headers", { filePath });
 			if (data.headers && data.headers.length > 0) {
 				setUploadData({ filePath, headers: data.headers });
 				setActiveTab("upload");
@@ -152,12 +188,6 @@ const AdminDashboard = () => {
   try {
     setPasswordError("");
     setIsConfirming(true);
-
-    // Create an axios instance with the correct backend URL
-    const api = axios.create({
-      baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api',
-      withCredentials: true
-    });
 
     // First verify the password
     await api.post("/auth/verify-password", {
@@ -292,11 +322,21 @@ const AdminDashboard = () => {
 
 								<button
 									onClick={handleProcess}
-									className="mt-8 w-full bg-indigo-600 hover:bg-indigo-500
-          text-white py-3 rounded-xl font-medium
-          shadow-lg hover:shadow-indigo-500/30
-          transition cursor-pointer">
-									Process File
+									disabled={isProcessing}
+									className={`mt-8 w-full text-white py-3 rounded-xl font-medium
+          shadow-lg transition ${
+						isProcessing
+							? "bg-indigo-400 cursor-not-allowed"
+							: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+					}`}>
+									{isProcessing ? (
+										<span className="flex items-center justify-center gap-2">
+											<RefreshCw className="w-4 h-4 animate-spin" />
+											Processing...
+										</span>
+									) : (
+										"Process File"
+									)}
 								</button>
 							</>
 						)}
@@ -334,6 +374,7 @@ const AdminDashboard = () => {
 											case "COMPLETED":
 												return "bg-emerald-500/10 text-emerald-400";
 											case "PROCESSING":
+											case "MAPPING_PENDING":
 												return "bg-amber-500/10 text-amber-400";
 											case "FAILED":
 												return "bg-rose-500/10 text-rose-400";
@@ -375,7 +416,7 @@ const AdminDashboard = () => {
 
 												{/* Records */}
 												<div className="text-sm text-slate-300 min-w-[110px] text-right">
-													{job.status === "PROCESSING" &&
+													{(job.status === "PROCESSING" || job.status === "MAPPING_PENDING") &&
 													processingJobId === job._id ? (
 														<>
 															<span className="font-semibold">

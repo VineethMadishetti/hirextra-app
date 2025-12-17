@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com',
+  baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api',
   withCredentials: true, // REQUIRED for cookies
 });
 
@@ -21,7 +21,7 @@ api.interceptors.response.use(
       try {
         // Call refresh token endpoint
         await axios.post(
-          `${api.defaults.baseURL}/api/auth/refresh`,
+          `${api.defaults.baseURL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
@@ -30,7 +30,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed → force logout
-        window.location.href = '/login';
+        window.location.href = '/';
         return Promise.reject(refreshError);
       }
     }

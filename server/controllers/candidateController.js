@@ -278,26 +278,51 @@ export const uploadChunk = async (req, res) => {
 
 // --- START PROCESSING (Creates History Record) ---
 export const processFile = async (req, res) => {
-  const { filePath, mapping } = req.body;
-  const fileName = path.basename(filePath);
+  try {
+    const { filePath, mapping } = req.body;
+    
+    if (!filePath) {
+      return res.status(400).json({ message: 'File path is required' });
+    }
 
-  // 1. Create a DB Record for this Job
-  const newJob = await UploadJob.create({
-      fileName: filePath, // Use full path
-      originalName: fileName,
-      uploadedBy: req.user._id, // Requires authMiddleware
-      status: 'MAPPING_PENDING',
-      mapping
-  });
+    const fileName = path.basename(filePath);
 
-  // 2. Add to Queue
-  await importQueue.add('import-job', { 
-      filePath, 
-      mapping, 
-      jobId: newJob._id 
-  });
-  
-  res.json({ message: 'Processing started', jobId: newJob._id });
+    // 1. Create a DB Record for this Job
+    const newJob = await UploadJob.create({
+        fileName: filePath, // Use full path
+        originalName: fileName,
+        uploadedBy: req.user._id, // Requires authMiddleware
+        status: 'MAPPING_PENDING',
+        mapping
+    });
+
+    // 2. Add to Queue
+    try {
+      await importQueue.add('import-job', { 
+          filePath, 
+          mapping, 
+          jobId: newJob._id 
+      });
+    } catch (queueError) {
+      // If queue fails, update job status to FAILED
+      await UploadJob.findByIdAndUpdate(newJob._id, { 
+        status: 'FAILED',
+        error: queueError.message || 'Failed to add job to processing queue'
+      });
+      return res.status(500).json({ 
+        message: 'Failed to start processing. Queue service unavailable.',
+        error: queueError.message 
+      });
+    }
+    
+    res.json({ message: 'Processing started', jobId: newJob._id });
+  } catch (error) {
+    console.error('Error in processFile:', error);
+    res.status(500).json({ 
+      message: 'Failed to start file processing',
+      error: error.message 
+    });
+  }
 };
 
 // --- GET UPLOAD HISTORY (For Admin Page) ---

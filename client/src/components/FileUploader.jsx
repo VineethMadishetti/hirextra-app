@@ -178,6 +178,7 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
 
         try {
           const { data } = await axios.post('/candidates/upload-chunk', formData, {
+             withCredentials: true,
             headers: { 'Content-Type': 'multipart/form-data' },
             timeout: 300000, // 5 minute timeout per chunk for very large files (15GB+)
             signal: abortController.signal,
