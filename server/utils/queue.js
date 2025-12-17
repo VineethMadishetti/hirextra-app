@@ -1,10 +1,12 @@
 import { Queue, Worker } from 'bullmq';
 import fs from 'fs';
+import path from 'path';
 import csv from 'csv-parser';
 import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import readline from 'readline';
 import logger from './logger.js';
+import { downloadFromS3 } from './s3Service.js';
 
 const connection = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -32,50 +34,64 @@ const findHeaderRowIndex = async (filePath, mapping) => {
     
     if (expectedHeaders.length === 0) return 0; // Fallback
 
-    const fileStream = await getFileStream(filePath);
-    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+    let fileStream;
+    let rl;
+    
+    try {
+        fileStream = await getFileStream(filePath);
+        rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
-    let lineNumber = 0;
-    let headerLineIndex = 0;
-    let found = false;
+        let lineNumber = 0;
+        let headerLineIndex = 0;
+        let found = false;
 
-    for await (const line of rl) {
-        // Check if this line contains the expected headers
-        // We check if at least ONE important header exists in this line
-        const containsHeader = expectedHeaders.some(header => {
-            // Check exact string or quoted string
-            return line.includes(header) || line.includes(`"${header}"`);
-        });
+        for await (const line of rl) {
+            // Check if this line contains the expected headers
+            // We check if at least ONE important header exists in this line
+            const containsHeader = expectedHeaders.some(header => {
+                // Check exact string or quoted string
+                return line.includes(header) || line.includes(`"${header}"`);
+            });
 
-        if (containsHeader) {
-            headerLineIndex = lineNumber;
-            found = true;
-            break; 
+            if (containsHeader) {
+                headerLineIndex = lineNumber;
+                found = true;
+                break; 
+            }
+            lineNumber++;
+            if (lineNumber > 20) break; // Don't search too deep, headers should be at top
         }
-        lineNumber++;
-        if (lineNumber > 20) break; // Don't search too deep, headers should be at top
-    }
 
-    rl.close();
-    fileStream.destroy();
-    
-    if (found) {
-        logger.info(`🔎 Detected Headers on Line: ${headerLineIndex}`);
-    } else {
-        logger.warn("⚠️ Could not auto-detect header line. Defaulting to 0.");
+        if (found) {
+            logger.info(`🔎 Detected Headers on Line: ${headerLineIndex}`);
+        } else {
+            logger.warn("⚠️ Could not auto-detect header line. Defaulting to 0.");
+        }
+        
+        return headerLineIndex;
+    } catch (error) {
+        logger.error(`❌ Error finding header row index for ${filePath}:`, error);
+        return 0; // Fallback to first line
+    } finally {
+        // Ensure cleanup
+        if (rl) {
+            rl.close();
+        }
+        if (fileStream) {
+            fileStream.destroy();
+        }
     }
-    
-    return headerLineIndex;
 };
 
 const worker = new Worker('csv-import', async (job) => {
   const { filePath, mapping, jobId } = job.data;
-  logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
+  logger.info(`🚀 Processing UploadJob ID: ${jobId}, File: ${filePath}`);
 
-  await UploadJob.findByIdAndUpdate(jobId, { status: 'PROCESSING', startedAt: new Date() });
+  try {
+    await UploadJob.findByIdAndUpdate(jobId, { status: 'PROCESSING', startedAt: new Date() });
 
-  // 1. Auto-Detect where the headers are
-  const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
+    // 1. Auto-Detect where the headers are
+    const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
 
   const batchSize = 5000;
   let candidates = [];
@@ -105,72 +121,115 @@ const worker = new Worker('csv-import', async (job) => {
 
   // First, read the actual headers from the file
   const readHeaders = async () => {
-    return new Promise(async (resolveHeaders) => {
-      const headerStream = await getFileStream(filePath);
-      const headerRl = readline.createInterface({ input: headerStream, crlfDelay: Infinity });
-      let headerLineNumber = 0;
+    return new Promise((resolveHeaders, rejectHeaders) => {
+      let headerStream;
+      let headerRl;
       let resolved = false;
       
-      headerRl.on('line', (line) => {
-        if (resolved) return; // Prevent multiple resolutions
-        
-        if (headerLineNumber === skipLinesCount && line && line.trim()) {
-          const headers = parseCSVLine(line).map((h, idx) => {
-            // Remove quotes if present
-            let header = h.replace(/^["']|["']$/g, '');
-            return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
+      // Wrap async operation
+      (async () => {
+        try {
+          headerStream = await getFileStream(filePath);
+          headerRl = readline.createInterface({ input: headerStream, crlfDelay: Infinity });
+          let headerLineNumber = 0;
+          
+          headerRl.on('line', (line) => {
+            if (resolved) return; // Prevent multiple resolutions
+            
+            if (headerLineNumber === skipLinesCount && line && line.trim()) {
+              const headers = parseCSVLine(line).map((h, idx) => {
+                // Remove quotes if present
+                let header = h.replace(/^["']|["']$/g, '');
+                return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
+              });
+              
+              logger.info(`📋 Actual headers found (${headers.length} columns):`, headers.slice(0, 10).join(', '), '...');
+              resolved = true;
+              if (headerRl) headerRl.close();
+              if (headerStream) headerStream.destroy();
+              resolveHeaders(headers);
+            } else {
+              headerLineNumber++;
+              if (headerLineNumber > skipLinesCount + 5) {
+                // Fallback: use CSV parser default
+                if (!resolved) {
+                  resolved = true;
+                  if (headerRl) headerRl.close();
+                  if (headerStream) headerStream.destroy();
+                  logger.warn('⚠️ Could not read header line manually, using CSV parser');
+                  resolveHeaders(null);
+                }
+              }
+            }
           });
           
-          logger.info(`📋 Actual headers found (${headers.length} columns):`, headers.slice(0, 10).join(', '), '...');
-          resolved = true;
-          headerRl.close();
-          headerStream.destroy();
-          resolveHeaders(headers);
-        } else {
-          headerLineNumber++;
-          if (headerLineNumber > skipLinesCount + 5) {
-            // Fallback: use CSV parser default
+          headerRl.on('close', () => {
             if (!resolved) {
               resolved = true;
-              headerRl.close();
-              headerStream.destroy();
-              logger.warn('⚠️ Could not read header line manually, using CSV parser');
               resolveHeaders(null);
             }
+          });
+          
+          headerRl.on('error', (err) => {
+            if (!resolved) {
+              resolved = true;
+              logger.error('❌ Error reading headers:', err);
+              if (headerRl) headerRl.close();
+              if (headerStream) headerStream.destroy();
+              rejectHeaders(err);
+            }
+          });
+          
+          headerStream.on('error', (err) => {
+            if (!resolved) {
+              resolved = true;
+              logger.error('❌ Stream error reading headers:', err);
+              if (headerRl) headerRl.close();
+              if (headerStream) headerStream.destroy();
+              rejectHeaders(err);
+            }
+          });
+        } catch (error) {
+          if (!resolved) {
+            resolved = true;
+            logger.error('❌ Failed to get file stream for headers:', error);
+            if (headerRl) headerRl.close();
+            if (headerStream) headerStream.destroy();
+            rejectHeaders(error);
           }
         }
-      });
-      
-      headerRl.on('close', () => {
-        if (!resolved) {
-          resolved = true;
-          resolveHeaders(null);
-        }
-      });
+      })();
     });
   };
 
-  return new Promise(async (resolve, reject) => {
-    // Read headers first
-    const actualHeaders = await readHeaders();
-    
-    if (!actualHeaders || actualHeaders.length === 0) {
-      logger.error('❌ Could not read headers from file');
-      await UploadJob.findByIdAndUpdate(jobId, { status: 'FAILED' });
-      reject(new Error('Could not read headers from file'));
-      return;
-    }
-    
-    logger.info(`✅ Using ${actualHeaders.length} headers for processing`);
-    logger.debug(`📝 First 5 headers:`, actualHeaders.slice(0, 5).join(', '));
-    
-    // Now process the file with correct headers
-    // When headers is an array, csv-parser:
-    // 1. Uses those headers directly (doesn't read from file)
-    // 2. Automatically skips the first line (assuming it's the header row)
-    // 3. Starts processing data from the second line
-    // So we need to: skip garbage rows + skip header row = skipLinesCount + 1
-    const fileStream = await getFileStream(filePath);
+  try {
+    return await new Promise(async (resolve, reject) => {
+      // Read headers first
+      const actualHeaders = await readHeaders();
+      
+      if (!actualHeaders || actualHeaders.length === 0) {
+        logger.error('❌ Could not read headers from file');
+        await UploadJob.findByIdAndUpdate(jobId, { status: 'FAILED' });
+        reject(new Error('Could not read headers from file'));
+        return;
+      }
+      
+      logger.info(`✅ Using ${actualHeaders.length} headers for processing`);
+      logger.debug(`📝 First 5 headers:`, actualHeaders.slice(0, 5).join(', '));
+      
+      // Now process the file with correct headers
+      // When headers is an array, csv-parser:
+      // 1. Uses those headers directly (doesn't read from file)
+      // 2. Automatically skips the first line (assuming it's the header row)
+      // 3. Starts processing data from the second line
+      // So we need to: skip garbage rows + skip header row = skipLinesCount + 1
+      const fileStream = await getFileStream(filePath);
+      
+      // Add error handler to fileStream
+      fileStream.on('error', (err) => {
+        logger.error('❌ File stream error during processing:', err);
+      });
+      
     const stream = fileStream
       .pipe(csv({
         skipLines: skipLinesCount + 1, // Skip garbage rows + header row (since we provide headers as array)
@@ -256,6 +315,11 @@ const worker = new Worker('csv-import', async (job) => {
         }
       })
       .on('end', async () => {
+        // Clean up stream
+        if (fileStream) {
+          fileStream.destroy();
+        }
+        
         if (candidates.length > 0) {
            const docs = await Candidate.insertMany(candidates, { ordered: false }).catch(() => []);
            successCount += docs.length || 0;
@@ -272,9 +336,50 @@ const worker = new Worker('csv-import', async (job) => {
         resolve();
       })
       .on('error', async (err) => {
+          // Clean up stream on error
+          if (fileStream) {
+            fileStream.destroy();
+          }
+          
           logger.error("❌ CSV Parsing Error:", err);
-          await UploadJob.findByIdAndUpdate(jobId, { status: 'FAILED' });
+          logger.error("Error details:", {
+            message: err.message,
+            stack: err.stack,
+            filePath,
+            jobId
+          });
+          await UploadJob.findByIdAndUpdate(jobId, { 
+            status: 'FAILED',
+            error: err.message 
+          });
           reject(err);
       });
+  }).catch(async (err) => {
+    logger.error(`❌ Job ${jobId} failed with error:`, err);
+    logger.error("Error details:", {
+      message: err.message,
+      stack: err.stack,
+      filePath,
+      jobId
+    });
+    await UploadJob.findByIdAndUpdate(jobId, { 
+      status: 'FAILED',
+      error: err.message 
+    });
+    throw err;
   });
+  } catch (error) {
+    logger.error(`❌ Fatal error processing job ${jobId}:`, error);
+    logger.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      filePath,
+      jobId
+    });
+    await UploadJob.findByIdAndUpdate(jobId, { 
+      status: 'FAILED',
+      error: error.message 
+    });
+    throw error;
+  }
 }, { connection });

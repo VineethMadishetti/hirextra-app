@@ -14,6 +14,12 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_NAME;
 
+// Validate BUCKET_NAME is set
+if (!BUCKET_NAME) {
+  logger.error('❌ AWS_S3_BUCKET or AWS_S3_BUCKET_NAME environment variable is not set');
+  throw new Error('S3 bucket name is not configured. Please set AWS_S3_BUCKET or AWS_S3_BUCKET_NAME environment variable.');
+}
+
 /**
  * Upload a file to S3
  * @param {Buffer|Stream} fileData - File data to upload
@@ -112,30 +118,43 @@ export const downloadFromS3 = async (key) => {
 
     const response = await s3Client.send(command);
     
-    // AWS SDK v3 returns a Readable stream directly
-    // Convert to Node.js Readable stream if needed
-    if (response.Body && typeof response.Body.pipe === 'function') {
-      return response.Body;
+    // AWS SDK v3 returns response.Body as a ReadableStream (web stream)
+    // Convert it to Node.js Readable stream
+    let nodeStream;
+    
+    // Try using Readable.fromWeb (Node.js 18.3+)
+    if (typeof Readable.fromWeb === 'function') {
+      nodeStream = Readable.fromWeb(response.Body);
+    } else {
+      // Fallback for older Node.js versions
+      nodeStream = new Readable({
+        read() {} // No-op, data will be pushed asynchronously
+      });
+      
+      // Convert web stream to Node.js stream manually
+      (async () => {
+        try {
+          const reader = response.Body.getReader();
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              nodeStream.push(null); // End the stream
+              break;
+            }
+            
+            // Push the chunk to the Node.js stream
+            nodeStream.push(Buffer.from(value));
+          }
+        } catch (err) {
+          logger.error(`❌ Error reading S3 stream for ${key}:`, err);
+          nodeStream.destroy(err);
+        }
+      })();
     }
     
-    // If it's a web stream or other format, convert it
-    const stream = new Readable({
-      read() {} // No-op, data will be pushed
-    });
-    
-    // Handle async iteration
-    (async () => {
-      try {
-        for await (const chunk of response.Body) {
-          stream.push(Buffer.from(chunk));
-        }
-        stream.push(null); // End stream
-      } catch (err) {
-        stream.destroy(err);
-      }
-    })();
-    
-    return stream;
+    return nodeStream;
   } catch (error) {
     logger.error(`❌ S3 download failed for ${key}:`, error);
     throw new Error(`Failed to download file from S3: ${error.message}`);
