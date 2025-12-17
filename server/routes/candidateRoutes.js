@@ -11,9 +11,18 @@ softDeleteCandidate,
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
-const upload = multer({ dest: 'temp_chunks/' });
+import os from 'os';
 import fs from 'fs';
-if (!fs.existsSync('temp_chunks')) fs.mkdirSync('temp_chunks');
+import path from 'path';
+
+const uploadDir = path.join(os.tmpdir(), 'temp_chunks');
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const upload = multer({ dest: uploadDir });
+
 
 router.post('/upload-chunk', protect, adminOnly, upload.single('file'), uploadChunk);
 router.post('/process', protect, adminOnly, processFile);

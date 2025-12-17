@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import fs from 'fs';
 import csv from 'csv-parser';
 import path from 'path';
+import os from 'os';
 import readline from 'readline';
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from "docx";
 
@@ -44,154 +45,182 @@ export const getFileHeaders = async (req, res) => {
     });
 };
 
-// 1. Handle Chunk Uploads (For 30GB files)
+// 1. Handle Chunk Uploads (Render-safe, large files supported)
 export const uploadChunk = async (req, res) => {
   const { fileName, chunkIndex, totalChunks } = req.body;
   const chunk = req.file;
 
-  if (!chunk) return res.status(400).json({ message: 'No chunk data' });
+  if (!chunk) {
+    return res.status(400).json({ message: 'No chunk data' });
+  }
 
-  const uploadDir = 'E:/uploads'; // Changed to E: drive with more space
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+  // ✅ ONLY writable location on Render
+  const uploadDir = path.join(os.tmpdir(), 'uploads');
+
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
 
   const finalFilePath = path.join(uploadDir, fileName);
 
-  // Append the chunk to the final file (optimized for large files - 15GB+)
-  // For very large files, use streaming to avoid memory issues
+  /* ---------------------------------------------------
+     APPEND CHUNK (STREAMING – SAFE FOR LARGE FILES)
+  --------------------------------------------------- */
   try {
-    // Use streams for better memory efficiency with large files
     const chunkStream = fs.createReadStream(chunk.path);
     const appendStream = fs.createWriteStream(finalFilePath, { flags: 'a' });
-    
+
     await new Promise((resolve, reject) => {
       chunkStream.pipe(appendStream);
+
       chunkStream.on('error', reject);
       appendStream.on('error', reject);
+
       appendStream.on('finish', () => {
-        // Clean up temp chunk file
+        // Cleanup temp chunk
         if (fs.existsSync(chunk.path)) {
           fs.unlinkSync(chunk.path);
         }
-        deleteFile(chunk.path);
         resolve();
       });
     });
   } catch (error) {
-    console.error('Error appending chunk with stream, using fallback:', error);
-    // Fallback to sync method if stream fails (for smaller chunks)
+    console.error('❌ Stream append failed, trying fallback:', error);
+
+    // Fallback for smaller chunks
     try {
       const chunkBuffer = fs.readFileSync(chunk.path);
       fs.appendFileSync(finalFilePath, chunkBuffer);
-      if (fs.existsSync(chunk.path)) fs.unlinkSync(chunk.path);
-      deleteFile(chunk.path);
+
+      if (fs.existsSync(chunk.path)) {
+        fs.unlinkSync(chunk.path);
+      }
     } catch (fallbackError) {
-      console.error('Fallback chunk append also failed:', fallbackError);
+      console.error('❌ Fallback append also failed:', fallbackError);
       return res.status(500).json({ message: 'Failed to save chunk' });
     }
   }
 
-  // Check if this was the last chunk
+  /* ---------------------------------------------------
+     CHUNK PROGRESS
+  --------------------------------------------------- */
   const currentChunk = Number(chunkIndex) + 1;
   const total = Number(totalChunks);
 
-  if (currentChunk === total) {
-    console.log(`✅ File ${fileName} fully uploaded!`);
-    
-    // Read headers for mapping with timeout and error handling
-    let headersReceived = false;
-    let responseSent = false;
-    
-    const sendResponse = (headers) => {
-      if (!responseSent) {
-        responseSent = true;
-        res.json({ 
-          status: 'done', 
-          message: 'Upload complete', 
-          filePath: finalFilePath, 
-          headers: headers || [] 
-        });
-      }
-    };
+  if (currentChunk !== total) {
+    return res.json({
+      status: 'chunk_received',
+      progress: Math.round((currentChunk / total) * 100),
+    });
+  }
 
-    // Fallback: Read first line manually using readline
-    const readHeadersManually = async () => {
-      try {
-        const fileStream = fs.createReadStream(finalFilePath);
-        const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-        
-        for await (const line of rl) {
-          if (line && line.trim()) {
-            // Parse CSV line manually
-            const headers = line.split(',').map(h => {
-              // Remove quotes if present
+  /* ---------------------------------------------------
+     FINAL CHUNK → READ CSV HEADERS
+  --------------------------------------------------- */
+  console.log(`✅ File ${fileName} fully uploaded at ${finalFilePath}`);
+
+  let headersReceived = false;
+  let responseSent = false;
+
+  const sendResponse = (headers = []) => {
+    if (!responseSent) {
+      responseSent = true;
+      res.json({
+        status: 'done',
+        message: 'Upload complete',
+        filePath: finalFilePath,
+        headers,
+      });
+    }
+  };
+
+  /* ---------- Manual header reader (fallback) ---------- */
+  const readHeadersManually = async () => {
+    try {
+      const fileStream = fs.createReadStream(finalFilePath);
+      const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity,
+      });
+
+      for await (const line of rl) {
+        if (line && line.trim()) {
+          rl.close();
+          fileStream.destroy();
+
+          return line
+            .split(',')
+            .map((h, i) => {
               let header = h.trim();
-              if ((header.startsWith('"') && header.endsWith('"')) || 
-                  (header.startsWith("'") && header.endsWith("'"))) {
+              if (
+                (header.startsWith('"') && header.endsWith('"')) ||
+                (header.startsWith("'") && header.endsWith("'"))
+              ) {
                 header = header.slice(1, -1);
               }
-              return header || null;
-            }).filter(h => h !== null);
-            
-            rl.close();
-            fileStream.destroy();
-            return headers;
-          }
+              return header || `Column_${i + 1}`;
+            });
         }
-        rl.close();
-        fileStream.destroy();
-        return [];
-      } catch (err) {
-        console.error('Error reading headers manually:', err);
-        return [];
       }
-    };
 
-    // Try CSV parser first (faster and more accurate)
-    try {
-      const stream = fs.createReadStream(finalFilePath)
-        .pipe(csv({
+      rl.close();
+      fileStream.destroy();
+      return [];
+    } catch (err) {
+      console.error('❌ Manual header read failed:', err);
+      return [];
+    }
+  };
+
+  /* ---------- CSV parser (primary) ---------- */
+  try {
+    const stream = fs
+      .createReadStream(finalFilePath)
+      .pipe(
+        csv({
           headers: true,
-          skipEmptyLines: false, // Preserve empty cells
-          mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
-        }))
-        .on('headers', (csvHeaders) => {
-          if (!headersReceived) {
-            headersReceived = true;
-            console.log(`📋 Headers read via CSV parser: ${csvHeaders.length} columns`);
-            sendResponse(csvHeaders);
-            stream.destroy(); // Stop reading after headers
-          }
+          skipEmptyLines: false,
+          mapHeaders: ({ header, index }) =>
+            header && header.trim()
+              ? header.trim()
+              : `Column_${index + 1}`,
         })
-        .on('error', async (err) => {
-          if (!headersReceived) {
-            headersReceived = true;
-            console.warn(`⚠️ CSV parser error, trying manual read: ${err.message}`);
-            const manualHeaders = await readHeadersManually();
-            sendResponse(manualHeaders);
-          }
-        });
-
-      // Timeout fallback
-      setTimeout(async () => {
+      )
+      .on('headers', (csvHeaders) => {
         if (!headersReceived) {
           headersReceived = true;
-          console.warn(`⚠️ CSV parser timeout, using manual read`);
+          console.log(`📋 Headers read via CSV parser (${csvHeaders.length})`);
+          sendResponse(csvHeaders);
+          stream.destroy();
+        }
+      })
+      .on('error', async (err) => {
+        if (!headersReceived) {
+          console.warn(
+            `⚠️ CSV parser error, falling back to manual read: ${err.message}`
+          );
+          headersReceived = true;
           const manualHeaders = await readHeadersManually();
           sendResponse(manualHeaders);
         }
-      }, 3000); // 3 second timeout
-      
-    } catch (err) {
-      // If stream creation fails, use manual read
-      console.warn(`⚠️ Stream creation failed, using manual read: ${err.message}`);
-      readHeadersManually().then(headers => {
-        sendResponse(headers);
       });
-    }
-  } else {
-    res.json({ status: 'chunk_received', progress: (currentChunk / total) * 100 });
+
+    // Timeout safety net
+    setTimeout(async () => {
+      if (!headersReceived) {
+        console.warn('⚠️ CSV parser timeout, using manual header read');
+        headersReceived = true;
+        const manualHeaders = await readHeadersManually();
+        sendResponse(manualHeaders);
+      }
+    }, 3000);
+  } catch (err) {
+    console.warn('⚠️ Stream creation failed, manual header read');
+    const manualHeaders = await readHeadersManually();
+    sendResponse(manualHeaders);
   }
 };
+
 
 // --- START PROCESSING (Creates History Record) ---
 export const processFile = async (req, res) => {
