@@ -8,6 +8,7 @@ import path from 'path';
 import os from 'os';
 import readline from 'readline';
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from "docx";
+import { uploadToS3, generateS3Key, downloadFromS3 } from '../utils/s3Service.js';
 
 // Helper to clean up temp chunk files
 const deleteFile = (filePath) => {
@@ -26,23 +27,56 @@ export const deleteCandidate = async (req, res) => {
 
 // 3. GET HEADERS FROM EXISTING FILE (For Reprocessing)
 export const getFileHeaders = async (req, res) => {
-  const { filePath } = req.body;
+  const { filePath } = req.body; // filePath is now S3 key
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ message: 'Original file not found on server' });
+  if (!filePath) {
+    return res.status(400).json({ message: 'File path (S3 key) is required' });
   }
 
-  const headers = [];
-  fs.createReadStream(filePath)
-    .pipe(csv({
-      headers: true,
-      skipEmptyLines: false, // Preserve empty cells
-      mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
-    }))
-    .on('headers', (csvHeaders) => {
-      res.json({ headers: csvHeaders, filePath });
-      // Destroy stream to stop reading
-    });
+  try {
+    // Check if it's an S3 key (starts with 'uploads/') or local path
+    const isS3Key = filePath.startsWith('uploads/') || !filePath.includes(path.sep);
+    
+    if (isS3Key) {
+      // Download from S3
+      const s3Stream = await downloadFromS3(filePath);
+      const headers = [];
+      
+      s3Stream
+        .pipe(csv({
+          headers: true,
+          skipEmptyLines: false,
+          mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
+        }))
+        .on('headers', (csvHeaders) => {
+          res.json({ headers: csvHeaders, filePath });
+          s3Stream.destroy();
+        })
+        .on('error', (err) => {
+          console.error('Error reading headers from S3:', err);
+          res.status(500).json({ message: 'Failed to read file headers from S3' });
+        });
+    } else {
+      // Legacy local file support
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: 'Original file not found on server' });
+      }
+
+      const headers = [];
+      fs.createReadStream(filePath)
+        .pipe(csv({
+          headers: true,
+          skipEmptyLines: false,
+          mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
+        }))
+        .on('headers', (csvHeaders) => {
+          res.json({ headers: csvHeaders, filePath });
+        });
+    }
+  } catch (error) {
+    console.error('Error getting file headers:', error);
+    res.status(500).json({ message: 'Failed to read file headers', error: error.message });
+  }
 };
 
 // 1. Handle Chunk Uploads (Render-safe, large files supported)
@@ -115,20 +149,40 @@ export const uploadChunk = async (req, res) => {
   }
 
   /* ---------------------------------------------------
-     FINAL CHUNK → READ CSV HEADERS
+     FINAL CHUNK → READ HEADERS FIRST, THEN UPLOAD TO S3
   --------------------------------------------------- */
-  console.log(`✅ File ${fileName} fully uploaded at ${finalFilePath}`);
+  console.log(`✅ File ${fileName} fully assembled at ${finalFilePath}`);
 
   let headersReceived = false;
   let responseSent = false;
+  let s3Key = null;
 
-  const sendResponse = (headers = []) => {
+  // Generate S3 key
+  s3Key = generateS3Key(fileName, req.user._id.toString());
+
+  const sendResponse = async (headers = []) => {
     if (!responseSent) {
       responseSent = true;
+      
+      // Upload to S3 after reading headers
+      try {
+        const fileBuffer = fs.readFileSync(finalFilePath);
+        await uploadToS3(fileBuffer, s3Key, 'text/csv');
+        console.log(`✅ File uploaded to S3: ${s3Key}`);
+        
+        // Clean up local temp file
+        if (fs.existsSync(finalFilePath)) {
+          fs.unlinkSync(finalFilePath);
+        }
+      } catch (s3Error) {
+        console.error('❌ S3 upload failed:', s3Error);
+        // Still send response but log error
+      }
+      
       res.json({
         status: 'done',
         message: 'Upload complete',
-        filePath: finalFilePath,
+        filePath: s3Key, // Return S3 key instead of local path
         headers,
       });
     }

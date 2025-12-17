@@ -104,7 +104,7 @@ pm2 monit
 - [ ] Environment variables configured
 - [ ] MongoDB connection tested
 - [ ] Redis connection tested
-- [ ] AWS S3 bucket configured
+- [ ] AWS S3 bucket configured and tested
 - [ ] SSL certificate installed
 - [ ] PM2 process running
 - [ ] Nginx configured (if used)
@@ -132,9 +132,11 @@ pm2 monit
    - Verify Redis service is running
 
 4. **File upload issues**
-   - Check AWS S3 credentials
-   - Verify bucket permissions
+   - Check AWS S3 credentials in .env file
+   - Verify bucket permissions (PutObject, GetObject, DeleteObject)
    - Check file size limits
+   - Ensure AWS_REGION matches your bucket region
+   - Verify AWS_S3_BUCKET name is correct
 
 ## 📈 Scaling
 

@@ -10,6 +10,20 @@ const connection = process.env.REDIS_URL || 'redis://localhost:6379';
 
 export const importQueue = new Queue('csv-import', { connection });
 
+// Helper to get file stream (from S3 or local)
+const getFileStream = async (filePath) => {
+  // Check if it's an S3 key (starts with 'uploads/') or local path
+  const isS3Key = filePath.startsWith('uploads/') || !filePath.includes(path.sep);
+  
+  if (isS3Key) {
+    logger.info(`📥 Downloading file from S3: ${filePath}`);
+    return await downloadFromS3(filePath);
+  } else {
+    // Legacy local file support
+    return fs.createReadStream(filePath);
+  }
+};
+
 // Helper to find which line the headers are on
 const findHeaderRowIndex = async (filePath, mapping) => {
     // Get a list of expected headers from the user's mapping
@@ -18,7 +32,7 @@ const findHeaderRowIndex = async (filePath, mapping) => {
     
     if (expectedHeaders.length === 0) return 0; // Fallback
 
-    const fileStream = fs.createReadStream(filePath);
+    const fileStream = await getFileStream(filePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
     let lineNumber = 0;
@@ -91,8 +105,8 @@ const worker = new Worker('csv-import', async (job) => {
 
   // First, read the actual headers from the file
   const readHeaders = async () => {
-    return new Promise((resolveHeaders) => {
-      const headerStream = fs.createReadStream(filePath);
+    return new Promise(async (resolveHeaders) => {
+      const headerStream = await getFileStream(filePath);
       const headerRl = readline.createInterface({ input: headerStream, crlfDelay: Infinity });
       let headerLineNumber = 0;
       let resolved = false;
@@ -156,7 +170,8 @@ const worker = new Worker('csv-import', async (job) => {
     // 2. Automatically skips the first line (assuming it's the header row)
     // 3. Starts processing data from the second line
     // So we need to: skip garbage rows + skip header row = skipLinesCount + 1
-    const stream = fs.createReadStream(filePath)
+    const fileStream = await getFileStream(filePath);
+    const stream = fileStream
       .pipe(csv({
         skipLines: skipLinesCount + 1, // Skip garbage rows + header row (since we provide headers as array)
         headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
