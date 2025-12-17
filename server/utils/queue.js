@@ -6,11 +6,7 @@ import UploadJob from '../models/UploadJob.js';
 import readline from 'readline';
 import logger from './logger.js';
 
-const connection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: Number(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD
-};
+const connection = process.env.REDIS_URL || 'redis://localhost:6379';
 
 export const importQueue = new Queue('csv-import', { connection });
 
