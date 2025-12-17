@@ -119,6 +119,14 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
     }
   };
 
+  const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'multipart/form-data'
+  }
+});
+
   const uploadFile = async () => {
     if (!file) return;
     setStatus('uploading');
