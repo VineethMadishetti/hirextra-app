@@ -54,8 +54,14 @@ app.use(helmet({
 }));
 
 // CORS configuration
+// In server.js, update the CORS configuration:
 const corsOptions = {
-  origin: ['http://localhost:5173', process.env.FRONTEND_URL].filter(Boolean),
+  origin: [
+    'http://localhost:5173', 
+    'https://hirextra-frontend.onrender.com',
+    'https://hirextra-app.onrender.com',
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
