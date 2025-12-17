@@ -16,12 +16,13 @@ import adminRoutes from './routes/adminRoutes.js';
 dotenv.config();
 
 // Validate critical environment variables
-const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI'];
+const requiredEnvVars = ['JWT_SECRET', 'MONGO_URI'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
   logger.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`);
   logger.error('Please set these variables in your Render environment settings.');
+  logger.error(`Note: MongoDB connection string should be set as 'MONGO_URI' (not 'MONGODB_URI')`);
   process.exit(1);
 }
 

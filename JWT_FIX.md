@@ -32,7 +32,7 @@ Make sure these are set in your Render dashboard → Environment tab:
 
 ### Critical (Required)
 - ✅ `JWT_SECRET` - **MUST be set!** (e.g., a long random string)
-- ✅ `MONGODB_URI` - MongoDB connection string
+- ✅ `MONGO_URI` - MongoDB connection string (**Note: Use `MONGO_URI`, not `MONGODB_URI`**)
 - ✅ `AWS_S3_BUCKET` or `AWS_S3_BUCKET_NAME` - Your S3 bucket name
 - ✅ `AWS_ACCESS_KEY_ID` - AWS access key
 - ✅ `AWS_SECRET_ACCESS_KEY` - AWS secret key
@@ -74,9 +74,12 @@ After setting `JWT_SECRET`:
 
 ### Server Startup
 ```
-❌ Missing required environment variables: JWT_SECRET
+❌ Missing required environment variables: JWT_SECRET, MONGO_URI
 ❌ JWT_SECRET is not set or is using default value!
+❌ MongoDB Connection Error: MONGO_URI or MONGODB_URI environment variable is not set
 ```
+
+**Note:** The code uses `MONGO_URI` (not `MONGODB_URI`). If you have `MONGODB_URI` set, it will work as a fallback, but `MONGO_URI` is preferred.
 
 ### Login/Registration
 ```json
@@ -98,7 +101,9 @@ After setting `JWT_SECRET`:
 
 - [ ] `JWT_SECRET` is set in Render environment variables
 - [ ] `JWT_SECRET` is NOT the default value (`your-super-secure-jwt-secret-key-here`)
+- [ ] `MONGO_URI` is set in Render environment variables (MongoDB connection string)
 - [ ] Server starts without errors
+- [ ] MongoDB connection successful (check logs for "✅ MongoDB Connected")
 - [ ] Login works and returns user data
 - [ ] File uploads to S3 successfully
 - [ ] File processing starts after mapping
