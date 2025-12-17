@@ -1,4 +1,4 @@
-import { importQueue } from '../utils/queue.js';
+import importQueue from '../utils/queue.js';
 import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import User from '../models/User.js';
