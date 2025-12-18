@@ -16,16 +16,16 @@ const getRedisConnection = () => {
   }
   
   // Try individual Redis config
-  if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
-    return {
-      host: process.env.REDIS_HOST,
-      port: parseInt(process.env.REDIS_PORT),
-      password: process.env.REDIS_PASSWORD,
-    };
-  }
+  // if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
+  //   return {
+  //     host: process.env.REDIS_HOST,
+  //     port: parseInt(process.env.REDIS_PORT),
+  //     password: process.env.REDIS_PASSWORD,
+  //   };
+  // }
   
   // Fallback to localhost (for development)
-  return 'redis://localhost:6379';
+  // return 'redis://localhost:6379';
 };
 
 const connection = getRedisConnection();
