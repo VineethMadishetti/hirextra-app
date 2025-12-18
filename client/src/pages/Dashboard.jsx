@@ -1,10 +1,10 @@
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import AdminDashboard from './AdminDashboard';
+import AdminDashboard from './AdminDashboard'; // Assuming you have this component
 import UserSearch from './UserSearch';
-import UserManagement from './UserManagement';
-import { LayoutDashboard, Search, LogOut, User, Users } from 'lucide-react'; // Icons
+import UserManagement from './UserManagement'; // Corrected casing
+import { LayoutDashboard, Search, LogOut, User, Users } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, logout } = useContext(AuthContext);
@@ -133,7 +133,7 @@ const Dashboard = () => {
       {/* --- Main Content Area --- */}
       <main className="flex-1 flex flex-col overflow-hidden pt-18">
 
-        {currentView === 'admin' ? (
+        {user?.role === 'ADMIN' && currentView === 'admin' ? (
           <AdminDashboard />
         ) : currentView === 'users' ? (
           <UserManagement />
