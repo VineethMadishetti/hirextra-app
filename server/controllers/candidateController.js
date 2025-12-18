@@ -827,7 +827,7 @@ export const downloadProfile = async (req, res) => {
     // Generate Buffer
     const buffer = await Packer.toBuffer(doc);
 
-    // Send File
+    // Send File-
     const safeName = (candidate.fullName || "Candidate").replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_');
     res.setHeader('Content-Disposition', `attachment; filename=${safeName}_Profile.docx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');

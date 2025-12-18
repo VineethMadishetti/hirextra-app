@@ -12,15 +12,18 @@ const Dashboard = () => {
 
   // State to control which view is shown
   // If user is ADMIN, default to 'admin', else 'search'
-  const [currentView, setCurrentView] = useState('search'); 
+  const getInitialView = (user) => {
+    return user?.role === 'ADMIN' ? 'admin' : 'search';
+  };
+
+  const [currentView, setCurrentView] = useState(() => getInitialView(user));
 
   useEffect(() => {
-    if (user && user.role === 'ADMIN') {
-      setCurrentView('admin');
-    } else {
-      setCurrentView('search');
+    const newView = getInitialView(user);
+    if (currentView !== newView) {
+      setCurrentView(newView);
     }
-  }, [user]);
+  }, [user, currentView]);
 
   const handleLogout = () => {
     logout();

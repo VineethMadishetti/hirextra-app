@@ -1,0 +1,30 @@
+services:
+  # Backend Service (Node.js Express)
+  - type: web
+    name: hirextra-backend
+    env: node
+    region: oregon # You can choose a region closer to you
+    plan: free
+    rootDir: server
+    buildCommand: "npm install"
+    startCommand: "node server.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # It's recommended to create an "Environment Group" in Render
+      # for your secrets and link it here. For example:
+      - fromGroup: hirextra-env
+
+  # Frontend Service (React Static Site)
+  - type: static
+    name: hirextra-frontend
+    env: static
+    region: oregon
+    plan: free
+    rootDir: client
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: "/*"
+        destination: "/index.html"

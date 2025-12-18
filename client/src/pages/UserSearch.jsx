@@ -740,7 +740,7 @@ const CandidateRow = React.memo(
 				{/* Location */}
 				<td className="w-32 px-4 py-3">
 					<div className="text-gray-700 break-words">
-						{val(candidate.location) || [val(candidate.locality), val(candidate.country)].filter(Boolean).join(', ') || "-"}
+						{[candidate.locality, candidate.location].filter(Boolean).join(', ') || "-"}
 					</div>
 				</td>
 
@@ -918,7 +918,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										<div>
 											<p className="text-sm text-gray-500">Location</p>
 											<p className="text-gray-900">
-												{profile.location || [profile.locality, profile.country].filter(Boolean).join(', ')}
+												{[profile.locality, profile.location].filter(Boolean).join(', ')}
 											</p>
 										</div>
 									</div>
