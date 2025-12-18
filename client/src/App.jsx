@@ -7,6 +7,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+// --- Placeholder Imports for Nested Routes ---
+// You will need to create these components if they don't exist.
+import AdminPanel from './pages/AdminPanel'; // Assuming this is the main dashboard view
+import UserManagement from './pages/UserManagement';
+import SearchDatabase from './pages/SearchDatabase';
 
 // Optimized QueryClient for production-grade caching
 const queryClient = new QueryClient({
@@ -36,7 +41,11 @@ function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Login />} />
-              <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+              <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>}>
+                <Route index element={<AdminPanel />} />
+                <Route path="user-management" element={<UserManagement />} />
+                <Route path="search-database" element={<SearchDatabase />} />
+              </Route>
             </Routes>
           </BrowserRouter>
           <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
