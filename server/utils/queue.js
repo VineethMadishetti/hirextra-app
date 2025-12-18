@@ -8,34 +8,51 @@ import readline from 'readline';
 import logger from './logger.js';
 import { downloadFromS3 } from './s3Service.js';
 
+// ---------------------------------------------------
 // Redis connection configuration
+// ---------------------------------------------------
 const getRedisConnection = () => {
-  // Try REDIS_URL first (for cloud Redis services)
+  // Prefer REDIS_URL (Upstash / cloud Redis)
   if (process.env.REDIS_URL) {
-    return process.env.REDIS_URL;
+    return { url: process.env.REDIS_URL };
   }
-  
-  // Try individual Redis config
-  // if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
-  //   return {
-  //     host: process.env.REDIS_HOST,
-  //     port: parseInt(process.env.REDIS_PORT),
-  //     password: process.env.REDIS_PASSWORD,
-  //   };
-  // }
-  
-  // Fallback to localhost (for development)
-  // return 'redis://localhost:6379';
+
+  // Optional: explicit host/port config
+  if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
+    return {
+      host: process.env.REDIS_HOST,
+      port: parseInt(process.env.REDIS_PORT, 10),
+      password: process.env.REDIS_PASSWORD,
+    };
+  }
+
+  // In production on Render/Vercel we do NOT want to
+  // silently fall back to localhost:6379, because there
+  // is no local Redis → ECONNREFUSED spam.
+  logger.warn('⚠️ Redis not configured (no REDIS_URL / REDIS_HOST). Queue & worker will be disabled.');
+  return null;
 };
 
 const connection = getRedisConnection();
+
+// ---------------------------------------------------
+// Queue setup (csv-import)
+// ---------------------------------------------------
 let importQueue = null;
-// Create queue with error handling
+
 if (connection) {
-  importQueue = new Queue('importQueue', connection);
-  console.log('✅ Redis queue initialized');
+  try {
+    // IMPORTANT: queue name must match Worker name ('csv-import')
+    importQueue = new Queue('csv-import', { connection });
+    logger.info('✅ Redis queue initialized');
+  } catch (error) {
+    logger.error('❌ Failed to initialize Redis queue:', error);
+    logger.warn('⚠️ Queue processing will not work without Redis. Please set REDIS_URL in environment variables.');
+    importQueue = null;
+  }
 } else {
-  console.warn('⚠️ Redis not configured, queue disabled');
+  // No Redis → keep importQueue null so callers can decide how to fallback
+  logger.warn('⚠️ importQueue disabled because Redis connection is missing.');
 }
 
 // Helper to get file stream (from S3 or local)
@@ -109,10 +126,15 @@ const findHeaderRowIndex = async (filePath, mapping) => {
     }
 };
 
-// Create worker with error handling
+// ---------------------------------------------------
+// Worker setup (csv-import)
+// ---------------------------------------------------
 let worker;
-try {
-  worker = new Worker('csv-import', async (job) => {
+
+// Only start worker if we have a valid Redis connection
+if (connection) {
+  try {
+    worker = new Worker('csv-import', async (job) => {
   const { filePath, mapping, jobId } = job.data;
   logger.info(`🚀 Processing UploadJob ID: ${jobId}, File: ${filePath}`);
 
@@ -504,11 +526,14 @@ try {
     },
   });
   
-  logger.info('✅ Redis worker initialized');
-} catch (error) {
-  logger.error('❌ Failed to initialize Redis worker:', error);
-  logger.warn('⚠️ File processing will not work without Redis. Please set REDIS_URL in environment variables.');
-  // Worker will be undefined, but queue.add() will already handle the error
+    logger.info('✅ Redis worker initialized');
+  } catch (error) {
+    logger.error('❌ Failed to initialize Redis worker:', error);
+    logger.warn('⚠️ File processing will not work without Redis. Please set REDIS_URL in environment variables.');
+    // Worker will be undefined, but queue.add() will already handle the error
+  }
+} else {
+  logger.warn('⚠️ Redis connection missing. CSV worker not started.');
 }
 
 export default importQueue;
