@@ -29,7 +29,7 @@ const getRedisConnection = () => {
 };
 
 const connection = getRedisConnection();
-
+let importQueue = null;
 // Create queue with error handling
 if (connection) {
   importQueue = new Queue('importQueue', connection);
