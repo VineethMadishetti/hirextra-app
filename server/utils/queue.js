@@ -31,20 +31,11 @@ const getRedisConnection = () => {
 const connection = getRedisConnection();
 
 // Create queue with error handling
-let importQueue;
-try {
-  importQueue = new Queue('csv-import', { connection });
-  logger.info('✅ Redis queue initialized');
-} catch (error) {
-  logger.error('❌ Failed to initialize Redis queue:', error);
-  logger.warn('⚠️ Queue processing will not work without Redis. Please set REDIS_URL in environment variables.');
-  // Create a dummy queue that will fail gracefully
-  importQueue = {
-    add: async (name, data) => {
-      logger.error('❌ Cannot add job to queue: Redis not available');
-      throw new Error('Redis connection not available. Please configure REDIS_URL.');
-    }
-  };
+if (connection) {
+  importQueue = new Queue('importQueue', connection);
+  console.log('✅ Redis queue initialized');
+} else {
+  console.warn('⚠️ Redis not configured, queue disabled');
 }
 
 // Helper to get file stream (from S3 or local)
