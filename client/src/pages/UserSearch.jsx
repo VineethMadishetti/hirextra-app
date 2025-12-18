@@ -133,6 +133,20 @@ const UserSearch = () => {
 		}
 	}, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+	// Listen for candidates updated event (when processing completes)
+	useEffect(() => {
+		const handleCandidatesUpdated = () => {
+			// Invalidate all candidate queries to refresh the table
+			queryClient.invalidateQueries({ queryKey: ["candidates"] });
+			toast.success("New candidates available! Refreshing...");
+		};
+
+		window.addEventListener('candidatesUpdated', handleCandidatesUpdated);
+		return () => {
+			window.removeEventListener('candidatesUpdated', handleCandidatesUpdated);
+		};
+	}, [queryClient]);
+
 	const candidates = useMemo(() => {
 		if (!data?.pages) return [];
 		return data.pages.flatMap((page) => page.candidates || []);

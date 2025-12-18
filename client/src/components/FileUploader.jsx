@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, CheckCircle, AlertCircle, Loader, FileText, X, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB per chunk (optimized for 15GB+ files)
 
@@ -183,17 +184,21 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
             timeout: 300000, // 5 minute timeout per chunk for very large files (15GB+)
             signal: abortController.signal,
             onUploadProgress: (progressEvent) => {
-              // Track individual chunk upload progress if needed
+              // Track individual chunk upload progress
               if (progressEvent.total) {
                 const chunkProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                // Could add fine-grained progress here
+                // Update progress for current chunk
+                const overallProgress = totalChunks > 1
+                  ? Math.round(((chunkIndex / totalChunks) * 100) + (chunkProgress / totalChunks))
+                  : chunkProgress;
+                setProgress(Math.min(overallProgress, 99));
               }
             }
           });
 
-          // Update progress bar
+          // Update progress bar after chunk completes
           const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-          setProgress(percent);
+          setProgress(Math.min(percent, 99)); // Keep at 99% until fully done
 
           // Check if this was the last chunk
           if (data.status === 'done') {
@@ -203,10 +208,14 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
             sessionStorage.removeItem('activeUpload'); // Clear upload state
             setUploadAbortController(null);
-            // Small delay to ensure UI updates
+            
+            // Show success message
+            toast.success(`File uploaded successfully! Found ${data.headers?.length || 0} columns.`);
+            
+            // Small delay to ensure UI updates and show success message
             setTimeout(() => {
               onUploadComplete(data); // Send headers/filepath back to parent
-            }, 100);
+            }, 500);
             return;
           }
         } catch (error) {

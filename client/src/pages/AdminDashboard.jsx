@@ -80,11 +80,14 @@ const AdminDashboard = () => {
 				filePath: uploadData.filePath,
 				mapping,
 			});
-			toast.success("Processing Started!");
+			toast.success("Processing started! Check History tab for progress.");
 			setUploadData(null);
 			setMapping({});
 			setProcessingJobId(data.jobId);
 			setActiveTab("history");
+			// Fetch history immediately to show the new job
+			fetchHistory();
+			// Start polling for progress updates
 			startProgressPolling(data.jobId);
 		} catch (e) {
 			console.error("Process error:", e);
@@ -109,12 +112,25 @@ const AdminDashboard = () => {
 					totalRows: data.totalRows || 0,
 				});
 
+				// Refresh history to show updated progress
+				if (activeTab === "history") {
+					fetchHistory();
+				}
+
 				if (data.status === "COMPLETED" || data.status === "FAILED") {
 					clearInterval(pollingIntervalRef.current);
 					pollingIntervalRef.current = null;
 					setProcessingJobId(null);
 					setIsProcessing(false);
 					fetchHistory(); // Refresh history
+					
+					if (data.status === "COMPLETED") {
+						toast.success(`Processing completed! ${data.successRows || 0} records imported.`);
+						// Trigger a custom event to refresh the candidates table
+						window.dispatchEvent(new CustomEvent('candidatesUpdated'));
+					} else {
+						toast.error(`Processing failed: ${data.error || 'Unknown error'}`);
+					}
 				}
 			} catch (error) {
 				console.error("Error polling job status:", error);
