@@ -117,44 +117,60 @@ export const downloadFromS3 = async (key) => {
     });
 
     const response = await s3Client.send(command);
-    
-    // AWS SDK v3 returns response.Body as a ReadableStream (web stream)
-    // Convert it to Node.js Readable stream
-    let nodeStream;
-    
-    // Try using Readable.fromWeb (Node.js 18.3+)
-    if (typeof Readable.fromWeb === 'function') {
-      nodeStream = Readable.fromWeb(response.Body);
-    } else {
-      // Fallback for older Node.js versions
-      nodeStream = new Readable({
-        read() {} // No-op, data will be pushed asynchronously
+
+    /**
+     * In Node.js runtimes (including Render), AWS SDK v3 returns
+     * `response.Body` as a Node.js Readable stream (e.g. ChecksumStream),
+     * NOT a Web ReadableStream. Our previous use of Readable.fromWeb()
+     * caused the \"ChecksumStream\" type error in production.
+     *
+     * So we:
+     * - If Body is already a Node Readable → return it directly.
+     * - Only ever use Readable.fromWeb / manual getReader() when Body
+     *   is actually a Web ReadableStream (has getReader function).
+     */
+
+    const body = response.Body;
+
+    // Case 1: Node.js Readable stream (most common in Node 18+ with AWS SDK v3)
+    if (body instanceof Readable || (body && typeof body.pipe === 'function')) {
+      return body;
+    }
+
+    // Case 2: Web ReadableStream (browser-like envs)
+    if (body && typeof body.getReader === 'function') {
+      // Prefer native adapter if available
+      if (typeof Readable.fromWeb === 'function') {
+        return Readable.fromWeb(body);
+      }
+
+      // Manual adapter: Web ReadableStream → Node Readable
+      const nodeStream = new Readable({
+        read() {}, // no-op, we'll push asynchronously
       });
-      
-      // Convert web stream to Node.js stream manually
+
       (async () => {
         try {
-          const reader = response.Body.getReader();
-          
+          const reader = body.getReader();
           while (true) {
             const { done, value } = await reader.read();
-            
             if (done) {
-              nodeStream.push(null); // End the stream
+              nodeStream.push(null);
               break;
             }
-            
-            // Push the chunk to the Node.js stream
             nodeStream.push(Buffer.from(value));
           }
         } catch (err) {
-          logger.error(`❌ Error reading S3 stream for ${key}:`, err);
+          logger.error(`❌ Error reading S3 web stream for ${key}:`, err);
           nodeStream.destroy(err);
         }
       })();
+
+      return nodeStream;
     }
-    
-    return nodeStream;
+
+    // Fallback: unexpected type
+    throw new Error(`Unsupported S3 Body stream type for key ${key}`);
   } catch (error) {
     logger.error(`❌ S3 download failed for ${key}:`, error);
     throw new Error(`Failed to download file from S3: ${error.message}`);
