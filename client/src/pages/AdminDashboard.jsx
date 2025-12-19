@@ -47,9 +47,12 @@ const AdminDashboard = () => {
 			}
 			
 			const { data } = await api.get("/candidates/history");
-			setJobs(data);
+			setJobs(data || []); // Ensure we always set an array
 		} catch (e) {
+			console.error("Failed to load history:", e);
 			toast.error("Failed to load history");
+			// Set empty array on error to stop loading spinner
+			setJobs([]);
 		}
 	};
 

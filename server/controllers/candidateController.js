@@ -428,11 +428,13 @@ export const getUploadHistory = async (req, res) => {
             .sort({ createdAt: -1 })
             .limit(100) // Limit to recent 100 jobs for faster loading
             .populate('uploadedBy', 'name email')
-            .lean(); // Use lean() for faster queries (returns plain JS objects)
+            .lean() // Use lean() for faster queries (returns plain JS objects)
+            .maxTimeMS(10000); // 10 second timeout to prevent hanging
         
         res.json(jobs);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Error fetching upload history:', error);
+        res.status(500).json({ message: error.message || 'Failed to load history' });
     }
 };
 

@@ -376,8 +376,9 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
             while (retries > 0) {
               try {
                 const docs = await Candidate.insertMany(batchToInsert, { 
-                  ordered: false,
-                  lean: false
+                  ordered: false, // Continue inserting even if some fail
+                  lean: false,
+                  rawResult: false // Return inserted documents, not raw result
                 });
                 
                 const inserted = docs.length;
@@ -386,6 +387,8 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
                 // Log progress for large files every 10k rows
                 if (successCount % 10000 === 0) {
                   logger.info(`📊 Progress: ${successCount.toLocaleString()} rows processed for job ${jobId}`);
+                } else if (successCount % 1000 === 0) {
+                  logger.info(`✅ ${successCount.toLocaleString()} rows inserted so far`);
                 } else {
                   logger.debug(`✅ Batch inserted: ${inserted} rows. Total: ${successCount}`);
                 }
@@ -408,20 +411,43 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
                 lastError = err;
                 retries--;
                 
-                // Check if it's a connection error
+                // Log detailed error for debugging
+                logger.error(`❌ Batch insert error (${batchToInsert.length} rows, ${retries} retries left):`, {
+                  error: err.message,
+                  name: err.name,
+                  code: err.code,
+                  writeErrors: err.writeErrors?.length || 0,
+                  insertedCount: err.insertedCount || 0
+                });
+                
+                // If some documents were inserted, count them
+                if (err.insertedCount > 0) {
+                  successCount += err.insertedCount;
+                  logger.warn(`⚠️ Partial batch success: ${err.insertedCount}/${batchToInsert.length} inserted`);
+                }
+                
+                // Check if it's a connection error or duplicate key error
                 if (err.name === 'MongoNetworkError' || err.message.includes('connection')) {
                   logger.warn(`⚠️ Connection error, retrying... (${retries} attempts left)`);
                   await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries))); // Exponential backoff
+                } else if (err.code === 11000 || err.message.includes('duplicate')) {
+                  // Duplicate key error - count as failed but continue
+                  logger.warn(`⚠️ Duplicate key errors detected, continuing...`);
+                  failedCount += batchToInsert.length - (err.insertedCount || 0);
+                  return; // Continue processing, don't retry duplicates
                 } else {
-                  // Non-connection error, don't retry
-                  break;
+                  // Other errors - log and continue with next batch
+                  logger.error(`❌ Non-retryable error: ${err.message}`);
+                  failedCount += batchToInsert.length - (err.insertedCount || 0);
+                  return; // Don't retry, continue with next batch
                 }
               }
             }
             
             // All retries failed
-            failedCount += batchToInsert.length;
-            logger.error(`❌ Batch insert failed after retries (${batchToInsert.length} rows):`, lastError?.message);
+            const actuallyFailed = batchToInsert.length - (lastError?.insertedCount || 0);
+            failedCount += actuallyFailed;
+            logger.error(`❌ Batch insert failed after all retries (${actuallyFailed} rows failed):`, lastError?.message);
           };
           
           // Update pendingBatch to chain batches sequentially
