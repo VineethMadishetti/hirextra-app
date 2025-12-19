@@ -315,7 +315,11 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
       onDragOver={handleDrag}
       onDrop={handleDrop}
     >
-      <div className="flex flex-col items-center gap-6 animate-fade-in">
+      <div className={`flex gap-8 animate-fade-in w-full ${
+  file && status === 'idle'
+    ? 'flex-col lg:flex-row items-start'
+    : 'flex-col items-center'
+}`}>
         {status === 'done' && (
           <div className="w-full text-center">
             <div className="flex items-center justify-center gap-2 mb-4">
@@ -360,7 +364,7 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
         )}
 
         {status === 'idle' && (
-          <>
+          <div className="flex-1">
             <div className="space-y-2">
               <h3 className="text-2xl font-bold text-gray-800">Upload CSV File</h3>
               <p className="text-gray-500 text-sm">Drag and drop your file here, or click to browse</p>
@@ -385,11 +389,11 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
               <span className="font-medium">Supports files up to 30GB</span>
               <div className="h-px bg-gray-300 flex-1"></div>
             </div>
-          </>
+          </div>
         )}
 
         {file && status === 'idle' && (
-          <div className="w-full max-w-md space-y-4 animate-slide-up">
+  <div className="w-full max-w-md space-y-4 animate-slide-up lg:mt-12">
               <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
