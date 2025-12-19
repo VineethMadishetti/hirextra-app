@@ -45,19 +45,24 @@ const Login = () => {
 
         <div className="relative z-10 p-12 flex flex-col justify-between text-white">
           <div>
-            <h1 className="text-6xl font-semibold tracking-tight">
-              <span className="text-white">People</span>
-              <span className="text-gray-300">Finder</span>
-            </h1>
+  <h1 className="text-6xl font-semibold tracking-tight">
+    <span className="text-white">People</span>
+    <span className="text-gray-300">Finder</span>
+  </h1>
 
-            <p className="mt-4 text-gray-300 max-w-md leading-relaxed">
-              <span className="font-medium text-white">
-                Find people. Know more. Decide faster.
-              </span>
-              <br />
-              Secure. Fast. Global.
-            </p>
-          </div>
+  <p className="mt-6 text-gray-300 max-w-lg leading-relaxed text-base">
+    <span className="block text-white font-medium mb-2">
+      AI-powered talent intelligence.
+    </span>
+    PeopleFinder unifies LinkedIn, your internal databases, and global data
+    sources to deliver ranked candidate shortlists in minutes.
+  </p>
+
+  <p className="mt-4 text-sm text-gray-400 tracking-wide">
+    Source smarter. Shortlist faster. Hire with confidence.
+  </p>
+</div>
+
 
           <p className="text-xs text-gray-400">
             © {new Date().getFullYear()} PeopleFinder

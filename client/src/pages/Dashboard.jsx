@@ -38,8 +38,8 @@ const Dashboard = () => {
         {/* Left: Logo & Admin Navigation */}
        <div className="flex items-center gap-10">
           <h1 className="text-xl font-extrabold tracking-tight select-none">
-      <span className="text-blue-600">People</span>
-      <span className="text-slate-900">Finder</span>
+      <span className="text-slate-800">People</span>
+      <span className="text-slate-500">Finder</span>
     </h1>
 
           {/* Only Admins see these buttons */}
@@ -52,12 +52,12 @@ const Dashboard = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
             ${
               currentView === 'admin'
-                ? 'bg-white text-blue-600 shadow ring-1 ring-slate-200'
+                ? 'bg-white text-blue-800 shadow ring-1 ring-slate-200'
                 : 'text-slate-500 hover:text-slate-900'
             }`}
         >
           <LayoutDashboard size={16} />
-          Admin
+          Admin Panel
         </button>
 
         <button
@@ -70,7 +70,7 @@ const Dashboard = () => {
             }`}
         >
           <Users size={16} />
-          Users
+          User Management
         </button>
 
         <button
@@ -83,7 +83,7 @@ const Dashboard = () => {
             }`}
         >
           <Search size={16} />
-          Search
+          Search People
         </button>
       </div>
     )}
