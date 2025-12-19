@@ -61,6 +61,7 @@ const AdminDashboard = () => {
   'phone',
   'country',
   'locality',
+  'location',
   'skills',
   'linkedinUrl',
   'summary',
