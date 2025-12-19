@@ -852,6 +852,11 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 									<span>{profile.company}</span>
 								</div>
 							)}
+							{profile.experience && (
+								<div className="flex items-center gap-2">
+									<span>EXP: {profile.experience} - Years</span>
+								</div>
+							)}
 						</div>
 					</div>
 					<button

@@ -301,11 +301,13 @@ const AdminDashboard = () => {
 				{/* UPLOAD TAB */}
 				{activeTab === "upload" && (
 					<div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
-						{!uploadData ? (
-							<FileUploader onUploadComplete={setUploadData} />
-						) : (
-							<>
-								<div className="mb-6">
+						<div className={`grid gap-8 ${uploadData ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+							<div className={uploadData ? "" : "max-w-2xl mx-auto w-full"}>
+								<FileUploader onUploadComplete={setUploadData} />
+							</div>
+							{uploadData && (
+								<div className="animate-fade-in">
+									<div className="mb-6">
 									<h3 className="text-xl font-semibold text-white">
 										Column Mapping
 									</h3>
@@ -314,7 +316,7 @@ const AdminDashboard = () => {
 									</p>
 								</div>
 
-								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+									<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 									{fields.map((field) => (
 										<div key={field} className="space-y-1">
 											<label className="text-xs text-slate-400 uppercase tracking-wide">
@@ -358,8 +360,9 @@ const AdminDashboard = () => {
 										"Process File"
 									)}
 								</button>
-							</>
-						)}
+								</div>
+							)}
+						</div>
 					</div>
 				)}
 
