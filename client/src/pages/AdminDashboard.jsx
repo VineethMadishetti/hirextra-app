@@ -10,6 +10,7 @@ import {
 	CheckCircle,
 	Clock,
 	XCircle,
+	Loader,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -53,6 +54,15 @@ const AdminDashboard = () => {
 			fetchHistory();
 		}
 	}, [processingJobId, activeTab]);
+
+	// Auto-refresh history every minute
+	useEffect(() => {
+		let interval;
+		if (activeTab === "history" && !processingJobId) {
+			interval = setInterval(fetchHistory, 60000);
+		}
+		return () => clearInterval(interval);
+	}, [activeTab, processingJobId]);
 
 	const fields = [
 		"fullName",
@@ -435,15 +445,17 @@ const AdminDashboard = () => {
 													{(job.status === "PROCESSING" ||
 														job.status === "MAPPING_PENDING") &&
 													processingJobId === job._id ? (
-														<>
+														<div className="flex flex-col items-end w-full">
+															<div className="flex items-center gap-2 justify-end w-full">
+																<Loader className="w-3 h-3 animate-spin text-indigo-400" />
 															<span className="font-semibold">
 																{processingProgress.successRows.toLocaleString()}
 															</span>
 															<span className="text-xs text-slate-400">
-																{" "}
 																/{" "}
 																{processingProgress.totalRows.toLocaleString()}
 															</span>
+															</div>
 															<div className="w-full bg-slate-700 rounded-full h-1.5 mt-1">
 																<div
 																	className="bg-indigo-500 h-1.5 rounded-full transition-all"
@@ -458,7 +470,7 @@ const AdminDashboard = () => {
 																	}}
 																/>
 															</div>
-														</>
+														</div>
 													) : (
 														<>
 															<span className="font-semibold">

@@ -119,10 +119,11 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
-		staleTime: 10 * 60 * 1000,
+		staleTime: 60 * 1000,
 		gcTime: 30 * 60 * 1000,
-		refetchOnWindowFocus: false,
-		refetchOnReconnect: false,
+		refetchOnWindowFocus: true,
+		refetchOnReconnect: true,
+		refetchInterval: 60000, // Refetch data every 60 seconds
 	});
 
 	// Simplified scroll loading logic
