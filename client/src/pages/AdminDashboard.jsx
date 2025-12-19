@@ -298,74 +298,77 @@ const AdminDashboard = () => {
 					</div>
 				</div>
 
-				{/* UPLOAD TAB */}
 				{activeTab === "upload" && (
-					<div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
-						<div className={`grid gap-8 ${uploadData ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+  <div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
 
-							{uploadData && (
-								<div className="animate-fade-in">
-									<div className="mb-6">
-									<h3 className="text-xl font-semibold text-white">
-										Column Mapping
-									</h3>
-									<p className="text-sm text-slate-400">
-										Map CSV headers to PeopleFinder fields
-									</p>
-								</div>
+    {/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
+    {uploadData ? (
+      <div className="max-w-4xl mx-auto animate-fade-in">
+        <div className="mb-6">
+          <h3 className="text-xl font-semibold text-white">
+            Column Mapping
+          </h3>
+          <p className="text-sm text-slate-400">
+            Map CSV headers to PeopleFinder fields
+          </p>
+        </div>
 
-									<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-									{fields.map((field) => (
-										<div key={field} className="space-y-1">
-											<label className="text-xs text-slate-400 uppercase tracking-wide">
-												{field}
-											</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {fields.map((field) => (
+            <div key={field} className="space-y-1">
+              <label className="text-xs text-slate-400 uppercase tracking-wide">
+                {field}
+              </label>
 
-											<select
-												className="w-full bg-slate-800/70 border border-slate-700
-                rounded-xl px-3 py-2 text-sm text-white
-                focus:ring-2 focus:ring-indigo-500/40
-                cursor-pointer transition"
-												onChange={(e) =>
-													setMapping({ ...mapping, [field]: e.target.value })
-												}>
-												<option value="">Ignore</option>
-												{uploadData.headers.map((h, i) => (
-													<option key={i} value={h}>
-														{h}
-													</option>
-												))}
-											</select>
-										</div>
-									))}
-								</div>
+              <select
+                className="w-full bg-slate-800/70 border border-slate-700
+                           rounded-xl px-3 py-2 text-sm text-white
+                           focus:ring-2 focus:ring-indigo-500/40
+                           cursor-pointer transition"
+                onChange={(e) =>
+                  setMapping({ ...mapping, [field]: e.target.value })
+                }
+              >
+                <option value="">Ignore</option>
+                {uploadData.headers.map((h, i) => (
+                  <option key={i} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
 
-								<button
-									onClick={handleProcess}
-									disabled={isProcessing}
-									className={`mt-8 w-full text-white py-3 rounded-xl font-medium
-          shadow-lg transition ${
-						isProcessing
-							? "bg-indigo-400 cursor-not-allowed"
-							: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-					}`}>
-									{isProcessing ? (
-										<span className="flex items-center justify-center gap-2">
-											<RefreshCw className="w-4 h-4 animate-spin" />
-											Processing...
-										</span>
-									) : (
-										"Process File"
-									)}
-								</button>
-								</div>
-							)}
-							<div className="w-full">
-								<FileUploader onUploadComplete={setUploadData} />
-							</div>
-						</div>
-					</div>
-				)}
+        <button
+          onClick={handleProcess}
+          disabled={isProcessing}
+          className={`mt-8 w-full text-white py-3 rounded-xl font-medium
+            shadow-lg transition ${
+              isProcessing
+                ? "bg-indigo-400 cursor-not-allowed"
+                : "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+            }`}
+        >
+          {isProcessing ? (
+            <span className="flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Processing...
+            </span>
+          ) : (
+            "Process File"
+          )}
+        </button>
+      </div>
+    ) : (
+      /* BEFORE UPLOAD → ONLY FILE UPLOADER */
+      <div className="max-w-3xl mx-auto">
+        <FileUploader onUploadComplete={setUploadData} />
+      </div>
+    )}
+  </div>
+)}
+
 
 				{/* HISTORY TAB */}
 				{activeTab === "history" && (
