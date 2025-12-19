@@ -492,6 +492,7 @@ export const exportCandidates = async (req, res) => {
       candidate.industry || '',
       candidate.jobTitle || '',
       candidate.skills || '',
+      candidate.experience || '',
       candidate.country || '',
       candidate.locality || '',
       candidate.location || '',
@@ -764,6 +765,14 @@ export const downloadProfile = async (req, res) => {
             children: [
               new TextRun({ text: "Industry: ", bold: true, font: "Calibri", size: 24 }),
               new TextRun({ text: candidate.industry, font: "Calibri", size: 24 }),
+            ],
+            spacing: { after: 100 },
+          }),
+
+          candidate.experience && new Paragraph({
+            children: [
+              new TextRun({ text: "Experience: ", bold: true, font: "Calibri", size: 24 }),
+              new TextRun({ text: candidate.experience, font: "Calibri", size: 24 }),
             ],
             spacing: { after: 100 },
           }),

@@ -46,7 +46,7 @@ const UserDashboard = () => {
                 <th className="p-4">Name</th>
                 <th className="p-4">Job Title</th>
                 <th className="p-4">Company</th>
-                <th className="p-4">Country</th>
+                <th className="p-4">Location</th>
                 <th className="p-4">Action</th>
               </tr>
             </thead>
@@ -56,7 +56,8 @@ const UserDashboard = () => {
                   <td className="p-4">{c.firstName} {c.lastName}</td>
                   <td className="p-4">{c.jobTitle}</td>
                   <td className="p-4">{c.company || 'N/A'}</td>
-                  <td className="p-4">{c.country}</td>
+                  <td className="p-4">{c.locality}</td>
+                  <td className="p-4">{c.location}</td>
                   <td className="p-4">
                     <button className="text-accent hover:underline">Download Profile</button>
                   </td>
