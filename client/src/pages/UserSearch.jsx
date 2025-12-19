@@ -119,11 +119,11 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
-		staleTime: 60 * 1000,
+		staleTime: 30 * 1000, // Consider data stale after 30 seconds
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
-		refetchInterval: 60000, // Refetch data every 60 seconds
+		refetchInterval: false, // Disable auto-refetch, we'll manually trigger on events
 	});
 
 	// Simplified scroll loading logic
@@ -136,16 +136,19 @@ const UserSearch = () => {
 	// Listen for candidates updated event (when processing completes)
 	useEffect(() => {
 		const handleCandidatesUpdated = () => {
-			// Invalidate all candidate queries to refresh the table
+			// Immediately refetch to show new data
 			queryClient.invalidateQueries({ queryKey: ["candidates"] });
-			toast.success("New candidates available! Refreshing...");
+			refetch(); // Trigger immediate refetch
+			toast.success("New candidates available! Refreshing table...", {
+				duration: 2000,
+			});
 		};
 
 		window.addEventListener('candidatesUpdated', handleCandidatesUpdated);
 		return () => {
 			window.removeEventListener('candidatesUpdated', handleCandidatesUpdated);
 		};
-	}, [queryClient]);
+	}, [queryClient, refetch]);
 
 	const candidates = useMemo(() => {
 		if (!data?.pages) return [];

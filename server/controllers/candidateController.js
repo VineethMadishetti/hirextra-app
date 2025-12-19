@@ -422,7 +422,14 @@ export const processFile = async (req, res) => {
 // --- GET UPLOAD HISTORY (For Admin Page) ---
 export const getUploadHistory = async (req, res) => {
     try {
-        const jobs = await UploadJob.find().sort({ createdAt: -1 }).populate('uploadedBy', 'name email');
+        // Optimized query: only fetch essential fields, limit to recent 100 jobs
+        const jobs = await UploadJob.find()
+            .select('fileName originalName uploadedBy status totalRows successRows failedRows mapping createdAt updatedAt completedAt')
+            .sort({ createdAt: -1 })
+            .limit(100) // Limit to recent 100 jobs for faster loading
+            .populate('uploadedBy', 'name email')
+            .lean(); // Use lean() for faster queries (returns plain JS objects)
+        
         res.json(jobs);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -474,14 +481,16 @@ export const searchCandidates = async (req, res) => {
     if (hasPhone === 'true') query.phone = { $exists: true, $ne: '' };
     if (hasLinkedin === 'true') query.linkedinUrl = { $exists: true, $ne: '' };
 
+    // Optimized: Use lean() for faster queries and parallel execution
     const [candidates, totalCount] = await Promise.all([
       Candidate.find(query)
         .limit(limitNum)
         .skip(skip)
-        .select('-sourceFile -uploadJobId')
+        .select('-sourceFile -uploadJobId -__v') // Exclude unnecessary fields
         .sort({ createdAt: -1 })
+        .lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
         .exec(),
-      Candidate.countDocuments(query)
+      Candidate.countDocuments(query).exec()
     ]);
 
     res.json({

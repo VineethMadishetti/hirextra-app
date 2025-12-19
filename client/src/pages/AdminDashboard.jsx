@@ -38,8 +38,13 @@ const AdminDashboard = () => {
 	const [pendingAction, setPendingAction] = useState(null);
 	const [passwordInput, setPasswordInput] = useState("");
 
-	const fetchHistory = async () => {
+	const fetchHistory = async (showLoading = true) => {
 		try {
+			// Show cached data immediately if available (optimistic update)
+			if (jobs.length > 0 && !showLoading) {
+				// Keep existing data visible while fetching
+			}
+			
 			const { data } = await api.get("/candidates/history");
 			setJobs(data);
 		} catch (e) {
@@ -130,9 +135,16 @@ const AdminDashboard = () => {
 					totalRows: data.totalRows || 0,
 				});
 
-				// Refresh history to show updated progress
+				// Update local jobs state immediately for instant UI update (optimistic)
+				setJobs(prevJobs => 
+					prevJobs.map(job => 
+						job._id === jobId ? { ...job, ...data } : job
+					)
+				);
+
+				// Refresh history in background (non-blocking)
 				if (activeTab === "history") {
-					fetchHistory();
+					fetchHistory(false);
 				}
 
 				if (data.status === "COMPLETED" || data.status === "FAILED") {
@@ -140,16 +152,19 @@ const AdminDashboard = () => {
 					pollingIntervalRef.current = null;
 					setProcessingJobId(null);
 					setIsProcessing(false);
-					fetchHistory(); // Refresh history
+					
+					// Final history refresh
+					fetchHistory(false);
 
 					if (data.status === "COMPLETED") {
 						toast.success(
 							`Processing completed! ${
 								data.successRows || 0
-							} records imported.`,
+							} records imported. Refreshing table...`,
 						);
-						// Trigger a custom event to refresh the candidates table
+						// Immediately invalidate and refetch candidates table
 						queryClient.invalidateQueries({ queryKey: ["candidates"] });
+						queryClient.refetchQueries({ queryKey: ["candidates"] });
 						window.dispatchEvent(new CustomEvent("candidatesUpdated"));
 					} else {
 						toast.error(`Processing failed: ${data.error || "Unknown error"}`);
@@ -529,12 +544,12 @@ const AdminDashboard = () => {
 
 						{jobs.length === 0 ? (
 							<div className="p-12 text-center">
-								<FileText className="w-14 h-14 text-slate-600 mx-auto mb-4" />
+								<Loader className="w-14 h-14 text-indigo-400 mx-auto mb-4 animate-spin" />
 								<p className="text-slate-300 font-medium">
-									No upload history yet
+									Loading history...
 								</p>
 								<p className="text-sm text-slate-500 mt-1">
-									Upload a CSV file to get started
+									Please wait
 								</p>
 							</div>
 						) : (
