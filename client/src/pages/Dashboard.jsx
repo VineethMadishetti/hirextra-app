@@ -32,77 +32,89 @@ const Dashboard = () => {
       
       {/* --- Top Navigation Bar --- */}
       <nav className="fixed top-0 left-0 right-0 z-50
-                bg-white border-b border-gray-200
-                px-6 py-3 flex justify-between items-center shadow-sm">
+  bg-white/90 backdrop-blur-md border-b border-slate-200
+  px-6 h-16 flex justify-between items-center">
 
         {/* Left: Logo & Admin Navigation */}
-        <div className="flex items-center gap-8">
-          <h1 className="text-2xl font-extrabold text-primary tracking-tight">
-            People<span className="text-accent">Finder</span>
-          </h1>
+       <div className="flex items-center gap-10">
+          <h1 className="text-xl font-extrabold tracking-tight select-none">
+      <span className="text-blue-600">People</span>
+      <span className="text-slate-900">Finder</span>
+    </h1>
 
           {/* Only Admins see these buttons */}
-          {user?.role === 'ADMIN' && (
-            <div className="hidden md:flex bg-gray-100 p-1 rounded-lg">
-              <button 
-                onClick={() => setCurrentView('admin')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
-                  currentView === 'admin' 
-                    ? 'bg-white text-accent shadow-sm ring-1 ring-gray-200' 
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <LayoutDashboard size={18} />
-                Admin Panel
-              </button>
-              
-              <button 
-                onClick={() => setCurrentView('users')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
-                  currentView === 'users' 
-                    ? 'bg-white text-accent shadow-sm ring-1 ring-gray-200' 
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Users size={18} />
-                User Management
-              </button>
-              
-              <button 
-                onClick={() => setCurrentView('search')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
-                  currentView === 'search' 
-                    ? 'bg-white text-accent shadow-sm ring-1 ring-gray-200' 
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Search size={18} />
-                Search Database
-              </button>
-            </div>
-          )}
+          {/* Admin Navigation */}
+    {user?.role === 'ADMIN' && (
+      <div className="hidden md:flex items-center bg-slate-100 rounded-full p-1 shadow-inner">
+
+        <button
+          onClick={() => setCurrentView('admin')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
+            ${
+              currentView === 'admin'
+                ? 'bg-white text-blue-600 shadow ring-1 ring-slate-200'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+        >
+          <LayoutDashboard size={16} />
+          Admin
+        </button>
+
+        <button
+          onClick={() => setCurrentView('users')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
+            ${
+              currentView === 'users'
+                ? 'bg-white text-blue-600 shadow ring-1 ring-slate-200'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+        >
+          <Users size={16} />
+          Users
+        </button>
+
+        <button
+          onClick={() => setCurrentView('search')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
+            ${
+              currentView === 'search'
+                ? 'bg-white text-blue-600 shadow ring-1 ring-slate-200'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+        >
+          <Search size={16} />
+          Search
+        </button>
+      </div>
+    )}
         </div>
 
         {/* Right: User Profile & Logout */}
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex flex-col items-end">
-             <span className="text-sm font-bold text-gray-800">{user?.name}</span>
-             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider border border-gray-200 px-1 rounded bg-gray-50">
-               {user?.role}
-             </span>
-          </div>
+          <div className="hidden sm:flex flex-col items-end leading-tight">
+      <span className="text-sm font-semibold text-slate-800">
+        {user?.name}
+      </span>
+      <span className="text-[10px] font-semibold tracking-wider uppercase
+        text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+        {user?.role}
+      </span>
+    </div>
           
-          <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-             <User size={20} />
-          </div>
+          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600
+      flex items-center justify-center text-white shadow">
+      <User size={18} />
+    </div>
 
-          <button 
-            onClick={handleLogout} 
-            className="ml-2 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition"
-            title="Logout"
-          >
-            <LogOut size={20} />
-          </button>
+          <button
+      onClick={handleLogout}
+      title="Logout"
+      className="ml-1 p-2 rounded-full
+        text-slate-400 hover:text-red-600
+        hover:bg-red-50 transition-all"
+    >
+      <LogOut size={18} />
+    </button>
         </div>
       </nav>
 
