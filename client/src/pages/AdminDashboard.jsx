@@ -152,7 +152,14 @@ const AdminDashboard = () => {
 				}
 			} catch (error) {
 				console.error("Error polling job status:", error);
-				// Don't stop polling on error, just log it
+				// Stop polling if job not found (404)
+				if (error.response && error.response.status === 404) {
+					clearInterval(pollingIntervalRef.current);
+					pollingIntervalRef.current = null;
+					setProcessingJobId(null);
+					setIsProcessing(false);
+					fetchHistory();
+				}
 			}
 		}, 2000); // Poll every 2 seconds
 	};
