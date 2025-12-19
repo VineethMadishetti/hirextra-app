@@ -422,89 +422,100 @@ const UserSearch = () => {
 					</div>
 
 					{/* Collapsible Filters */}
-					{filtersVisible && (
-						<>
-							{/* Search Bar */}
-							<div className="relative">
-								<Search
-									className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-									size={18}
-								/>
-								<input
-									placeholder="Search by name, keywords..."
-									className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-									value={searchInput}
-									onChange={handleSearchChange}
-								/>
-								{searchInput && (
-									<button
-										onClick={() => setSearchInput("")}
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-										<X size={16} />
-									</button>
-								)}
-							</div>
+{filtersVisible && (
+	<div className="flex items-center gap-3 w-full overflow-x-auto bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 scrollbar-hide">
 
-							{/* Quick Filters */}
-							<div className="flex flex-wrap items-center gap-2">
-								<input
-									placeholder="Job Title"
-									className="flex-1 min-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-									value={filters.jobTitle}
-									onChange={(e) =>
-										handleFilterChange("jobTitle", e.target.value)
-									}
-								/>
-								<input
-									placeholder="Location"
-									className="flex-1 min-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-									value={filters.location}
-									onChange={(e) =>
-										handleFilterChange("location", e.target.value)
-									}
-								/>
-								<input
-									placeholder="Skills"
-									className="flex-1 min-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-									value={filters.skills}
-									onChange={(e) => handleFilterChange("skills", e.target.value)}
-								/>
+		{/* Search Bar */}
+		<div className="relative min-w-[260px]">
+			<Search
+				className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+				size={18}
+			/>
+			<input
+				placeholder="Search by name, keywords..."
+				className="w-full pl-10 pr-9 py-2 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+				value={searchInput}
+				onChange={handleSearchChange}
+			/>
+			{searchInput && (
+				<button
+					onClick={() => setSearchInput("")}
+					className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+					<X size={16} />
+				</button>
+			)}
+		</div>
 
-								<div className="flex gap-2 border-l border-gray-300 pl-3">
-									<button
-										onClick={() =>
-											handleFilterChange("hasEmail", !filters.hasEmail)
-										}
-										className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-											filters.hasEmail
-												? "bg-blue-600 text-white shadow-md"
-												: "bg-gray-100 text-gray-600 hover:bg-gray-200"
-										}`}>
-										@ Email
-									</button>
-									<button
-										onClick={() =>
-											handleFilterChange("hasPhone", !filters.hasPhone)
-										}
-										className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-											filters.hasPhone
-												? "bg-blue-600 text-white shadow-md"
-												: "bg-gray-100 text-gray-600 hover:bg-gray-200"
-										}`}>
-										📞 Phone
-									</button>
-								</div>
+		{/* Job Title */}
+		<input
+			placeholder="Job Title"
+			className="min-w-[160px] px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+			value={filters.jobTitle}
+			onChange={(e) =>
+				handleFilterChange("jobTitle", e.target.value)
+			}
+		/>
 
-								{hasActiveFilters && (
-									<button
-										onClick={clearAllFilters}
-										className="px-3 py-2 text-xs text-gray-600 hover:text-gray-800 underline">
-										Clear all filters
-									</button>
-								)}
-							</div>
-						</>
-					)}
+		{/* Location */}
+		<input
+			placeholder="Location"
+			className="min-w-[160px] px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+			value={filters.location}
+			onChange={(e) =>
+				handleFilterChange("location", e.target.value)
+			}
+		/>
+
+		{/* Skills */}
+		<input
+			placeholder="Skills"
+			className="min-w-[160px] px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+			value={filters.skills}
+			onChange={(e) =>
+				handleFilterChange("skills", e.target.value)
+			}
+		/>
+
+		{/* Divider */}
+		<div className="h-8 w-px bg-slate-700 mx-1" />
+
+		{/* Email Filter */}
+		<button
+			onClick={() =>
+				handleFilterChange("hasEmail", !filters.hasEmail)
+			}
+			className={`px-3 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+				filters.hasEmail
+					? "bg-blue-600 text-white shadow"
+					: "bg-slate-800 text-slate-300 hover:bg-slate-700"
+			}`}>
+			@ Email
+		</button>
+
+		{/* Phone Filter */}
+		<button
+			onClick={() =>
+				handleFilterChange("hasPhone", !filters.hasPhone)
+			}
+			className={`px-3 py-2 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+				filters.hasPhone
+					? "bg-blue-600 text-white shadow"
+					: "bg-slate-800 text-slate-300 hover:bg-slate-700"
+			}`}>
+			📞 Phone
+		</button>
+
+		{/* Clear Filters */}
+		{hasActiveFilters && (
+			<button
+				onClick={clearAllFilters}
+				className="ml-auto text-xs text-slate-400 hover:text-red-400 whitespace-nowrap">
+				Clear all filters
+			</button>
+		)}
+	</div>
+)}
+
 
 					{/* Bulk Actions Bar */}
 					{selectedIds.size > 0 && (
