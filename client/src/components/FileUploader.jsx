@@ -363,12 +363,11 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
           <UploadCloud className="w-16 h-16 text-gray-400" strokeWidth={1.5} />
         )}
 
-        {status === 'idle' && (
+        {!file && status === 'idle' && (
           <div className="flex-1">
             <div className="space-y-2">
               <h3 className="text-2xl font-bold text-gray-800">Upload CSV File</h3>
               <p className="text-gray-500 text-sm">Drag and drop your file here, or click to browse</p>
-              <p className="text-xs text-gray-400 mt-2">Supports .csv, .xlsx (Max 100MB)</p>
             </div>
             
             <label className="cursor-pointer group">
@@ -384,9 +383,9 @@ const FileUploader = ({ onUploadComplete, fileId = null, onReprocess }) => {
               />
             </label>
             
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-4 text-xs text-gray-500">
               <div className="h-px bg-gray-300 flex-1"></div>
-              <span className="font-medium">Supports files up to 30GB</span>
+              <span className="font-medium">Supports .csv files up to 15GB</span>
               <div className="h-px bg-gray-300 flex-1"></div>
             </div>
           </div>

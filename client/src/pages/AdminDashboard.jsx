@@ -359,7 +359,7 @@ const AdminDashboard = () => {
 								</button>
 								</div>
 							)}
-							<div className={uploadData ? "" : "max-w-2xl mx-auto w-full"}>
+							<div className={uploadData ? "" : "w-full"}>
 								<FileUploader onUploadComplete={setUploadData} />
 							</div>
 						</div>
