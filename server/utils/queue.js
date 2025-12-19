@@ -127,15 +127,10 @@ const findHeaderRowIndex = async (filePath, mapping) => {
 };
 
 // ---------------------------------------------------
-// Worker setup (csv-import)
+// Core CSV processing logic (shared between worker
+// and direct-processing fallback)
 // ---------------------------------------------------
-let worker;
-
-// Only start worker if we have a valid Redis connection
-if (connection) {
-  try {
-    worker = new Worker('csv-import', async (job) => {
-  const { filePath, mapping, jobId } = job.data;
+export const processCsvJob = async ({ filePath, mapping, jobId }) => {
   logger.info(`🚀 Processing UploadJob ID: ${jobId}, File: ${filePath}`);
 
   try {
@@ -510,7 +505,20 @@ if (connection) {
     });
     throw error;
   }
-  }, { 
+};
+
+// ---------------------------------------------------
+// Worker setup (csv-import)
+// ---------------------------------------------------
+let worker;
+
+// Only start worker if we have a valid Redis connection
+if (connection) {
+  try {
+    worker = new Worker('csv-import', async (job) => {
+      const { filePath, mapping, jobId } = job.data;
+      await processCsvJob({ filePath, mapping, jobId });
+    }, { 
     connection,
     concurrency: 1, // Process one job at a time
     limiter: {

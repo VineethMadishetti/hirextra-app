@@ -140,9 +140,9 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
               setFile(null);
               setProgress(0);
             }}
-            className="text-sm text-red-500 hover:underline"
+            className="text-sm text-cyan-950 hover:underline"
           >
-            Choose a different file
+            or, Choose another file...
           </button>
 
           <button

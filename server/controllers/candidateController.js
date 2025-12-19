@@ -1,4 +1,4 @@
-import importQueue from '../utils/queue.js';
+import importQueue, { processCsvJob } from '../utils/queue.js';
 import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import User from '../models/User.js';
@@ -343,35 +343,58 @@ export const processFile = async (req, res) => {
         mapping
     });
 
-    // 2. Add to Queue with immediate processing priority
-    try {
-      await importQueue.add('import-job', { 
-          filePath, 
-          mapping, 
-          jobId: newJob._id 
-      }, {
-        priority: 1, // High priority for immediate processing
-        attempts: 3, // Retry up to 3 times on failure
-        backoff: {
-          type: 'exponential',
-          delay: 2000, // Start with 2 second delay
-        },
-        removeOnComplete: true, // Remove completed jobs to save memory
-        removeOnFail: false, // Keep failed jobs for debugging
-      });
-    } catch (queueError) {
-      // If queue fails, update job status to FAILED
-      await UploadJob.findByIdAndUpdate(newJob._id, { 
-        status: 'FAILED',
-        error: queueError.message || 'Failed to add job to processing queue'
-      });
-      return res.status(500).json({ 
-        message: 'Failed to start processing. Queue service unavailable.',
-        error: queueError.message 
-      });
+    // 2. Decide between Redis queue or direct processing
+    if (importQueue) {
+      // Queue-based async processing (preferred when Redis is available)
+      try {
+        await importQueue.add('import-job', { 
+            filePath, 
+            mapping, 
+            jobId: newJob._id 
+        }, {
+          priority: 1, // High priority for immediate processing
+          attempts: 3, // Retry up to 3 times on failure
+          backoff: {
+            type: 'exponential',
+            delay: 2000, // Start with 2 second delay
+          },
+          removeOnComplete: true, // Remove completed jobs to save memory
+          removeOnFail: false, // Keep failed jobs for debugging
+        });
+
+        return res.json({ message: 'Processing started', jobId: newJob._id });
+      } catch (queueError) {
+        // If queue fails, mark as failed and surface error
+        await UploadJob.findByIdAndUpdate(newJob._id, { 
+          status: 'FAILED',
+          error: queueError.message || 'Failed to add job to processing queue'
+        });
+        return res.status(500).json({ 
+          message: 'Failed to start processing. Queue service unavailable.',
+          error: queueError.message 
+        });
+      }
+    } else {
+      // Fallback: process immediately in this request when Redis is not configured
+      try {
+        await processCsvJob({ filePath, mapping, jobId: newJob._id });
+        const updatedJob = await UploadJob.findById(newJob._id).populate('uploadedBy', 'name email');
+        return res.json({ 
+          message: 'Processing completed',
+          jobId: newJob._id,
+          job: updatedJob
+        });
+      } catch (processingError) {
+        await UploadJob.findByIdAndUpdate(newJob._id, { 
+          status: 'FAILED',
+          error: processingError.message || 'Direct processing failed'
+        });
+        return res.status(500).json({
+          message: 'Failed to process file directly',
+          error: processingError.message
+        });
+      }
     }
-    
-    res.json({ message: 'Processing started', jobId: newJob._id });
   } catch (error) {
     console.error('Error in processFile:', error);
     res.status(500).json({ 
