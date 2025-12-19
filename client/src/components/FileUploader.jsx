@@ -74,15 +74,11 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
           setProgress(100);
           setStatus('done');
 
-          toast.success('File uploaded successfully!', {
+          toast.success('Upload Complete! Preparing column mapping...', {
             duration: 1000,
             position: 'top-center',
           });
-
-          setTimeout(() => {
-            onUploadComplete(data);
-          }, 500);
-
+          onUploadComplete(data);
           return;
         }
       }
@@ -131,28 +127,27 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
 
       {/* FILE SELECTED (CENTER COLUMN LAYOUT) */}
       {file && status === 'idle' && (
-        <div className="flex flex-col items-center justify-center gap-6 max-w-md mx-auto">
-          <UploadCloud className="w-14 h-14 text-blue-600" />
+        <div className="flex flex-col items-center justify-center gap-4 text-center">
+          <FileText className="w-16 h-16 text-blue-600" />
 
-          <div className="w-full bg-white border rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <FileText className="w-5 h-5 text-blue-600" />
-              <div className="min-w-0">
-                <p className="font-medium text-gray-800 truncate">{file.name}</p>
-                <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setFile(null)}
-              className="text-gray-400 hover:text-red-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-800 truncate">{file.name}</p>
+            <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
           </div>
 
           <button
+            onClick={() => {
+              setFile(null);
+              setProgress(0);
+            }}
+            className="text-sm text-red-500 hover:underline"
+          >
+            Choose a different file
+          </button>
+
+          <button
             onClick={uploadFile}
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
+            className="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
           >
             <UploadCloud className="w-5 h-5" />
             Upload File

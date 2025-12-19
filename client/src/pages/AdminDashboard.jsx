@@ -54,21 +54,20 @@ const AdminDashboard = () => {
 		}
 	}, [processingJobId, activeTab]);
 
-  const fields = [
-  'fullName',
-  'jobTitle',
-  'company',
-  "industry",
-  'email',
-  'phone',
-  'locality',
-  'location',
-  'skills',
-  'linkedinUrl',
-  'experience',
-  'summary',
-];
-
+	const fields = [
+		"fullName",
+		"jobTitle",
+		"company",
+		"industry",
+		"email",
+		"phone",
+		"locality",
+		"location",
+		"skills",
+		"linkedinUrl",
+		"experience",
+		"summary",
+	];
 
 	// --- MAPPING LOGIC ---
 	const handleProcess = async () => {
@@ -94,7 +93,8 @@ const AdminDashboard = () => {
 			startProgressPolling(data.jobId);
 		} catch (e) {
 			console.error("Process error:", e);
-			const errorMessage = e.response?.data?.message || e.message || "Error processing file";
+			const errorMessage =
+				e.response?.data?.message || e.message || "Error processing file";
 			toast.error(errorMessage);
 			setIsProcessing(false);
 		}
@@ -126,14 +126,18 @@ const AdminDashboard = () => {
 					setProcessingJobId(null);
 					setIsProcessing(false);
 					fetchHistory(); // Refresh history
-					
+
 					if (data.status === "COMPLETED") {
-						toast.success(`Processing completed! ${data.successRows || 0} records imported.`);
+						toast.success(
+							`Processing completed! ${
+								data.successRows || 0
+							} records imported.`,
+						);
 						// Trigger a custom event to refresh the candidates table
 						queryClient.invalidateQueries({ queryKey: ["candidates"] });
-						window.dispatchEvent(new CustomEvent('candidatesUpdated'));
+						window.dispatchEvent(new CustomEvent("candidatesUpdated"));
 					} else {
-						toast.error(`Processing failed: ${data.error || 'Unknown error'}`);
+						toast.error(`Processing failed: ${data.error || "Unknown error"}`);
 					}
 				}
 			} catch (error) {
@@ -154,8 +158,8 @@ const AdminDashboard = () => {
 
 	useEffect(() => {
 		// Check if there's a processing job on mount
-		const processingJob = jobs.find((j) => 
-			j.status === "PROCESSING" || j.status === "MAPPING_PENDING"
+		const processingJob = jobs.find(
+			(j) => j.status === "PROCESSING" || j.status === "MAPPING_PENDING",
 		);
 		if (processingJob && !processingJobId) {
 			setProcessingJobId(processingJob._id);
@@ -163,10 +167,9 @@ const AdminDashboard = () => {
 		}
 	}, [jobs.length]);
 
-
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [passwordError, setPasswordError] = useState("");
-  const [confirmActionType, setConfirmActionType] = useState(null);
+	const [isConfirming, setIsConfirming] = useState(false);
+	const [passwordError, setPasswordError] = useState("");
+	const [confirmActionType, setConfirmActionType] = useState(null);
 
 	const handleReprocess = async (job) => {
 		try {
@@ -191,59 +194,53 @@ const AdminDashboard = () => {
 
 	// --- SECURITY ACTIONS ---
 	const initiateAction = (type, payload) => {
-  setPendingAction({ type, payload });
-  setConfirmActionType(type === "reset" ? "RESET" : "DELETE");
-  setPasswordInput("");
-  setPasswordError("");
-  setShowPasswordModal(true);
-};
-
+		setPendingAction({ type, payload });
+		setConfirmActionType(type === "reset" ? "RESET" : "DELETE");
+		setPasswordInput("");
+		setPasswordError("");
+		setShowPasswordModal(true);
+	};
 
 	const confirmAction = async () => {
-  if (!passwordInput.trim()) {
-    setPasswordError("Password is required");
-    return;
-  }
+		if (!passwordInput.trim()) {
+			setPasswordError("Password is required");
+			return;
+		}
 
-  try {
-    setPasswordError("");
-    setIsConfirming(true);
+		try {
+			setPasswordError("");
+			setIsConfirming(true);
 
-    // First verify the password
-    await api.post("/auth/verify-password", {
-      password: passwordInput,
-    });
+			// First verify the password
+			await api.post("/auth/verify-password", {
+				password: passwordInput,
+			});
 
-    // If password is correct, proceed with the action
-    if (confirmActionType === "RESET") {
-      await api.post("/admin/reset-database");
-      toast.success("Database reset successfully");
-      fetchHistory(); // Refresh the history after reset
-    } 
-    else if (pendingAction?.type === "deleteJob") {
-      await api.delete(`/admin/jobs/${pendingAction.payload}`);
-      toast.success("Job deleted successfully");
-      fetchHistory();
-    }
+			// If password is correct, proceed with the action
+			if (confirmActionType === "RESET") {
+				await api.post("/admin/reset-database");
+				toast.success("Database reset successfully");
+				fetchHistory(); // Refresh the history after reset
+			} else if (pendingAction?.type === "deleteJob") {
+				await api.delete(`/admin/jobs/${pendingAction.payload}`);
+				toast.success("Job deleted successfully");
+				fetchHistory();
+			}
 
-    // Clean up
-    setShowPasswordModal(false);
-    setPasswordInput("");
-    setPasswordError("");
-    setPendingAction(null);
-    setConfirmActionType(null);
-
-  } catch (err) {
-    setPasswordError(
-      err.response?.data?.message || "Incorrect password or operation failed"
-    );
-  } finally {
-    setIsConfirming(false);
-  }
-};
-
-
-
+			// Clean up
+			setShowPasswordModal(false);
+			setPasswordInput("");
+			setPasswordError("");
+			setPendingAction(null);
+			setConfirmActionType(null);
+		} catch (err) {
+			setPasswordError(
+				err.response?.data?.message || "Incorrect password or operation failed",
+			);
+		} finally {
+			setIsConfirming(false);
+		}
+	};
 
 	return (
 		<div className="min-h-screen bg-slate-950 text-slate-100 p-6">
@@ -276,99 +273,91 @@ const AdminDashboard = () => {
 						</div>
 
 						<button
-  onClick={() => {
-    setConfirmActionType("RESET");
-    setPasswordInput("");      // 🔹 clears old password
-    setPasswordError("");      // 🔹 clears old error
-    setPendingAction(null);    // 🔹 reset unrelated delete state
-    setShowPasswordModal(true);
-  }}
-  className="flex items-center gap-2 px-4 py-2
+							onClick={() => {
+								setConfirmActionType("RESET");
+								setPasswordInput(""); // 🔹 clears old password
+								setPasswordError(""); // 🔹 clears old error
+								setPendingAction(null); // 🔹 reset unrelated delete state
+								setShowPasswordModal(true);
+							}}
+							className="flex items-center gap-2 px-4 py-2
              bg-red-700 hover:bg-red-600
              text-white rounded-xl
              font-medium shadow
-             transition cursor-pointer"
->
-  <ShieldAlert size={16} />
-  Reset Database
-</button>
-
-
-
+             transition cursor-pointer">
+							<ShieldAlert size={16} />
+							Reset Database
+						</button>
 					</div>
 				</div>
 
 				{activeTab === "upload" && (
-  <div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
+					<div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
+						{/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
+						{uploadData ? (
+							<div className="max-w-4xl mx-auto animate-fade-in">
+								<div className="mb-6">
+									<h3 className="text-xl font-semibold text-white">
+										Column Mapping
+									</h3>
+									<p className="text-sm text-slate-400">
+										Map CSV headers to PeopleFinder fields
+									</p>
+								</div>
 
-    {/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
-    {uploadData ? (
-      <div className="max-w-4xl mx-auto animate-fade-in">
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold text-white">
-            Column Mapping
-          </h3>
-          <p className="text-sm text-slate-400">
-            Map CSV headers to PeopleFinder fields
-          </p>
-        </div>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+									{fields.map((field) => (
+										<div key={field} className="space-y-1">
+											<label className="text-xs text-slate-400 uppercase tracking-wide">
+												{field}
+											</label>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {fields.map((field) => (
-            <div key={field} className="space-y-1">
-              <label className="text-xs text-slate-400 uppercase tracking-wide">
-                {field}
-              </label>
-
-              <select
-                className="w-full bg-slate-800/70 border border-slate-700
+											<select
+												className="w-full bg-slate-800/70 border border-slate-700
                            rounded-xl px-3 py-2 text-sm text-white
                            focus:ring-2 focus:ring-indigo-500/40
                            cursor-pointer transition"
-                onChange={(e) =>
-                  setMapping({ ...mapping, [field]: e.target.value })
-                }
-              >
-                <option value="">Ignore</option>
-                {uploadData.headers.map((h, i) => (
-                  <option key={i} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
+												onChange={(e) =>
+													setMapping({ ...mapping, [field]: e.target.value })
+												}>
+												<option value="">Ignore</option>
+												{uploadData.headers.map((h, i) => (
+													<option key={i} value={h}>
+														{h}
+													</option>
+												))}
+											</select>
+										</div>
+									))}
+								</div>
 
-        <button
-          onClick={handleProcess}
-          disabled={isProcessing}
-          className={`mt-8 w-full text-white py-3 rounded-xl font-medium
+								<button
+									onClick={handleProcess}
+									disabled={isProcessing}
+									className={`mt-8 w-full text-white py-3 rounded-xl font-medium
             shadow-lg transition ${
-              isProcessing
-                ? "bg-indigo-400 cursor-not-allowed"
-                : "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-            }`}
-        >
-          {isProcessing ? (
-            <span className="flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Processing...
-            </span>
-          ) : (
-            "Process File"
-          )}
-        </button>
-      </div>
-    ) : (
-      /* BEFORE UPLOAD → ONLY FILE UPLOADER */
-      <div className="max-w-3xl mx-auto">
-        <FileUploader onUploadComplete={setUploadData} />
-      </div>
-    )}
-  </div>
-)}
-
+							isProcessing
+								? "bg-indigo-400 cursor-not-allowed"
+								: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+						}`}>
+									{isProcessing ? (
+										<span className="flex items-center justify-center gap-2">
+											<RefreshCw className="w-4 h-4 animate-spin" />
+											Processing...
+										</span>
+									) : (
+										"Process File"
+									)}
+								</button>
+							</div>
+						) : (
+							/* BEFORE UPLOAD → ONLY FILE UPLOADER */
+							<div className="w-full">
+								<FileUploader onUploadComplete={setUploadData} />
+							</div>
+						)}
+					</div>
+				)}
 
 				{/* HISTORY TAB */}
 				{activeTab === "history" && (
@@ -443,7 +432,8 @@ const AdminDashboard = () => {
 
 												{/* Records */}
 												<div className="text-sm text-slate-300 min-w-[110px] text-right">
-													{(job.status === "PROCESSING" || job.status === "MAPPING_PENDING") &&
+													{(job.status === "PROCESSING" ||
+														job.status === "MAPPING_PENDING") &&
 													processingJobId === job._id ? (
 														<>
 															<span className="font-semibold">
@@ -511,78 +501,71 @@ const AdminDashboard = () => {
 
 				{/* PASSWORD CONFIRMATION MODAL */}
 				{/* PASSWORD CONFIRMATION MODAL */}
-{showPasswordModal && (
-  <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
+				{showPasswordModal && (
+					<div
+						className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
                   flex items-center justify-center transition-all">
-
-    <div className="bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl
+						<div
+							className="bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl
                     animate-in fade-in zoom-in-95 duration-200">
+							<h3 className="text-lg font-semibold text-white mb-1">
+								{confirmActionType === "RESET"
+									? "Reset Database"
+									: "Confirm Action"}
+							</h3>
 
-      <h3 className="text-lg font-semibold text-white mb-1">
-  {confirmActionType === "RESET" ? "Reset Database" : "Confirm Action"}
-</h3>
+							<p className="text-sm text-slate-400 mb-4">
+								{confirmActionType === "RESET"
+									? "This will permanently erase all data"
+									: "Enter admin password to continue"}
+							</p>
 
-<p className="text-sm text-slate-400 mb-4">
-  {confirmActionType === "RESET"
-    ? "This will permanently erase all data"
-    : "Enter admin password to continue"}
-</p>
-
-
-      <input
-        type="password"
-        className="w-full bg-slate-800 border border-slate-700
+							<input
+								type="password"
+								className="w-full bg-slate-800 border border-slate-700
                    rounded-xl px-4 py-2 text-white
                    focus:ring-2 focus:ring-rose-500/40
                    outline-none transition"
-        value={passwordInput}
-        onChange={(e) => {
-  setPasswordInput(e.target.value);
-  if (passwordError) setPasswordError("");
-}}
+								value={passwordInput}
+								onChange={(e) => {
+									setPasswordInput(e.target.value);
+									if (passwordError) setPasswordError("");
+								}}
+								autoFocus
+							/>
 
-        autoFocus
-      />
+							{passwordError && (
+								<p className="mt-2 text-sm text-rose-400">{passwordError}</p>
+							)}
 
-      {passwordError && (
-  <p className="mt-2 text-sm text-rose-400">
-    {passwordError}
-  </p>
-)}
+							<div className="flex justify-end gap-3 mt-6">
+								<button
+									onClick={() => setShowPasswordModal(false)}
+									className="text-slate-400 hover:text-white transition cursor-pointer">
+									Cancel
+								</button>
 
-
-      <div className="flex justify-end gap-3 mt-6">
-        <button
-          onClick={() => setShowPasswordModal(false)}
-          className="text-slate-400 hover:text-white transition cursor-pointer">
-          Cancel
-        </button>
-
-        <button
-  onClick={confirmAction}
-  disabled={isConfirming}
-  className={`px-5 py-2 rounded-xl text-white transition
-    ${isConfirming
-      ? "cursor-not-allowed bg-red-400"
-      : confirmActionType === "RESET"
-        ? "bg-red-700 hover:bg-red-600"
-        : "bg-rose-600 hover:bg-rose-500"
-    }`}
->
-  {isConfirming
-    ? confirmActionType === "RESET"
-      ? "Resetting..."
-      : "Deleting..."
-    : "Confirm"}
-</button>
-
-
-      </div>
-
-    </div>
-  </div>
-)}
-
+								<button
+									onClick={confirmAction}
+									disabled={isConfirming}
+									className={`px-5 py-2 rounded-xl text-white transition
+    ${
+			isConfirming
+				? "cursor-not-allowed bg-red-400"
+				: confirmActionType === "RESET"
+				? "bg-red-700 hover:bg-red-600"
+				: "bg-rose-600 hover:bg-rose-500"
+		}`}>
+									{isConfirming
+										? confirmActionType === "RESET"
+											? "Resetting..."
+											: "Deleting..."
+										: "Confirm"}
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);
