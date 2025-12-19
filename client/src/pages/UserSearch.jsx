@@ -119,11 +119,11 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
-		staleTime: 30 * 1000, // Consider data stale after 30 seconds
+		staleTime: 10 * 1000, // Consider data stale after 10 seconds (shorter for live updates)
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
-		refetchInterval: false, // Disable auto-refetch, we'll manually trigger on events
+		refetchInterval: 15000, // Auto-refresh every 15 seconds during processing
 	});
 
 	// Simplified scroll loading logic

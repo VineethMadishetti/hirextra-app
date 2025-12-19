@@ -25,6 +25,7 @@ const AdminDashboard = () => {
 	const [processingProgress, setProcessingProgress] = useState({
 		successRows: 0,
 		totalRows: 0,
+		lastRefreshCount: 0, // Track when we last refreshed the table
 	});
 	const pollingIntervalRef = useRef(null);
 	
@@ -145,6 +146,23 @@ const AdminDashboard = () => {
 				// Refresh history in background (non-blocking)
 				if (activeTab === "history") {
 					fetchHistory(false);
+				}
+
+				// Refresh candidates table DURING processing (every 1000 rows or every 15 seconds)
+				// This ensures new rows appear in the table as they're processed
+				if (data.status === "PROCESSING" && data.successRows > 0) {
+					// Only refresh if we've processed new rows (avoid unnecessary refreshes)
+					const lastRefreshCount = processingProgress.lastRefreshCount || 0;
+					const rowsSinceLastRefresh = data.successRows - lastRefreshCount;
+					
+					if (rowsSinceLastRefresh >= 1000) {
+						// Refresh every 1000 new rows
+						queryClient.invalidateQueries({ queryKey: ["candidates"] });
+						queryClient.refetchQueries({ queryKey: ["candidates"] });
+						// Also emit event for UserSearch page to refresh
+						window.dispatchEvent(new CustomEvent("candidatesProcessing"));
+						setProcessingProgress(prev => ({ ...prev, lastRefreshCount: data.successRows }));
+					}
 				}
 
 				if (data.status === "COMPLETED" || data.status === "FAILED") {
