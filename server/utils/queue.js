@@ -150,12 +150,16 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
     // 1. Auto-Detect where the headers are
     const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
 
-    const batchSize = 1000; // Smaller batches for better performance and memory management
+    // Optimized batch size for large files (14 GB+)
+    // Larger batches = fewer DB round trips = faster processing
+    const batchSize = 5000; // Increased from 1000 for better throughput on large files
     let candidates = [];
     let successCount = 0;
     let failedCount = 0;
     let rowCounter = 0;
     let pendingBatch = null;
+    let lastProgressUpdate = Date.now();
+    const PROGRESS_UPDATE_INTERVAL = 2000; // Update progress every 2 seconds max
 
     // Helper to parse CSV line with proper quote handling
     const parseCSVLine = (csvLine) => {
@@ -378,16 +382,26 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
                 
                 const inserted = docs.length;
                 successCount += inserted;
-                logger.debug(`✅ Batch inserted: ${inserted} rows. Total: ${successCount}`);
                 
-                // Update job progress every batch
-                await UploadJob.findByIdAndUpdate(jobId, { 
-                  successRows: successCount,
-                  totalRows: rowCounter,
-                  failedRows: failedCount
-                }, { new: true }).catch(err => {
-                  logger.error('Error updating job progress:', err);
-                });
+                // Log progress for large files every 10k rows
+                if (successCount % 10000 === 0) {
+                  logger.info(`📊 Progress: ${successCount.toLocaleString()} rows processed for job ${jobId}`);
+                } else {
+                  logger.debug(`✅ Batch inserted: ${inserted} rows. Total: ${successCount}`);
+                }
+                
+                // Update job progress every batch (throttled to avoid DB overload)
+                const now = Date.now();
+                if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
+                  await UploadJob.findByIdAndUpdate(jobId, { 
+                    successRows: successCount,
+                    totalRows: rowCounter,
+                    failedRows: failedCount
+                  }, { new: true }).catch(err => {
+                    logger.error('Error updating job progress:', err);
+                  });
+                  lastProgressUpdate = now;
+                }
                 
                 return; // Success, exit retry loop
               } catch (err) {
@@ -414,13 +428,15 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
           pendingBatch = pendingBatch ? pendingBatch.then(() => processBatch()) : processBatch();
         }
         
-        // Update progress every 500 rows for live updates (more frequent for large files)
-        if (rowCounter % 500 === 0) {
+        // Update progress every 200 rows for live updates (throttled to avoid DB overload)
+        const now = Date.now();
+        if (rowCounter % 200 === 0 && now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
           UploadJob.findByIdAndUpdate(jobId, { 
             successRows: successCount,
             totalRows: rowCounter,
             failedRows: failedCount
           }, { new: true }).catch(() => {});
+          lastProgressUpdate = now;
         }
       })
       .on('end', async () => {
@@ -440,13 +456,14 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
             try {
               const docs = await Candidate.insertMany(candidates, { ordered: false });
               successCount += docs.length;
-              logger.debug(`✅ Final batch inserted: ${docs.length} rows`);
+              logger.info(`✅ Final batch inserted: ${docs.length.toLocaleString()} rows`);
             } catch (err) {
               failedCount += candidates.length;
               logger.error(`❌ Final batch insert failed (${candidates.length} rows):`, err.message);
             }
           }
 
+          // Final progress update before marking as completed
           await UploadJob.findByIdAndUpdate(jobId, { 
             status: 'COMPLETED', 
             completedAt: new Date(),
@@ -455,7 +472,7 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
             failedRows: failedCount
           });
 
-          logger.info(`✅ Job ${jobId} Completed. Total Rows: ${rowCounter}, Success: ${successCount}, Failed: ${failedCount}`);
+          logger.info(`✅ Job ${jobId} Completed. Total Rows: ${rowCounter.toLocaleString()}, Success: ${successCount.toLocaleString()}, Failed: ${failedCount.toLocaleString()}`);
           resolve();
         } catch (err) {
           logger.error(`❌ Error in end handler for job ${jobId}:`, err);

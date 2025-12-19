@@ -27,6 +27,11 @@ const AdminDashboard = () => {
 		totalRows: 0,
 	});
 	const pollingIntervalRef = useRef(null);
+	
+	// S3 File Path Mode
+	const [useS3Path, setUseS3Path] = useState(false);
+	const [s3FilePath, setS3FilePath] = useState("");
+	const [isLoadingHeaders, setIsLoadingHeaders] = useState(false);
 
 	// Password Modal State
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -209,6 +214,42 @@ const AdminDashboard = () => {
 		}
 	};
 
+	// Load headers from S3 file path
+	const handleLoadS3File = async () => {
+		if (!s3FilePath.trim()) {
+			toast.error("Please enter an S3 file path");
+			return;
+		}
+
+		setIsLoadingHeaders(true);
+		try {
+			toast.loading("Loading file headers from S3...", { id: "s3load" });
+			const { data } = await api.post("/candidates/headers", { 
+				filePath: s3FilePath.trim() 
+			});
+			
+			if (data.headers && data.headers.length > 0) {
+				setUploadData({ 
+					filePath: s3FilePath.trim(), 
+					headers: data.headers 
+				});
+				toast.success("File headers loaded! Map your columns below.", { id: "s3load" });
+				setS3FilePath("");
+				setUseS3Path(false);
+			} else {
+				toast.error("Could not read headers from file", { id: "s3load" });
+			}
+		} catch (error) {
+			console.error("S3 file load error:", error);
+			const errorMessage = error.response?.data?.message || 
+				error.response?.data?.error || 
+				"Failed to load file from S3. Check if the file path is correct.";
+			toast.error(errorMessage, { id: "s3load" });
+		} finally {
+			setIsLoadingHeaders(false);
+		}
+	};
+
 	// --- SECURITY ACTIONS ---
 	const initiateAction = (type, payload) => {
 		setPendingAction({ type, payload });
@@ -313,13 +354,28 @@ const AdminDashboard = () => {
 						{/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
 						{uploadData ? (
 							<div className="max-w-4xl mx-auto animate-fade-in">
-								<div className="mb-6">
-									<h3 className="text-xl font-semibold text-white">
-										Column Mapping
-									</h3>
-									<p className="text-sm text-slate-400">
-										Map CSV headers to PeopleFinder fields
-									</p>
+								<div className="mb-6 flex items-center justify-between">
+									<div>
+										<h3 className="text-xl font-semibold text-white">
+											Column Mapping
+										</h3>
+										<p className="text-sm text-slate-400">
+											Map CSV headers to PeopleFinder fields
+										</p>
+										<p className="text-xs text-slate-500 mt-1">
+											File: {uploadData.filePath}
+										</p>
+									</div>
+									<button
+										onClick={() => {
+											setUploadData(null);
+											setMapping({});
+											setUseS3Path(false);
+											setS3FilePath("");
+										}}
+										className="px-4 py-2 text-sm text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-lg transition">
+										Change File
+									</button>
 								</div>
 
 								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -368,9 +424,91 @@ const AdminDashboard = () => {
 								</button>
 							</div>
 						) : (
-							/* BEFORE UPLOAD → ONLY FILE UPLOADER */
+							/* BEFORE UPLOAD → FILE UPLOADER OR S3 PATH */
 							<div className="w-full">
-								<FileUploader onUploadComplete={setUploadData} />
+								{/* Toggle between Upload and S3 Path */}
+								<div className="mb-6 flex gap-2 bg-slate-800/50 p-1 rounded-xl">
+									<button
+										onClick={() => {
+											setUseS3Path(false);
+											setS3FilePath("");
+										}}
+										className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+											!useS3Path
+												? "bg-indigo-600 text-white"
+												: "text-slate-400 hover:text-white"
+										}`}>
+										Upload New File
+									</button>
+									<button
+										onClick={() => {
+											setUseS3Path(true);
+											setUploadData(null);
+										}}
+										className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+											useS3Path
+												? "bg-indigo-600 text-white"
+												: "text-slate-400 hover:text-white"
+										}`}>
+										Use Existing S3 File
+									</button>
+								</div>
+
+								{useS3Path ? (
+									/* S3 FILE PATH INPUT */
+									<div className="bg-slate-800/50 rounded-xl p-6 space-y-4">
+										<div>
+											<h3 className="text-lg font-semibold text-white mb-2">
+												Process File from S3
+											</h3>
+											<p className="text-sm text-slate-400 mb-4">
+												Enter the S3 key/path of your CSV file (e.g., "India.csv" or "uploads/user123/file.csv")
+											</p>
+										</div>
+
+										<div className="space-y-2">
+											<label className="text-xs text-slate-400 uppercase tracking-wide">
+												S3 File Path / Key
+											</label>
+											<input
+												type="text"
+												value={s3FilePath}
+												onChange={(e) => setS3FilePath(e.target.value)}
+												placeholder="India.csv"
+												className="w-full bg-slate-800/70 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+												onKeyPress={(e) => {
+													if (e.key === "Enter" && !isLoadingHeaders) {
+														handleLoadS3File();
+													}
+												}}
+											/>
+											<p className="text-xs text-slate-500">
+												💡 Use just the S3 key (e.g., "India.csv"), not the full URL
+											</p>
+										</div>
+
+										<button
+											onClick={handleLoadS3File}
+											disabled={isLoadingHeaders || !s3FilePath.trim()}
+											className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${
+												isLoadingHeaders || !s3FilePath.trim()
+													? "bg-indigo-400 cursor-not-allowed"
+													: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+											}`}>
+											{isLoadingHeaders ? (
+												<span className="flex items-center justify-center gap-2">
+													<RefreshCw className="w-4 h-4 animate-spin" />
+													Loading Headers...
+												</span>
+											) : (
+												"Load File Headers"
+											)}
+										</button>
+									</div>
+								) : (
+									/* REGULAR FILE UPLOADER */
+									<FileUploader onUploadComplete={setUploadData} />
+								)}
 							</div>
 						)}
 					</div>
