@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "../api/axios";
 import FileUploader from "../components/FileUploader";
 import {
@@ -13,6 +14,7 @@ import {
 import toast from "react-hot-toast";
 
 const AdminDashboard = () => {
+	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState("upload");
 	const [jobs, setJobs] = useState([]);
 	const [uploadData, setUploadData] = useState(null);
@@ -59,11 +61,11 @@ const AdminDashboard = () => {
   "industry",
   'email',
   'phone',
-  'country',
   'locality',
   'location',
   'skills',
   'linkedinUrl',
+  'experience',
   'summary',
 ];
 
@@ -128,6 +130,7 @@ const AdminDashboard = () => {
 					if (data.status === "COMPLETED") {
 						toast.success(`Processing completed! ${data.successRows || 0} records imported.`);
 						// Trigger a custom event to refresh the candidates table
+						queryClient.invalidateQueries({ queryKey: ["candidates"] });
 						window.dispatchEvent(new CustomEvent('candidatesUpdated'));
 					} else {
 						toast.error(`Processing failed: ${data.error || 'Unknown error'}`);

@@ -122,7 +122,6 @@ const UserSearch = () => {
 		staleTime: 10 * 60 * 1000,
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: false,
-		refetchOnMount: false,
 		refetchOnReconnect: false,
 	});
 
@@ -740,7 +739,7 @@ const CandidateRow = React.memo(
 				{/* Location */}
 				<td className="w-32 px-4 py-3">
 					<div className="text-gray-700 break-words">
-						{[candidate.locality, candidate.location, candidate.country].filter(Boolean).join(', ') || "-"}
+						{[candidate.locality, candidate.location].filter(Boolean).join(', ') || "-"}
 					</div>
 				</td>
 
@@ -909,7 +908,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										</div>
 									</div>
 								)}
-								{(profile.locality || profile.country || profile.location) && (
+								{(profile.locality || profile.location) && (
 									<div className="flex items-start gap-3">
 										<MapPin
 											className="text-gray-400 mt-1 flex-shrink-0"
@@ -918,7 +917,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										<div>
 											<p className="text-sm text-gray-500">Location</p>
 											<p className="text-gray-900">
-												{[profile.locality, profile.location, profile.country].filter(Boolean).join(', ')}
+												{[profile.locality, profile.location,].filter(Boolean).join(', ')}
 											</p>
 										</div>
 									</div>
@@ -961,6 +960,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										<p className="text-gray-900">{profile.gender}</p>
 									</div>
 								)}
+
 							</div>
 						</div>
 					</div>
