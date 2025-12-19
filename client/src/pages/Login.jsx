@@ -95,7 +95,7 @@ const Login = () => {
 		{/* Header */}
 		<div className="mb-8 text-center">
 			<h2 className="text-3xl font-semibold text-slate-900 tracking-tight">
-				Welcome back
+				Welcome Recruiter
 			</h2>
 			<p className="text-slate-500 mt-2 text-sm">
 				Sign in to your account
@@ -118,7 +118,7 @@ const Login = () => {
 				<input
 					type="email"
 					required
-					placeholder="admin@test.com"
+					placeholder="user@email.com"
 					className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm
 						text-slate-900 placeholder-slate-400
 						focus:border-slate-900 focus:ring-1 focus:ring-slate-900
@@ -187,7 +187,7 @@ const Login = () => {
 
 		{/* Footer */}
 		<p className="mt-8 text-center text-xs text-slate-400 tracking-wide">
-			Built for modern Recruiters
+			Search. Evaluate. Decide.
 		</p>
 	</div>
 </div>
