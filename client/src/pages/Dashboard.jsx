@@ -38,8 +38,8 @@ const Dashboard = () => {
         {/* Left: Logo & Admin Navigation */}
        <div className="flex items-center gap-10">
           <h1 className="text-xl font-extrabold tracking-tight select-none">
-      <span className="text-slate-800">People</span>
-      <span className="text-slate-500">Finder</span>
+      <span className="text-blue-900">People</span>
+      <span className="text-slate-700">Finder</span>
     </h1>
 
           {/* Only Admins see these buttons */}
