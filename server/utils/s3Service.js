@@ -107,15 +107,26 @@ export const uploadChunkToS3 = async (chunkData, key, isAppend = false) => {
 /**
  * Download file from S3 as stream
  * @param {string} key - S3 object key
+ * @param {object} options - Optional parameters
+ * @param {number} options.rangeStart - Start byte for range request
+ * @param {number} options.rangeEnd - End byte for range request
  * @returns {Promise<Readable>} - Readable stream
  */
-export const downloadFromS3 = async (key) => {
+export const downloadFromS3 = async (key, options = {}) => {
   try {
-    const command = new GetObjectCommand({
+    const commandParams = {
       Bucket: BUCKET_NAME,
       Key: key,
-    });
+    };
 
+    // Add Range header if specified (for reading only first few KB)
+    if (options.rangeStart !== undefined || options.rangeEnd !== undefined) {
+      const rangeStart = options.rangeStart || 0;
+      const rangeEnd = options.rangeEnd || '';
+      commandParams.Range = `bytes=${rangeStart}-${rangeEnd}`;
+    }
+
+    const command = new GetObjectCommand(commandParams);
     const response = await s3Client.send(command);
 
     /**

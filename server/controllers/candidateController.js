@@ -38,31 +38,67 @@ export const getFileHeaders = async (req, res) => {
     const isS3Key = filePath.startsWith('uploads/') || !filePath.includes(path.sep);
     
     if (isS3Key) {
-      // Download from S3
+      // For large files, use readline to read just the first line (fastest method)
+      // This avoids downloading/parsing the entire file
       try {
-        const s3Stream = await downloadFromS3(filePath);
         let headersReceived = false;
+        let timeoutId;
         
-        const csvStream = s3Stream.pipe(csv({
-          headers: true,
-          skipEmptyLines: false,
-          mapHeaders: ({ header, index }) => header && header.trim() ? header.trim() : `Column_${index + 1}`
-        }));
+        // Use Range request to only fetch first 50KB (headers are always at top)
+        const s3Stream = await downloadFromS3(filePath, { 
+          rangeStart: 0, 
+          rangeEnd: 51200 // First 50 KB is more than enough for headers
+        });
         
-        csvStream.on('headers', (csvHeaders) => {
-          if (!headersReceived) {
+        const rl = readline.createInterface({
+          input: s3Stream,
+          crlfDelay: Infinity
+        });
+        
+        // Read only the first non-empty line (header row)
+        rl.on('line', (line) => {
+          if (!headersReceived && line && line.trim()) {
             headersReceived = true;
-            res.json({ headers: csvHeaders, filePath });
+            clearTimeout(timeoutId);
+            
+            // Parse CSV header line manually (faster than csv-parser for single line)
+            const headers = line.split(',').map((h, idx) => {
+              let header = h.trim();
+              // Remove quotes if present
+              if ((header.startsWith('"') && header.endsWith('"')) || 
+                  (header.startsWith("'") && header.endsWith("'"))) {
+                header = header.slice(1, -1);
+              }
+              return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
+            });
+            
+            rl.close();
             s3Stream.destroy();
-            csvStream.destroy();
+            
+            res.json({ headers, filePath });
           }
         });
         
-        csvStream.on('error', (err) => {
+        rl.on('close', () => {
           if (!headersReceived) {
             headersReceived = true;
+            clearTimeout(timeoutId);
+            if (!res.headersSent) {
+              res.status(500).json({ message: 'Could not read header line from file' });
+            }
+            s3Stream.destroy();
+          }
+        });
+        
+        rl.on('error', (err) => {
+          if (!headersReceived) {
+            headersReceived = true;
+            clearTimeout(timeoutId);
             console.error('Error reading headers from S3:', err);
-            res.status(500).json({ message: 'Failed to read file headers from S3', error: err.message });
+            if (!res.headersSent) {
+              res.status(500).json({ message: 'Failed to read file headers from S3', error: err.message });
+            }
+            rl.close();
             s3Stream.destroy();
           }
         });
@@ -70,20 +106,27 @@ export const getFileHeaders = async (req, res) => {
         s3Stream.on('error', (err) => {
           if (!headersReceived) {
             headersReceived = true;
+            clearTimeout(timeoutId);
             console.error('S3 stream error:', err);
-            res.status(500).json({ message: 'Failed to download file from S3', error: err.message });
+            if (!res.headersSent) {
+              res.status(500).json({ message: 'Failed to download file from S3', error: err.message });
+            }
+            rl.close();
+            s3Stream.destroy();
           }
         });
         
-        // Timeout after 30 seconds
-        setTimeout(() => {
+        // Timeout after 60 seconds for large files
+        timeoutId = setTimeout(() => {
           if (!headersReceived) {
             headersReceived = true;
-            res.status(500).json({ message: 'Timeout reading file headers from S3' });
+            if (!res.headersSent) {
+              res.status(500).json({ message: 'Timeout reading file headers from S3. Please check if the file exists and try again.' });
+            }
+            rl.close();
             s3Stream.destroy();
-            csvStream.destroy();
           }
-        }, 30000);
+        }, 60000); // 60 seconds timeout
       } catch (s3Error) {
         console.error('S3 download error:', s3Error);
         return res.status(500).json({ message: 'Failed to download file from S3', error: s3Error.message });
