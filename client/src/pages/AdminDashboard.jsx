@@ -301,7 +301,8 @@ const AdminDashboard = () => {
 				{/* UPLOAD TAB */}
 				{activeTab === "upload" && (
 					<div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
-						<div className={`grid gap-8 ${uploadData ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+						<div className={`grid gap-8 ${uploadData ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+
 							{uploadData && (
 								<div className="animate-fade-in">
 									<div className="mb-6">
@@ -359,7 +360,7 @@ const AdminDashboard = () => {
 								</button>
 								</div>
 							)}
-							<div className={uploadData ? "" : "w-full"}>
+							<div className="w-full">
 								<FileUploader onUploadComplete={setUploadData} />
 							</div>
 						</div>
