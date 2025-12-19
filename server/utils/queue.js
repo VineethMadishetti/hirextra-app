@@ -6,7 +6,7 @@ import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import readline from 'readline';
 import logger from './logger.js';
-import { downloadFromS3 } from './s3Service.js';
+import { downloadFromS3, fileExistsInS3 } from './s3Service.js';
 
 // ---------------------------------------------------
 // Redis connection configuration
@@ -134,6 +134,17 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
   logger.info(`🚀 Processing UploadJob ID: ${jobId}, File: ${filePath}`);
 
   try {
+    // Ensure source file exists in S3 before doing any heavy work
+    const exists = await fileExistsInS3(filePath);
+    if (!exists) {
+      logger.error(`❌ Source file missing in S3 for job ${jobId}: ${filePath}`);
+      await UploadJob.findByIdAndUpdate(jobId, { 
+        status: 'FAILED',
+        error: 'Source file not found in storage. Please re-upload the file.',
+      });
+      return;
+    }
+
     await UploadJob.findByIdAndUpdate(jobId, { status: 'PROCESSING', startedAt: new Date() });
 
     // 1. Auto-Detect where the headers are

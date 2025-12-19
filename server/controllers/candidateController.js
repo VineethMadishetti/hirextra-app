@@ -210,28 +210,39 @@ export const uploadChunk = async (req, res) => {
   const sendResponse = async (headers = []) => {
     if (!responseSent) {
       responseSent = true;
-      
+
       // Upload to S3 after reading headers
       try {
         const fileBuffer = fs.readFileSync(finalFilePath);
         await uploadToS3(fileBuffer, s3Key, 'text/csv');
         console.log(`✅ File uploaded to S3: ${s3Key}`);
-        
+
         // Clean up local temp file
         if (fs.existsSync(finalFilePath)) {
           fs.unlinkSync(finalFilePath);
         }
+
+        // Only on successful upload, tell frontend upload is complete
+        res.json({
+          status: 'done',
+          message: 'Upload complete',
+          filePath: s3Key, // Return S3 key instead of local path
+          headers,
+        });
       } catch (s3Error) {
         console.error('❌ S3 upload failed:', s3Error);
-        // Still send response but log error
+
+        // If upload fails, do NOT allow mapping/processing with a bad key
+        if (fs.existsSync(finalFilePath)) {
+          fs.unlinkSync(finalFilePath);
+        }
+
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to upload file to storage. Please try again.',
+          error: s3Error.message,
+        });
       }
-      
-      res.json({
-        status: 'done',
-        message: 'Upload complete',
-        filePath: s3Key, // Return S3 key instead of local path
-        headers,
-      });
     }
   };
 
