@@ -18,13 +18,13 @@ const getRedisConnection = () => {
   }
 
   // Optional: explicit host/port config
-  if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
-    return {
-      host: process.env.REDIS_HOST,
-      port: parseInt(process.env.REDIS_PORT, 10),
-      password: process.env.REDIS_PASSWORD,
-    };
-  }
+  // if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
+  //   return {
+  //     host: process.env.REDIS_HOST,
+  //     port: parseInt(process.env.REDIS_PORT, 10),
+  //     password: process.env.REDIS_PASSWORD,
+  //   };
+  // }
 
   // In production on Render/Vercel we do NOT want to
   // silently fall back to localhost:6379, because there
