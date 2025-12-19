@@ -291,27 +291,36 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
         logger.error('❌ File stream error during processing:', err);
       });
       
+    const csvParser = csv({
+      skipLines: skipLinesCount + 1, // Skip garbage rows + header row (since we provide headers as array)
+      headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
+      strict: false,
+      skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
+    });
+    
+    // Handle CSV parser errors without stopping the stream
+    csvParser.on('error', (csvErr) => {
+      logger.error(`❌ CSV parser error at row ${rowCounter}:`, csvErr.message);
+      failedCount++;
+      // Don't throw - let stream continue processing
+    });
+    
     const stream = fileStream
-      .pipe(csv({
-        skipLines: skipLinesCount + 1, // Skip garbage rows + header row (since we provide headers as array)
-        headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
-        strict: false,
-        skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
-      }))
+      .pipe(csvParser)
       .on('data', (row) => {
-        rowCounter++;
+        try {
+          rowCounter++;
 
-        // --- DEBUGGING FIRST ROW ---
-        if (rowCounter === 1) {
-            logger.debug("🔍 --- DEBUGGING FIRST ROW ---");
-            logger.debug("Row keys detected:", Object.keys(row).slice(0, 10));
-            logger.debug(`Expected header for 'Full Name': '${mapping.fullName}'`);
-            logger.debug(`Row has '${mapping.fullName}':`, row[mapping.fullName] !== undefined);
-            logger.debug(`Mapping 'Full Name' to '${mapping.fullName}' -> Found: "${row[mapping.fullName]}"`);
-            console.log("Sample row data (first 5 fields):", JSON.stringify(Object.fromEntries(Object.entries(row).slice(0, 5))));
-            console.log("All available keys in row:", Object.keys(row).slice(0, 20).join(', '));
-            console.log("-----------------------------");
-        }
+          // --- DEBUGGING FIRST ROW ---
+          if (rowCounter === 1) {
+              logger.info("🔍 Processing first row...");
+              logger.debug("Row keys detected:", Object.keys(row).slice(0, 10));
+          }
+          
+          // Log progress every 10k rows
+          if (rowCounter % 10000 === 0) {
+            logger.info(`📊 Stream progress: ${rowCounter.toLocaleString()} rows read from file`);
+          }
 
         const getVal = (targetHeader) => {
             if (!targetHeader) return '';
@@ -351,24 +360,25 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
           isDeleted: false
         };
 
-        candidates.push(candidateData);
+          candidates.push(candidateData);
 
-        // Process batch when it reaches batchSize
-        if (candidates.length >= batchSize) {
-          // Process current batch with retry logic (non-blocking)
-          const batchToInsert = [...candidates];
-          candidates = []; // Clear array immediately
-          
-          // Chain the batch processing to ensure sequential execution
-          const processBatch = async () => {
-            // Wait for previous batch to complete if it exists
-            if (pendingBatch) {
-              try {
-                await pendingBatch;
-              } catch (err) {
-                logger.error('Previous batch error (continuing):', err.message);
+          // Process batch when it reaches batchSize
+          if (candidates.length >= batchSize) {
+            // Process current batch with retry logic (non-blocking)
+            const batchToInsert = [...candidates];
+            candidates = []; // Clear array immediately
+            
+            // Chain the batch processing to ensure sequential execution
+            const processBatch = async () => {
+              // Wait for previous batch to complete if it exists
+              if (pendingBatch) {
+                try {
+                  await pendingBatch;
+                } catch (err) {
+                  logger.error('Previous batch error (continuing):', err.message);
+                  // Don't stop processing - continue with next batch
+                }
               }
-            }
             
             let retries = 3;
             let lastError = null;
@@ -454,15 +464,21 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
           pendingBatch = pendingBatch ? pendingBatch.then(() => processBatch()) : processBatch();
         }
         
-        // Update progress every 200 rows for live updates (throttled to avoid DB overload)
-        const now = Date.now();
-        if (rowCounter % 200 === 0 && now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
-          UploadJob.findByIdAndUpdate(jobId, { 
-            successRows: successCount,
-            totalRows: rowCounter,
-            failedRows: failedCount
-          }, { new: true }).catch(() => {});
-          lastProgressUpdate = now;
+          // Update progress every 200 rows for live updates (throttled to avoid DB overload)
+          const now = Date.now();
+          if (rowCounter % 200 === 0 && now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
+            UploadJob.findByIdAndUpdate(jobId, { 
+              successRows: successCount,
+              totalRows: rowCounter,
+              failedRows: failedCount
+            }, { new: true }).catch(() => {});
+            lastProgressUpdate = now;
+          }
+        } catch (rowError) {
+          // Don't let individual row errors stop the entire stream
+          logger.error(`❌ Error processing row ${rowCounter}:`, rowError.message);
+          failedCount++;
+          // Continue processing next row
         }
       })
       .on('end', async () => {
@@ -513,22 +529,41 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
         }
       })
       .on('error', async (err) => {
-          // Clean up stream on error
-          if (fileStream) {
-            fileStream.destroy();
-          }
-          
-          logger.error("❌ CSV Parsing Error:", err);
+          // Log error but try to continue if possible
+          logger.error("❌ CSV Stream Error:", err);
           logger.error("Error details:", {
             message: err.message,
             stack: err.stack,
             filePath,
-            jobId
+            jobId,
+            rowsProcessed: rowCounter,
+            successCount,
+            failedCount
           });
-          await UploadJob.findByIdAndUpdate(jobId, { 
-            status: 'FAILED',
-            error: err.message 
-          });
+          
+          // Don't immediately fail - wait for pending batches first
+          try {
+            if (pendingBatch) {
+              await pendingBatch;
+            }
+            
+            // Update job with current progress before marking as failed
+            await UploadJob.findByIdAndUpdate(jobId, { 
+              status: 'FAILED',
+              error: `Stream error: ${err.message}. Processed ${rowCounter} rows, inserted ${successCount}`,
+              successRows: successCount,
+              totalRows: rowCounter,
+              failedRows: failedCount
+            });
+          } catch (updateErr) {
+            logger.error('Error updating job status:', updateErr);
+          }
+          
+          // Clean up stream
+          if (fileStream) {
+            fileStream.destroy();
+          }
+          
           reject(err);
       });
   }).catch(async (err) => {
