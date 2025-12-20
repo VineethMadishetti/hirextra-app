@@ -6,7 +6,7 @@ const uploadJobSchema = new mongoose.Schema({
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { 
     type: String, 
-    enum: ['UPLOADING', 'MAPPING_PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'], 
+    enum: ['UPLOADING', 'MAPPING_PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'DELETED'], 
     default: 'UPLOADING' 
   },
   totalRows: { type: Number, default: 0 },

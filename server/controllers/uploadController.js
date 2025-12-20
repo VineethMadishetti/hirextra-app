@@ -10,6 +10,7 @@ export const deleteUploadJob = async (req, res) => {
     const job = await UploadJob.findByIdAndUpdate(
       id,
       {
+        status: "DELETED",
         isDeleted: true,
         deletedAt: new Date(),
         deletedBy: userId
