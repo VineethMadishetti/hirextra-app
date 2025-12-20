@@ -15,16 +15,17 @@ export const resetDatabase = async (req, res) => {
 };
 
 export const deleteJob = async (req, res) => {
-  try {
     const { id } = req.params;
-    
-    // Delete the job and associated candidates
-    await UploadJob.findByIdAndDelete(id);
-    await Candidate.deleteMany({ jobId: id });
-    
-    res.json({ message: 'Job and associated data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting job:', error);
-    res.status(500).json({ message: 'Failed to delete job' });
-  }
+    try {
+        // Hard delete all candidates associated with this job
+        await Candidate.deleteMany({ uploadJobId: id });
+        
+        // Hard delete the UploadJob record itself
+        await UploadJob.findByIdAndDelete(id);
+        
+        res.status(200).json({ message: 'Job and associated candidates deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting job:', error);
+        res.status(500).json({ message: 'Error deleting job', error: error.message });
+    }
 };
