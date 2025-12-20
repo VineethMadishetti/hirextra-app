@@ -566,12 +566,9 @@ const AdminDashboard = () => {
 
 						{jobs.length === 0 ? (
 							<div className="p-12 text-center">
-								<Loader className="w-14 h-14 text-indigo-400 mx-auto mb-4 animate-spin" />
-								<p className="text-slate-300 font-medium">
-									Loading history...
-								</p>
-								<p className="text-sm text-slate-500 mt-1">
-									Please wait
+								<FileText className="w-14 h-14 text-slate-600 mx-auto mb-4" />
+								<p className="text-slate-400 font-medium">
+									No upload history found
 								</p>
 							</div>
 						) : (
