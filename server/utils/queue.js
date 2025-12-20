@@ -615,6 +615,20 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 };
 
 // ---------------------------------------------------
+// Delete Job Processing
+// ---------------------------------------------------
+export const processDeleteJob = async ({ jobId }) => {
+	logger.info(`🗑️ Deleting candidates for UploadJob ID: ${jobId}`);
+	try {
+		const result = await Candidate.deleteMany({ uploadJobId: jobId });
+		logger.info(`✅ Deleted ${result.deletedCount} candidates for job ${jobId}`);
+	} catch (error) {
+		logger.error(`❌ Failed to delete candidates for job ${jobId}:`, error);
+		throw error;
+	}
+};
+
+// ---------------------------------------------------
 // Worker setup (csv-import)
 // ---------------------------------------------------
 let worker;
@@ -625,8 +639,13 @@ if (connection) {
 		worker = new Worker(
 			"csv-import",
 			async (job) => {
-				const { filePath, mapping, jobId } = job.data;
-				await processCsvJob({ filePath, mapping, jobId });
+				if (job.name === "delete-file") {
+					const { jobId } = job.data;
+					await processDeleteJob({ jobId });
+				} else {
+					const { filePath, mapping, jobId } = job.data;
+					await processCsvJob({ filePath, mapping, jobId });
+				}
 			},
 			{
 				connection,

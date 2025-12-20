@@ -14,7 +14,10 @@ const uploadJobSchema = new mongoose.Schema({
   failedRows: { type: Number, default: 0 },
   mapping: Object, // Store what mapping was used
   startedAt: Date,
-  completedAt: Date
+  completedAt: Date,
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: Date,
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 export default mongoose.model('UploadJob', uploadJobSchema);
