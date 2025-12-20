@@ -319,6 +319,7 @@ const AdminDashboard = () => {
 				await api.delete(`/admin/jobs/${pendingAction.payload}`);
 				toast.success("Job deleted successfully");
 				fetchHistory();
+				queryClient.invalidateQueries({ queryKey: ["candidates"] });
 			}
 
 			// Clean up
@@ -565,12 +566,12 @@ const AdminDashboard = () => {
 
 						{jobs.length === 0 ? (
 							<div className="p-12 text-center">
-								<FileText className="w-14 h-14 text-slate-600 mx-auto mb-4" />
+								<Loader className="w-14 h-14 text-indigo-400 mx-auto mb-4 animate-spin" />
 								<p className="text-slate-300 font-medium">
-									No upload history
+									Loading history...
 								</p>
 								<p className="text-sm text-slate-500 mt-1">
-									Upload a CSV file to get started
+									Please wait
 								</p>
 							</div>
 						) : (
@@ -585,6 +586,8 @@ const AdminDashboard = () => {
 												return "bg-amber-500/10 text-amber-400";
 											case "FAILED":
 												return "bg-rose-500/10 text-rose-400";
+											case "DELETED":
+												return "bg-slate-800 text-slate-500 border border-slate-700";
 											default:
 												return "bg-slate-700 text-slate-300";
 										}

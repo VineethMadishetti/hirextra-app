@@ -621,7 +621,11 @@ export const deleteUploadJob = async (req, res) => {
 
         const { id } = req.params;
         await Candidate.deleteMany({ uploadJobId: id });
-        await UploadJob.findByIdAndDelete(id);
+        await UploadJob.findByIdAndUpdate(id, { 
+            status: 'DELETED',
+            successRows: 0,
+            failedRows: 0
+        });
         res.json({ message: 'Job deleted successfully' });
     } catch (error) {
         res.status(401).json({ message: error.message });
