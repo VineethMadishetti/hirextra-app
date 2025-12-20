@@ -152,7 +152,7 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 
     // Optimized batch size for large files (14 GB+)
     // Larger batches = fewer DB round trips = faster processing
-    const batchSize = 10000; // Increased from 1000 for better throughput on large files
+    const batchSize = 176000; // Increased from 1000 for better throughput on large files
     let candidates = [];
     let successCount = 0;
     let failedCount = 0;
