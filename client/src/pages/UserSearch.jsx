@@ -782,11 +782,11 @@ const CandidateRow = React.memo(
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
 									className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
-									title="Mobile">
-									📱
+									title={candidate.phone}>
+									<Phone size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-									{candidate.phone}
+									Call {candidate.phone}
 								</div>
 							</div>
 						)}
@@ -795,11 +795,11 @@ const CandidateRow = React.memo(
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
 									className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-									title="Email">
-									✉️
+									title={candidate.email}>
+									<Mail size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-									{candidate.email}
+									Email {candidate.email}
 								</div>
 							</div>
 						)}
@@ -812,18 +812,18 @@ const CandidateRow = React.memo(
 										window.open(url, '_blank');
 									}}
 									className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-									title="LinkedIn">
-									💼
+									title="View LinkedIn Profile">
+									<Linkedin size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
-									{candidate.linkedinUrl}
+									{candidate.linkedinUrl.replace(/^https?:\/\//, '')}
 								</div>
 							</div>
 						)}
 						{(candidate.locality || candidate.location) && (
 							<div className="relative group">
-								<div className="p-1 text-gray-400 rounded-md" title="Location">
-									📍
+								<div className="p-1 text-gray-400 rounded-md" title={[candidate.locality, candidate.location].filter(Boolean).join(', ')}>
+									<MapPin size={16} />
 								</div>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
 									{[candidate.locality, candidate.location].filter(Boolean).join(', ')}
@@ -839,14 +839,14 @@ const CandidateRow = React.memo(
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
 							className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-							title="👁 View">
-							👁
+							title="View">
+							<Eye size={16} />
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
 							className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
-							title="⬇ Resume">
-							⬇
+							title="Download Resume">
+							<Download size={16} />
 						</button>
 						{isAdmin && (
 							<button

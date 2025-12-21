@@ -281,7 +281,10 @@ export const processCsvJob = async ({
 			const csvParser = csv({
 				skipLines: skipLinesCount + 1 + resumeFrom, // Skip garbage + header + already processed rows
 				headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
-				strict: false,
+				// CRITICAL FIX: Enforce strict column count.
+				// Any row that does not have the same number of columns as the header will be rejected.
+				// This prevents column-shift data corruption.
+				strict: true,
 				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
 			});
 
