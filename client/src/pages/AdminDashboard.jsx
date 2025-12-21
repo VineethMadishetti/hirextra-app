@@ -9,6 +9,7 @@ import {
 	ShieldAlert,
 	CheckCircle,
 	Clock,
+	Play,
 	XCircle,
 	Loader,
 } from "lucide-react";
@@ -104,6 +105,7 @@ const AdminDashboard = () => {
 		try {
 			const { data } = await api.post("/candidates/process", {
 				filePath: uploadData.filePath,
+				headers: uploadData.headers, // ✅ Send the exact headers used for mapping
 				mapping,
 			});
 			toast.success("Processing started! Check History tab for progress.");
@@ -247,6 +249,19 @@ const AdminDashboard = () => {
 				error.response?.data?.message || "File missing from server.",
 				{ id: "reprocess" },
 			);
+		}
+	};
+
+	const handleResume = async (job) => {
+		try {
+			toast.loading("Resuming job...", { id: "resume" });
+			await api.post(`/candidates/${job._id}/resume`);
+			toast.success("Job resumed! Check progress.", { id: "resume" });
+			setProcessingJobId(job._id);
+			startProgressPolling(job._id);
+		} catch (error) {
+			console.error("Resume error:", error);
+			toast.error(error.response?.data?.message || "Failed to resume job", { id: "resume" });
 		}
 	};
 
@@ -470,7 +485,7 @@ const AdminDashboard = () => {
 											setUseS3Path(false);
 											setS3FilePath("");
 										}}
-										className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+										className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
 											!useS3Path
 												? "bg-indigo-600 text-white"
 												: "text-slate-400 hover:text-white"
@@ -482,7 +497,7 @@ const AdminDashboard = () => {
 											setUseS3Path(true);
 											setUploadData(null);
 										}}
-										className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+										className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
 											useS3Path
 												? "bg-indigo-600 text-white"
 												: "text-slate-400 hover:text-white"
@@ -667,6 +682,16 @@ const AdminDashboard = () => {
 
 												{/* Actions */}
 												<div className="flex gap-2">
+													{/* Resume Button for Stuck Jobs */}
+													{job.status === "PROCESSING" && processingJobId !== job._id && (
+														<button
+															onClick={() => handleResume(job)}
+															className="p-2 rounded-lg bg-slate-700/40 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer"
+															title="Resume Processing">
+															<Play size={16} />
+														</button>
+													)}
+
 													<button
 														onClick={() => handleReprocess(job)}
 														className="p-2 rounded-lg bg-slate-700/40

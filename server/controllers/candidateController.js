@@ -405,26 +405,30 @@ export const uploadChunk = async (req, res) => {
 // --- START PROCESSING (Creates History Record) ---
 export const processFile = async (req, res) => {
   try {
-    const { filePath, mapping } = req.body;
+    const { filePath, mapping, headers } = req.body;
     
     if (!filePath) {
       return res.status(400).json({ message: 'File path is required' });
+    }
+    if (!headers || headers.length === 0) {
+      return res.status(400).json({ message: 'Header information is required' });
     }
 
     const fileName = path.basename(filePath);
 
     // 1. Create a DB Record for this Job
     const newJob = await UploadJob.create({
-        fileName: filePath, // Use full path
+        fileName: filePath,
         originalName: fileName,
-        uploadedBy: req.user._id, // Requires authMiddleware
+        uploadedBy: req.user._id,
         status: 'MAPPING_PENDING',
-        mapping
+        mapping,
+        headers // ✅ Save headers to the database
     });
 
     // 2. Start processing immediately in the background (no Redis required)
     //    We do NOT await here so the HTTP response returns quickly.
-    processCsvJob({ filePath, mapping, jobId: newJob._id })
+    processCsvJob({ jobId: newJob._id })
       .catch(async (processingError) => {
         console.error('Background CSV processing failed:', processingError);
         await UploadJob.findByIdAndUpdate(newJob._id, { 
@@ -441,6 +445,31 @@ export const processFile = async (req, res) => {
       message: 'Failed to start file processing',
       error: error.message 
     });
+  }
+};
+
+// --- RESUME STUCK JOB ---
+export const resumeUploadJob = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = await UploadJob.findById(id);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+
+    // Calculate where to resume based on what was already saved
+    const rowsProcessed = (job.successRows || 0) + (job.failedRows || 0);
+    
+    // Trigger background process with resume parameters
+    processCsvJob({
+        resumeFrom: rowsProcessed,
+        initialSuccess: job.successRows || 0,
+        initialFailed: job.failedRows || 0
+    }).catch(async (processingError) => {
+        console.error('Background resume failed:', processingError);
+    });
+
+    res.json({ message: `Resuming job from row ${rowsProcessed}`, jobId: job._id });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 

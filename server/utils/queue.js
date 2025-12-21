@@ -138,16 +138,37 @@ const findHeaderRowIndex = async (filePath, mapping) => {
 // Core CSV processing logic (shared between worker
 // and direct-processing fallback)
 // ---------------------------------------------------
-export const processCsvJob = async ({ filePath, mapping, jobId }) => {
-	logger.info(`🚀 Processing UploadJob ID: ${jobId}, File: ${filePath}`);
+export const processCsvJob = async ({
+	jobId,
+	resumeFrom = 0,
+	initialSuccess = 0,
+	initialFailed = 0,
+}) => {
+	logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
 
 	try {
+		// ✅ SINGLE SOURCE OF TRUTH: Fetch all job parameters from the database.
+		const job = await UploadJob.findById(jobId).lean();
+		if (!job) {
+			logger.error(`❌ Job ${jobId} not found. Aborting.`);
+			return;
+		}
+
+		const { fileName: filePath, mapping, headers: actualHeaders } = job;
+
+		if (!actualHeaders || actualHeaders.length === 0) {
+			logger.error(`❌ Job ${jobId} is missing stored headers. Cannot process.`);
+			await UploadJob.findByIdAndUpdate(jobId, {
+				status: "FAILED",
+				error: "Processing failed: Header information was not saved with the job.",
+			});
+			return;
+		}
+
 		// Ensure source file exists in S3 before doing any heavy work
 		const exists = await fileExistsInS3(filePath);
 		if (!exists) {
-			logger.error(
-				`❌ Source file missing in S3 for job ${jobId}: ${filePath}`,
-			);
+			logger.error(`❌ Source file missing in S3 for job ${jobId}: ${filePath}`);
 			await UploadJob.findByIdAndUpdate(jobId, {
 				status: "FAILED",
 				error: "Source file not found in storage. Please re-upload the file.",
@@ -155,10 +176,7 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 			return;
 		}
 
-		await UploadJob.findByIdAndUpdate(jobId, {
-			status: "PROCESSING",
-			startedAt: new Date(),
-		});
+		await UploadJob.findByIdAndUpdate(jobId, { status: "PROCESSING" });
 
 		// 1. Auto-Detect where the headers are
 		const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
@@ -167,9 +185,9 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 		// Larger batches = fewer DB round trips = faster processing
 		const batchSize = 2000; // Increased from 1000 for better throughput on large files
 		let candidates = [];
-		let successCount = 0;
-		let failedCount = 0;
-		let rowCounter = 0;
+		let successCount = initialSuccess;
+		let failedCount = initialFailed;
+		let rowCounter = resumeFrom;
 		let lastProgressUpdate = Date.now();
 		const PROGRESS_UPDATE_INTERVAL = 2000; // Update progress every 2 seconds max
 
@@ -214,211 +232,41 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 			});
 		};
 
-		// First, read the actual headers from the file
-		const readHeaders = async () => {
-			return new Promise((resolveHeaders, rejectHeaders) => {
-				let headerStream;
-				let headerRl;
-				let resolved = false;
-
-				// Wrap async operation
-				(async () => {
-					try {
-						headerStream = await getFileStream(filePath);
-						headerRl = readline.createInterface({
-							input: headerStream,
-							crlfDelay: Infinity,
-						});
-						let headerLineNumber = 0;
-
-						headerRl.on("line", (line) => {
-							if (resolved) return; // Prevent multiple resolutions
-
-							if (headerLineNumber === skipLinesCount && line && line.trim()) {
-								const headers = parseCSVLine(line);
-
-								logger.info(
-									`📋 Actual headers found (${headers.length} columns):`,
-									headers.slice(0, 10).join(", "),
-									"...",
-								);
-								resolved = true;
-								if (headerRl) headerRl.close();
-								if (headerStream) headerStream.destroy();
-								resolveHeaders(headers);
-							} else {
-								headerLineNumber++;
-								if (headerLineNumber > skipLinesCount + 5) {
-									// Fallback: use CSV parser default
-									if (!resolved) {
-										resolved = true;
-										if (headerRl) headerRl.close();
-										if (headerStream) headerStream.destroy();
-										logger.warn(
-											"⚠️ Could not read header line manually, using CSV parser",
-										);
-										resolveHeaders(null);
-									}
-								}
-							}
-						});
-
-						headerRl.on("close", () => {
-							if (!resolved) {
-								resolved = true;
-								resolveHeaders(null);
-							}
-						});
-
-						headerRl.on("error", (err) => {
-							if (!resolved) {
-								resolved = true;
-								logger.error("❌ Error reading headers:", err);
-								if (headerRl) headerRl.close();
-								if (headerStream) headerStream.destroy();
-								rejectHeaders(err);
-							}
-						});
-
-						headerStream.on("error", (err) => {
-							if (!resolved) {
-								resolved = true;
-								logger.error("❌ Stream error reading headers:", err);
-								if (headerRl) headerRl.close();
-								if (headerStream) headerStream.destroy();
-								rejectHeaders(err);
-							}
-						});
-					} catch (error) {
-						if (!resolved) {
-							resolved = true;
-							logger.error("❌ Failed to get file stream for headers:", error);
-							if (headerRl) headerRl.close();
-							if (headerStream) headerStream.destroy();
-							rejectHeaders(error);
-						}
-					}
-				})();
-			});
-		};
 		return await new Promise(async (resolve, reject) => {
-			// Read headers first
-			const actualHeaders = await readHeaders();
-
-			if (!actualHeaders || actualHeaders.length === 0) {
-				logger.error("❌ Could not read headers from file");
-				await UploadJob.findByIdAndUpdate(jobId, { status: "FAILED" });
-				reject(new Error("Could not read headers from file"));
-				return;
-			}
-
-			logger.info(`✅ Using ${actualHeaders.length} headers for processing`);
+			// We now use the `actualHeaders` from the job document.
+			logger.info(
+				`✅ Using ${actualHeaders.length} stored headers for processing`,
+			);
 			logger.debug(`📝 First 5 headers:`, actualHeaders.slice(0, 5).join(", "));
 
-			// Helper to insert a batch of candidates (extracted for reuse)
 			const insertBatch = async (batchToInsert) => {
 				if (batchToInsert.length === 0) return;
+				try {
+					await Candidate.insertMany(batchToInsert, { ordered: false });
+					successCount += batchToInsert.length;
 
-				let retries = 3;
-				let lastError = null;
-
-				while (retries > 0) {
-					try {
-						const docs = await Candidate.insertMany(batchToInsert, {
-							ordered: false, // Continue inserting even if some fail
-							lean: false,
-							rawResult: false, // Return inserted documents, not raw result
+					const now = Date.now();
+					if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
+						await UploadJob.findByIdAndUpdate(jobId, {
+							successRows: successCount,
+							failedRows: failedCount,
+							totalRows: rowCounter,
 						});
-
-						const inserted = docs.length;
-						successCount += inserted;
-
-						// Log progress for large files every 10k rows
-						if (successCount % 10000 === 0) {
-							logger.info(
-								`📊 Progress: ${successCount.toLocaleString()} rows processed for job ${jobId}`,
-							);
-						}
-
-						// Update job progress every batch (throttled to avoid DB overload)
-						const now = Date.now();
-						if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
-							await UploadJob.findByIdAndUpdate(
-								jobId,
-								{
-									successRows: successCount,
-									totalRows: rowCounter,
-									failedRows: failedCount,
-								},
-								{ new: true },
-							).catch((err) => {
-								logger.error("Error updating job progress:", err);
-							});
-							lastProgressUpdate = now;
-						}
-
-						return; // Success, exit retry loop
-					} catch (err) {
-						lastError = err;
-						retries--;
-
-						// If some documents were inserted, count them
-						if (err.insertedCount > 0) {
-							successCount += err.insertedCount;
-						}
-
-						// Check if it's a connection error or duplicate key error
-						if (
-							err.name === "MongoNetworkError" ||
-							err.message.includes("connection")
-						) {
-							logger.warn(
-								`⚠️ Connection error, retrying... (${retries} attempts left)`,
-							);
-							await new Promise((resolve) =>
-								setTimeout(resolve, 1000 * (4 - retries)),
-							); // Exponential backoff
-						} else if (
-							err.code === 11000 ||
-							err.message.includes("duplicate")
-						) {
-							// Duplicate key error - count as failed but continue
-							failedCount += batchToInsert.length - (err.insertedCount || 0);
-							return; // Continue processing, don't retry duplicates
-						} else {
-							// Other errors - log and continue with next batch
-							logger.error(`❌ Non-retryable error: ${err.message}`);
-							failedCount += batchToInsert.length - (err.insertedCount || 0);
-							return; // Don't retry, continue with next batch
-						}
+						lastProgressUpdate = now;
 					}
+				} catch (err) {
+					// Duplicate key error - count as failed but continue
+					// If ordered: false, err.insertedDocs contains successful ones
+					// We'll approximate failed count for now
+					failedCount += batchToInsert.length;
+					logger.warn(`Batch insert warning: ${err.message}`);
 				}
-
-				// All retries failed
-				const actuallyFailed =
-					batchToInsert.length - (lastError?.insertedCount || 0);
-				failedCount += actuallyFailed;
-				logger.error(
-					`❌ Batch insert failed after all retries (${actuallyFailed} rows failed):`,
-					lastError?.message,
-				);
 			};
 
-			// Now process the file with correct headers
-			// When headers is an array, csv-parser:
-			// 1. Uses those headers directly (doesn't read from file)
-			// 2. Automatically skips the first line (assuming it's the header row)
-			// 3. Starts processing data from the second line
-			// So we need to: skip garbage rows + skip header row = skipLinesCount + 1
 			const fileStream = await getFileStream(filePath);
 
-			// Add error handler to fileStream
-			fileStream.on("error", (err) => {
-				logger.error("❌ File stream error during processing:", err);
-			});
-
 			const csvParser = csv({
-				skipLines: skipLinesCount + 1, // Skip garbage rows + header row (since we provide headers as array)
+				skipLines: skipLinesCount + 1 + resumeFrom, // Skip garbage + header + already processed rows
 				headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
 				strict: false,
 				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
@@ -440,10 +288,10 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 				.pipe(csvParser)
 				.on("data", async (row) => {
 					try {
-						rowCounter++;
+						rowCounter++; // This will now continue from resumeFrom + 1
 
 						// --- DEBUGGING FIRST ROW ---
-						if (rowCounter === 1) {
+						if (rowCounter === resumeFrom + 1) {
 							logger.info("🔍 Processing first row...");
 							logger.debug("Row keys detected:", Object.keys(row).slice(0, 10));
 						}
@@ -669,8 +517,8 @@ if (connection) {
 					const { jobId } = job.data;
 					await processDeleteJob({ jobId });
 				} else {
-					const { filePath, mapping, jobId } = job.data;
-					await processCsvJob({ filePath, mapping, jobId });
+					// The worker now only needs the jobId and resume info.
+					await processCsvJob({ ...job.data });
 				}
 			},
 			{

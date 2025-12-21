@@ -783,7 +783,7 @@ const CandidateRow = React.memo(
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
 									className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
 									title="Mobile">
-									<Phone size={16} />
+									📱
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
 									{candidate.phone}
@@ -796,7 +796,7 @@ const CandidateRow = React.memo(
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
 									className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
 									title="Email">
-									<Mail size={16} />
+									✉️
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
 									{candidate.email}
@@ -813,7 +813,7 @@ const CandidateRow = React.memo(
 									}}
 									className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 									title="LinkedIn">
-									<Linkedin size={16} />
+									💼
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
 									{candidate.linkedinUrl}
@@ -823,7 +823,7 @@ const CandidateRow = React.memo(
 						{(candidate.locality || candidate.location) && (
 							<div className="relative group">
 								<div className="p-1 text-gray-400 rounded-md" title="Location">
-									<MapPin size={16} />
+									📍
 								</div>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
 									{[candidate.locality, candidate.location].filter(Boolean).join(', ')}
@@ -839,14 +839,14 @@ const CandidateRow = React.memo(
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
 							className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-							title="View">
-							<Eye size={16} />
+							title="👁 View">
+							👁
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
 							className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
-							title="Resume">
-							<Download size={16} />
+							title="⬇ Resume">
+							⬇
 						</button>
 						{isAdmin && (
 							<button
