@@ -1,6 +1,6 @@
 // Data cleaning and validation utilities
 export const cleanAndValidateCandidate = (data) => {
-  if (!data) return null;
+  if (!data) return { valid: false, reason: 'EMPTY_DATA' };
   const cleaned = { ...data };
 
   // Helper: Capitalize first letter of each word (Title Case)
@@ -126,7 +126,7 @@ export const cleanAndValidateCandidate = (data) => {
   const hasPhone = !!cleaned.phone;
   const hasLinkedIn = cleaned.linkedinUrl && cleaned.linkedinUrl.trim().length > 0;
 
-  if (!hasEmail && !hasPhone && !hasLinkedIn) return null; // No contact info -> Reject Row
+  if (!hasEmail && !hasPhone && !hasLinkedIn) return { valid: false, reason: 'NO_CONTACT_INFO' };
 
-  return cleaned;
+  return { valid: true, data: cleaned };
 };

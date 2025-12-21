@@ -591,7 +591,8 @@ export const exportCandidates = async (req, res) => {
 
     const csvRows = candidates
       .map(c => cleanAndValidateCandidate(c)) // ETL: Clean & Validate
-      .filter(Boolean) // Remove invalid rows (Garbage data)
+      .filter(res => res.valid) // Remove invalid rows (Garbage data)
+      .map(res => res.data) // Extract cleaned data
       .map(candidate => [
       candidate.fullName || '',
       candidate.jobTitle || '',

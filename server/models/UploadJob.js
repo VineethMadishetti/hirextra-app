@@ -12,6 +12,11 @@ const uploadJobSchema = new mongoose.Schema({
   totalRows: { type: Number, default: 0 },
   successRows: { type: Number, default: 0 },
   failedRows: { type: Number, default: 0 },
+  failureReasons: {
+    type: Map,
+    of: Number,
+    default: {}
+  },
   mapping: Object, // Store what mapping was used
   headers: [String], // ✅ Store the exact headers used for processing
   startedAt: Date,

@@ -18,14 +18,15 @@ const cleanExistingCandidates = async () => {
 
     for (const candidate of candidates) {
       const originalData = candidate.toObject();
-      const cleaned = cleanAndValidateCandidate(originalData);
+      const result = cleanAndValidateCandidate(originalData);
 
-      if (!cleaned) {
+      if (!result.valid) {
         // Mark as deleted if invalid
         await Candidate.findByIdAndUpdate(candidate._id, { isDeleted: true });
         invalid++;
         console.log(`Marked invalid candidate ${candidate._id} as deleted`);
       } else {
+        const cleaned = result.data;
         // Check if data changed
         const changed = Object.keys(cleaned).some(key => 
           originalData[key] !== cleaned[key] && key !== '_id' && key !== 'createdAt' && key !== 'updatedAt'

@@ -201,6 +201,7 @@ export const processCsvJob = async ({
 		let successCount = initialSuccess;
 		let failedCount = initialFailed;
 		let rowCounter = resumeFrom;
+		const failureReasonCounts = new Map();
 		let lastProgressUpdate = Date.now();
 		const PROGRESS_UPDATE_INTERVAL = 2000; // Update progress every 2 seconds max
 
@@ -252,6 +253,11 @@ export const processCsvJob = async ({
 			);
 			logger.debug(`📝 First 5 headers:`, actualHeaders.slice(0, 5).join(", "));
 
+			const incrementFailure = (reason) => {
+				failedCount++;
+				failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
+			};
+
 			const insertBatch = async (batchToInsert) => {
 				if (batchToInsert.length === 0) return;
 				try {
@@ -264,6 +270,7 @@ export const processCsvJob = async ({
 							successRows: successCount,
 							failedRows: failedCount,
 							totalRows: rowCounter,
+							failureReasons: Object.fromEntries(failureReasonCounts),
 						});
 						lastProgressUpdate = now;
 					}
@@ -280,9 +287,7 @@ export const processCsvJob = async ({
 
 			const csvParser = csv({
 				skipLines: skipLinesCount + 1 + resumeFrom, // Skip garbage + header + already processed rows
-				headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
-				// FIX: Disable strict mode in parser to prevent stream crash on bad rows.
-				// We will manually validate column count in the data handler instead.
+				headers: false, // ✅ RAW MODE: Get raw arrays to validate column count manually
 				strict: false,
 				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
 			});
@@ -305,21 +310,28 @@ export const processCsvJob = async ({
 					try {
 						rowCounter++; // This will now continue from resumeFrom + 1
 
+						// Convert raw row to array (csv-parser with headers:false emits arrays)
+						const rowValues = Object.values(row);
+
 						// --- MANUAL STRICT VALIDATION ---
 						// Check if row has the correct number of columns to prevent data shifting.
-						// csv-parser with explicit headers returns an object with those keys.
-						// We check if the number of keys matches the expected headers.
-						if (Object.keys(row).length !== actualHeaders.length) {
-							logger.warn(`⚠️ Row ${rowCounter} skipped: Column count mismatch (Expected ${actualHeaders.length}, got ${Object.keys(row).length})`);
-							failedCount++;
-							return; // Skip this row
+						if (rowValues.length !== actualHeaders.length) {
+							logger.warn(`⚠️ Row ${rowCounter} skipped: Column count mismatch (Expected ${actualHeaders.length}, got ${rowValues.length})`);
+							incrementFailure('COLUMN_MISMATCH'); // ✅ Now defined!
+							return;
 						}
+
+						// Manually map headers to values since we disabled auto-mapping
+						const mappedRow = {};
+						actualHeaders.forEach((header, index) => {
+							mappedRow[header] = rowValues[index];
+						});
 						// --------------------------------
 
 						// --- DEBUGGING FIRST ROW ---
 						if (rowCounter === resumeFrom + 1) {
 							logger.info("🔍 Processing first row...");
-							logger.debug("Row keys detected:", Object.keys(row).slice(0, 10));
+							logger.debug("Row values detected:", rowValues.slice(0, 5));
 						}
 
 						// Log progress every 10k rows
@@ -332,20 +344,20 @@ export const processCsvJob = async ({
 						const getVal = (targetHeader) => {
 							if (!targetHeader) return "";
 							// Check exact match first
-							if (row[targetHeader] !== undefined) {
+							if (mappedRow[targetHeader] !== undefined) {
 								// Preserve empty strings - don't convert to empty if it's already empty
-								const value = row[targetHeader];
+								const value = mappedRow[targetHeader];
 								return value === null || value === undefined
 									? ""
 									: String(value).trim();
 							}
 							// Loose match for case-insensitive header matching
-							const looseKey = Object.keys(row).find(
+							const looseKey = Object.keys(mappedRow).find(
 								(k) =>
 									k.toLowerCase().trim() === targetHeader.toLowerCase().trim(),
 							);
 							if (looseKey !== undefined) {
-								const value = row[looseKey];
+								const value = mappedRow[looseKey];
 								return value === null || value === undefined
 									? ""
 									: String(value).trim();
@@ -376,15 +388,15 @@ export const processCsvJob = async ({
 						};
 
 						// Validate and Clean Data (ETL)
-						const validData = cleanAndValidateCandidate(candidateData);
+						const validationResult = cleanAndValidateCandidate(candidateData);
 
-						if (validData) {
-							candidates.push(validData);
+						if (validationResult.valid) {
+							candidates.push(validationResult.data);
 						} else {
 							if (failedCount < 5) {
-								logger.warn(`⚠️ Row rejected (No Contact Info): Email=${candidateData.email}, Phone=${candidateData.phone}, LinkedIn=${candidateData.linkedinUrl}`);
+								logger.warn(`⚠️ Row rejected (${validationResult.reason}): Email=${candidateData.email}, Phone=${candidateData.phone}`);
 							}
-							failedCount++; // Count invalid rows as failed (Garbage Data)
+							incrementFailure(validationResult.reason || 'INVALID_DATA');
 						}
 
 						// Process batch when it reaches batchSize
@@ -435,6 +447,7 @@ export const processCsvJob = async ({
 							successRows: successCount,
 							totalRows: rowCounter,
 							failedRows: failedCount,
+							failureReasons: Object.fromEntries(failureReasonCounts),
 						});
 
 						logger.info(
@@ -449,6 +462,7 @@ export const processCsvJob = async ({
 							successRows: successCount,
 							totalRows: rowCounter,
 							failedRows: failedCount,
+							failureReasons: Object.fromEntries(failureReasonCounts),
 						});
 						reject(err);
 					}
@@ -473,6 +487,7 @@ export const processCsvJob = async ({
 						successRows: successCount,
 						totalRows: rowCounter,
 						failedRows: failedCount,
+						failureReasons: Object.fromEntries(failureReasonCounts),
 					}).catch((updateErr) => {
 						logger.error("Error updating job status:", updateErr);
 					});
