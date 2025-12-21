@@ -15,6 +15,13 @@ export const cleanAndValidateCandidate = (data) => {
     cleaned.fullName = cleaned.fullName.replace(/[^a-zA-Z\s]/g, '');
     // Normalize spaces (max space gaps)
     cleaned.fullName = cleaned.fullName.replace(/\s+/g, ' ').trim();
+    
+    // Max 3 words (Strict Requirement)
+    const words = cleaned.fullName.split(' ');
+    if (words.length > 3) {
+        cleaned.fullName = words.slice(0, 3).join(' ');
+    }
+    
     // Capitalize
     cleaned.fullName = toTitleCase(cleaned.fullName);
   }
@@ -27,6 +34,8 @@ export const cleanAndValidateCandidate = (data) => {
 
   // 3. Company Name: Capitalize
   if (cleaned.company) {
+    // Strict: Only alphabets allowed
+    cleaned.company = cleaned.company.replace(/[^a-zA-Z\s]/g, '');
     cleaned.company = cleaned.company.replace(/\s+/g, ' ').trim();
     cleaned.company = toTitleCase(cleaned.company);
   }
@@ -34,17 +43,18 @@ export const cleanAndValidateCandidate = (data) => {
   // 4. Experience: Add ' Years' if missing
   if (cleaned.experience) {
     cleaned.experience = cleaned.experience.trim();
-    // Garbage check: if it looks like a URL (LinkedIn in experience), clear it
-    if (cleaned.experience.includes('http') || cleaned.experience.includes('www.') || cleaned.experience.includes('.com')) {
+    
+    // Strict: Only numbers or word 'years'
+    // Strategy: Extract the first number found. If no number, clear it (prevents garbage text).
+    const numberMatch = cleaned.experience.match(/(\d+(\.\d+)?)/);
+    
+    if (numberMatch) {
+        cleaned.experience = `${numberMatch[0]} Years`;
+    } else if (cleaned.experience.toLowerCase().includes('fresh')) {
+        cleaned.experience = '0 Years';
+    } else {
+        // If no number and not fresher, it's likely garbage data (e.g. a Job Title shifted here)
         cleaned.experience = '';
-    } else if (cleaned.experience) {
-        // Check for 'year', 'years', 'yr', 'yrs' (case insensitive)
-        if (!/years?|yrs?/i.test(cleaned.experience)) {
-            // Only add if it looks like a number or duration
-            if (/\d/.test(cleaned.experience)) {
-                 cleaned.experience = `${cleaned.experience} Years`;
-            }
-        }
     }
   }
 

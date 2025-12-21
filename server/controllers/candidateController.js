@@ -14,6 +14,10 @@ import { uploadToS3, generateS3Key, downloadFromS3 } from '../utils/s3Service.js
 // Handles quoted fields correctly (e.g. "Manager, Sales" is one column)
 const parseCsvLine = (line) => {
   if (!line) return [];
+  // FIX: Strip BOM (Byte Order Mark) if present
+  if (line.charCodeAt(0) === 0xFEFF) {
+    line = line.slice(1);
+  }
   const columns = [];
   let currentField = '';
   let inQuotes = false;

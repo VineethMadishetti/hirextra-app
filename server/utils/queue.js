@@ -176,6 +176,10 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 		// Helper to parse CSV line with proper quote handling
 		const parseCSVLine = (csvLine) => {
 			if (!csvLine) return [];
+			// FIX: Strip BOM (Byte Order Mark) if present to prevent header mismatch
+			if (csvLine.charCodeAt(0) === 0xFEFF) {
+				csvLine = csvLine.slice(1);
+			}
 			const columns = [];
 			let currentField = '';
 			let inQuotes = false;
