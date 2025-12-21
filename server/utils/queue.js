@@ -281,10 +281,9 @@ export const processCsvJob = async ({
 			const csvParser = csv({
 				skipLines: skipLinesCount + 1 + resumeFrom, // Skip garbage + header + already processed rows
 				headers: actualHeaders, // Provide headers as array - parser will use these and skip first data line
-				// CRITICAL FIX: Enforce strict column count.
-				// Any row that does not have the same number of columns as the header will be rejected.
-				// This prevents column-shift data corruption.
-				strict: true,
+				// FIX: Disable strict mode in parser to prevent stream crash on bad rows.
+				// We will manually validate column count in the data handler instead.
+				strict: false,
 				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
 			});
 
@@ -305,6 +304,17 @@ export const processCsvJob = async ({
 				.on("data", async (row) => {
 					try {
 						rowCounter++; // This will now continue from resumeFrom + 1
+
+						// --- MANUAL STRICT VALIDATION ---
+						// Check if row has the correct number of columns to prevent data shifting.
+						// csv-parser with explicit headers returns an object with those keys.
+						// We check if the number of keys matches the expected headers.
+						if (Object.keys(row).length !== actualHeaders.length) {
+							logger.warn(`⚠️ Row ${rowCounter} skipped: Column count mismatch (Expected ${actualHeaders.length}, got ${Object.keys(row).length})`);
+							failedCount++;
+							return; // Skip this row
+						}
+						// --------------------------------
 
 						// --- DEBUGGING FIRST ROW ---
 						if (rowCounter === resumeFrom + 1) {
