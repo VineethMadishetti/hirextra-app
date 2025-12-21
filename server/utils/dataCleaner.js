@@ -21,18 +21,37 @@ export const cleanAndValidateCandidate = (data) => {
       }
   }
 
-  // 3. Clean and validate text fields
+  // 3. Clean and validate text fields with stricter rules
   const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
   cleaned.fullName = cleanText(cleaned.fullName);
   cleaned.jobTitle = cleanText(cleaned.jobTitle);
-  cleaned.skills = cleanText(cleaned.skills);
-  cleaned.location = cleanText(cleaned.location);
-  cleaned.locality = cleanText(cleaned.locality);
   cleaned.company = cleanText(cleaned.company);
   cleaned.industry = cleanText(cleaned.industry);
   cleaned.summary = cleanText(cleaned.summary);
   cleaned.experience = cleanText(cleaned.experience);
+
+  // Stricter cleaning for specific fields
+  if (cleaned.jobTitle) {
+    // Job titles should not contain location-like patterns or be too long
+    if (cleaned.jobTitle.length > 50) cleaned.jobTitle = cleaned.jobTitle.substring(0, 50);
+    // Remove excessive special characters
+    cleaned.jobTitle = cleaned.jobTitle.replace(/[^a-zA-Z\s\-&]/g, '');
+  }
+
+  if (cleaned.company) {
+    // Company names should be reasonable length
+    if (cleaned.company.length > 50) cleaned.company = cleaned.company.substring(0, 50);
+    // Allow basic punctuation for company names
+    cleaned.company = cleaned.company.replace(/[^a-zA-Z\s\.,\-&]/g, '');
+  }
+
+  if (cleaned.skills) {
+    // Skills should be comma-separated, clean each skill
+    cleaned.skills = cleaned.skills.split(',').map(skill => 
+      skill.trim().replace(/[^a-zA-Z\s\-+#]/g, '').substring(0, 30)
+    ).filter(skill => skill.length > 1).join(', ');
+  }
 
   // 4. Heuristic corrections for common mapping errors
   // If fullName looks like a summary (long, contains keywords), swap with summary
@@ -74,9 +93,21 @@ export const cleanAndValidateCandidate = (data) => {
     }
   }
 
-  // 5. Validate Name (must be reasonable length)
+  // 5. Strict validation for fullName: only alphabets and up to 3 spaces
   if (cleaned.fullName) {
-    if (cleaned.fullName.length > 100) cleaned.fullName = cleaned.fullName.substring(0, 100);
+    // Remove all non-alphabetic characters except spaces
+    cleaned.fullName = cleaned.fullName.replace(/[^a-zA-Z\s]/g, '');
+    // Replace multiple spaces with single space
+    cleaned.fullName = cleaned.fullName.replace(/\s+/g, ' ').trim();
+    // Count spaces - allow maximum 3 spaces (meaning up to 4 words)
+    const spaceCount = (cleaned.fullName.match(/\s/g) || []).length;
+    if (spaceCount > 3) {
+      // Keep only first 4 words
+      const words = cleaned.fullName.split(/\s+/);
+      cleaned.fullName = words.slice(0, 4).join(' ');
+    }
+    // Final trim
+    cleaned.fullName = cleaned.fullName.trim();
     if (cleaned.fullName.length < 2) cleaned.fullName = ''; // Too short
   }
 
