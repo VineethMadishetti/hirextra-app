@@ -3,115 +3,115 @@ export const cleanAndValidateCandidate = (data) => {
   if (!data) return null;
   const cleaned = { ...data };
 
-  // 1. Clean Phone: Remove all non-digit/non-plus characters
+  // Helper: Capitalize first letter of each word (Title Case)
+  const toTitleCase = (str) => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/(?:^|\s|['"({])+[a-z]/g, (match) => match.toUpperCase());
+  };
+
+  // 1. Full Name: Alphabets only, max space gaps, Title Case
+  if (cleaned.fullName) {
+    // Remove non-alphabets (allow spaces)
+    cleaned.fullName = cleaned.fullName.replace(/[^a-zA-Z\s]/g, '');
+    // Normalize spaces (max space gaps)
+    cleaned.fullName = cleaned.fullName.replace(/\s+/g, ' ').trim();
+    // Capitalize
+    cleaned.fullName = toTitleCase(cleaned.fullName);
+  }
+
+  // 2. Job Title: Capitalize
+  if (cleaned.jobTitle) {
+    cleaned.jobTitle = cleaned.jobTitle.replace(/\s+/g, ' ').trim();
+    cleaned.jobTitle = toTitleCase(cleaned.jobTitle);
+  }
+
+  // 3. Company Name: Capitalize
+  if (cleaned.company) {
+    cleaned.company = cleaned.company.replace(/\s+/g, ' ').trim();
+    cleaned.company = toTitleCase(cleaned.company);
+  }
+
+  // 4. Experience: Add ' Years' if missing
+  if (cleaned.experience) {
+    cleaned.experience = cleaned.experience.trim();
+    // Garbage check: if it looks like a URL (LinkedIn in experience), clear it
+    if (cleaned.experience.includes('http') || cleaned.experience.includes('www.') || cleaned.experience.includes('.com')) {
+        cleaned.experience = '';
+    } else if (cleaned.experience) {
+        // Check for 'year', 'years', 'yr', 'yrs' (case insensitive)
+        if (!/years?|yrs?/i.test(cleaned.experience)) {
+            // Only add if it looks like a number or duration
+            if (/\d/.test(cleaned.experience)) {
+                 cleaned.experience = `${cleaned.experience} Years`;
+            }
+        }
+    }
+  }
+
+  // 5. LinkedIn: Strict validation
+  if (cleaned.linkedinUrl) {
+    let url = cleaned.linkedinUrl.trim();
+    // Must contain 'linkedin.com' to be valid
+    if (url.toLowerCase().includes('linkedin.com')) {
+        // Ensure protocol
+        if (!url.startsWith('http')) {
+            url = 'https://' + url.replace(/^https?:\/\//, '');
+        }
+        cleaned.linkedinUrl = url;
+    } else {
+        // Reject invalid LinkedIn URLs (fixes "https://male/" issue)
+        cleaned.linkedinUrl = '';
+    }
+  }
+
+  // 6. Mobile: Only numbers and +
   if (cleaned.phone) {
+    // Remove all characters except digits and +
     cleaned.phone = cleaned.phone.replace(/[^0-9+]/g, '');
-    const phoneRegex = /^\+?[0-9]{7,15}$/;
-    if (!phoneRegex.test(cleaned.phone)) {
+    // Basic validity check
+    if (cleaned.phone.length < 7 || cleaned.phone.length > 15) {
         cleaned.phone = '';
     }
   }
 
-  // 2. Validate Email (Relaxed)
+  // 7. Location: Only alphabets, comma, fullstop
+  if (cleaned.location) {
+    cleaned.location = cleaned.location.replace(/[^a-zA-Z\s,.]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  // Apply same to locality/country
+  if (cleaned.locality) cleaned.locality = cleaned.locality.replace(/[^a-zA-Z\s,.]/g, '').trim();
+  if (cleaned.country) cleaned.country = cleaned.country.replace(/[^a-zA-Z\s,.]/g, '').trim();
+
+  // 8. Skills: Remove emails, fix formatting
+  if (cleaned.skills) {
+    const skillsArr = cleaned.skills.split(',');
+    const validSkills = [];
+    
+    for (let s of skillsArr) {
+        s = s.trim();
+        if (!s) continue;
+        
+        // Check if it looks like an email (contains @ and .) -> Reject
+        if (s.includes('@') && s.includes('.')) continue;
+        
+        // Check if it looks like a URL -> Reject
+        if (s.includes('http') || s.includes('www.')) continue;
+
+        validSkills.push(s);
+    }
+    cleaned.skills = validSkills.join(', ');
+  }
+
+  // 9. Email Validation
   if (cleaned.email) {
       cleaned.email = cleaned.email.trim();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleaned.email)) {
-          cleaned.email = ''; // Invalid email -> Clear it, don't reject row yet
+          cleaned.email = ''; 
       }
   }
 
-  // 3. Clean and validate text fields with stricter rules
-  const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
-
-  cleaned.fullName = cleanText(cleaned.fullName);
-  cleaned.jobTitle = cleanText(cleaned.jobTitle);
-  cleaned.company = cleanText(cleaned.company);
-  cleaned.industry = cleanText(cleaned.industry);
-  cleaned.summary = cleanText(cleaned.summary);
-  cleaned.experience = cleanText(cleaned.experience);
-
-  // Stricter cleaning for specific fields
-  if (cleaned.jobTitle) {
-    // Job titles should not contain location-like patterns or be too long
-    if (cleaned.jobTitle.length > 50) cleaned.jobTitle = cleaned.jobTitle.substring(0, 50);
-    // Remove excessive special characters
-    cleaned.jobTitle = cleaned.jobTitle.replace(/[^a-zA-Z\s\-&]/g, '');
-  }
-
-  if (cleaned.company) {
-    // Company names should be reasonable length
-    if (cleaned.company.length > 50) cleaned.company = cleaned.company.substring(0, 50);
-    // Allow basic punctuation for company names
-    cleaned.company = cleaned.company.replace(/[^a-zA-Z\s\.,\-&]/g, '');
-  }
-
-  if (cleaned.skills) {
-    // Skills should be comma-separated, clean each skill
-    cleaned.skills = cleaned.skills.split(',').map(skill => 
-      skill.trim().replace(/[^a-zA-Z\s\-+#]/g, '').substring(0, 30)
-    ).filter(skill => skill.length > 1).join(', ');
-  }
-
-  // 4. Heuristic corrections for common mapping errors
-  // If fullName looks like a summary (long, contains keywords), swap with summary
-  if (cleaned.fullName && cleaned.fullName.length > 50 &&
-      (cleaned.fullName.toLowerCase().includes('experience') ||
-       cleaned.fullName.toLowerCase().includes('professional') ||
-       cleaned.fullName.toLowerCase().includes('skills'))) {
-    if (!cleaned.summary || cleaned.summary.length < cleaned.fullName.length) {
-      [cleaned.fullName, cleaned.summary] = [cleaned.summary, cleaned.fullName];
-    }
-  }
-
-  // If jobTitle contains location keywords, and location is empty, move it
-  if (cleaned.jobTitle && !cleaned.location &&
-      (cleaned.jobTitle.toLowerCase().includes('city') ||
-       cleaned.jobTitle.toLowerCase().includes('state') ||
-       cleaned.jobTitle.toLowerCase().includes('country') ||
-       cleaned.jobTitle.toLowerCase().includes(','))) {
-    cleaned.location = cleaned.jobTitle;
-    cleaned.jobTitle = '';
-  }
-
-  // If skills contains names or titles, it might be misassigned
-  if (cleaned.skills && cleaned.skills.length > 100 &&
-      (cleaned.skills.toLowerCase().includes('engineer') ||
-       cleaned.skills.toLowerCase().includes('developer') ||
-       cleaned.skills.toLowerCase().includes('manager'))) {
-    if (!cleaned.jobTitle) {
-      cleaned.jobTitle = cleaned.skills;
-      cleaned.skills = '';
-    }
-  }
-
-  // Clean LinkedIn URL
-  if (cleaned.linkedinUrl) {
-    cleaned.linkedinUrl = cleaned.linkedinUrl.trim();
-    if (!cleaned.linkedinUrl.startsWith('http')) {
-      cleaned.linkedinUrl = 'https://' + cleaned.linkedinUrl.replace(/^https?:\/\//, '');
-    }
-  }
-
-  // 5. Strict validation for fullName: only alphabets and up to 3 spaces
-  if (cleaned.fullName) {
-    // Remove all non-alphabetic characters except spaces
-    cleaned.fullName = cleaned.fullName.replace(/[^a-zA-Z\s]/g, '');
-    // Replace multiple spaces with single space
-    cleaned.fullName = cleaned.fullName.replace(/\s+/g, ' ').trim();
-    // Count spaces - allow maximum 3 spaces (meaning up to 4 words)
-    const spaceCount = (cleaned.fullName.match(/\s/g) || []).length;
-    if (spaceCount > 3) {
-      // Keep only first 4 words
-      const words = cleaned.fullName.split(/\s+/);
-      cleaned.fullName = words.slice(0, 4).join(' ');
-    }
-    // Final trim
-    cleaned.fullName = cleaned.fullName.trim();
-    if (cleaned.fullName.length < 2) cleaned.fullName = ''; // Too short
-  }
-
-  // 6. Check for at least ONE contact method (Email OR Phone OR LinkedIn)
+  // 10. Contact Method Check
   const hasEmail = !!cleaned.email;
   const hasPhone = !!cleaned.phone;
   const hasLinkedIn = cleaned.linkedinUrl && cleaned.linkedinUrl.trim().length > 0;
