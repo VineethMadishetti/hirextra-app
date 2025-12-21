@@ -175,23 +175,39 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 
 		// Helper to parse CSV line with proper quote handling
 		const parseCSVLine = (csvLine) => {
-			const result = [];
-			let current = "";
+			if (!csvLine) return [];
+			const columns = [];
+			let currentField = '';
 			let inQuotes = false;
-
+	
 			for (let i = 0; i < csvLine.length; i++) {
 				const char = csvLine[i];
+	
 				if (char === '"') {
-					inQuotes = !inQuotes;
-				} else if (char === "," && !inQuotes) {
-					result.push(current.trim());
-					current = "";
+					// Handle escaped quotes ("")
+					if (inQuotes && csvLine[i + 1] === '"') {
+						currentField += '"';
+						i++; // Skip the next quote
+					} else {
+						inQuotes = !inQuotes;
+					}
+				} else if (char === ',' && !inQuotes) {
+					columns.push(currentField);
+					currentField = '';
 				} else {
-					current += char;
+					currentField += char;
 				}
 			}
-			result.push(current.trim()); // Add last field
-			return result;
+			columns.push(currentField);
+	
+			// Unquote and trim each field
+			return columns.map((field, idx) => {
+				let f = field.trim();
+				if (f.startsWith('"') && f.endsWith('"')) {
+					f = f.slice(1, -1).replace(/""/g, '"');
+				}
+				return f.trim() ? f.trim() : `Column_${idx + 1}`;
+			});
 		};
 
 		// First, read the actual headers from the file
@@ -215,13 +231,7 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 							if (resolved) return; // Prevent multiple resolutions
 
 							if (headerLineNumber === skipLinesCount && line && line.trim()) {
-								const headers = parseCSVLine(line).map((h, idx) => {
-									// Remove quotes if present
-									let header = h.replace(/^["']|["']$/g, "");
-									return header && header.trim()
-										? header.trim()
-										: `Column_${idx + 1}`;
-								});
+								const headers = parseCSVLine(line);
 
 								logger.info(
 									`📋 Actual headers found (${headers.length} columns):`,
@@ -473,6 +483,7 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 							industry: getVal(mapping.industry),
 							jobTitle: getVal(mapping.jobTitle),
 							skills: getVal(mapping.skills),
+							experience: getVal(mapping.experience),
 							country: getVal(mapping.country),
 							locality: getVal(mapping.locality),
 							location: getVal(mapping.location),

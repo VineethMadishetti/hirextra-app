@@ -8,6 +8,7 @@ const candidateSchema = new mongoose.Schema(
     fullName: { type: String },
     jobTitle: { type: String },
     skills: { type: String },
+    experience: { type: String },
 
     // -------------------------
     // Location filtering

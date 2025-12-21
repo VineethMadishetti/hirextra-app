@@ -14,29 +14,37 @@ import { uploadToS3, generateS3Key, downloadFromS3 } from '../utils/s3Service.js
 // Handles quoted fields correctly (e.g. "Manager, Sales" is one column)
 const parseCsvLine = (line) => {
   if (!line) return [];
-  const result = [];
-  let current = "";
+  const columns = [];
+  let currentField = '';
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
+
     if (char === '"') {
       if (inQuotes && line[i + 1] === '"') {
-        current += '"';
+        currentField += '"';
         i++;
       } else {
         inQuotes = !inQuotes;
       }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = "";
+      columns.push(currentField);
+      currentField = '';
     } else {
-      current += char;
+            currentField += char;
+        }
     }
-  }
-  result.push(current.trim());
-  
-  return result.map((h, idx) => h && h.trim() ? h.trim() : `Column_${idx + 1}`);
+    columns.push(currentField);
+
+    // Unquote and trim each field
+    return columns.map((field, idx) => {
+        let f = field.trim();
+        if (f.startsWith('"') && f.endsWith('"')) {
+            f = f.slice(1, -1).replace(/""/g, '"');
+        }
+        return f.trim() ? f.trim() : `Column_${idx + 1}`;
+    });
 };
 
 // --- HELPER: ETL Data Cleaning & Validation ---
@@ -47,8 +55,6 @@ export const cleanAndValidateCandidate = (data) => {
   // 1. Clean Phone: Remove all non-digit/non-plus characters
   if (cleaned.phone) {
     cleaned.phone = cleaned.phone.replace(/[^0-9+]/g, '');
-    
-    // Relaxed: If phone is invalid, just clear it. Don't reject the row.
     const phoneRegex = /^\+?[0-9]{7,15}$/;
     if (!phoneRegex.test(cleaned.phone)) {
         cleaned.phone = ''; 
@@ -504,7 +510,7 @@ export const getJobStatus = async (req, res) => {
 export const searchCandidates = async (req, res) => {
   try {
     const { 
-      q, locality, jobTitle, skills, 
+      q, locality, location, jobTitle, skills, 
       hasEmail, hasPhone, hasLinkedin, 
       page = 1, limit = 20
     } = req.query;
@@ -519,11 +525,12 @@ export const searchCandidates = async (req, res) => {
     if (q) query.$text = { $search: q };
 
     // 2. Specific Filters
-    if (locality) {
+    const locFilter = locality || location;
+    if (locFilter) {
       query.$or = [
-        { locality: new RegExp(locality, 'i') },
-        { location: new RegExp(locality, 'i') },
-        { country: new RegExp(locality, 'i') }
+        { locality: new RegExp(locFilter, 'i') },
+        { location: new RegExp(locFilter, 'i') },
+        { country: new RegExp(locFilter, 'i') }
       ];
     }
     if (jobTitle) query.jobTitle = new RegExp(jobTitle, 'i');
@@ -580,7 +587,7 @@ export const exportCandidates = async (req, res) => {
 
     // Convert to CSV
     const csvHeaders = [
-      'Full Name', 'Job Title', 'Skills', 'Experience', 'Company Name', 'Location', 'Email', 'Phone', 'LinkedIn URL',
+      'Full Name', 'Job Title', 'Skills', 'Company Name', 'Experience', 'Phone', 'Email', 'LinkedIn URL', 'Location',
       'Industry', 'Country', 'Locality', 'Birth Year', 'Summary'
     ];
 
@@ -591,12 +598,12 @@ export const exportCandidates = async (req, res) => {
       candidate.fullName || '',
       candidate.jobTitle || '',
       candidate.skills || '',
-      candidate.experience || '',
       candidate.company || '',
-      candidate.location || candidate.locality || candidate.country || '',
-      candidate.email || '',
+      candidate.experience || '',
       candidate.phone || '',
+      candidate.email || '',
       candidate.linkedinUrl || '',
+      candidate.location || candidate.locality || candidate.country || '',
       candidate.industry || '',
       candidate.country || '',
       candidate.locality || '',
