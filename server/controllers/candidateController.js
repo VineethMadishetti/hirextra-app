@@ -10,6 +10,47 @@ import readline from 'readline';
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from "docx";
 import { uploadToS3, generateS3Key, downloadFromS3 } from '../utils/s3Service.js';
 
+// --- HELPER: Robust CSV Line Parser (ETL) ---
+// Handles quoted fields correctly (e.g. "Manager, Sales" is one column)
+const parseCsvLine = (line) => {
+  if (!line) return [];
+  // Split by comma ONLY if not inside quotes
+  const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+  
+  return parts.map((h, idx) => {
+    let header = h.trim();
+    // Remove surrounding quotes and unescape double quotes
+    if ((header.startsWith('"') && header.endsWith('"')) || (header.startsWith("'") && header.endsWith("'"))) {
+      header = header.slice(1, -1).replace(/""/g, '"');
+    }
+    return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
+  });
+};
+
+// --- HELPER: ETL Data Cleaning & Validation ---
+export const cleanAndValidateCandidate = (data) => {
+  if (!data) return null;
+  const cleaned = { ...data };
+
+  // 1. Clean Phone: Remove all non-digit/non-plus characters
+  if (cleaned.phone) {
+    cleaned.phone = cleaned.phone.replace(/[^0-9+]/g, '');
+  }
+
+  // 2. Validate Phone (7-15 digits, optional +)
+  const phoneRegex = /^\+?[0-9]{7,15}$/;
+  if (!cleaned.phone || !phoneRegex.test(cleaned.phone)) return null; // Invalid Phone -> Reject Row
+
+  // 3. Validate Email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!cleaned.email || !emailRegex.test(cleaned.email)) return null; // Invalid Email -> Reject Row
+
+  // 4. Validate Name (Max 50 chars)
+  if (!cleaned.fullName || cleaned.fullName.length > 50) return null; // Invalid Name -> Reject Row
+
+  return cleaned;
+};
+
 // Helper to clean up temp chunk files
 const deleteFile = (filePath) => {
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
@@ -62,15 +103,7 @@ export const getFileHeaders = async (req, res) => {
             clearTimeout(timeoutId);
             
             // Parse CSV header line manually (faster than csv-parser for single line)
-            const headers = line.split(',').map((h, idx) => {
-              let header = h.trim();
-              // Remove quotes if present
-              if ((header.startsWith('"') && header.endsWith('"')) || 
-                  (header.startsWith("'") && header.endsWith("'"))) {
-                header = header.slice(1, -1);
-              }
-              return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
-            });
+            const headers = parseCsvLine(line);
             
             rl.close();
             s3Stream.destroy();
@@ -303,18 +336,7 @@ export const uploadChunk = async (req, res) => {
           rl.close();
           fileStream.destroy();
 
-          return line
-            .split(',')
-            .map((h, i) => {
-              let header = h.trim();
-              if (
-                (header.startsWith('"') && header.endsWith('"')) ||
-                (header.startsWith("'") && header.endsWith("'"))
-              ) {
-                header = header.slice(1, -1);
-              }
-              return header || `Column_${i + 1}`;
-            });
+          return parseCsvLine(line);
         }
       }
 
@@ -521,7 +543,7 @@ export const exportCandidates = async (req, res) => {
     const candidates = await Candidate.find({ 
       _id: { $in: ids },
       isDeleted: false 
-    }).select('-sourceFile -uploadJobId -__v');
+    }).select('-sourceFile -uploadJobId -__v').lean();
 
     if (candidates.length === 0) {
       return res.status(404).json({ message: "No candidates found" });
@@ -529,11 +551,14 @@ export const exportCandidates = async (req, res) => {
 
     // Convert to CSV
     const csvHeaders = [
-      'Full Name', 'Email', 'Phone', 'Company', 'Industry', 'Job Title', 'Skills',
+      'Full Name', 'Email', 'Phone', 'Company', 'Industry', 'Job Title', 'Skills', 'Experience',
       'Country', 'Locality', 'Location', 'LinkedIn URL', 'GitHub URL', 'Birth Year', 'Summary'
     ];
 
-    const csvRows = candidates.map(candidate => [
+    const csvRows = candidates
+      .map(c => cleanAndValidateCandidate(c)) // ETL: Clean & Validate
+      .filter(Boolean) // Remove invalid rows (Garbage data)
+      .map(candidate => [
       candidate.fullName || '',
       candidate.email || '',
       candidate.phone || '',
@@ -638,249 +663,131 @@ export const downloadProfile = async (req, res) => {
     const candidate = await Candidate.findById(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
-    // Create the Word Document with improved formatting
+    // Helper to clean text
+    const clean = (text) => text ? text.replace(/[\r\n]+/g, " ").trim() : "";
+
+    // --- ATS FRIENDLY RESUME GENERATOR ---
     const doc = new Document({
       styles: {
+        default: {
+            document: {
+                run: {
+                    font: "Calibri",
+                    size: 22, // 11pt (Standard for ATS)
+                    color: "000000",
+                },
+                paragraph: {
+                    spacing: { line: 276, after: 120 }, // 1.15 line spacing
+                },
+            },
+        },
         paragraphStyles: [
           {
-            id: "normalPara",
-            name: "Normal Para",
-            basedOn: "Normal",
-            next: "Normal",
-            quickFormat: true,
+            id: "SectionHeader",
+            name: "Section Header",
             run: {
-              font: "Calibri",
-              size: 24, // 12pt
+                font: "Calibri",
+                size: 24, // 12pt
+                bold: true,
+                allCaps: true,
             },
             paragraph: {
-              spacing: {
-                line: 276, // 1.15 line spacing
-                before: 0,
-                after: 120, // 6pt after
-              },
-            },
-          },
-          {
-            id: "heading1",
-            name: "Heading 1",
-            basedOn: "Normal",
-            next: "Normal",
-            quickFormat: true,
-            run: {
-              font: "Calibri",
-              size: 32, // 16pt
-              bold: true,
-              color: "2E75B6",
-            },
-            paragraph: {
-              spacing: {
-                before: 240, // 12pt
-                after: 120, // 6pt
-              },
-            },
-          },
-          {
-            id: "heading2",
-            name: "Heading 2",
-            basedOn: "Normal",
-            next: "Normal",
-            quickFormat: true,
-            run: {
-              font: "Calibri",
-              size: 28, // 14pt
-              bold: true,
-              color: "2E75B6",
-            },
-            paragraph: {
-              spacing: {
-                before: 200, // 10pt
-                after: 100, // 5pt
-              },
-            },
+                spacing: { before: 240, after: 120 },
+                border: {
+                    bottom: { color: "000000", space: 1, value: "single", size: 6 }
+                }
+            }
           },
         ],
       },
       sections: [{
         properties: {},
         children: [
-          // Header with Name
+          // 1. NAME (Header)
           new Paragraph({
-            text: candidate.fullName || "Candidate Profile",
-            style: "heading1",
+            text: (candidate.fullName || "Candidate Profile").toUpperCase(),
+            heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
+            spacing: { after: 120 },
           }),
 
-          // Job Title and Location
+          // 2. CONTACT INFO (Pipe Separated - ATS Friendly)
           new Paragraph({
-            children: [
-              new TextRun({
-                text: candidate.jobTitle || "Position Not Specified",
-                font: "Calibri",
-                size: 26, // 13pt
-                bold: true,
-              }),
-              new TextRun({
-                text: candidate.locality || candidate.country || candidate.location ? ` • ${[candidate.locality, candidate.country, candidate.location].filter(Boolean).join(', ')}` : "",
-                font: "Calibri",
-                size: 24,
-                color: "666666",
-              }),
-            ],
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 },
-          }),
-
-          // Contact Information Section
-          new Paragraph({
-            text: "Contact Information",
-            style: "heading2",
-          }),
-
-          // Contact Details
-          new Paragraph({
             children: [
-              new TextRun({ text: "Email: ", bold: true, font: "Calibri", size: 24 }),
               new TextRun({
-                text: candidate.email || "Not provided",
-                font: "Calibri",
-                size: 24,
-                color: candidate.email ? "000000" : "888888"
-              }),
-            ],
-            spacing: { after: 100 },
+                text: [
+                    clean(candidate.email),
+                    clean(candidate.phone).replace(/[^0-9+]/g, ''), // Ensure clean phone in Resume
+                    clean(candidate.location || candidate.locality || candidate.country),
+                    candidate.linkedinUrl ? "LinkedIn Profile" : null
+                ].filter(Boolean).join(" | "),
+                size: 22,
+              })
+            ]
           }),
 
+          // 3. PROFESSIONAL SUMMARY
+          ...(candidate.summary ? [
+            new Paragraph({ text: "PROFESSIONAL SUMMARY", style: "SectionHeader" }),
+            new Paragraph({ text: clean(candidate.summary) })
+          ] : []),
+
+          // 4. EXPERIENCE (Formatted cleanly)
+          new Paragraph({ text: "EXPERIENCE", style: "SectionHeader" }),
+          
+          // Job 1 (Current/Most Recent)
           new Paragraph({
             children: [
-              new TextRun({ text: "Phone: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({
-                text: candidate.phone || "Not provided",
-                font: "Calibri",
-                size: 24,
-                color: candidate.phone ? "000000" : "888888"
-              }),
-            ],
-            spacing: { after: 100 },
+                new TextRun({ 
+                    text: clean(candidate.jobTitle) || "Position Not Specified", 
+                    bold: true,
+                    size: 24 
+                }),
+            ]
           }),
-
-          candidate.linkedinUrl && new Paragraph({
-            children: [
-              new TextRun({ text: "LinkedIn: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({
-                text: candidate.linkedinUrl,
-                font: "Calibri",
-                size: 24,
-                color: "0077B5",
-                underline: {}
-              }),
-            ],
-            spacing: { after: 100 },
-          }),
-
-          candidate.githubUrl && new Paragraph({
-            children: [
-              new TextRun({ text: "GitHub: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({
-                text: candidate.githubUrl,
-                font: "Calibri",
-                size: 24,
-                color: "333333",
-                underline: {}
-              }),
-            ],
-            spacing: { after: 200 },
-          }),
-
-          // Professional Details Section
           new Paragraph({
-            text: "Professional Details",
-            style: "heading2",
-          }),
-
-          candidate.jobTitle && new Paragraph({
             children: [
-              new TextRun({ text: "Current Position: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({ text: candidate.jobTitle, font: "Calibri", size: 24 }),
+                new TextRun({ 
+                    text: clean(candidate.company) || "Company Not Specified", 
+                    italics: true 
+                }),
+                new TextRun({ 
+                    text: candidate.industry ? `  |  ${clean(candidate.industry)}` : "" 
+                }),
             ],
-            spacing: { after: 100 },
+            spacing: { after: 200 }
           }),
+          
+          // Additional Experience Details (if stored in 'experience' field)
+          ...(candidate.experience ? [
+             new Paragraph({ text: clean(candidate.experience) })
+          ] : []),
 
-          candidate.company && new Paragraph({
-            children: [
-              new TextRun({ text: "Company: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({ text: candidate.company, font: "Calibri", size: 24 }),
-            ],
-            spacing: { after: 100 },
-          }),
+          // 5. SKILLS
+          ...(candidate.skills ? [
+            new Paragraph({ text: "SKILLS", style: "SectionHeader" }),
+            new Paragraph({ 
+                text: clean(candidate.skills).split(',').map(s => s.trim()).join(" • "),
+                spacing: { after: 200 }
+            })
+          ] : []),
 
-          candidate.industry && new Paragraph({
-            children: [
-              new TextRun({ text: "Industry: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({ text: candidate.industry, font: "Calibri", size: 24 }),
-            ],
-            spacing: { after: 100 },
-          }),
+          // 6. LINKS (If available)
+          ...((candidate.linkedinUrl || candidate.githubUrl) ? [
+            new Paragraph({ text: "LINKS", style: "SectionHeader" }),
+            candidate.linkedinUrl ? new Paragraph({ text: `LinkedIn: ${clean(candidate.linkedinUrl)}` }) : null,
+            candidate.githubUrl ? new Paragraph({ text: `GitHub: ${clean(candidate.githubUrl)}` }) : null,
+          ] : []),
 
-          candidate.experience && new Paragraph({
-            children: [
-              new TextRun({ text: "Experience: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({ text: candidate.experience, font: "Calibri", size: 24 }),
-            ],
-            spacing: { after: 100 },
-          }),
-
-          candidate.birthYear && new Paragraph({
-            children: [
-              new TextRun({ text: "Birth Year: ", bold: true, font: "Calibri", size: 24 }),
-              new TextRun({ text: candidate.birthYear, font: "Calibri", size: 24 }),
-            ],
-            spacing: { after: 200 },
-          }),
-
-          // Skills Section
+          // Footer (Invisible for ATS, but good for humans)
           new Paragraph({
-            text: "Skills & Expertise",
-            style: "heading2",
-          }),
-
-          new Paragraph({
-            text: candidate.skills ? candidate.skills.split(",").map(skill => skill.trim()).join(" • ") : "No specific skills listed.",
-            font: "Calibri",
-            size: 24,
-            spacing: { after: 200 },
-          }),
-
-          // Summary Section (if available)
-          candidate.summary && new Paragraph({
-            text: "Professional Summary",
-            style: "heading2",
-          }),
-
-          candidate.summary && new Paragraph({
-            text: candidate.summary,
-            font: "Calibri",
-            size: 24,
-            spacing: { after: 300 },
-          }),
-
-          // Footer
-          new Paragraph({
-            text: "─".repeat(50),
+            text: "Generated by Hirextra",
             alignment: AlignmentType.CENTER,
-            spacing: { before: 300, after: 100 },
-            font: "Calibri",
-            size: 20,
-            color: "CCCCCC",
-          }),
-
-          new Paragraph({
-            text: "Profile generated by Hirextra",
-            alignment: AlignmentType.CENTER,
-            font: "Calibri",
-            size: 20,
+            spacing: { before: 400 },
             color: "888888",
-            italics: true,
+            size: 16
           }),
         ].filter(Boolean), // Remove null paragraphs
       }],

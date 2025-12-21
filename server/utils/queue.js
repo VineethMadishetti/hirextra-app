@@ -7,6 +7,7 @@ import UploadJob from "../models/UploadJob.js";
 import readline from "readline";
 import logger from "./logger.js";
 import { downloadFromS3, fileExistsInS3 } from "./s3Service.js";
+import { cleanAndValidateCandidate } from "../controllers/candidateController.js";
 
 // ---------------------------------------------------
 // Redis connection configuration
@@ -485,7 +486,14 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 							isDeleted: false,
 						};
 
-						candidates.push(candidateData);
+						// Validate and Clean Data (ETL)
+						const validData = cleanAndValidateCandidate(candidateData);
+
+						if (validData) {
+							candidates.push(validData);
+						} else {
+							failedCount++; // Count invalid rows as failed (Garbage Data)
+						}
 
 						// Process batch when it reaches batchSize
 						if (candidates.length >= batchSize && !isPaused) {
