@@ -7,7 +7,7 @@ import UploadJob from "../models/UploadJob.js";
 import readline from "readline";
 import logger from "./logger.js";
 import { downloadFromS3, fileExistsInS3 } from "./s3Service.js";
-import { cleanAndValidateCandidate } from "../controllers/candidateController.js";
+import { cleanAndValidateCandidate } from "./dataCleaner.js";
 
 // ---------------------------------------------------
 // Redis connection configuration

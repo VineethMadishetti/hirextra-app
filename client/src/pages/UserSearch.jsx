@@ -600,7 +600,7 @@ const UserSearch = () => {
 												/>
 											</th>
 											<th className="w-48 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
-												Name
+												Full Name
 											</th>
 											<th className="w-40 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
 												Job Title
@@ -608,10 +608,13 @@ const UserSearch = () => {
 											<th className="w-48 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
 												Skills
 											</th>
-											<th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
-												Location
+											<th className="w-40 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+												Company Name
 											</th>
 											<th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+												Experience
+											</th>
+											<th className="w-40 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
 												Contact
 											</th>
 											<th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
@@ -757,37 +760,46 @@ const CandidateRow = React.memo(
 					</div>
 				</td>
 
-				{/* Location */}
-				<td className="w-32 px-4 py-3">
+				{/* Company Name */}
+				<td className="w-40 px-4 py-3">
 					<div className="text-gray-700 break-words">
-						{[candidate.locality, candidate.location].filter(Boolean).join(', ') || "-"}
+						{val(candidate.company)}
 					</div>
 				</td>
 
-				{/* Contact */}
+				{/* Experience */}
 				<td className="w-32 px-4 py-3">
-					<div className="flex gap-2">
-						{candidate.email && (
-							<div className="relative group">
-								<button
-									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
-									className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors">
-									<Mail size={16} />
-								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-									{candidate.email}
-								</div>
-							</div>
-						)}
+					<div className="text-gray-700 break-words">
+						{val(candidate.experience)}
+					</div>
+				</td>
+
+				{/* Contact with Icons */}
+				<td className="w-40 px-4 py-3">
+					<div className="flex gap-1 flex-wrap">
 						{candidate.phone && (
 							<div className="relative group">
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
-									className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors">
-									<Phone size={16} />
+									className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
+									title="Mobile">
+									📱
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
 									{candidate.phone}
+								</div>
+							</div>
+						)}
+						{candidate.email && (
+							<div className="relative group">
+								<button
+									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
+									className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+									title="Email">
+									✉️
+								</button>
+								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+									{candidate.email}
 								</div>
 							</div>
 						)}
@@ -799,31 +811,42 @@ const CandidateRow = React.memo(
 										if (!url.startsWith('http')) url = 'https://' + url;
 										window.open(url, '_blank');
 									}}
-									className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
-									<Linkedin size={16} />
+									className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+									title="LinkedIn">
+									💼
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
 									{candidate.linkedinUrl}
 								</div>
 							</div>
 						)}
+						{(candidate.locality || candidate.location) && (
+							<div className="relative group">
+								<div className="p-1 text-gray-400 rounded-md" title="Location">
+									📍
+								</div>
+								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+									{[candidate.locality, candidate.location].filter(Boolean).join(', ')}
+								</div>
+							</div>
+						)}
 					</div>
 				</td>
 
-				{/* Actions with Proper Hover Colors */}
+				{/* Actions */}
 				<td className="w-32 px-4 py-3">
-					<div className="flex justify-end gap-3">
+					<div className="flex justify-end gap-2">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
 							className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-							title="Quick View">
-							<Eye size={16} />
+							title="👁 View">
+							👁
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
 							className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
-							title="Download">
-							<Download size={16} />
+							title="⬇ Resume">
+							⬇
 						</button>
 						{isAdmin && (
 							<button

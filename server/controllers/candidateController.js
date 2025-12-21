@@ -48,43 +48,7 @@ const parseCsvLine = (line) => {
 };
 
 // --- HELPER: ETL Data Cleaning & Validation ---
-export const cleanAndValidateCandidate = (data) => {
-  if (!data) return null;
-  const cleaned = { ...data };
-
-  // 1. Clean Phone: Remove all non-digit/non-plus characters
-  if (cleaned.phone) {
-    cleaned.phone = cleaned.phone.replace(/[^0-9+]/g, '');
-    const phoneRegex = /^\+?[0-9]{7,15}$/;
-    if (!phoneRegex.test(cleaned.phone)) {
-        cleaned.phone = ''; 
-    }
-  }
-
-  // 2. Validate Email (Relaxed)
-  if (cleaned.email) {
-      cleaned.email = cleaned.email.trim();
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(cleaned.email)) {
-          cleaned.email = ''; // Invalid email -> Clear it, don't reject row yet
-      }
-  }
-
-  // 3. Check for at least ONE contact method (Email OR Phone OR LinkedIn)
-  const hasEmail = !!cleaned.email;
-  const hasPhone = !!cleaned.phone;
-  const hasLinkedIn = cleaned.linkedinUrl && cleaned.linkedinUrl.trim().length > 0;
-
-  if (!hasEmail && !hasPhone && !hasLinkedIn) return null; // No contact info -> Reject Row
-
-  // 4. Validate Name (Relaxed)
-  if (cleaned.fullName) {
-      cleaned.fullName = cleaned.fullName.trim();
-      if (cleaned.fullName.length > 100) cleaned.fullName = cleaned.fullName.substring(0, 100);
-  }
-
-  return cleaned;
-};
+import { cleanAndValidateCandidate } from '../utils/dataCleaner.js';
 
 // Helper to clean up temp chunk files
 const deleteFile = (filePath) => {
@@ -733,6 +697,17 @@ export const downloadProfile = async (req, res) => {
                 }
             }
           },
+          {
+            id: "Normal",
+            name: "Normal",
+            run: {
+                font: "Calibri",
+                size: 22,
+            },
+            paragraph: {
+                spacing: { line: 276, after: 120 },
+            }
+          }
         ],
       },
       sections: [{
@@ -744,9 +719,14 @@ export const downloadProfile = async (req, res) => {
             heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.CENTER,
             spacing: { after: 120 },
+            run: {
+              font: "Calibri",
+              size: 28, // 14pt for name
+              bold: true,
+            }
           }),
 
-          // 2. CONTACT INFO (Pipe Separated - ATS Friendly)
+          // 2. CONTACT INFO (Centered, pipe separated)
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 },
@@ -754,8 +734,8 @@ export const downloadProfile = async (req, res) => {
               new TextRun({
                 text: [
                     clean(candidate.email),
-                    clean(candidate.phone).replace(/[^0-9+]/g, ''), // Ensure clean phone in Resume
-                    clean(candidate.location || candidate.locality || candidate.country),
+                    clean(candidate.phone),
+                    [clean(candidate.locality), clean(candidate.location), clean(candidate.country)].filter(Boolean).join(', '),
                     candidate.linkedinUrl ? "LinkedIn Profile" : null
                 ].filter(Boolean).join(" | "),
                 size: 22,
@@ -766,63 +746,84 @@ export const downloadProfile = async (req, res) => {
           // 3. PROFESSIONAL SUMMARY
           ...(candidate.summary ? [
             new Paragraph({ text: "PROFESSIONAL SUMMARY", style: "SectionHeader" }),
-            new Paragraph({ text: clean(candidate.summary) })
+            new Paragraph({ 
+              text: clean(candidate.summary),
+              style: "Normal"
+            })
           ] : []),
 
-          // 4. EXPERIENCE (Formatted cleanly)
+          // 4. EXPERIENCE
           new Paragraph({ text: "EXPERIENCE", style: "SectionHeader" }),
           
-          // Job 1 (Current/Most Recent)
-          new Paragraph({
-            children: [
+          // Job Title and Company
+          ...(candidate.jobTitle || candidate.company ? [
+            new Paragraph({
+              children: [
                 new TextRun({ 
-                    text: clean(candidate.jobTitle) || "Position Not Specified", 
-                    bold: true,
-                    size: 24 
+                  text: clean(candidate.jobTitle) || "Position Not Specified", 
+                  bold: true,
+                  size: 24 
                 }),
-            ]
-          }),
-          new Paragraph({
-            children: [
+              ],
+              spacing: { after: 60 }
+            }),
+            new Paragraph({
+              children: [
                 new TextRun({ 
-                    text: clean(candidate.company) || "Company Not Specified", 
-                    italics: true 
+                  text: clean(candidate.company) || "Company Not Specified", 
+                  italics: true 
                 }),
                 new TextRun({ 
-                    text: candidate.industry ? `  |  ${clean(candidate.industry)}` : "" 
+                  text: candidate.industry ? ` | ${clean(candidate.industry)}` : "" 
                 }),
-            ],
-            spacing: { after: 200 }
-          }),
-          
-          // Additional Experience Details (if stored in 'experience' field)
+              ],
+              spacing: { after: 120 }
+            })
+          ] : []),
+
+          // Experience details
           ...(candidate.experience ? [
-             new Paragraph({ text: clean(candidate.experience) })
+            new Paragraph({ 
+              text: clean(candidate.experience),
+              style: "Normal"
+            })
           ] : []),
 
           // 5. SKILLS
           ...(candidate.skills ? [
             new Paragraph({ text: "SKILLS", style: "SectionHeader" }),
             new Paragraph({ 
-                text: clean(candidate.skills).split(',').map(s => s.trim()).join(" • "),
-                spacing: { after: 200 }
+              text: clean(candidate.skills).split(',').map(s => s.trim()).filter(s => s).join(" • "),
+              style: "Normal",
+              spacing: { after: 200 }
             })
           ] : []),
 
-          // 6. LINKS (If available)
+          // 6. EDUCATION (if available - assuming we add this field later)
+          // For now, skip if not present
+
+          // 7. LINKS
           ...((candidate.linkedinUrl || candidate.githubUrl) ? [
             new Paragraph({ text: "LINKS", style: "SectionHeader" }),
-            candidate.linkedinUrl ? new Paragraph({ text: `LinkedIn: ${clean(candidate.linkedinUrl)}` }) : null,
-            candidate.githubUrl ? new Paragraph({ text: `GitHub: ${clean(candidate.githubUrl)}` }) : null,
+            ...(candidate.linkedinUrl ? [new Paragraph({ 
+              text: `LinkedIn: ${clean(candidate.linkedinUrl)}`,
+              style: "Normal"
+            })] : []),
+            ...(candidate.githubUrl ? [new Paragraph({ 
+              text: `GitHub: ${clean(candidate.githubUrl)}`,
+              style: "Normal"
+            })] : []),
           ] : []),
 
-          // Footer (Invisible for ATS, but good for humans)
+          // Footer
           new Paragraph({
-            text: "Generated by Hirextra",
+            text: "Generated by Hirextra - ATS-Friendly Resume",
             alignment: AlignmentType.CENTER,
             spacing: { before: 400 },
-            color: "888888",
-            size: 16
+            run: {
+              color: "666666",
+              size: 18
+            }
           }),
         ].filter(Boolean), // Remove null paragraphs
       }],

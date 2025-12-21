@@ -138,7 +138,40 @@ pm2 monit
    - Ensure AWS_REGION matches your bucket region
    - Verify AWS_S3_BUCKET name is correct
 
-## 📈 Scaling
+## � Data Quality & ETL
+
+### CSV Upload Best Practices
+- **Column Mapping**: Ensure CSV headers are correctly mapped to candidate fields during upload
+- **Data Validation**: The system includes automatic data cleaning and validation:
+  - Phone numbers are sanitized (digits and + only)
+  - Emails are validated with regex
+  - Text fields are trimmed and normalized
+  - Heuristic corrections for common mapping errors
+
+### Data Cleaning Features
+- **Automatic Corrections**:
+  - If "fullName" contains summary-like text (>50 chars with keywords), it swaps with "summary"
+  - If "jobTitle" contains location keywords, moves to "location" field
+  - If "skills" contains job titles, moves to "jobTitle" field
+- **Validation Rules**:
+  - Requires at least one contact method (email, phone, or LinkedIn)
+  - Rejects rows with invalid data
+  - Cleans LinkedIn URLs to include https://
+
+### Improving Data Quality
+1. **Upload Clean CSVs**: Ensure your CSV data is well-structured before upload
+2. **Correct Mapping**: Double-check column mappings during the upload process
+3. **Review Samples**: Check the first few processed candidates for accuracy
+4. **Re-upload if Needed**: For existing poor data, consider re-uploading with corrected mappings
+
+### Resume Generation
+- Generates ATS-friendly DOCX files with:
+  - Calibri font (11pt standard)
+  - Proper section headers
+  - Clean formatting
+  - Professional layout
+
+## �📈 Scaling
 
 ### Horizontal Scaling
 - Increase PM2 instances in ecosystem.config.js
