@@ -35,18 +35,26 @@ export const cleanAndValidateCandidate = (data) => {
   // 1. Clean Phone: Remove all non-digit/non-plus characters
   if (cleaned.phone) {
     cleaned.phone = cleaned.phone.replace(/[^0-9+]/g, '');
+    
+    // Relaxed: If phone is invalid, just clear it. Don't reject the row.
+    const phoneRegex = /^\+?[0-9]{7,15}$/;
+    if (!phoneRegex.test(cleaned.phone)) {
+        cleaned.phone = ''; 
+    }
   }
 
-  // 2. Validate Phone (7-15 digits, optional +)
-  const phoneRegex = /^\+?[0-9]{7,15}$/;
-  if (!cleaned.phone || !phoneRegex.test(cleaned.phone)) return null; // Invalid Phone -> Reject Row
-
-  // 3. Validate Email
+  // 2. Validate Email (Required)
+  if (cleaned.email) {
+      cleaned.email = cleaned.email.trim();
+  }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!cleaned.email || !emailRegex.test(cleaned.email)) return null; // Invalid Email -> Reject Row
 
-  // 4. Validate Name (Max 50 chars)
-  if (!cleaned.fullName || cleaned.fullName.length > 50) return null; // Invalid Name -> Reject Row
+  // 3. Validate Name (Relaxed)
+  if (cleaned.fullName) {
+      cleaned.fullName = cleaned.fullName.trim();
+      if (cleaned.fullName.length > 40) cleaned.fullName = cleaned.fullName.substring(0, 100);
+  }
 
   return cleaned;
 };
