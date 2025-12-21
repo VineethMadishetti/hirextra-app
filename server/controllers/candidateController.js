@@ -14,17 +14,29 @@ import { uploadToS3, generateS3Key, downloadFromS3 } from '../utils/s3Service.js
 // Handles quoted fields correctly (e.g. "Manager, Sales" is one column)
 const parseCsvLine = (line) => {
   if (!line) return [];
-  // Split by comma ONLY if not inside quotes
-  const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+  const result = [];
+  let current = "";
+  let inQuotes = false;
   
-  return parts.map((h, idx) => {
-    let header = h.trim();
-    // Remove surrounding quotes and unescape double quotes
-    if ((header.startsWith('"') && header.endsWith('"')) || (header.startsWith("'") && header.endsWith("'"))) {
-      header = header.slice(1, -1).replace(/""/g, '"');
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
     }
-    return header && header.trim() ? header.trim() : `Column_${idx + 1}`;
-  });
+  }
+  result.push(current.trim());
+  
+  return result.map((h, idx) => h && h.trim() ? h.trim() : `Column_${idx + 1}`);
 };
 
 // --- HELPER: ETL Data Cleaning & Validation ---
@@ -43,17 +55,26 @@ export const cleanAndValidateCandidate = (data) => {
     }
   }
 
-  // 2. Validate Email (Required)
+  // 2. Validate Email (Relaxed)
   if (cleaned.email) {
       cleaned.email = cleaned.email.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleaned.email)) {
+          cleaned.email = ''; // Invalid email -> Clear it, don't reject row yet
+      }
   }
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!cleaned.email || !emailRegex.test(cleaned.email)) return null; // Invalid Email -> Reject Row
 
-  // 3. Validate Name (Relaxed)
+  // 3. Check for at least ONE contact method (Email OR Phone OR LinkedIn)
+  const hasEmail = !!cleaned.email;
+  const hasPhone = !!cleaned.phone;
+  const hasLinkedIn = cleaned.linkedinUrl && cleaned.linkedinUrl.trim().length > 0;
+
+  if (!hasEmail && !hasPhone && !hasLinkedIn) return null; // No contact info -> Reject Row
+
+  // 4. Validate Name (Relaxed)
   if (cleaned.fullName) {
       cleaned.fullName = cleaned.fullName.trim();
-      if (cleaned.fullName.length > 40) cleaned.fullName = cleaned.fullName.substring(0, 100);
+      if (cleaned.fullName.length > 100) cleaned.fullName = cleaned.fullName.substring(0, 100);
   }
 
   return cleaned;
@@ -559,8 +580,8 @@ export const exportCandidates = async (req, res) => {
 
     // Convert to CSV
     const csvHeaders = [
-      'Full Name', 'Email', 'Phone', 'Company', 'Industry', 'Job Title', 'Skills', 'Experience',
-      'Country', 'Locality', 'Location', 'LinkedIn URL', 'GitHub URL', 'Birth Year', 'Summary'
+      'Full Name', 'Job Title', 'Skills', 'Experience', 'Company Name', 'Location', 'Email', 'Phone', 'LinkedIn URL',
+      'Industry', 'Country', 'Locality', 'Birth Year', 'Summary'
     ];
 
     const csvRows = candidates
@@ -568,18 +589,17 @@ export const exportCandidates = async (req, res) => {
       .filter(Boolean) // Remove invalid rows (Garbage data)
       .map(candidate => [
       candidate.fullName || '',
-      candidate.email || '',
-      candidate.phone || '',
-      candidate.company || '',
-      candidate.industry || '',
       candidate.jobTitle || '',
       candidate.skills || '',
       candidate.experience || '',
+      candidate.company || '',
+      candidate.location || candidate.locality || candidate.country || '',
+      candidate.email || '',
+      candidate.phone || '',
+      candidate.linkedinUrl || '',
+      candidate.industry || '',
       candidate.country || '',
       candidate.locality || '',
-      candidate.location || '',
-      candidate.linkedinUrl || '',
-      candidate.githubUrl || '',
       candidate.birthYear || '',
       candidate.summary || ''
     ]);

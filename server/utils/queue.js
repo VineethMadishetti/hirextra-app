@@ -493,7 +493,7 @@ export const processCsvJob = async ({ filePath, mapping, jobId }) => {
 							candidates.push(validData);
 						} else {
 							if (failedCount < 5) {
-								logger.warn(`⚠️ Row rejected (Validation Failed): Email=${candidateData.email}, Phone=${candidateData.phone}`);
+								logger.warn(`⚠️ Row rejected (No Contact Info): Email=${candidateData.email}, Phone=${candidateData.phone}, LinkedIn=${candidateData.linkedinUrl}`);
 							}
 							failedCount++; // Count invalid rows as failed (Garbage Data)
 						}
