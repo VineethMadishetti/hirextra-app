@@ -460,6 +460,7 @@ export const resumeUploadJob = async (req, res) => {
     
     // Trigger background process with resume parameters
     processCsvJob({
+        jobId: id, // ✅ Pass the job ID
         resumeFrom: rowsProcessed,
         initialSuccess: job.successRows || 0,
         initialFailed: job.failedRows || 0

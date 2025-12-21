@@ -15,7 +15,20 @@ import { cleanAndValidateCandidate } from "./dataCleaner.js";
 const getRedisConnection = () => {
 	// Prefer REDIS_URL (Upstash / cloud Redis)
 	if (process.env.REDIS_URL) {
-		return { url: process.env.REDIS_URL };
+		// FIX: Cloud Redis providers (Upstash, Render) often only support DB 0.
+		// A URL from another service might contain a different DB number, causing connection errors.
+		// This parses the URL and explicitly forces it to use database 0.
+		try {
+			const redisUrl = new URL(process.env.REDIS_URL);
+			if (redisUrl.pathname && redisUrl.pathname !== "/" && redisUrl.pathname !== "/0") {
+				logger.warn(`Redis URL contains a non-zero database (${redisUrl.pathname}). Forcing DB 0 for compatibility.`);
+				redisUrl.pathname = "/0";
+			}
+			return { url: redisUrl.toString() };
+		} catch (error) {
+			logger.error(`❌ Invalid REDIS_URL: ${process.env.REDIS_URL}. Error: ${error.message}`);
+			return null;
+		}
 	}
 
 	// Optional: explicit host/port config
