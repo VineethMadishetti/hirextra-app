@@ -7,7 +7,7 @@ import csv from 'csv-parser';
 import path from 'path';
 import os from 'os';
 import readline from 'readline';
-import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from "docx";
+import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx";
 import { uploadToS3, generateS3Key, downloadFromS3 } from '../utils/s3Service.js';
 
 // --- HELPER: Robust CSV Line Parser (ETL) ---
@@ -720,6 +720,12 @@ export const downloadProfile = async (req, res) => {
     const clean = (v) =>
       v ? String(v).replace(/[\r\n]+/g, " ").trim() : "";
 
+    // Prepare skills for 2-column layout
+    const skillsList = candidate.skills ? clean(candidate.skills).split(",").map(s => s.trim()).filter(Boolean) : [];
+    const half = Math.ceil(skillsList.length / 2);
+    const col1Skills = skillsList.slice(0, half);
+    const col2Skills = skillsList.slice(half);
+
     const doc = new Document({
       styles: {
         default: {
@@ -770,42 +776,45 @@ export const downloadProfile = async (req, res) => {
   new Paragraph({
     text: clean(candidate.fullName).toUpperCase(),
     alignment: AlignmentType.CENTER,
-    spacing: { after: 40 },
+    spacing: { after: 0 },
     run: {
+      font: "Tahoma",
       bold: true,
-      size: 34, // ~17pt
+      size: 36, // 18pt
     },
   }),
 
-  // ===== JOB TITLE (NO GAP, NOT BOLD) =====
+  // ===== JOB TITLE (NO PARAGRAPH SPACE ABOVE, LINE GAP BELOW) =====
   new Paragraph({
     text: clean(candidate.jobTitle),
     alignment: AlignmentType.CENTER,
-    spacing: { after: 160 },
+    spacing: { after: 240 }, // Line gap
     run: {
-      size: 24, // ~12pt
+      font: "Tahoma",
+      size: 28, // 14pt
+      bold: false,
     },
   }),
 
-  // ===== CONTACT LINE =====
+  // ===== LOCATION =====
   new Paragraph({
+    text: formatLocationText(candidate.locality, candidate.location, candidate.country),
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 0 },
+  }),
+
+  // ===== EMAIL | MOBILE =====
+  new Paragraph({
+    text: [clean(candidate.email), clean(candidate.phone)].filter(Boolean).join(" | "),
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 0 },
+  }),
+
+  // ===== LINKEDIN =====
+  new Paragraph({
+    text: candidate.linkedinUrl ? clean(candidate.linkedinUrl) : "",
     alignment: AlignmentType.CENTER,
     spacing: { after: 300 },
-    children: [
-      new TextRun({
-        text: [
-          clean(candidate.email),
-          formatLocationText(
-            candidate.locality,
-            candidate.location,
-            candidate.country
-          ),
-          candidate.linkedinUrl ? clean(candidate.linkedinUrl) : null,
-        ]
-          .filter(Boolean)
-          .join(" | "),
-      }),
-    ],
   }),
 
   // ===== PROFESSIONAL SUMMARY =====
@@ -828,21 +837,30 @@ export const downloadProfile = async (req, res) => {
           text: "SKILLS",
           style: "SectionHeader",
         }),
-        new Paragraph({
-          children: clean(candidate.skills)
-            .split(",")
-            .map((skill) => skill.trim())
-            .filter(Boolean)
-            .map(
-              (skill) =>
-                new TextRun({
-                  text: `• ${skill}\n`,
-                })
-            ),
-          spacing: { after: 200 },
-          paragraph: {
-            columns: 2,
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: {
+            top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
           },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  children: col1Skills.map(skill => new Paragraph({ text: skill, bullet: { level: 0 } })),
+                  width: { size: 50, type: WidthType.PERCENTAGE },
+                }),
+                new TableCell({
+                  children: col2Skills.map(skill => new Paragraph({ text: skill, bullet: { level: 0 } })),
+                  width: { size: 50, type: WidthType.PERCENTAGE },
+                }),
+              ],
+            }),
+          ],
         }),
       ]
     : []),
