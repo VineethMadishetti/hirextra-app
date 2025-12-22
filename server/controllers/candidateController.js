@@ -823,6 +823,7 @@ export const downloadProfile = async (req, res) => {
 		const skillList = clean(candidate.skills)
 			.split(",")
 			.map((s) => s.trim())
+			.map((s) => s.replace(/\b\w/g, (c) => c.toUpperCase()))
 			.filter(Boolean);
 		const col1 = skillList.filter((_, i) => i % 3 === 0);
 		const col2 = skillList.filter((_, i) => i % 3 === 1);
@@ -878,7 +879,7 @@ export const downloadProfile = async (req, res) => {
 					children: [
 						// ===== NAME =====
 						new Paragraph({
-							alignment: AlignmentType.LEFT,
+							alignment: AlignmentType.CENTER,
 							spacing: { after: 0 },
 							children: [
 								new TextRun({
@@ -892,7 +893,7 @@ export const downloadProfile = async (req, res) => {
 
 						// ===== JOB TITLE (NO PARAGRAPH SPACE ABOVE, LINE GAP BELOW) =====
 						new Paragraph({
-							alignment: AlignmentType.LEFT,
+							alignment: AlignmentType.CENTER,
 							spacing: { after: 240 },
 							children: [
 								new TextRun({
@@ -948,7 +949,7 @@ export const downloadProfile = async (req, res) => {
 						...(candidate.summary
 							? [
 									new Paragraph({
-										text: "PROFESSIONAL SUMMARY",
+										text: "PROFESSIONAL SUMMARY:",
 										style: "SectionHeader",
 									}),
 									new Paragraph({
@@ -961,7 +962,7 @@ export const downloadProfile = async (req, res) => {
 ...(candidate.skills
   ? [
       new Paragraph({
-        text: "SKILLS",
+        text: "SKILLS:",
         style: "SectionHeader",
       }),
 
@@ -1006,7 +1007,7 @@ export const downloadProfile = async (req, res) => {
 						...(candidate.jobTitle || candidate.company
 							? [
 									new Paragraph({
-										text: "WORK EXPERIENCE",
+										text: "WORK EXPERIENCE:",
 										style: "SectionHeader",
 									}),
 									new Paragraph({
