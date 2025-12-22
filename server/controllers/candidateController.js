@@ -780,26 +780,30 @@ export const deleteUploadJob = async (req, res) => {
 };
 
 // --- HELPER: Format Location for Resume ---
-const formatLocationText = (locality, location, country) => {
-	const raw = [locality, location, country].filter(Boolean).join(", ");
-	const parts = raw
-		.split(",")
-		.map((p) => p.trim())
-		.filter(Boolean);
-	const unique = [];
-	const seen = new Set();
+const formatLocationText = (...parts) => {
+  const seen = new Set();
 
-	for (const part of parts) {
-		const lower = part.toLowerCase();
-		if (!seen.has(lower)) {
-			seen.add(lower);
-			unique.push(
-				part.toLowerCase().replace(/(?:^|\s)\S/g, (a) => a.toUpperCase()),
-			);
-		}
-	}
-	return unique.join(", ");
+  return parts
+    .filter(Boolean)
+    .flatMap(part =>
+      String(part)
+        .split(',')
+        .map(p => p.trim())
+    )
+    .map(word =>
+      word
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase())
+    )
+    .filter(word => {
+      const key = word.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(', ');
 };
+
 
 export const downloadProfile = async (req, res) => {
 	try {
