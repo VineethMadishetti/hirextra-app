@@ -38,6 +38,26 @@ import toast from "react-hot-toast";
 
 const PAGE_SIZE = 60; // Increased page size for better initial load
 
+// Helper to format location (Capitalize & Deduplicate)
+const formatLocation = (locality, location) => {
+	const raw = [locality, location].filter(Boolean).join(", ");
+	const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+	const unique = [];
+	const seen = new Set();
+
+	for (const part of parts) {
+		const lower = part.toLowerCase();
+		if (!seen.has(lower)) {
+			seen.add(lower);
+			// Capitalize first letter of each word
+			unique.push(
+				part.toLowerCase().replace(/(?:^|\s)\S/g, (a) => a.toUpperCase())
+			);
+		}
+	}
+	return unique.join(", ");
+};
+
 // Debounce hook
 const useDebounce = (value, delay) => {
 	const [debouncedValue, setDebouncedValue] = useState(value);
@@ -782,11 +802,11 @@ const CandidateRow = React.memo(
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
 									className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
-									title={candidate.phone}>
+									>
 									<Phone size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-									Call {candidate.phone}
+									 {candidate.phone}
 								</div>
 							</div>
 						)}
@@ -795,11 +815,11 @@ const CandidateRow = React.memo(
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
 									className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-									title={candidate.email}>
+									>
 									<Mail size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-									Email {candidate.email}
+									 {candidate.email}
 								</div>
 							</div>
 						)}
@@ -812,7 +832,7 @@ const CandidateRow = React.memo(
 										window.open(url, '_blank');
 									}}
 									className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-									title="View LinkedIn Profile">
+									>
 									<Linkedin size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
@@ -820,16 +840,31 @@ const CandidateRow = React.memo(
 								</div>
 							</div>
 						)}
+
 						{(candidate.locality || candidate.location) && (
 							<div className="relative group">
-								<div className="p-1 text-gray-400 rounded-md" title={[candidate.locality, candidate.location].filter(Boolean).join(', ')}>
+								<button
+									className="p-1 text-gray-400 hover:text-red-800 hover:bg-blue-50 rounded-md transition-colors"
+									>
+									<MapPin size={16} />
+								</button>
+								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
+									{formatLocation(candidate.locality, candidate.location)}
+								</div>
+							</div>
+						)}
+
+						{/* {(candidate.locality || candidate.location) && (
+							<div className="relative group">
+								<div className="p-1 text-gray-400 rounded-md" >
 									<MapPin size={16} />
 								</div>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
 									{[candidate.locality, candidate.location].filter(Boolean).join(', ')}
+									
 								</div>
 							</div>
-						)}
+						)} */}
 					</div>
 				</td>
 
@@ -966,7 +1001,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										<div>
 											<p className="text-sm text-gray-500">Location</p>
 											<p className="text-gray-900">
-												{[profile.locality, profile.location,].filter(Boolean).join(', ')}
+												{formatLocation(profile.locality, profile.location)}
 											</p>
 										</div>
 									</div>
