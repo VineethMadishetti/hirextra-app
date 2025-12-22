@@ -878,7 +878,7 @@ export const downloadProfile = async (req, res) => {
 					children: [
 						// ===== NAME =====
 						new Paragraph({
-							alignment: AlignmentType.CENTER,
+							alignment: AlignmentType.LEFT,
 							spacing: { after: 0 },
 							children: [
 								new TextRun({
@@ -892,7 +892,7 @@ export const downloadProfile = async (req, res) => {
 
 						// ===== JOB TITLE (NO PARAGRAPH SPACE ABOVE, LINE GAP BELOW) =====
 						new Paragraph({
-							alignment: AlignmentType.CENTER,
+							alignment: AlignmentType.LEFT,
 							spacing: { after: 240 },
 							children: [
 								new TextRun({
@@ -910,13 +910,13 @@ export const downloadProfile = async (req, res) => {
 								candidate.location,
 								candidate.country,
 							),
-							alignment: AlignmentType.CENTER,
+							alignment: AlignmentType.LEFT,
 							spacing: { after: 0 },
 						}),
 
 						// ===== EMAIL | MOBILE =====
 						new Paragraph({
-							alignment: AlignmentType.CENTER,
+							alignment: AlignmentType.LEFT,
 							spacing: { after: 0 },
 							children: [
 								new TextRun({
@@ -931,7 +931,7 @@ export const downloadProfile = async (req, res) => {
 
 						// ===== LINKEDIN =====
 						new Paragraph({
-							alignment: AlignmentType.CENTER,
+							alignment: AlignmentType.LEFT,
 							spacing: { after: 300 },
 							children: [
 								new TextRun({
