@@ -967,7 +967,14 @@ export const downloadProfile = async (req, res) => {
 
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: TableBorders.NONE,
+        borders: {
+          top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+          bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+          left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+          right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+          insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+          insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+        },
         rows: [
           new TableRow({
             children: [col1, col2, col3].map((column) =>
