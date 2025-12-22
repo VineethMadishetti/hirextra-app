@@ -151,12 +151,10 @@ export const getFileHeaders = async (req, res) => {
 						clearTimeout(timeoutId);
 						console.error("Error reading headers from S3:", err);
 						if (!res.headersSent) {
-							res
-								.status(500)
-								.json({
-									message: "Failed to read file headers from S3",
-									error: err.message,
-								});
+							res.status(500).json({
+								message: "Failed to read file headers from S3",
+								error: err.message,
+							});
 						}
 						rl.close();
 						s3Stream.destroy();
@@ -169,12 +167,10 @@ export const getFileHeaders = async (req, res) => {
 						clearTimeout(timeoutId);
 						console.error("S3 stream error:", err);
 						if (!res.headersSent) {
-							res
-								.status(500)
-								.json({
-									message: "Failed to download file from S3",
-									error: err.message,
-								});
+							res.status(500).json({
+								message: "Failed to download file from S3",
+								error: err.message,
+							});
 						}
 						rl.close();
 						s3Stream.destroy();
@@ -186,12 +182,10 @@ export const getFileHeaders = async (req, res) => {
 					if (!headersReceived) {
 						headersReceived = true;
 						if (!res.headersSent) {
-							res
-								.status(500)
-								.json({
-									message:
-										"Timeout reading file headers from S3. Please check if the file exists and try again.",
-								});
+							res.status(500).json({
+								message:
+									"Timeout reading file headers from S3. Please check if the file exists and try again.",
+							});
 						}
 						rl.close();
 						s3Stream.destroy();
@@ -199,12 +193,10 @@ export const getFileHeaders = async (req, res) => {
 				}, 60000); // 60 seconds timeout
 			} catch (s3Error) {
 				console.error("S3 download error:", s3Error);
-				return res
-					.status(500)
-					.json({
-						message: "Failed to download file from S3",
-						error: s3Error.message,
-					});
+				return res.status(500).json({
+					message: "Failed to download file from S3",
+					error: s3Error.message,
+				});
 			}
 		} else {
 			// Legacy local file support
@@ -236,12 +228,10 @@ export const getFileHeaders = async (req, res) => {
 				if (!headersReceived) {
 					headersReceived = true;
 					console.error("Error reading headers:", err);
-					res
-						.status(500)
-						.json({
-							message: "Failed to read file headers",
-							error: err.message,
-						});
+					res.status(500).json({
+						message: "Failed to read file headers",
+						error: err.message,
+					});
 				}
 			});
 		}
@@ -781,29 +771,24 @@ export const deleteUploadJob = async (req, res) => {
 
 // --- HELPER: Format Location for Resume ---
 const formatLocationText = (...parts) => {
-  const seen = new Set();
+	const seen = new Set();
 
-  return parts
-    .filter(Boolean)
-    .flatMap(part =>
-      String(part)
-        .split(',')
-        .map(p => p.trim())
-    )
-    .map(word =>
-      word
-        .toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase())
-    )
-    .filter(word => {
-      const key = word.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .join(', ');
+	return parts
+		.filter(Boolean)
+		.flatMap((part) =>
+			String(part)
+				.split(",")
+				.map((p) => p.trim()),
+		)
+		.map((word) => word.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))
+		.filter((word) => {
+			const key = word.toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		})
+		.join(", ");
 };
-
 
 export const downloadProfile = async (req, res) => {
 	try {
@@ -934,6 +919,14 @@ export const downloadProfile = async (req, res) => {
 						new Paragraph({
 							alignment: AlignmentType.LEFT,
 							spacing: { after: 300 },
+							border: {
+								bottom: {
+									color: "auto",
+									space: 1,
+									style: BorderStyle.SINGLE,
+									size: 6,
+								},
+							},
 							children: [
 								new TextRun({
 									text: candidate.linkedinUrl
@@ -954,54 +947,72 @@ export const downloadProfile = async (req, res) => {
 									}),
 									new Paragraph({
 										text: clean(candidate.summary),
+										indent: { left: 400 },
 									}),
 							  ]
 							: []),
 
 						// ===== SKILLS =====
-...(candidate.skills
-  ? [
-      new Paragraph({
-        text: "SKILLS:",
-        style: "SectionHeader",
-      }),
+						...(candidate.skills
+							? [
+									new Paragraph({
+										text: "SKILLS:",
+										style: "SectionHeader",
+									}),
 
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: {
-          top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-          bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
-          left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-          right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-          insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
-          insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
-        },
-        rows: [
-          new TableRow({
-            children: [col1, col2, col3].map((column) =>
-              new TableCell({
-                width: { size: 33, type: WidthType.PERCENTAGE },
-                children: column.map(
-                  (skill) =>
-                    new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: skill,
-                          font: "Calibri",
-                          size: 24, // 12pt
-                        }),
-                      ],
-                      bullet: { level: 0 },
-                    })
-                ),
-              })
-            ),
-          }),
-        ],
-      }),
-    ]
-  : []),
-
+									new Table({
+										indent: { size: 400, type: WidthType.DXA },
+										width: { size: 100, type: WidthType.PERCENTAGE },
+										borders: {
+											top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+											bottom: {
+												style: BorderStyle.NONE,
+												size: 0,
+												color: "auto",
+											},
+											left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+											right: {
+												style: BorderStyle.NONE,
+												size: 0,
+												color: "auto",
+											},
+											insideHorizontal: {
+												style: BorderStyle.NONE,
+												size: 0,
+												color: "auto",
+											},
+											insideVertical: {
+												style: BorderStyle.NONE,
+												size: 0,
+												color: "auto",
+											},
+										},
+										rows: [
+											new TableRow({
+												children: [col1, col2, col3].map(
+													(column) =>
+														new TableCell({
+															width: { size: 33, type: WidthType.PERCENTAGE },
+															children: column.map(
+																(skill) =>
+																	new Paragraph({
+																		children: [
+																			new TextRun({
+																				text: skill,
+																				font: "Calibri",
+																				size: 24, // 12pt
+																			}),
+																		],
+																		bullet: { level: 0 },
+																	}),
+															),
+														}),
+												),
+											}),
+										],
+									}),
+							  ]
+							: []),
 
 						// ===== WORK EXPERIENCE =====
 						...(candidate.jobTitle || candidate.company
@@ -1018,16 +1029,19 @@ export const downloadProfile = async (req, res) => {
 											}),
 										],
 										spacing: { after: 40 },
+										indent: { left: 400 },
 									}),
 									new Paragraph({
 										text: clean(candidate.company),
-										spacing: { after: 40 },
+										spacing: { after: 0 },
+										indent: { left: 400 },
 									}),
 
 									...(candidate.experience
 										? [
 												new Paragraph({
 													text: `Experience: ${clean(candidate.experience)}`,
+													indent: { left: 400 },
 												}),
 										  ]
 										: []),
