@@ -841,30 +841,25 @@ const CandidateRow = React.memo(
 							</div>
 						)}
 
-						{(candidate.locality || candidate.location) && (
-							<div className="relative group">
-								<button
-									className="p-1 text-gray-400 hover:text-red-800 hover:bg-blue-50 rounded-md transition-colors"
-									>
-									<MapPin size={16} />
-								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
-									{formatLocation(candidate.locality, candidate.location)}
-								</div>
-							</div>
-						)}
-
-						{/* {(candidate.locality || candidate.location) && (
-							<div className="relative group">
-								<div className="p-1 text-gray-400 rounded-md" >
-									<MapPin size={16} />
-								</div>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-									{[candidate.locality, candidate.location].filter(Boolean).join(', ')}
-									
-								</div>
-							</div>
-						)} */}
+						{/* Location */}
+		{(candidate.locality || candidate.location) && (
+			<div className="relative group">
+				<button
+					className="p-1.5 rounded-md text-slate-400 
+						hover:text-rose-600 hover:bg-rose-50 
+						transition-colors"
+				>
+					<MapPin size={15} />
+				</button>
+				<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+					max-w-xs truncate
+					px-2 py-1 rounded bg-slate-900 text-white text-[11px]
+					opacity-0 group-hover:opacity-100 transition-opacity
+					pointer-events-none shadow-lg">
+					{formatLocation(candidate.locality, candidate.location)}
+				</div>
+			</div>
+		)}
 					</div>
 				</td>
 
@@ -933,7 +928,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 							)}
 							{profile.experience && (
 								<div className="flex items-center gap-2">
-									<span>EXP: {profile.experience} - Years</span>
+									<span>Expereince: {profile.experience}</span>
 								</div>
 							)}
 						</div>
@@ -954,9 +949,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 						{/* Contact Card */}
 						<div className="bg-gray-50 rounded-xl p-6 space-y-4">
 							<h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-								<span className="bg-blue-100 p-2 rounded-lg">
+								{/* <span className="bg-blue-100 p-2 rounded-lg">
 									<Mail className="text-blue-600" size={20} />
-								</span>
+								</span> */}
 								Contact Information
 							</h3>
 							<div className="space-y-3">
