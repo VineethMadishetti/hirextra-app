@@ -212,6 +212,8 @@ export const processCsvJob = async ({ jobId }) => {
 		const failureReasonCounts = new Map();
 		let lastProgressUpdate = Date.now();
 		const PROGRESS_UPDATE_INTERVAL = 2000; // Update progress every 2 seconds max
+		let lastJobCheck = Date.now();
+		const JOB_CHECK_INTERVAL = 5000; // Check every 5 seconds if job still exists
 
 		// Helper to parse CSV line with proper quote handling
 		const parseCSVLine = (csvLine) => {
@@ -316,6 +318,20 @@ export const processCsvJob = async ({ jobId }) => {
 				.pipe(csvParser)
 				.on("data", async (row) => {
 					try {
+						// --- ABORT IF JOB IS DELETED (PERIODIC CHECK) ---
+						// To prevent orphaned jobs from running indefinitely if they are
+						// deleted mid-process, we check for the job's existence periodically.
+						const now = Date.now();
+						if (now - lastJobCheck > JOB_CHECK_INTERVAL) {
+							lastJobCheck = now;
+							const jobExists = await UploadJob.findById(jobId).lean().select("_id");
+							if (!jobExists) {
+								logger.warn(`⚠️ Job ${jobId} was deleted. Aborting processing.`);
+								stream.destroy(new Error(`Job ${jobId} was deleted. Aborting.`));
+								return; // Stop processing this row and subsequent rows
+							}
+						}
+
 						rowCounter++; // This will now continue from resumeFrom + 1
 
 						// Convert raw row to array (csv-parser with headers:false emits arrays)
