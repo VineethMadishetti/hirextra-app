@@ -747,145 +747,133 @@ export const downloadProfile = async (req, res) => {
             },
           },
           children: [
-            // ===== NAME =====
-            new Paragraph({
-              text: clean(candidate.fullName).toUpperCase(),
-              alignment: AlignmentType.CENTER,
-              run: { bold: true, size: 30 }, // 15pt
-              spacing: { after: 120 },
-            }),
+  // ===== NAME =====
+  new Paragraph({
+    text: clean(candidate.fullName).toUpperCase(),
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 40 },
+    run: {
+      bold: true,
+      size: 34, // ~17pt
+    },
+  }),
 
-            // ===== JOB TITLE =====
-            new Paragraph({
-              text: clean(candidate.jobTitle),
-              alignment: AlignmentType.CENTER,
-              italics: true,
-              spacing: { after: 200 },
-            }),
+  // ===== JOB TITLE (NO GAP, NOT BOLD) =====
+  new Paragraph({
+    text: clean(candidate.jobTitle),
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 160 },
+    run: {
+      size: 24, // ~12pt
+    },
+  }),
 
-            // ===== LOCATION =====
-            new Paragraph({
-              text: [candidate.locality, candidate.location, candidate.country]
-                .filter(Boolean)
-                .join(", "),
-              alignment: AlignmentType.CENTER,
-            }),
+  // ===== CONTACT LINE =====
+  new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 300 },
+    children: [
+      new TextRun({
+        text: [
+          clean(candidate.email),
+          formatLocationText(
+            candidate.locality,
+            candidate.location,
+            candidate.country
+          ),
+          candidate.linkedinUrl ? clean(candidate.linkedinUrl) : null,
+        ]
+          .filter(Boolean)
+          .join(" | "),
+      }),
+    ],
+  }),
 
-            // ===== CONTACT =====
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 360 },
-              children: [
+  // ===== PROFESSIONAL SUMMARY =====
+  ...(candidate.summary
+    ? [
+        new Paragraph({
+          text: "PROFESSIONAL SUMMARY",
+          style: "SectionHeader",
+        }),
+        new Paragraph({
+          text: clean(candidate.summary),
+        }),
+      ]
+    : []),
+
+  // ===== SKILLS (2 COLUMN BULLETS) =====
+  ...(candidate.skills
+    ? [
+        new Paragraph({
+          text: "SKILLS",
+          style: "SectionHeader",
+        }),
+        new Paragraph({
+          children: clean(candidate.skills)
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter(Boolean)
+            .map(
+              (skill) =>
                 new TextRun({
-                  text: [
-                    clean(candidate.email),
-                    clean(candidate.phone),
-                  ]
-                    .filter(Boolean)
-                    .join(" | "),
-                }),
-              ],
-            }),
+                  text: `• ${skill}\n`,
+                })
+            ),
+          spacing: { after: 200 },
+          paragraph: {
+            columns: 2,
+          },
+        }),
+      ]
+    : []),
 
-            // ===== LINKS =====
-            ...(candidate.linkedinUrl || candidate.githubUrl
-              ? [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    spacing: { after: 360 },
-                    children: [
-                      new TextRun({
-                        text: [
-                          candidate.linkedinUrl
-                            ? `LinkedIn: ${clean(candidate.linkedinUrl)}`
-                            : null,
-                          candidate.githubUrl
-                            ? `GitHub: ${clean(candidate.githubUrl)}`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" | "),
-                      }),
-                    ],
-                  }),
-                ]
-              : []),
-
-            // ===== SUMMARY =====
-            ...(candidate.summary
-              ? [
-                  new Paragraph({
-                    text: "PROFESSIONAL SUMMARY",
-                    style: "SectionHeader",
-                  }),
-                  new Paragraph({
-                    text: clean(candidate.summary),
-                  }),
-                ]
-              : []),
-
-            // ===== SKILLS =====
-            ...(candidate.skills
-              ? [
-                  new Paragraph({
-                    text: "SKILLS",
-                    style: "SectionHeader",
-                  }),
-                  new Paragraph({
-                    text: clean(candidate.skills)
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                      .join(", "),
-                  }),
-                ]
-              : []),
-
-            // ===== EXPERIENCE =====
-            ...(candidate.jobTitle || candidate.company
-              ? [
-                  new Paragraph({
-                    text: "WORK EXPERIENCE",
-                    style: "SectionHeader",
-                  }),
-                  new Paragraph({
-                    children: [
-                      new TextRun({
-                        text: clean(candidate.jobTitle),
-                        bold: true,
-                      }),
-                    ],
-                  }),
-                  new Paragraph({
-                    text: [
-                      clean(candidate.company),
-                      candidate.industry
-                        ? `(${clean(candidate.industry)})`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" "),
-                  }),
-                  ...(candidate.experience
-                    ? [
-                        new Paragraph({
-                          text: `Experience: ${clean(
-                            candidate.experience
-                          )}`,
-                        }),
-                      ]
-                    : []),
-                ]
-              : []),
-
-            // ===== FOOTER =====
-            new Paragraph({
-              text: "Profile generated by PeopleFinder",
-              alignment: AlignmentType.CENTER,
-              spacing: { before: 360 },
-              run: { size: 18, color: "666666" },
+  // ===== WORK EXPERIENCE =====
+  ...(candidate.jobTitle || candidate.company
+    ? [
+        new Paragraph({
+          text: "WORK EXPERIENCE",
+          style: "SectionHeader",
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: clean(candidate.jobTitle),
+              bold: true,
             }),
           ],
+          spacing: { after: 40 },
+        }),
+        new Paragraph({
+          text: clean(candidate.company),
+          spacing: { after: 40 },
+        }),
+        ...(candidate.experience
+          ? [
+              new Paragraph({
+                text: `Experience: ${clean(candidate.experience)} years`,
+              }),
+            ]
+          : []),
+      ]
+    : []),
+
+  // ===== FOOTER =====
+  new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 360 },
+    children: [
+      new TextRun({
+        text: "Profile generated by PeopleFinder",
+        font: "Arial",
+        size: 18,
+        color: "666666",
+        italics: true,
+      }),
+    ],
+  }),
+]
+
         },
       ],
     });
