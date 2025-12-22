@@ -151,12 +151,7 @@ const findHeaderRowIndex = async (filePath, mapping) => {
 // Core CSV processing logic (shared between worker
 // and direct-processing fallback)
 // ---------------------------------------------------
-export const processCsvJob = async ({
-	jobId,
-	resumeFrom = 0,
-	initialSuccess = 0,
-	initialFailed = 0,
-}) => {
+export const processCsvJob = async ({ jobId }) => {
 	logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
 
 	try {
@@ -165,6 +160,19 @@ export const processCsvJob = async ({
 		if (!job) {
 			logger.error(`❌ Job ${jobId} not found. Aborting.`);
 			return;
+		}
+
+		// --- AUTO-RESUME LOGIC ---
+		// If a job is picked up in 'PROCESSING' state, it means it was interrupted.
+		// We derive the starting point from its last saved progress, making the
+		// process resilient to server restarts, crashes, or deployments.
+		const isResuming = job.status === "PROCESSING" && (job.totalRows || 0) > 0;
+		const resumeFrom = isResuming ? job.totalRows : 0;
+		const initialSuccess = isResuming ? job.successRows : 0;
+		const initialFailed = isResuming ? job.failedRows : 0;
+
+		if (isResuming) {
+			logger.info(`🔄 Resuming job ${jobId} from row ${resumeFrom}. Initial counts: Success=${initialSuccess}, Failed=${initialFailed}`);
 		}
 
 		const { fileName: filePath, mapping, headers: actualHeaders } = job;
@@ -197,7 +205,7 @@ export const processCsvJob = async ({
 		// Optimized batch size for large files (14 GB+)
 		// Larger batches = fewer DB round trips = faster processing
 		const batchSize = 2000; // Increased from 1000 for better throughput on large files
-		let candidates = [];
+		let candidates = []; // Batch of candidates to be inserted into DB
 		let successCount = initialSuccess;
 		let failedCount = initialFailed;
 		let rowCounter = resumeFrom;
@@ -559,7 +567,10 @@ if (connection) {
 					await processDeleteJob({ jobId });
 				} else {
 					// The worker now only needs the jobId and resume info.
-					await processCsvJob({ ...job.data });
+					// The processCsvJob function is now self-sufficient and will
+					// determine if it needs to resume based on DB state.
+					const { jobId } = job.data;
+					await processCsvJob({ jobId });
 				}
 			},
 			{

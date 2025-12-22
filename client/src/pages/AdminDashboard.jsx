@@ -692,13 +692,13 @@ const AdminDashboard = () => {
 														</button>
 													)}
 
-													<button
+													{/* <button
 														onClick={() => handleReprocess(job)}
 														className="p-2 rounded-lg bg-slate-700/40
                                hover:bg-indigo-500/20 text-indigo-400
                                transition cursor-pointer">
 														<RefreshCw size={16} />
-													</button>
+													</button> */}
 
 													<button
 														onClick={() => initiateAction("deleteJob", job._id)}
