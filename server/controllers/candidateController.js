@@ -691,13 +691,15 @@ export const deleteUploadJob = async (req, res) => {
     }
 };
 
-// --- CLEAN ATS RESUME GENERATOR ---
 export const downloadProfile = async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.params.id);
-    if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found" });
+    }
 
-    const clean = (v) => (v ? String(v).replace(/[\r\n]+/g, " ").trim() : "");
+    const clean = (v) =>
+      v ? String(v).replace(/[\r\n]+/g, " ").trim() : "";
 
     const doc = new Document({
       styles: {
@@ -706,22 +708,27 @@ export const downloadProfile = async (req, res) => {
             run: {
               font: "Calibri",
               size: 22, // 11pt
-              color: "000000",
             },
             paragraph: {
-              spacing: { line: 276, after: 120 }, // 1.15 line spacing
+              spacing: {
+                line: 276, // 1.15
+                after: 120,
+              },
             },
           },
         },
         paragraphStyles: [
           {
-            id: "Section",
+            id: "SectionHeader",
             name: "Section Header",
-            run: { bold: true, size: 24, allCaps: true },
+            run: {
+              bold: true,
+              size: 24, // 12pt
+            },
             paragraph: {
-              spacing: { before: 240, after: 120 },
-              border: {
-                bottom: { color: "000000", value: "single", size: 6 },
+              spacing: {
+                before: 240,
+                after: 120,
               },
             },
           },
@@ -740,30 +747,31 @@ export const downloadProfile = async (req, res) => {
             },
           },
           children: [
-            // ================= NAME =================
+            // ===== NAME =====
             new Paragraph({
-              text: clean(candidate.fullName || "Candidate Profile").toUpperCase(),
+              text: clean(candidate.fullName).toUpperCase(),
               alignment: AlignmentType.CENTER,
+              run: { bold: true, size: 30 }, // 15pt
               spacing: { after: 120 },
-              run: { bold: true, size: 28 },
             }),
 
-            // ================= JOB TITLE + COMPANY =================
+            // ===== JOB TITLE =====
             new Paragraph({
+              text: clean(candidate.jobTitle),
               alignment: AlignmentType.CENTER,
-              spacing: { after: 240 },
-              children: [
-                new TextRun({
-                  text: [
-                    clean(candidate.jobTitle),
-                    clean(candidate.company),
-                  ].filter(Boolean).join(" — "),
-                  italics: true,
-                }),
-              ],
+              italics: true,
+              spacing: { after: 200 },
             }),
 
-            // ================= CONTACT =================
+            // ===== LOCATION =====
+            new Paragraph({
+              text: [candidate.locality, candidate.location, candidate.country]
+                .filter(Boolean)
+                .join(", "),
+              alignment: AlignmentType.CENTER,
+            }),
+
+            // ===== CONTACT =====
             new Paragraph({
               alignment: AlignmentType.CENTER,
               spacing: { after: 360 },
@@ -772,9 +780,6 @@ export const downloadProfile = async (req, res) => {
                   text: [
                     clean(candidate.email),
                     clean(candidate.phone),
-                    [candidate.locality, candidate.location, candidate.country]
-                      .filter(Boolean)
-                      .join(", "),
                   ]
                     .filter(Boolean)
                     .join(" | "),
@@ -782,32 +787,67 @@ export const downloadProfile = async (req, res) => {
               ],
             }),
 
-            // ================= SUMMARY =================
-            ...(candidate.summary
+            // ===== LINKS =====
+            ...(candidate.linkedinUrl || candidate.githubUrl
               ? [
-                  new Paragraph({ text: "PROFESSIONAL SUMMARY", style: "Section" }),
-                  new Paragraph({ text: clean(candidate.summary) }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 360 },
+                    children: [
+                      new TextRun({
+                        text: [
+                          candidate.linkedinUrl
+                            ? `LinkedIn: ${clean(candidate.linkedinUrl)}`
+                            : null,
+                          candidate.githubUrl
+                            ? `GitHub: ${clean(candidate.githubUrl)}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" | "),
+                      }),
+                    ],
+                  }),
                 ]
               : []),
 
-            // ================= SKILLS =================
+            // ===== SUMMARY =====
+            ...(candidate.summary
+              ? [
+                  new Paragraph({
+                    text: "PROFESSIONAL SUMMARY",
+                    style: "SectionHeader",
+                  }),
+                  new Paragraph({
+                    text: clean(candidate.summary),
+                  }),
+                ]
+              : []),
+
+            // ===== SKILLS =====
             ...(candidate.skills
               ? [
-                  new Paragraph({ text: "SKILLS", style: "Section" }),
+                  new Paragraph({
+                    text: "SKILLS",
+                    style: "SectionHeader",
+                  }),
                   new Paragraph({
                     text: clean(candidate.skills)
                       .split(",")
                       .map((s) => s.trim())
                       .filter(Boolean)
-                      .join(" • "),
+                      .join(", "),
                   }),
                 ]
               : []),
 
-            // ================= EXPERIENCE =================
-            ...(candidate.experience || candidate.jobTitle
+            // ===== EXPERIENCE =====
+            ...(candidate.jobTitle || candidate.company
               ? [
-                  new Paragraph({ text: "EXPERIENCE", style: "Section" }),
+                  new Paragraph({
+                    text: "WORK EXPERIENCE",
+                    style: "SectionHeader",
+                  }),
                   new Paragraph({
                     children: [
                       new TextRun({
@@ -815,40 +855,32 @@ export const downloadProfile = async (req, res) => {
                         bold: true,
                       }),
                     ],
-                    spacing: { after: 60 },
                   }),
                   new Paragraph({
-                    children: [
-                      new TextRun({
-                        text: clean(candidate.company),
-                        italics: true,
-                      }),
-                      new TextRun({
-                        text: candidate.experience
-                          ? ` | ${clean(candidate.experience)} years`
-                          : "",
-                      }),
-                    ],
+                    text: [
+                      clean(candidate.company),
+                      candidate.industry
+                        ? `(${clean(candidate.industry)})`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" "),
                   }),
-                ]
-              : []),
-
-            // ================= LINKS =================
-            ...(candidate.linkedinUrl || candidate.githubUrl
-              ? [
-                  new Paragraph({ text: "LINKS", style: "Section" }),
-                  ...(candidate.linkedinUrl
-                    ? [new Paragraph({ text: `LinkedIn: ${clean(candidate.linkedinUrl)}` })]
-                    : []),
-                  ...(candidate.githubUrl
-                    ? [new Paragraph({ text: `GitHub: ${clean(candidate.githubUrl)}` })]
+                  ...(candidate.experience
+                    ? [
+                        new Paragraph({
+                          text: `Experience: ${clean(
+                            candidate.experience
+                          )}`,
+                        }),
+                      ]
                     : []),
                 ]
               : []),
 
-            // ================= FOOTER =================
+            // ===== FOOTER =====
             new Paragraph({
-              text: "Generated by Hirextra | ATS-Optimized Candidate Profile",
+              text: "Profile generated by PeopleFinder",
               alignment: AlignmentType.CENTER,
               spacing: { before: 360 },
               run: { size: 18, color: "666666" },
@@ -861,7 +893,7 @@ export const downloadProfile = async (req, res) => {
     const buffer = await Packer.toBuffer(doc);
 
     const safeName = clean(candidate.fullName || "Candidate")
-      .replace(/[^a-zA-Z0-9\s]/g, "")
+      .replace(/[^a-zA-Z0-9 ]/g, "")
       .replace(/\s+/g, "_");
 
     res.setHeader(
@@ -873,8 +905,8 @@ export const downloadProfile = async (req, res) => {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
     res.send(buffer);
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Error generating resume" });
   }
 };
