@@ -1030,7 +1030,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.industry && (
 									<div>
 										<p className="text-sm text-gray-500">Industry</p>
-										<p className="text-gray-900">{profile.industry}</p>
+										<p className="text-gray-900 capitalize">{profile.industry.toLowerCase()}</p>
 									</div>
 								)}
 								{profile.gender && (
