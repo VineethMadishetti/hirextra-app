@@ -683,11 +683,11 @@ const AdminDashboard = () => {
 												{/* Actions */}
 												<div className="flex gap-2">
 													{/* Resume Button for Stuck Jobs */}
-													{job.status === "PROCESSING" && processingJobId !== job._id && (
+													{(job.status === "PROCESSING" || job.status === "FAILED") && (
 														<button
 															onClick={() => handleResume(job)}
 															className="p-2 rounded-lg bg-slate-700/40 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer"
-															title="Resume Processing">
+															title="Resume / Retry Upload">
 															<Play size={16} />
 														</button>
 													)}
