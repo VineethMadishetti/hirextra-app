@@ -554,9 +554,9 @@ const UserSearch = () => {
 					<div className="flex-shrink-0 pl-4 border-l border-slate-800">
 						<span className="text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
 							Showing{" "}
-							<span className="text-slate-200 font-bold">{candidates.length}</span>
+							<span className="text-slate-400 font-bold">{candidates.length}</span>
 							<span className="mx-1 text-slate-600">/</span>
-							<span className="text-slate-200 font-bold">{totalCount}</span>
+							<span className="text-slate-400 font-bold">{totalCount}</span>
 						</span>
 					</div>
 				</div>
@@ -607,7 +607,7 @@ const UserSearch = () => {
 					<div className="flex items-center justify-center h-[calc(100vh-180px)]">
 						<div className="text-center">
 							<Loader className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4 opacity-80" />
-							<p className="text-slate-500 font-medium">Loading candidates...</p>
+							<p className="text-slate-400 font-medium">Loading candidates...</p>
 						</div>
 					</div>
 				) : candidates.length === 0 ? (
@@ -624,7 +624,7 @@ const UserSearch = () => {
 						{/* Table with fixed header and scrollable body */}
 						<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
 							{/* Single table with sticky header */}
-							<div className="overflow-y-scroll" style={{ maxHeight: 'calc(100vh - 170px)' }}>
+							<div className="overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600" style={{ maxHeight: 'calc(100vh - 170px)' }}>
 
 								<table className="w-full table-fixed">
 									<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
@@ -772,23 +772,23 @@ const CandidateRow = React.memo(
 
 				{/* Job Title */}
 				<td className="w-40 px-6 py-4 align-top">
-					<div className="text-slate-400 font-medium break-words text-sm leading-snug">
+					<div className="text-slate-300 font-medium break-words text-sm leading-snug">
 						{val(candidate.jobTitle)}
 					</div>
 				</td>
 
 				{/* Skills with Scrollable Container */}
 				<td className="w-48 px-6 py-4 align-top">
-					<div className="h-16 overflow-y-auto [&::-webkit-scrollbar]:hidden">
-						<p className="text-sm text-slate-400 leading-relaxed">
-							{candidate.skills ? candidate.skills.split(",").map(s => s.trim()).join(", ") : "-"}
+					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+						<p className="text-sm text-slate-300 leading-relaxed">
+							{candidate.skills ? candidate.skills.split(",").map(s => s.trim().replace(/\b\w/g, l => l.toUpperCase())).join(", ") : "-"}
 						</p>
 					</div>
 				</td>
 
 				{/* Company Name */}
 				<td className="w-40 px-6 py-4 align-top">
-					<div className="text-slate-400 text-sm break-words">
+					<div className="text-slate-300 text-sm break-words">
 						{val(candidate.company)}
 					</div>
 				</td>
@@ -949,7 +949,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 			</div>
 
 			{/* Body */}
-			<div className="p-8 overflow-y-auto flex-1 bg-slate-950/50">
+			<div className="p-8 overflow-y-auto flex-1 bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
@@ -1056,14 +1056,14 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								</span>
 								Skills & Expertise
 							</h3>
-							<div className="flex-1 overflow-y-auto">
+							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
 								{profile.skills ? (
 									<div className="flex flex-wrap gap-2">
 										{profile.skills.split(",").map((skill, i) => (
 											<span
 												key={i}
 												className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-medium hover:bg-slate-700 hover:border-indigo-500 hover:text-indigo-400 transition-all duration-200 cursor-default">
-												{skill.trim()}
+												{skill.trim().replace(/\b\w/g, l => l.toUpperCase())}
 											</span>
 										))}
 									</div>
