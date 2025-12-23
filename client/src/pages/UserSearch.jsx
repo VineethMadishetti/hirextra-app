@@ -110,7 +110,6 @@ const UserSearch = () => {
 		hasEmail: false,
 		hasPhone: false,
 	});
-	const [filtersVisible, setFiltersVisible] = useState(true);
 
 	const debouncedSearch = useDebounce(searchInput, 500);
 
@@ -455,57 +454,28 @@ const UserSearch = () => {
 		<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50/50 text-slate-800 font-sans">
 
 			{/* Fixed Filters Header - Stays below admin header */}
-			<div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shadow-sm">
-	<div className="px-4 py-1.5 space-y-2">
+			<div className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md">
+				<div className="flex items-center justify-between px-4 py-3 gap-4">
 
-					{/* Filters Toggle */}
-					<div className="flex items-center justify-between h-12">
-
-						<div className="flex items-center gap-2 text-sm font-bold text-slate-700 tracking-tight">
-							<div className="p-1.5 bg-slate-100 rounded-lg text-slate-500">
-								<Filter size={14} />
-							</div>
-							<span>Search & Filters</span>
-							<button
-								onClick={() => setFiltersVisible(!filtersVisible)}
-								className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-all ml-1">
-								{filtersVisible ? (
-									<ChevronUp size={16} />
-								) : (
-									<ChevronDown size={16} />
-								)}
-							</button>
-						</div>
-						<div className="flex items-center gap-4">
-							<span className="text-xs font-medium text-slate-500 bg-slate-100/50 px-3 py-1 rounded-full border border-slate-200/50">
-								Showing{" "}
-								<span className="text-slate-900 font-bold">{candidates.length}</span>
-								<span className="mx-1 text-slate-300">/</span>
-								<span className="text-slate-900 font-bold">{totalCount}</span>
-							</span>
-						</div>
-					</div>
-
-					{/* Collapsible Filters */}
-{filtersVisible && (
-	<div className="flex items-center gap-2 w-full overflow-x-auto bg-white border border-gray-200 rounded-xl px-4 py-3 scrollbar-hide shadow-sm">
+					{/* Filters Row (Scrollable) */}
+					<div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide">
 
 		{/* Search Bar */}
-		<div className="relative min-w-[260px]">
+		<div className="relative min-w-[240px]">
 			<Search
-				className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-				size={16}
+				className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+				size={15}
 			/>
 			<input
-				placeholder="Search by name, keywords..."
-				className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
+				placeholder="Search candidates..."
+				className="w-full pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
 				value={searchInput}
 				onChange={handleSearchChange}
 			/>
 			{searchInput && (
 				<button
 					onClick={() => setSearchInput("")}
-					className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 hover:bg-slate-200 rounded-full transition-colors">
+					className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 rounded-full transition-colors">
 					<X size={14} />
 				</button>
 			)}
@@ -514,7 +484,7 @@ const UserSearch = () => {
 		{/* Job Title */}
 		<input
 			placeholder="Job Title"
-			className="min-w-[160px] px-4 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
+			className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
 			value={filters.jobTitle}
 			onChange={(e) =>
 				handleFilterChange("jobTitle", e.target.value)
@@ -524,7 +494,7 @@ const UserSearch = () => {
 		{/* Location */}
 		<input
 			placeholder="Location"
-			className="min-w-[160px] px-4 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
+			className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
 			value={filters.location}
 			onChange={(e) =>
 				handleFilterChange("location", e.target.value)
@@ -534,7 +504,7 @@ const UserSearch = () => {
 		{/* Skills */}
 		<input
 			placeholder="Skills"
-			className="min-w-[160px] px-4 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
+			className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
 			value={filters.skills}
 			onChange={(e) =>
 				handleFilterChange("skills", e.target.value)
@@ -542,17 +512,17 @@ const UserSearch = () => {
 		/>
 
 		{/* Divider */}
-		<div className="h-8 w-px bg-slate-200 mx-2" />
+		<div className="h-6 w-px bg-slate-700 mx-1" />
 
 		{/* Email Filter */}
 		<button
 			onClick={() =>
 				handleFilterChange("hasEmail", !filters.hasEmail)
 			}
-			className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+			className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
 				filters.hasEmail
-					? "bg-slate-800 text-white border-slate-800 shadow-lg shadow-slate-200"
-					: "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+					? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+					: "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200"
 			}`}>
 			@ Email
 		</button>
@@ -562,10 +532,10 @@ const UserSearch = () => {
 			onClick={() =>
 				handleFilterChange("hasPhone", !filters.hasPhone)
 			}
-			className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+			className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
 				filters.hasPhone
-					? "bg-slate-800 text-white border-slate-800 shadow-lg shadow-slate-200"
-					: "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+					? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+					: "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200"
 			}`}>
 			📞 Phone
 		</button>
@@ -574,17 +544,26 @@ const UserSearch = () => {
 		{hasActiveFilters && (
 			<button
 				onClick={clearAllFilters}
-				className="ml-auto text-xs font-medium text-slate-400 hover:text-rose-500 whitespace-nowrap transition-colors px-2">
-				Clear all filters
+				className="ml-2 text-xs font-medium text-slate-500 hover:text-rose-400 whitespace-nowrap transition-colors px-2">
+				Clear
 			</button>
 		)}
 	</div>
-)}
 
+					{/* Count Display */}
+					<div className="flex-shrink-0 pl-4 border-l border-slate-800">
+						<span className="text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+							Showing{" "}
+							<span className="text-slate-200 font-bold">{candidates.length}</span>
+							<span className="mx-1 text-slate-600">/</span>
+							<span className="text-slate-200 font-bold">{totalCount}</span>
+						</span>
+					</div>
+				</div>
 
 					{/* Bulk Actions Bar */}
 					{selectedIds.size > 0 && (
-						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl mt-2 animate-in fade-in slide-in-from-top-2 duration-200">
+						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-b-xl animate-in fade-in slide-in-from-top-2 duration-200 mx-4 shadow-sm">
 
 							<span className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
 								<div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
@@ -620,7 +599,6 @@ const UserSearch = () => {
 							</div>
 						</div>
 					)}
-				</div>
 			</div>
 
 			{/* Table Container - Scrollable area starting below filters and table head */}
