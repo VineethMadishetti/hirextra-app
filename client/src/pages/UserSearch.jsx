@@ -742,7 +742,7 @@ const UserSearch = () => {
 							<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
 								<div
 									className="overflow-x-auto overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]"
-									style={{ maxHeight: "calc(100vh - 170px)" }}>
+									style={{ maxHeight: "calc(100vh - 200px)" }}>
 									<table className="w-full min-w-[900px] md:table-fixed">
 										<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
 											<tr>
@@ -780,7 +780,7 @@ const UserSearch = () => {
 												</th>
 											</tr>
 										</thead>
-										<tbody className="divide-y divide-slate-800 bg-slate-900">
+										<tbody className="divide-y divide-slate-800 bg-slate-900 block md:table-row-group">
 											{candidates.map((candidate, index) => (
 												<CandidateRow
 													key={`${candidate._id}-${index}`}
@@ -799,7 +799,7 @@ const UserSearch = () => {
 											))}
 
 											{/* Load More Trigger Row */}
-											<tr>
+											<tr className="block md:table-row">
 												<td colSpan="7" className="p-0">
 													<div
 														ref={loadMoreRef}
@@ -867,11 +867,11 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`group hover:bg-slate-800 transition-all duration-200 border-b border-slate-800 last:border-none ${
+				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-slate-800/50 border border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-800 md:rounded-none md:bg-transparent hover:bg-slate-800 transition-all duration-200 last:border-none ${
 					isSelected ? "bg-indigo-900/20" : ""
 				}`}>
 				{/* Checkbox */}
-				<td className="px-3 py-4 align-top">
+				<td className="px-3 py-4 align-top hidden md:table-cell">
 					<input
 						type="checkbox"
 						className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition mt-1"
@@ -880,22 +880,54 @@ const CandidateRow = React.memo(
 					/>
 				</td>
 
-				{/* Name */}
-				<td className="w-48 px-3 py-4 align-top">
-					<div className="font-semibold text-slate-200 break-words leading-tight">
-						{val(candidate.fullName)}
+				{/* --- MOBILE CARD HEADER --- */}
+				<td className="block md:hidden pb-3 border-b border-slate-700/50 mb-3">
+					<div className="flex items-start justify-between">
+						<div className="flex items-start gap-3">
+							<input
+								type="checkbox"
+								className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition mt-1"
+								checked={isSelected}
+								onChange={(e) => onSelect(candidate._id, e.target.checked)}
+							/>
+							<div>
+								<div className="font-semibold text-slate-200 break-words leading-tight">
+									{val(candidate.fullName)}
+								</div>
+								<div className="text-slate-400 font-medium text-sm leading-snug">
+									{val(candidate.jobTitle)}
+								</div>
+							</div>
+						</div>
+						<div className="flex justify-end gap-0 -mr-2">
+							<button
+								onClick={(e) => onQuickView(candidate, e)}
+								className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
+								title="View">
+								<Eye size={16} />
+							</button>
+							<button
+								onClick={(e) => onDownload(candidate._id, e)}
+								className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
+								title="Download Resume">
+								<Download size={16} />
+							</button>
+						</div>
 					</div>
 				</td>
 
-				{/* Job Title */}
-				<td className="w-40 px-6 py-4 align-top">
-					<div className="text-slate-300 font-medium break-words text-sm leading-snug">
-						{val(candidate.jobTitle)}
-					</div>
+				{/* Name (Desktop) */}
+				<td className="w-48 px-3 py-4 align-top hidden md:table-cell">
+					<div className="font-semibold text-slate-200 break-words leading-tight">{val(candidate.fullName)}</div>
+				</td>
+
+				{/* Job Title (Desktop) */}
+				<td className="w-40 px-6 py-4 align-top hidden md:table-cell">
+					<div className="text-slate-300 font-medium break-words text-sm leading-snug">{val(candidate.jobTitle)}</div>
 				</td>
 
 				{/* Skills with Scrollable Container */}
-				<td className="w-48 px-6 py-4 align-top">
+				<td className="block md:table-cell w-auto md:w-48 px-0 md:px-6 py-2 md:py-4 align-top">
 					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
 						<p className="text-sm text-slate-300 leading-relaxed">
 							{candidate.skills
@@ -995,7 +1027,7 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Actions */}
-				<td className="w-32 px-6 py-4 align-top sticky right-0 bg-slate-900 group-hover:bg-slate-800 transition-colors duration-200">
+				<td className="w-32 px-6 py-4 align-top sticky right-0 bg-slate-900 group-hover:bg-slate-800 transition-colors duration-200 hidden md:table-cell">
 					<div className="flex justify-end gap-1">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}

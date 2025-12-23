@@ -45,7 +45,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 		setLoading(true);
 		try {
 			const { data } = await api.get("/auth/users");
-			setUsers(data);
+			setUsers(Array.isArray(data) ? data : []);
 		} catch (error) {
 			toast.error("Failed to load users");
 		}
@@ -75,18 +75,6 @@ const [userToDelete, setUserToDelete] = useState(null);
 			toast.error(error.response?.data?.message || "Failed to create user");
 		}
 	};
-
-	// const handleDeleteUser = async (id) => {
-	//   if (!window.confirm('Are you sure you want to delete this user?')) return;
-
-	//   try {
-	//     await api.delete(`/auth/users/${id}`);
-	//     toast.success('User deleted');
-	//     fetchUsers();
-	//   } catch (error) {
-	//     toast.error(error.response?.data?.message || 'Failed to delete user');
-	//   }
-	// };
 
 	const confirmDeleteUser = async () => {
 		if (!passwordInput.trim()) {
@@ -122,11 +110,11 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 	const getRoleBadge = (role) => {
 		const colors = {
-			ADMIN: "bg-purple-100 text-purple-700 border-purple-200",
-			SUPER_ADMIN: "bg-red-100 text-red-700 border-red-200",
-			USER: "bg-blue-100 text-blue-700 border-blue-200",
+			SUPER_ADMIN: "bg-rose-500/10 text-rose-400",
+			ADMIN: "bg-purple-500/10 text-purple-400",
+			USER: "bg-blue-500/10 text-blue-400",
 		};
-		return colors[role] || "bg-gray-100 text-gray-700 border-gray-200";
+		return colors[role] || "bg-slate-500/10 text-slate-400";
 	};
 
 	return (
@@ -164,7 +152,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 						<div className="p-12 text-center">
 							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
 						</div>
-					) : users.length === 0 ? (
+					) : !Array.isArray(users) || users.length === 0 ? (
 						<div className="p-12 text-center">
 							<User className="w-14 h-14 text-slate-600 mx-auto mb-4" />
 							<p className="text-slate-400 font-medium">No users found</p>
@@ -180,57 +168,27 @@ const [userToDelete, setUserToDelete] = useState(null);
 										<div className="bg-indigo-500/10 p-2 rounded-lg">
 											<User size={18} className="text-indigo-400" />
 										</div>
-										<div>
-  <p className="font-medium text-white">{user.name}</p>
-
-  <p className="text-xs text-slate-400 flex items-center gap-1">
-    <Mail size={12} />
-    {user.email}
-  </p>
-
-  {/* ✅ Created At & Created By */}
-  <p className="text-xs text-slate-500">
-    Created {user.createdAt
-      ? new Date(user.createdAt).toLocaleString()
-      : "—"}
-    {" • "}
-    by {user.createdBy?.name || "System"}
-  </p>
-</div>
+										<div className="flex-1">
+											<p className="font-medium text-white">{user.name}</p>
+											<p className="text-xs text-slate-400 flex items-center gap-1.5 truncate">
+												<Mail size={12} />
+												<span>{user.email}</span>
+											</p>
+										</div>
 
 									</div>
 
 									{/* Details Section */}
-									<div className="w-full md:w-auto flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
-										<div className="w-full sm:w-40 flex items-center md:justify-center">
+									<div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-4 md:gap-6 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
+										<div className="flex items-center md:justify-center">
 										<span
-											className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1
-      ${
-				user.role === "SUPER_ADMIN"
-					? "bg-rose-500/10 text-rose-400"
-					: user.role === "ADMIN"
-					? "bg-purple-500/10 text-purple-400"
-					: "bg-blue-500/10 text-blue-400"
-			}`}>
+											className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
 											<Shield size={12} />
 											{user.role}
 										</span>
 									</div>
 
-										<div className="text-sm text-slate-400">
-											<p className="text-slate-300">
-												{user.createdAt
-													? new Date(user.createdAt).toLocaleString()
-													: "—"}
-											</p>
-											<p className="text-xs text-slate-500">
-												by {user.createdBy?.name || "System"}
-											</p>
-										</div>
-									</div>
-
-									{/* Actions */}
-									<div className="self-end md:self-center ml-auto">
+										{/* Actions */}
 										<button
 											onClick={() => {
 												setUserToDelete(user);
@@ -245,7 +203,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 											transition cursor-pointer">
 											<Trash2 size={16} />
 										</button>
-									</div>
+								</div>
 								</div>
 							))}
 						</div>
