@@ -22,15 +22,19 @@ const Dashboard = () => {
 		}
 	}, [user]);
 
+	const [showLogoutModal, setShowLogoutModal] = useState(false);
+
 	const handleLogout = () => {
-		if (window.confirm("Are you sure you want to logout?")) {
-			// Clear persisted search data on explicit logout
-			localStorage.removeItem("hirextra_selectedIds");
-			localStorage.removeItem("hirextra_searchInput");
-			localStorage.removeItem("hirextra_filters");
-			logout();
-			navigate("/");
-		}
+		setShowLogoutModal(true);
+	};
+
+	const confirmLogout = () => {
+		// Clear persisted search data on explicit logout
+		localStorage.removeItem("hirextra_selectedIds");
+		localStorage.removeItem("hirextra_searchInput");
+		localStorage.removeItem("hirextra_filters");
+		logout();
+		navigate("/");
 	};
 
 	return (
@@ -166,6 +170,34 @@ const Dashboard = () => {
 					<UserSearch />
 				)}
 			</main>
+
+			{/* Logout Confirmation Modal */}
+			{showLogoutModal && (
+				<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 transition-all">
+					<div className="bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+						<h3 className="text-lg font-semibold text-white mb-1">
+							Confirm Logout
+						</h3>
+						<p className="text-sm text-slate-400 mb-6">
+							Are you sure you want to end your session?
+						</p>
+
+						<div className="flex justify-end gap-3">
+							<button
+								onClick={() => setShowLogoutModal(false)}
+								className="px-4 py-2 text-slate-400 hover:text-white transition cursor-pointer">
+								Cancel
+							</button>
+							<button
+								onClick={confirmLogout}
+								className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-medium shadow-lg hover:shadow-rose-500/20 transition cursor-pointer flex items-center gap-2">
+								<LogOut size={16} />
+								Logout
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };

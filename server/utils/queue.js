@@ -429,7 +429,6 @@ export const processCsvJob = async ({ jobId }) => {
 							location: getVal(mapping.location),
 							linkedinUrl: getVal(mapping.linkedinUrl),
 							githubUrl: getVal(mapping.githubUrl),
-							birthYear: getVal(mapping.birthYear),
 							summary: getVal(mapping.summary),
 
 							sourceFile: filePath,

@@ -690,9 +690,6 @@ export const exportCandidates = async (req, res) => {
 			"LinkedIn URL",
 			"Location",
 			"Industry",
-			"Country",
-			"Locality",
-			"Birth Year",
 			"Summary",
 		];
 
@@ -711,9 +708,6 @@ export const exportCandidates = async (req, res) => {
 				candidate.linkedinUrl || "",
 				candidate.location || candidate.locality || candidate.country || "",
 				candidate.industry || "",
-				candidate.country || "",
-				candidate.locality || "",
-				candidate.birthYear || "",
 				candidate.summary || "",
 			]);
 
