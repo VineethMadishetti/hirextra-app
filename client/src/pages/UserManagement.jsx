@@ -162,37 +162,42 @@ const [userToDelete, setUserToDelete] = useState(null);
 							{users.map((user) => (
 								<div
 									key={user._id}
-									className="bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-slate-800 transition">
+									className="bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-800 transition">
 									{/* User Info */}
-									<div className="flex-1 flex items-center gap-4">
+									<div className="flex items-center gap-4 md:w-2/5">
 										<div className="bg-indigo-500/10 p-2 rounded-lg">
 											<User size={18} className="text-indigo-400" />
 										</div>
-										<div className="flex-1">
-											<p className="font-medium text-white">{user.name}</p>
+										<div className="flex-1 min-w-0">
+											<p className="font-medium text-white truncate">{user.name}</p>
 											<p className="text-xs text-slate-400 flex items-center gap-1.5 truncate">
 												<Mail size={12} />
-												<span>{user.email}</span>
+												<span className="truncate">{user.email}</span>
 											</p>
-											<p className="text-xs text-slate-500 mt-1">
+											<p className="md:hidden text-xs text-slate-500 mt-1">
 												Created {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
 												{" • "} by {user.createdBy?.name || "System"}
 											</p>
 										</div>
-
 									</div>
 
-									{/* Details Section */}
-									<div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-4 md:gap-6 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
-										<div className="flex items-center md:justify-center">
+									{/* Created At - Desktop */}
+									<div className="hidden md:block text-sm text-slate-400 md:w-2/5">
+										<p className="text-slate-300">
+											Created {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+										</p>
+										<p className="text-xs text-slate-500">
+											by {user.createdBy?.name || "System"}
+										</p>
+									</div>
+
+									{/* Role & Actions */}
+									<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
 										<span
 											className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
 											<Shield size={12} />
 											{user.role}
 										</span>
-									</div>
-
-										{/* Actions */}
 										<button
 											onClick={() => {
 												setUserToDelete(user);
@@ -207,7 +212,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 											transition cursor-pointer">
 											<Trash2 size={16} />
 										</button>
-								</div>
+									</div>
 								</div>
 							))}
 						</div>
