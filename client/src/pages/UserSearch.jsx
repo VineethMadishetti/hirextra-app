@@ -154,6 +154,10 @@ const UserSearch = () => {
 		}
 	});
 
+	const hasActiveFilters =
+		searchInput ||
+		Object.values(filters).some((v) => v && v !== false && v !== "");
+
 	// Save state to localStorage whenever it changes
 	useEffect(() => {
 		localStorage.setItem(
@@ -239,6 +243,7 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
+		enabled: hasActiveFilters,
 		staleTime: 10 * 1000, // Consider data stale after 10 seconds (shorter for live updates)
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: true,
@@ -543,10 +548,6 @@ const UserSearch = () => {
 		);
 	}
 
-	const hasActiveFilters =
-		searchInput ||
-		Object.values(filters).some((v) => v && v !== false && v !== "");
-
 	return (
 		<ErrorBoundary>
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans">
@@ -715,7 +716,7 @@ const UserSearch = () => {
 
 				{/* Table Container - Scrollable area starting below filters and table head */}
 				<div className="flex-1 overflow-hidden flex flex-col">
-					{isLoading && !data ? (
+					{isFetching && !data ? (
 						<div className="flex items-center justify-center h-[calc(100vh-180px)]">
 							<div className="text-center">
 								<Loader className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4 opacity-80" />
@@ -725,17 +726,27 @@ const UserSearch = () => {
 							</div>
 						</div>
 					) : candidates.length === 0 ? (
-						<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4">
-							<div className="bg-slate-100 p-4 rounded-full">
-								<Search className="h-8 w-8 text-slate-400" />
+						!hasActiveFilters ? (
+							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
+								<div className="bg-slate-800 p-5 rounded-full">
+									<Search className="h-10 w-10 text-slate-500" />
+								</div>
+								<p className="text-slate-300 text-lg font-medium">
+									Begin Your Search
+								</p>
+								<p className="text-slate-500 text-sm max-w-xs">
+									Use the filters above to find candidates by name, job title, location, or skills.
+								</p>
 							</div>
-							<p className="text-slate-600 text-lg font-medium">
-								No candidates found
-							</p>
-							<p className="text-slate-400 text-sm">
-								Try adjusting your search or filters
-							</p>
-						</div>
+						) : (
+							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
+								<div className="bg-slate-800 p-5 rounded-full">
+									<Search className="h-10 w-10 text-slate-500" />
+								</div>
+								<p className="text-slate-300 text-lg font-medium">No Candidates Found</p>
+								<p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
+							</div>
+						)
 					) : (
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
