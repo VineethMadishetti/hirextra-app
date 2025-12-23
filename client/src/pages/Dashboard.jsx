@@ -129,31 +129,31 @@ const Dashboard = () => {
 
 			{/* --- Mobile Nav (Only for Admin) --- */}
 			{user?.role === "ADMIN" && (
-				<div className="md:hidden flex border-b bg-white">
+				<div className="md:hidden flex border-b bg-white/90 backdrop-blur-md fixed top-16 left-0 right-0 z-40">
 					<button
 						onClick={() => setCurrentView("admin")}
 						className={`flex-1 py-3 text-sm font-medium text-center ${
 							currentView === "admin"
-								? "text-accent border-b-2 border-accent"
-								: "text-gray-500"
+								? "text-indigo-600 border-b-2 border-indigo-600"
+								: "text-gray-500 hover:bg-slate-100"
 						}`}>
-						Uploads
+						Admin Panel
 					</button>
 					<button
 						onClick={() => setCurrentView("users")}
 						className={`flex-1 py-3 text-sm font-medium text-center ${
 							currentView === "users"
-								? "text-accent border-b-2 border-accent"
-								: "text-gray-500"
+								? "text-indigo-600 border-b-2 border-indigo-600"
+								: "text-gray-500 hover:bg-slate-100"
 						}`}>
-						Users
+						User Management
 					</button>
 					<button
 						onClick={() => setCurrentView("search")}
 						className={`flex-1 py-3 text-sm font-medium text-center ${
 							currentView === "search"
-								? "text-accent border-b-2 border-accent"
-								: "text-gray-500"
+								? "text-indigo-600 border-b-2 border-indigo-600"
+								: "text-gray-500 hover:bg-slate-100"
 						}`}>
 						Search
 					</button>
@@ -161,7 +161,10 @@ const Dashboard = () => {
 			)}
 
 			{/* --- Main Content Area --- */}
-			<main className="flex-1 flex flex-col overflow-hidden pt-16">
+			<main
+				className={`flex-1 flex flex-col overflow-hidden ${
+					user?.role === "ADMIN" ? "pt-[112px] md:pt-16" : "pt-16"
+				}`}>
 				{user?.role === "ADMIN" && currentView === "admin" ? (
 					<AdminDashboard />
 				) : currentView === "users" ? (

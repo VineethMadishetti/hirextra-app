@@ -134,7 +134,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 			<div className="max-w-7xl mx-auto">
 				{/* Header */}
 				<div className="bg-slate-900/80 backdrop-blur rounded-2xl p-6 mb-6 shadow-xl border border-slate-800">
-					<div className="flex justify-between items-center">
+					<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 						<div>
 							<h2 className="text-2xl font-semibold text-white mb-1">
 								User Management
@@ -146,7 +146,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 						<button
 							onClick={() => setShowCreateModal(true)}
-							className="bg-indigo-600 hover:bg-indigo-500
+							className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500
                  text-white px-5 py-2.5 rounded-xl
                  font-medium shadow-lg
                  hover:shadow-indigo-500/30
@@ -174,12 +174,9 @@ const [userToDelete, setUserToDelete] = useState(null);
 							{users.map((user) => (
 								<div
 									key={user._id}
-									className="bg-slate-800/60 rounded-xl p-4
-             grid grid-cols-[1fr_160px_220px_80px]
-             items-center gap-4
-             hover:bg-slate-800 transition">
+									className="bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-slate-800 transition">
 									{/* User Info */}
-									<div className="flex items-center gap-4">
+									<div className="flex-1 flex items-center gap-4">
 										<div className="bg-indigo-500/10 p-2 rounded-lg">
 											<User size={18} className="text-indigo-400" />
 										</div>
@@ -203,8 +200,9 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 									</div>
 
-									{/* Role */}
-									<div className="w-40 flex justify-center">
+									{/* Details Section */}
+									<div className="w-full md:w-auto flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
+										<div className="w-full sm:w-40 flex items-center md:justify-center">
 										<span
 											className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1
       ${
@@ -219,32 +217,35 @@ const [userToDelete, setUserToDelete] = useState(null);
 										</span>
 									</div>
 
-									<div className="text-sm text-slate-400">
-										<p className="text-slate-300">
-											{user.createdAt
-												? new Date(user.createdAt).toLocaleString()
-												: "—"}
-										</p>
-										<p className="text-xs text-slate-500">
-											by {user.createdBy?.name || "System"}
-										</p>
+										<div className="text-sm text-slate-400">
+											<p className="text-slate-300">
+												{user.createdAt
+													? new Date(user.createdAt).toLocaleString()
+													: "—"}
+											</p>
+											<p className="text-xs text-slate-500">
+												by {user.createdBy?.name || "System"}
+											</p>
+										</div>
 									</div>
 
 									{/* Actions */}
-									<button
-										onClick={() => {
-											setUserToDelete(user);
-											setPasswordInput("");
-											setPasswordError("");
-											setShowPasswordModal(true);
-										}}
-										className="p-2 rounded-lg
+									<div className="self-end md:self-center ml-auto">
+										<button
+											onClick={() => {
+												setUserToDelete(user);
+												setPasswordInput("");
+												setPasswordError("");
+												setShowPasswordModal(true);
+											}}
+											className="p-2 rounded-lg
                        bg-slate-700/40
                        hover:bg-rose-500/20
                        text-rose-400
-                       transition cursor-pointer">
-										<Trash2 size={16} /> 
-									</button>
+											transition cursor-pointer">
+											<Trash2 size={16} />
+										</button>
+									</div>
 								</div>
 							))}
 						</div>

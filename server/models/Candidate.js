@@ -27,7 +27,6 @@ const candidateSchema = new mongoose.Schema(
 
     linkedinUrl: String,
     githubUrl: String,
-    birthYear: String,
     summary: String,
 
     // -------------------------

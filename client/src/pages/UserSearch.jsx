@@ -551,8 +551,8 @@ const UserSearch = () => {
 		<ErrorBoundary>
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
-				<div className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md">
-					<div className="flex items-center justify-between px-4 py-3 gap-4">
+				<div className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md ">
+					<div className="flex flex-col md:flex-row items-center justify-between px-4 py-3 gap-3">
 						{/* Filters Row (Scrollable) */}
 						<div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide">
 							{/* Search Bar */}
@@ -662,8 +662,8 @@ const UserSearch = () => {
 						</div>
 
 						{/* Count Display */}
-						<div className="flex-shrink-0 pl-4 border-l border-slate-800">
-							<span className="text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+						<div className="w-full md:w-auto md:pl-4 md:border-l border-slate-800">
+							<span className="w-full text-center block md:inline-block text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
 								Showing{" "}
 								<span className="text-slate-400 font-bold">
 									{candidates.length}
@@ -740,11 +740,10 @@ const UserSearch = () => {
 						<div className="mx-4 mt-3 mb-2">
 							{/* Table with fixed header and scrollable body */}
 							<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
-								{/* Single table with sticky header */}
 								<div
-									className="overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]"
+									className="overflow-x-auto overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]"
 									style={{ maxHeight: "calc(100vh - 170px)" }}>
-									<table className="w-full table-fixed">
+									<table className="w-full min-w-[900px] md:table-fixed">
 										<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
 											<tr>
 												<th className="w-12 px-3 py-4 text-left">
@@ -767,16 +766,16 @@ const UserSearch = () => {
 												<th className="w-48 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 													Skills
 												</th>
-												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider hidden md:table-cell">
 													Company Name
 												</th>
-												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider hidden lg:table-cell">
 													Experience
 												</th>
-												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider hidden sm:table-cell">
 													Contact
 												</th>
-												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider sticky right-0 bg-slate-900">
 													Actions
 												</th>
 											</tr>
@@ -912,21 +911,21 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Company Name */}
-				<td className="w-40 px-6 py-4 align-top">
+				<td className="w-40 px-6 py-4 align-top hidden md:table-cell">
 					<div className="text-slate-300 text-sm break-words">
 						{val(candidate.company)}
 					</div>
 				</td>
 
 				{/* Experience */}
-				<td className="w-32 px-6 py-4 align-top">
+				<td className="w-32 px-6 py-4 align-top hidden lg:table-cell">
 					<div className="text-slate-400 text-sm break-words">
 						{val(candidate.experience)}
 					</div>
 				</td>
 
 				{/* Contact with Icons */}
-				<td className="w-40 px-6 py-4 align-top">
+				<td className="w-40 px-6 py-4 align-top hidden sm:table-cell">
 					<div className="flex gap-1.5 flex-wrap">
 						{candidate.phone && (
 							<div className="relative group/icon">
@@ -996,7 +995,7 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Actions */}
-				<td className="w-32 px-6 py-4 align-top">
+				<td className="w-32 px-6 py-4 align-top sticky right-0 bg-slate-900 group-hover:bg-slate-800 transition-colors duration-200">
 					<div className="flex justify-end gap-1">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
