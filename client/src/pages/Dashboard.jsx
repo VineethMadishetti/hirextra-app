@@ -23,12 +23,14 @@ const Dashboard = () => {
 	}, [user]);
 
 	const handleLogout = () => {
-		// Clear persisted search data on explicit logout
-		localStorage.removeItem("hirextra_selectedIds");
-		localStorage.removeItem("hirextra_searchInput");
-		localStorage.removeItem("hirextra_filters");
-		logout();
-		navigate("/");
+		if (window.confirm("Are you sure you want to logout?")) {
+			// Clear persisted search data on explicit logout
+			localStorage.removeItem("hirextra_selectedIds");
+			localStorage.removeItem("hirextra_searchInput");
+			localStorage.removeItem("hirextra_filters");
+			logout();
+			navigate("/");
+		}
 	};
 
 	return (
