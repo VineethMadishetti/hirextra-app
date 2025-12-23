@@ -200,7 +200,22 @@ const UserSearch = () => {
 
 	const candidates = useMemo(() => {
 		if (!data?.pages) return [];
-		return data.pages.flatMap((page) => page.candidates || []);
+		const allCandidates = data.pages.flatMap((page) => page.candidates || []);
+
+		// Sort candidates: Rows with all columns filled appear first
+		return allCandidates.sort((a, b) => {
+			const getScore = (c) => {
+				let score = 0;
+				if (c.fullName) score++;
+				if (c.jobTitle) score++;
+				if (c.skills) score++;
+				if (c.company) score++;
+				if (c.experience) score++;
+				if (c.phone || c.email || c.linkedinUrl || c.locality || c.location) score++;
+				return score;
+			};
+			return getScore(b) - getScore(a);
+		});
 	}, [data?.pages]);
 
 	const totalCount = useMemo(() => {
@@ -919,22 +934,22 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 						<h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
 							{profile.fullName}
 						</h1>
-						<div className="flex items-center gap-4 text-slate-500 font-medium">
+						<div className="flex items-center gap-4 text-slate-300 font-medium">
 							{profile.jobTitle && (
 								<div className="flex items-center gap-2">
-									<Briefcase size={18} className="text-slate-400" />
+									<Briefcase size={18} className="text-slate-200" />
 									<span>{profile.jobTitle}</span>
 								</div>
 							)}
 							{profile.company && (
 								<div className="flex items-center gap-2">
-									<Building size={18} className="text-slate-400" />
+									<Building size={18} className="text-slate-200" />
 									<span>{profile.company}</span>
 								</div>
 							)}
 							{profile.experience && (
 								<div className="flex items-center gap-2">
-									<Calendar size={18} className="text-slate-400" />
+									<Calendar size={18} className="text-slate-200" />
 									<span>Expereince: {profile.experience}</span>
 								</div>
 							)}
@@ -1025,7 +1040,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Experience</p>
 											<p className="text-slate-300 font-medium">
-												{profile.experience} years
+												{profile.experience}
 											</p>
 										</div>
 									</div>
