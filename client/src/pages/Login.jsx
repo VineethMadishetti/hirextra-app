@@ -30,7 +30,7 @@ const Login = () => {
 	};
 
 	return (
-		<div className="min-h-screen flex items-center justify-center relative overflow-hidden font-sans">
+		<div className="min-h-screen flex relative overflow-hidden font-sans">
 			{/* Background Image */}
 			<img
 				src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1472&auto=format&fit=crop"
@@ -41,21 +41,36 @@ const Login = () => {
 			{/* Overlay */}
 			<div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-			{/* Login Card */}
-			<div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl px-8 py-10 m-4">
-				{/* Header */}
-				<div className="mb-8 text-center">
-					<h1 className="text-4xl font-extrabold tracking-tight leading-none mb-6">
-						<span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+			{/* Main Content Container */}
+			<div className="relative z-10 w-full flex flex-col lg:flex-row">
+				
+				{/* LEFT SIDE: Branding & Text */}
+				<div className="lg:w-1/2 flex flex-col justify-center px-12 lg:px-24 py-12 text-white">
+					<h1 className="text-6xl font-extrabold tracking-tight leading-none mb-6">
+						<span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
 							People
 						</span>
-						<span className="text-slate-900">Finder</span>
+						<span className="text-white">Finder</span>
 					</h1>
+					<p className="text-xl text-gray-200 mb-8 max-w-lg leading-relaxed">
+						AI-powered talent intelligence platform. Search across global data sources — instantly ranked, decision-ready.
+					</p>
+					<div className="flex items-center gap-4 text-sm text-gray-400">
+						<div className="h-1 w-12 bg-blue-500 rounded-full"></div>
+						<span>Search. Evaluate. Decide.</span>
+					</div>
+				</div>
 
-					<h2 className="text-2xl font-semibold text-slate-900 tracking-tight">
+				{/* RIGHT SIDE: Login Form (No Background) */}
+				<div className="lg:w-1/2 flex items-center justify-center px-6 py-12">
+					<div className="w-full max-w-md">
+						
+						{/* Header */}
+						<div className="mb-10">
+					<h2 className="text-3xl font-bold text-white tracking-tight">
 						Welcome Back
 					</h2>
-					<p className="text-slate-500 mt-2 text-sm">
+					<p className="text-gray-400 mt-2 text-sm">
 						Sign in to your account
 					</p>
 				</div>
@@ -69,16 +84,16 @@ const Login = () => {
 				<form onSubmit={handleSubmit} className="space-y-5">
 					{/* Email */}
 					<div>
-						<label className="block text-xs font-semibold text-slate-600 mb-1 tracking-wide uppercase">
+						<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">
 							Email address
 						</label>
 						<input
 							type="email"
 							required
 							placeholder="user@email.com"
-							className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm
-						text-slate-900 placeholder-slate-400
-						focus:border-slate-900 focus:ring-1 focus:ring-slate-900
+							className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm
+						text-white placeholder-gray-400
+						focus:border-blue-500 focus:ring-1 focus:ring-blue-500
 						outline-none transition"
 							value={email}
 							onChange={(e) => setEmail(e.target.value)}
@@ -88,16 +103,16 @@ const Login = () => {
 
 					{/* Password */}
 					<div>
-						<label className="block text-xs font-semibold text-slate-600 mb-1 tracking-wide uppercase">
+						<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">
 							Password
 						</label>
 						<input
 							type="password"
 							required
 							placeholder="••••••••"
-							className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm
-						text-slate-900 placeholder-slate-400
-						focus:border-slate-900 focus:ring-1 focus:ring-slate-900
+							className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm
+						text-white placeholder-gray-400
+						focus:border-blue-500 focus:ring-1 focus:ring-blue-500
 						outline-none transition"
 							value={password}
 							onChange={(e) => setPassword(e.target.value)}
@@ -110,9 +125,9 @@ const Login = () => {
 						type="submit"
 						disabled={isLoading}
 						className="w-full flex items-center justify-center rounded-lg
-					bg-slate-900 px-4 py-3 text-white font-semibold
-					hover:bg-slate-800
-					focus:ring-2 focus:ring-slate-900/30
+					bg-blue-600 px-4 py-3 text-white font-semibold
+					hover:bg-blue-500
+					focus:ring-2 focus:ring-blue-500/50
 					transition disabled:opacity-60 disabled:cursor-not-allowed">
 						{isLoading ? (
 							<>
@@ -143,10 +158,8 @@ const Login = () => {
 					</button>
 				</form>
 
-				{/* Footer */}
-				<p className="mt-8 text-center text-xs text-slate-400 tracking-wide">
-					Search. Evaluate. Decide.
-				</p>
+					</div>
+				</div>
 			</div>
 		</div>
 	);

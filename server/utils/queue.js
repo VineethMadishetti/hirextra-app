@@ -269,17 +269,24 @@ export const processCsvJob = async ({ jobId }) => {
 				failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
 			};
 
+			let consecutiveFailures = 0;
+
 			// Helper to update job progress in DB (throttled)
 			const updateJobProgress = async () => {
 				const now = Date.now();
 				if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
-					await UploadJob.findByIdAndUpdate(jobId, {
-						successRows: successCount,
-						failedRows: failedCount,
-						totalRows: rowCounter,
-						failureReasons: Object.fromEntries(failureReasonCounts),
-					});
-					lastProgressUpdate = now;
+					try {
+						await UploadJob.findByIdAndUpdate(jobId, {
+							successRows: successCount,
+							failedRows: failedCount,
+							totalRows: rowCounter,
+							failureReasons: Object.fromEntries(failureReasonCounts),
+						});
+						lastProgressUpdate = now;
+					} catch (err) {
+						// Log to console so it appears in Render logs even if DB is struggling
+						console.error(`⚠️ Failed to update job progress (DB Error): ${err.message}`);
+					}
 				}
 			};
 
@@ -288,6 +295,7 @@ export const processCsvJob = async ({ jobId }) => {
 				try {
 					await Candidate.insertMany(batchToInsert, { ordered: false });
 					successCount += batchToInsert.length;
+					consecutiveFailures = 0; // Reset on success
 
 					await updateJobProgress();
 				} catch (err) {
@@ -295,7 +303,15 @@ export const processCsvJob = async ({ jobId }) => {
 					// If ordered: false, err.insertedDocs contains successful ones
 					// We'll approximate failed count for now
 					failedCount += batchToInsert.length;
+					consecutiveFailures++;
+
 					logger.warn(`Batch insert warning: ${err.message}`);
+
+					// ABORT if too many consecutive failures (likely Disk Full or DB Down)
+					if (consecutiveFailures >= 5) {
+						throw new Error(`Aborting job: 5 consecutive batch failures. Last error: ${err.message}`);
+					}
+
 					await updateJobProgress();
 				}
 			};
