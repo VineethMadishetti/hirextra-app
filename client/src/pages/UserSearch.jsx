@@ -602,7 +602,7 @@ const UserSearch = () => {
 			</div>
 
 			{/* Table Container - Scrollable area starting below filters and table head */}
-			<div className="flex-1 overflow-auto">
+			<div className="flex-1 overflow-hidden flex flex-col">
 				{isLoading && !data ? (
 					<div className="flex items-center justify-center h-[calc(100vh-180px)]">
 						<div className="text-center">
@@ -779,26 +779,10 @@ const CandidateRow = React.memo(
 
 				{/* Skills with Scrollable Container */}
 				<td className="w-48 px-6 py-4 align-top">
-					<div className="max-h-16 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent pr-1">
-						<div className="flex flex-wrap gap-1.5">
-							{candidate.skills
-								? candidate.skills
-										.split(",")
-										.slice(0, 3)
-										.map((skill, i) => (
-											<span
-												key={i}
-												className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 border border-slate-700 text-slate-300 shadow-sm">
-												{skill.trim()}
-											</span>
-										))
-								: "-"}
-							{candidate.skills && candidate.skills.split(",").length > 3 && (
-								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
-									+{candidate.skills.split(",").length - 3}
-								</span>
-							)}
-						</div>
+					<div className="h-16 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+						<p className="text-sm text-slate-400 leading-relaxed">
+							{candidate.skills ? candidate.skills.split(",").map(s => s.trim()).join(", ") : "-"}
+						</p>
 					</div>
 				</td>
 
@@ -823,7 +807,7 @@ const CandidateRow = React.memo(
 							<div className="relative group/icon">
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
-									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 									>
 									<Phone size={16} />
 								</button>
@@ -836,7 +820,7 @@ const CandidateRow = React.memo(
 							<div className="relative group/icon">
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
-									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 									>
 									<Mail size={16} />
 								</button>
@@ -853,7 +837,7 @@ const CandidateRow = React.memo(
 										if (!url.startsWith('http')) url = 'https://' + url;
 										window.open(url, '_blank');
 									}}
-									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-slate-800 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 									>
 									<Linkedin size={16} />
 								</button>
@@ -868,8 +852,8 @@ const CandidateRow = React.memo(
 			<div className="relative group/icon">
 				<button
 					className="p-1.5 rounded-lg text-slate-400 
-						hover:text-rose-500 hover:bg-slate-800 
-						transition-colors"
+						hover:text-rose-500 hover:bg-slate-800 hover:scale-110
+						transition-all duration-200"
 				>
 					<MapPin size={15} />
 				</button>
@@ -890,13 +874,13 @@ const CandidateRow = React.memo(
 					<div className="flex justify-end gap-1">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
-							className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
+							className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 							title="View">
 							<Eye size={16} />
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
-							className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-all"
+							className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 							title="Download Resume">
 							<Download size={16} />
 						</button>
@@ -904,7 +888,7 @@ const CandidateRow = React.memo(
 							<button
 								onClick={(e) => onDelete(candidate._id, e)}
 								disabled={isDeleting}
-								className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+								className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 								title="Delete">
 								{isDeleting ? (
 									<Loader className="animate-spin" size={16} />

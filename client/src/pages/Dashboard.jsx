@@ -151,7 +151,7 @@ const Dashboard = () => {
 			)}
 
 			{/* --- Main Content Area --- */}
-			<main className="flex-1 flex flex-col overflow-hidden pt-18">
+			<main className="flex-1 flex flex-col overflow-hidden pt-16">
 				{user?.role === "ADMIN" && currentView === "admin" ? (
 					<AdminDashboard />
 				) : currentView === "users" ? (
