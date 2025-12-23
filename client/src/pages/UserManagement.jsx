@@ -8,6 +8,9 @@ import {
 	Shield,
 	X,
 	CheckCircle,
+	Eye,
+	EyeOff,
+	ChevronDown,
 } from "lucide-react";
 import toast from 'react-hot-toast';
 
@@ -27,8 +30,12 @@ const [userToDelete, setUserToDelete] = useState(null);
 		name: "",
 		email: "",
 		password: "",
+		confirmPassword: "",
 		role: "USER",
 	});
+
+	const [showPassword, setShowPassword] = useState(false);
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 	useEffect(() => {
 		fetchUsers();
@@ -51,11 +58,18 @@ const [userToDelete, setUserToDelete] = useState(null);
 			return toast.error("Please fill all required fields");
 		}
 
+		if (formData.password !== formData.confirmPassword) {
+			return toast.error("Passwords do not match");
+		}
+
 		try {
-			const { data } = await axios.post("/auth/users", formData);
+			const { confirmPassword, ...submitData } = formData;
+			const { data } = await axios.post("/auth/users", submitData);
 			toast.success("User created successfully");
 			setShowCreateModal(false);
-			setFormData({ name: "", email: "", password: "", role: "USER" });
+			setFormData({ name: "", email: "", password: "", confirmPassword: "", role: "USER" });
+			setShowPassword(false);
+			setShowConfirmPassword(false);
 			fetchUsers();
 		} catch (error) {
 			toast.error(error.response?.data?.message || "Failed to create user");
@@ -313,18 +327,53 @@ const [userToDelete, setUserToDelete] = useState(null);
 									<label className="block text-xs font-medium text-slate-400 mb-1">
 										Password
 									</label>
-									<input
-										type="password"
-										required
-										className="w-full bg-slate-800 border border-slate-700
-                       rounded-xl px-4 py-2.5 text-white
-                       focus:ring-2 focus:ring-indigo-500/40
-                       outline-none transition"
-										value={formData.password}
-										onChange={(e) =>
-											setFormData({ ...formData, password: e.target.value })
-										}
-									/>
+									<div className="relative">
+										<input
+											type={showPassword ? "text" : "password"}
+											required
+											className="w-full bg-slate-800 border border-slate-700
+							rounded-xl px-4 py-2.5 text-white pr-10
+							focus:ring-2 focus:ring-indigo-500/40
+							outline-none transition"
+											value={formData.password}
+											onChange={(e) =>
+												setFormData({ ...formData, password: e.target.value })
+											}
+										/>
+										<button
+											type="button"
+											onClick={() => setShowPassword(!showPassword)}
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition">
+											{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+										</button>
+									</div>
+								</div>
+
+								{/* Confirm Password */}
+								<div>
+									<label className="block text-xs font-medium text-slate-400 mb-1">
+										Confirm Password
+									</label>
+									<div className="relative">
+										<input
+											type={showConfirmPassword ? "text" : "password"}
+											required
+											className="w-full bg-slate-800 border border-slate-700
+							rounded-xl px-4 py-2.5 text-white pr-10
+							focus:ring-2 focus:ring-indigo-500/40
+							outline-none transition"
+											value={formData.confirmPassword}
+											onChange={(e) =>
+												setFormData({ ...formData, confirmPassword: e.target.value })
+											}
+										/>
+										<button
+											type="button"
+											onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition">
+											{showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+										</button>
+									</div>
 								</div>
 
 								{/* Role */}
@@ -332,18 +381,24 @@ const [userToDelete, setUserToDelete] = useState(null);
 									<label className="block text-xs font-medium text-slate-400 mb-1">
 										Role
 									</label>
-									<select
-										className="w-full bg-slate-800 border border-slate-700
-                       rounded-xl px-4 py-2.5 text-white
-                       focus:ring-2 focus:ring-indigo-500/40
-                       outline-none transition cursor-pointer"
-										value={formData.role}
-										onChange={(e) =>
-											setFormData({ ...formData, role: e.target.value })
-										}>
-										<option value="USER">User (View & Export Only)</option>
-										<option value="ADMIN">Admin (Full Access)</option>
-									</select>
+									<div className="relative">
+										<select
+											className="w-full bg-slate-800 border border-slate-700
+							rounded-xl px-4 py-2.5 text-white appearance-none
+							focus:ring-2 focus:ring-indigo-500/40
+							outline-none transition cursor-pointer pr-10"
+											value={formData.role}
+											onChange={(e) =>
+												setFormData({ ...formData, role: e.target.value })
+											}>
+											<option value="USER">User (View & Export Only)</option>
+											<option value="ADMIN">Admin (Full Access)</option>
+										</select>
+										<ChevronDown
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+											size={16}
+										/>
+									</div>
 								</div>
 
 								{/* Actions */}
