@@ -912,16 +912,18 @@ const CandidateRow = React.memo(
 						</div>
 						<div className="flex justify-end gap-0 -mr-2">
 							<button
+								className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
+								title="Enrich">
+								<Sparkles size={16} />
+							</button>
+							
+							<button
 								onClick={(e) => onQuickView(candidate, e)}
 								className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 								title="View">
 								<Eye size={16} />
 							</button>
-							<button
-								className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
-								title="Enrich">
-								<Sparkles size={16} />
-							</button>
+							
 							<button
 								onClick={(e) => onDownload(candidate._id, e)}
 								className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"

@@ -1102,13 +1102,17 @@ export const downloadProfile = async (req, res) => {
 
 		const buffer = await Packer.toBuffer(doc);
 
-		const safeName = clean(candidate.fullName || "Candidate")
-			.replace(/[^a-zA-Z0-9 ]/g, "")
-			.replace(/\s+/g, "_");
+		const firstName = (clean(candidate.fullName) || "Candidate").split(" ")[0];
+		const today = new Date();
+		const month = String(today.getMonth() + 1).padStart(2, "0");
+		const day = String(today.getDate()).padStart(2, "0");
+		const year = today.getFullYear();
+		const dateString = `${month}-${day}-${year}`;
+		const fileName = `${firstName}_${dateString}.docx`;
 
 		res.setHeader(
 			"Content-Disposition",
-			`attachment; filename=${safeName}_Resume.docx`,
+			`attachment; filename="${fileName}"`,
 		);
 		res.setHeader(
 			"Content-Type",
