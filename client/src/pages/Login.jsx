@@ -53,8 +53,14 @@ const Login = () => {
 						<span className="text-white">Finder</span>
 					</h1>
 					<p className="text-xl text-gray-200 mb-8 max-w-lg leading-relaxed">
-						AI-powered talent intelligence platform. Search across global data sources — instantly ranked, decision-ready.
-					</p>
+  <span className="block font-medium text-white">
+    AI-powered talent intelligence.
+  </span>
+  <span className="block mt-1 text-gray-300">
+    Search global data. Get ranked, decision-ready candidates - instantly.
+  </span>
+</p>
+
 					<div className="flex items-center gap-4 text-sm text-gray-400">
 						<div className="h-1 w-12 bg-blue-500 rounded-full"></div>
 						<span>Search. Evaluate. Decide.</span>

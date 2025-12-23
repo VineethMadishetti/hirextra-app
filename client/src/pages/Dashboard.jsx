@@ -121,7 +121,7 @@ const Dashboard = () => {
 						title="Logout"
 						className="ml-1 p-2 rounded-full
         text-slate-400 hover:text-red-600
-        hover:bg-red-50 transition-all">
+        hover:bg-red-50 transition-all cursor-pointer">
 						<LogOut size={18} />
 					</button>
 				</div>
