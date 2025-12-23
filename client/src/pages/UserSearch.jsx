@@ -624,7 +624,7 @@ const UserSearch = () => {
 						{/* Table with fixed header and scrollable body */}
 						<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
 							{/* Single table with sticky header */}
-							<div className="overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600" style={{ maxHeight: 'calc(100vh - 170px)' }}>
+							<div className="overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]" style={{ maxHeight: 'calc(100vh - 170px)' }}>
 
 								<table className="w-full table-fixed">
 									<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
@@ -779,7 +779,7 @@ const CandidateRow = React.memo(
 
 				{/* Skills with Scrollable Container */}
 				<td className="w-48 px-6 py-4 align-top">
-					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
 						<p className="text-sm text-slate-300 leading-relaxed">
 							{candidate.skills ? candidate.skills.split(",").map(s => s.trim().replace(/\b\w/g, l => l.toUpperCase())).join(", ") : "-"}
 						</p>
@@ -949,7 +949,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 			</div>
 
 			{/* Body */}
-			<div className="p-8 overflow-y-auto flex-1 bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+			<div className="p-8 overflow-y-auto flex-1 bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
@@ -1056,7 +1056,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								</span>
 								Skills & Expertise
 							</h3>
-							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]">
 								{profile.skills ? (
 									<div className="flex flex-wrap gap-2">
 										{profile.skills.split(",").map((skill, i) => (
