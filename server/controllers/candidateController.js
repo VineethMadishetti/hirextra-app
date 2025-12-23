@@ -717,12 +717,16 @@ export const exportCandidates = async (req, res) => {
 			)
 			.join("\n");
 
+		const today = new Date();
+		const day = String(today.getDate()).padStart(2, "0");
+		const month = String(today.getMonth() + 1).padStart(2, "0");
+		const year = today.getFullYear();
+		const dateString = `${day}-${month}-${year}`;
+
 		res.setHeader("Content-Type", "text/csv");
 		res.setHeader(
 			"Content-Disposition",
-			`attachment; filename="candidates_export_${
-				new Date().toISOString().split("T")[0]
-			}.csv"`,
+			`attachment; filename="candidates_export_${dateString}.csv"`,
 		);
 		res.send(csvContent);
 	} catch (err) {
@@ -1104,10 +1108,10 @@ export const downloadProfile = async (req, res) => {
 
 		const firstName = (clean(candidate.fullName) || "Candidate").split(" ")[0];
 		const today = new Date();
-		const month = String(today.getMonth() + 1).padStart(2, "0");
 		const day = String(today.getDate()).padStart(2, "0");
+		const month = String(today.getMonth() + 1).padStart(2, "0");
 		const year = today.getFullYear();
-		const dateString = `${month}-${day}-${year}`;
+		const dateString = `${day}-${month}-${year}`;
 		const fileName = `${firstName}_${dateString}.docx`;
 
 		res.setHeader(

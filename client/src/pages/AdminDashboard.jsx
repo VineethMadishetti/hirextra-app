@@ -352,6 +352,15 @@ const AdminDashboard = () => {
 		}
 	};
 
+	const formatDate = (dateString) => {
+		if (!dateString) return "N/A";
+		const date = new Date(dateString);
+		const day = String(date.getDate()).padStart(2, '0');
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const year = date.getFullYear();
+		return `${day}-${month}-${year}`;
+	};
+
 	return (
 		<div className="min-h-full bg-slate-950 text-slate-100 p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
@@ -622,9 +631,7 @@ const AdminDashboard = () => {
 														{job.originalName || job.fileName}
 													</p>
 													<p className="text-xs text-slate-400">
-														{job.createdAt
-															? new Date(job.createdAt).toLocaleString()
-															: "N/A"}
+														{formatDate(job.createdAt)}
 													</p>
 												</div>
 											</div>

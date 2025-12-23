@@ -485,11 +485,13 @@ const UserSearch = () => {
 
 			const url = window.URL.createObjectURL(new Blob([response.data]));
 			const link = document.createElement("a");
+			const today = new Date();
+			const day = String(today.getDate()).padStart(2, "0");
+			const month = String(today.getMonth() + 1).padStart(2, "0");
+			const year = today.getFullYear();
+			const dateString = `${day}-${month}-${year}`;
 			link.href = url;
-			link.setAttribute(
-				"download",
-				`candidates_export_${new Date().toISOString().split("T")[0]}.csv`,
-			);
+			link.setAttribute("download", `candidates_export_${dateString}.csv`);
 			document.body.appendChild(link);
 			link.click();
 			link.remove();

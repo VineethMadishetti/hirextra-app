@@ -117,6 +117,15 @@ const [userToDelete, setUserToDelete] = useState(null);
 		return colors[role] || "bg-slate-500/10 text-slate-400";
 	};
 
+	const formatDate = (dateString) => {
+		if (!dateString) return "—";
+		const date = new Date(dateString);
+		const day = String(date.getDate()).padStart(2, '0');
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const year = date.getFullYear();
+		return `${day}-${month}-${year}`;
+	};
+
 	return (
 		<div className="min-h-full bg-slate-950 text-slate-100 p-4 md:p-6">
 			<div className="max-w-6xl mx-auto h-full flex flex-col">
@@ -175,7 +184,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 												<span className="truncate">{user.email}</span>
 											</p>
 											<p className="md:hidden text-xs text-slate-500 mt-1">
-												Created {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+												Created {formatDate(user.createdAt)}
 												{" • "} by {user.createdBy?.name || "System"}
 											</p>
 										</div>
@@ -184,7 +193,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 									{/* Created At - Desktop */}
 									<div className="hidden md:block text-sm text-slate-400 md:w-2/5">
 										<p className="text-slate-300">
-											Created {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+											Created {formatDate(user.createdAt)}
 										</p>
 										<p className="text-xs text-slate-500">
 											by {user.createdBy?.name || "System"}
