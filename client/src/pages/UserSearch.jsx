@@ -33,6 +33,7 @@ import {
 	Award,
 	Calendar,
 	Linkedin,
+	AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -67,6 +68,34 @@ const useDebounce = (value, delay) => {
 	}, [value, delay]);
 	return debouncedValue;
 };
+
+// Error Boundary Component for graceful failure
+class ErrorBoundary extends React.Component {
+	constructor(props) {
+		super(props);
+		this.state = { hasError: false };
+	}
+
+	static getDerivedStateFromError(error) {
+		return { hasError: true };
+	}
+
+	componentDidCatch(error, errorInfo) {
+		console.error("ErrorBoundary caught an error", error, errorInfo);
+	}
+
+	render() {
+		if (this.state.hasError) {
+			return (
+				<div className="p-6 bg-red-50 border border-red-100 rounded-xl text-center m-4">
+					<h3 className="text-red-800 font-semibold">Something went wrong displaying this section.</h3>
+					<button onClick={() => window.location.reload()} className="mt-2 text-sm text-red-600 underline hover:text-red-800">Refresh Page</button>
+				</div>
+			);
+		}
+		return this.props.children;
+	}
+}
 
 const UserSearch = () => {
 	const { user } = useContext(AuthContext);
@@ -398,15 +427,21 @@ const UserSearch = () => {
 
 	if (status === "error") {
 		return (
-			<div className="flex flex-col items-center justify-center h-[calc(100vh-65px)] p-4">
-				<div className="text-red-500 text-lg mb-4">
-					Error: {error?.message || "Failed to load candidates"}
+			<div className="flex flex-col items-center justify-center h-[calc(100vh-65px)] p-4 bg-slate-50">
+				<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md">
+					<div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
+						<AlertTriangle className="w-6 h-6 text-red-600" />
+					</div>
+					<h3 className="text-lg font-semibold text-slate-900 mb-2">Unable to load candidates</h3>
+					<p className="text-slate-500 mb-6 text-sm">
+						{error?.response?.status === 500 ? "Server error. If searching, try simpler keywords." : (error?.message || "Something went wrong.")}
+					</p>
+					<button
+						onClick={() => refetch()}
+						className="px-5 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium text-sm">
+						Try Again
+					</button>
 				</div>
-				<button
-					onClick={() => refetch()}
-					className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-					Retry
-				</button>
 			</div>
 		);
 	}
@@ -416,6 +451,7 @@ const UserSearch = () => {
 		Object.values(filters).some((v) => v && v !== false && v !== "");
 
 	return (
+		<ErrorBoundary>
 		<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50/50 text-slate-800 font-sans">
 
 			{/* Fixed Filters Header - Stays below admin header */}
@@ -430,6 +466,15 @@ const UserSearch = () => {
 								<Filter size={14} />
 							</div>
 							<span>Search & Filters</span>
+							<button
+								onClick={() => setFiltersVisible(!filtersVisible)}
+								className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-all ml-1">
+								{filtersVisible ? (
+									<ChevronUp size={16} />
+								) : (
+									<ChevronDown size={16} />
+								)}
+							</button>
 						</div>
 						<div className="flex items-center gap-4">
 							<span className="text-xs font-medium text-slate-500 bg-slate-100/50 px-3 py-1 rounded-full border border-slate-200/50">
@@ -438,15 +483,6 @@ const UserSearch = () => {
 								<span className="mx-1 text-slate-300">/</span>
 								<span className="text-slate-900 font-bold">{totalCount}</span>
 							</span>
-							<button
-								onClick={() => setFiltersVisible(!filtersVisible)}
-								className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all">
-								{filtersVisible ? (
-									<ChevronUp size={18} />
-								) : (
-									<ChevronDown size={18} />
-								)}
-							</button>
 						</div>
 					</div>
 
@@ -716,6 +752,7 @@ const UserSearch = () => {
 				/>
 			)}
 		</div>
+		</ErrorBoundary>
 	);
 };
 
@@ -750,7 +787,7 @@ const CandidateRow = React.memo(
 
 				{/* Name */}
 				<td className="w-48 px-6 py-4 align-top">
-					<div className="font-bold text-slate-800 break-words leading-tight">
+					<div className="font-semibold text-slate-700 break-words leading-tight">
 						{val(candidate.fullName)}
 					</div>
 				</td>
@@ -789,7 +826,7 @@ const CandidateRow = React.memo(
 
 				{/* Company Name */}
 				<td className="w-40 px-6 py-4 align-top">
-					<div className="text-slate-800 font-medium break-words text-sm">
+					<div className="text-slate-600 text-sm break-words">
 						{val(candidate.company)}
 					</div>
 				</td>
@@ -805,33 +842,33 @@ const CandidateRow = React.memo(
 				<td className="w-40 px-6 py-4 align-top">
 					<div className="flex gap-1.5 flex-wrap">
 						{candidate.phone && (
-							<div className="relative group">
+							<div className="relative group/icon">
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
 									className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
 									>
 									<Phone size={16} />
 								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
 									 {candidate.phone}
 								</div>
 							</div>
 						)}
 						{candidate.email && (
-							<div className="relative group">
+							<div className="relative group/icon">
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
 									className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
 									>
 									<Mail size={16} />
 								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
 									 {candidate.email}
 								</div>
 							</div>
 						)}
 						{candidate.linkedinUrl && (
-							<div className="relative group">
+							<div className="relative group/icon">
 								<button
 									onClick={() => {
 										let url = candidate.linkedinUrl;
@@ -842,7 +879,7 @@ const CandidateRow = React.memo(
 									>
 									<Linkedin size={16} />
 								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate">
+								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50">
 									{candidate.linkedinUrl.replace(/^https?:\/\//, '')}
 								</div>
 							</div>
@@ -850,7 +887,7 @@ const CandidateRow = React.memo(
 
 						{/* Location */}
 		{(candidate.locality || candidate.location) && (
-			<div className="relative group">
+			<div className="relative group/icon">
 				<button
 					className="p-1.5 rounded-lg text-slate-400 
 						hover:text-rose-500 hover:bg-rose-50 
@@ -861,8 +898,8 @@ const CandidateRow = React.memo(
 				<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
 					max-w-xs truncate
 					px-2 py-1 rounded bg-slate-900 text-white text-[11px]
-					opacity-0 group-hover:opacity-100 transition-opacity
-					pointer-events-none shadow-lg">
+					opacity-0 group-hover/icon:opacity-100 transition-opacity
+					pointer-events-none shadow-lg z-50">
 					{formatLocation(candidate.locality, candidate.location)}
 				</div>
 			</div>

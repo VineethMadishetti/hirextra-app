@@ -582,21 +582,51 @@ export const searchCandidates = async (req, res) => {
 		const skip = (pageNum - 1) * limitNum;
 
 		let query = { isDeleted: false }; // Hide soft deleted items
+		const andConditions = [];
 
-		// 1. Text Search
-		if (q) query.$text = { $search: q };
+		// 1. Keyword Search (Regex replacement for Text Search)
+		if (q) {
+			const safeQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const regex = new RegExp(safeQ, "i");
+			andConditions.push({
+				$or: [
+					{ fullName: regex },
+					{ jobTitle: regex },
+					{ skills: regex },
+					{ company: regex },
+					{ location: regex },
+					{ locality: regex },
+					{ country: regex },
+				],
+			});
+		}
 
 		// 2. Specific Filters
 		const locFilter = locality || location;
 		if (locFilter) {
-			query.$or = [
-				{ locality: new RegExp(locFilter, "i") },
-				{ location: new RegExp(locFilter, "i") },
-				{ country: new RegExp(locFilter, "i") },
-			];
+			const safeLoc = locFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const locRegex = new RegExp(safeLoc, "i");
+			andConditions.push({
+				$or: [
+					{ locality: locRegex },
+					{ location: locRegex },
+					{ country: locRegex },
+				],
+			});
 		}
-		if (jobTitle) query.jobTitle = new RegExp(jobTitle, "i");
-		if (skills) query.skills = new RegExp(skills, "i");
+
+		if (andConditions.length > 0) {
+			query.$and = andConditions;
+		}
+
+		if (jobTitle) {
+			const safeJob = jobTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			query.jobTitle = new RegExp(safeJob, "i");
+		}
+		if (skills) {
+			const safeSkills = skills.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			query.skills = new RegExp(safeSkills, "i");
+		}
 
 		// 3. Toggles
 		if (hasEmail === "true") query.email = { $exists: true, $ne: "" };
