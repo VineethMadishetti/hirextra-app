@@ -119,7 +119,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 	return (
 		<div className="min-h-full bg-slate-950 text-slate-100 p-4 md:p-6">
-			<div className="max-w-7xl mx-auto h-full flex flex-col">
+			<div className="max-w-6xl mx-auto h-full flex flex-col">
 				{/* Header */}
 				<div className="bg-slate-900/80 backdrop-blur rounded-2xl p-6 mb-6 shadow-xl border border-slate-800">
 					<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

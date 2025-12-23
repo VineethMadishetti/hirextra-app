@@ -38,7 +38,7 @@ const Dashboard = () => {
 	};
 
 	return (
-		<div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-800">
+		<div className="min-h-screen flex flex-col bg-slate-950 font-sans text-slate-100">
 			{/* --- Top Navigation Bar --- */}
 			<nav
 				className="fixed top-0 left-0 right-0 z-50
