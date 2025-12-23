@@ -893,6 +893,7 @@ const CandidateRow = React.memo(
 					/>
 				</td>
 
+
 				{/* --- MOBILE CARD HEADER --- */}
 				<td className="block md:hidden pb-3 border-b border-slate-700/50 mb-3">
 					<div className="flex items-start justify-between">
@@ -978,7 +979,7 @@ const CandidateRow = React.memo(
 
 				{/* Contact with Icons */}
 				<td className="w-40 px-6 py-4 align-top hidden sm:table-cell">
-					<div className="flex gap-1.5 flex-wrap">
+					<div className="flex gap-1 flex-wrap">
 						{candidate.phone && (
 							<div className="relative group/icon">
 								<button
@@ -1048,7 +1049,7 @@ const CandidateRow = React.memo(
 
 				{/* Actions */}
 				<td className="w-32 px-6 py-4 align-top sticky right-0 bg-slate-900 group-hover:bg-slate-800 transition-colors duration-200 hidden md:table-cell border-l border-slate-800">
-					<div className="flex justify-end gap-1">
+					<div className="flex justify-end gap-0.5">
 						<button
 								className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 								title="Enrich">
