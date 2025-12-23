@@ -109,6 +109,7 @@ const UserSearch = () => {
 		skills: "",
 		hasEmail: false,
 		hasPhone: false,
+		hasLinkedin: false,
 	});
 
 	const debouncedSearch = useDebounce(searchInput, 500);
@@ -121,6 +122,7 @@ const UserSearch = () => {
 			skills: filters.skills,
 			hasEmail: filters.hasEmail,
 			hasPhone: filters.hasPhone,
+			hasLinkedin: filters.hasLinkedin,
 		}),
 		[debouncedSearch, filters],
 	);
@@ -244,6 +246,7 @@ const UserSearch = () => {
 			skills: "",
 			hasEmail: false,
 			hasPhone: false,
+			hasLinkedin: false,
 		});
 		setSelectedIds(new Set());
 	}, []);
@@ -530,31 +533,45 @@ const UserSearch = () => {
 		{/* Divider */}
 		<div className="h-6 w-px bg-slate-700 mx-1" />
 
-		{/* Email Filter */}
-		<button
-			onClick={() =>
-				handleFilterChange("hasEmail", !filters.hasEmail)
-			}
-			className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
-				filters.hasEmail
-					? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-					: "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200"
-			}`}>
-			@ Email
-		</button>
+		<div className="flex items-center gap-1">
+			<span className="text-xs font-medium text-slate-500 px-1">Contact:</span>
 
-		{/* Phone Filter */}
-		<button
-			onClick={() =>
-				handleFilterChange("hasPhone", !filters.hasPhone)
-			}
-			className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
-				filters.hasPhone
-					? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-					: "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200"
-			}`}>
-			📞 Phone
-		</button>
+			{/* Email Filter */}
+			<button
+				onClick={() => handleFilterChange("hasEmail", !filters.hasEmail)}
+				title="Has Email"
+				className={`p-2 rounded-lg transition-all border ${
+					filters.hasEmail
+						? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+						: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
+				}`}>
+				<Mail size={16} />
+			</button>
+
+			{/* Phone Filter */}
+			<button
+				onClick={() => handleFilterChange("hasPhone", !filters.hasPhone)}
+				title="Has Phone"
+				className={`p-2 rounded-lg transition-all border ${
+					filters.hasPhone
+						? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+						: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
+				}`}>
+				<Phone size={16} />
+			</button>
+
+			{/* LinkedIn Filter */}
+			<button
+				onClick={() => handleFilterChange("hasLinkedin", !filters.hasLinkedin)}
+				title="Has LinkedIn"
+				className={`p-2 rounded-lg transition-all border ${
+					filters.hasLinkedin
+						? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+						: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
+				}`}>
+				<Linkedin size={16} />
+			</button>
+		</div>
 
 		{/* Clear Filters */}
 		{hasActiveFilters && (
