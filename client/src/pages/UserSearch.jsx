@@ -737,12 +737,11 @@ const UserSearch = () => {
 							</p>
 						</div>
 					) : (
-						<div className="mx-4 mt-3 mb-2">
+						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
-							<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
+							<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden h-full">
 								<div
-									className="overflow-x-auto overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]"
-									style={{ maxHeight: "calc(100vh - 200px)" }}>
+									className="overflow-x-auto overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]">
 									<table className="w-full min-w-[900px] md:table-fixed">
 										<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
 											<tr>

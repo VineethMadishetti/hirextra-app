@@ -353,8 +353,8 @@ const AdminDashboard = () => {
 	};
 
 	return (
-		<div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-			<div className="max-w-7xl mx-auto">
+		<div className="min-h-full bg-slate-950 text-slate-100 p-4 md:p-6">
+			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header & Tabs */}
 				<div className="bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg">
 					<div className="flex flex-col sm:flex-row justify-between gap-4">

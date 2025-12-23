@@ -45,14 +45,14 @@ const Login = () => {
 			<div className="relative z-10 w-full flex flex-col lg:flex-row">
 				
 				{/* LEFT SIDE: Branding & Text */}
-				<div className="lg:w-1/2 flex flex-col justify-center px-12 lg:px-24 py-12 text-white">
-					<h1 className="text-6xl font-extrabold tracking-tight leading-none mb-6">
+				<div className="lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-24 py-16 sm:py-12 text-white">
+					<h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none mb-6 text-center lg:text-left">
 						<span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
 							People
 						</span>
 						<span className="text-white">Finder</span>
 					</h1>
-					<p className="text-xl text-gray-200 mb-8 max-w-lg leading-relaxed">
+					<p className="text-lg sm:text-xl text-gray-200 mb-8 max-w-lg leading-relaxed text-center lg:text-left">
   <span className="block font-medium text-white">
     AI-powered talent intelligence.
   </span>
@@ -61,18 +61,18 @@ const Login = () => {
   </span>
 </p>
 
-					<div className="flex items-center gap-4 text-sm text-gray-400">
+					<div className="hidden lg:flex items-center gap-4 text-sm text-gray-400">
 						<div className="h-1 w-12 bg-blue-500 rounded-full"></div>
 						<span>Search. Evaluate. Decide.</span>
 					</div>
 				</div>
 
 				{/* RIGHT SIDE: Login Form (No Background) */}
-				<div className="lg:w-1/2 flex items-center justify-center px-6 py-12">
+				<div className="lg:w-1/2 flex items-center justify-center px-6 sm:px-12 py-12">
 					<div className="w-full max-w-md">
 						
 						{/* Header */}
-						<div className="mb-10">
+						<div className="mb-10 text-center lg:text-left">
 					<h2 className="text-3xl font-bold text-white tracking-tight">
 						Welcome Back
 					</h2>
