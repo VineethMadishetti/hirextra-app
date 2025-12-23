@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from 'axios';
+import api from "../api/axios";
 import {
 	UserPlus,
 	Trash2,
@@ -44,7 +44,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 	const fetchUsers = async () => {
 		setLoading(true);
 		try {
-			const { data } = await axios.get("/auth/users");
+			const { data } = await api.get("/auth/users");
 			setUsers(data);
 		} catch (error) {
 			toast.error("Failed to load users");
@@ -64,7 +64,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 		try {
 			const { confirmPassword, ...submitData } = formData;
-			const { data } = await axios.post("/auth/users", submitData);
+			const { data } = await api.post("/auth/users", submitData);
 			toast.success("User created successfully");
 			setShowCreateModal(false);
 			setFormData({ name: "", email: "", password: "", confirmPassword: "", role: "USER" });
@@ -80,7 +80,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 	//   if (!window.confirm('Are you sure you want to delete this user?')) return;
 
 	//   try {
-	//     await axios.delete(`/auth/users/${id}`);
+	//     await api.delete(`/auth/users/${id}`);
 	//     toast.success('User deleted');
 	//     fetchUsers();
 	//   } catch (error) {
@@ -99,10 +99,10 @@ const [userToDelete, setUserToDelete] = useState(null);
 			setPasswordError("");
 
 			// First verify the password
-			await axios.post("/auth/verify-password", { password: passwordInput });
+			await api.post("/auth/verify-password", { password: passwordInput });
 
 			// If password is correct, proceed with deletion
-			await axios.delete(`/auth/users/${userToDelete._id}`, {
+			await api.delete(`/auth/users/${userToDelete._id}`, {
 				headers: {
 					'Content-Type': 'application/json'
 				}

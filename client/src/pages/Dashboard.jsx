@@ -23,6 +23,10 @@ const Dashboard = () => {
 	}, [user]);
 
 	const handleLogout = () => {
+		// Clear persisted search data on explicit logout
+		localStorage.removeItem("hirextra_selectedIds");
+		localStorage.removeItem("hirextra_searchInput");
+		localStorage.removeItem("hirextra_filters");
 		logout();
 		navigate("/");
 	};

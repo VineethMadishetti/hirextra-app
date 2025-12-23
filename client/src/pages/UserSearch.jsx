@@ -12,7 +12,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
-import axios from "axios";
+import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
 import {
 	Search,
@@ -101,16 +101,74 @@ const UserSearch = () => {
 	const { user } = useContext(AuthContext);
 	const queryClient = useQueryClient();
 	const [selectedProfile, setSelectedProfile] = useState(null);
-	const [selectedIds, setSelectedIds] = useState(new Set());
-	const [searchInput, setSearchInput] = useState("");
-	const [filters, setFilters] = useState({
-		location: "",
-		jobTitle: "",
-		skills: "",
-		hasEmail: false,
-		hasPhone: false,
-		hasLinkedin: false,
+
+	// --- STATE PERSISTENCE & RESTORATION ---
+	// Initialize state from localStorage to recover from crashes/refresh
+	const [selectedIds, setSelectedIds] = useState(() => {
+		try {
+			const saved = localStorage.getItem("hirextra_selectedIds");
+			return saved ? new Set(JSON.parse(saved)) : new Set();
+		} catch (e) {
+			return new Set();
+		}
 	});
+
+	const [searchInput, setSearchInput] = useState(
+		() => localStorage.getItem("hirextra_searchInput") || "",
+	);
+
+	const [filters, setFilters] = useState(() => {
+		try {
+			const saved = localStorage.getItem("hirextra_filters");
+			return saved
+				? JSON.parse(saved)
+				: {
+						location: "",
+						jobTitle: "",
+						skills: "",
+						hasEmail: false,
+						hasPhone: false,
+						hasLinkedin: false,
+				  };
+		} catch (e) {
+			return {
+				location: "",
+				jobTitle: "",
+				skills: "",
+				hasEmail: false,
+				hasPhone: false,
+				hasLinkedin: false,
+			};
+		}
+	});
+
+	// Save state to localStorage whenever it changes
+	useEffect(() => {
+		localStorage.setItem(
+			"hirextra_selectedIds",
+			JSON.stringify(Array.from(selectedIds)),
+		);
+	}, [selectedIds]);
+
+	useEffect(() => {
+		localStorage.setItem("hirextra_searchInput", searchInput);
+	}, [searchInput]);
+
+	useEffect(() => {
+		localStorage.setItem("hirextra_filters", JSON.stringify(filters));
+	}, [filters]);
+
+	// Prevent accidental tab closure if candidates are selected
+	useEffect(() => {
+		const handleBeforeUnload = (e) => {
+			if (selectedIds.size > 0) {
+				e.preventDefault();
+				e.returnValue = ""; // Standard for Chrome/Firefox
+			}
+		};
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+	}, [selectedIds]);
 
 	const debouncedSearch = useDebounce(searchInput, 500);
 
@@ -159,7 +217,7 @@ const UserSearch = () => {
 				),
 			});
 
-			const response = await axios.get(`/candidates/search?${params}`);
+			const response = await api.get(`/candidates/search?${params}`);
 			return { ...response.data, currentPage: pageParam };
 		},
 		getNextPageParam: (lastPage) => {
@@ -256,7 +314,7 @@ const UserSearch = () => {
 		mutationFn: async (ids) => {
 			const idsArray = Array.from(ids);
 			await Promise.all(
-				idsArray.map((id) => axios.delete(`/candidates/${id}`)),
+				idsArray.map((id) => api.delete(`/candidates/${id}`)),
 			);
 			return idsArray;
 		},
@@ -301,7 +359,7 @@ const UserSearch = () => {
 	// Single delete mutation
 	const deleteCandidate = useMutation({
 		mutationFn: async (id) => {
-			await axios.delete(`/candidates/${id}`);
+			await api.delete(`/candidates/${id}`);
 			return id;
 		},
 		onMutate: async (id) => {
@@ -399,7 +457,7 @@ const UserSearch = () => {
 		try {
 			toast.success(`Exporting ${selectedIds.size} candidates...`);
 			
-			const response = await axios.post('/candidates/export', {
+			const response = await api.post('/candidates/export', {
 				ids: Array.from(selectedIds)
 			}, {
 				responseType: 'blob'
@@ -424,7 +482,7 @@ const UserSearch = () => {
 	const handleDownload = useCallback(async (candidateId, e) => {
 		e?.stopPropagation();
 		try {
-			const response = await axios.get(`/candidates/${candidateId}/download`, {
+			const response = await api.get(`/candidates/${candidateId}/download`, {
 				responseType: "blob",
 			});
 
