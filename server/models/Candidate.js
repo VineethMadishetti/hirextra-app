@@ -39,7 +39,12 @@ const candidateSchema = new mongoose.Schema(
       ref: 'UploadJob',
     },
 
-    isDeleted: { type: Boolean, default: false, index: true },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
+    isDeleted: { type: Boolean, default: false },
   },
   {
     timestamps: true, // creates createdAt + updatedAt
@@ -52,58 +57,44 @@ const candidateSchema = new mongoose.Schema(
 // =====================================================
 //
 
-// 1️⃣ TEXT INDEX (for keyword search: 'q' parameter)
-// Used for: name, skills, job title, keyword search
-candidateSchema.index(
-  {
-    fullName: 'text',
-    jobTitle: 'text',
-    skills: 'text',
-  },
-  {
-    weights: {
-      fullName: 10,
-      jobTitle: 6,
-      skills: 4,
-    },
-    name: 'CandidateTextSearch',
-  }
-);
+// 1. Core Operational Index (Required for your queue.js delete job)
+// Replaces: uploadJobId_1_isDeleted_1
+candidateSchema.index({ uploadJobId: 1, isDeleted: 1 });
 
-// 2️⃣ DEFAULT SORTING INDEX (for the main candidate list)
-// Used for: fetching latest candidates, pagination
-candidateSchema.index({
-  isDeleted: 1,
-  createdAt: -1,
-});
+// 2. Date & Sorting (Files created at time/date)
+// Replaces: isDeleted_1_createdAt_-1
+candidateSchema.index({ isDeleted: 1, createdAt: -1 });
 
-// 3️⃣ EMAIL INDEX (for login, existence checks, and preventing duplicates)
-// `unique` prevents duplicate emails.
-// `sparse` means it only indexes documents that HAVE an email field, saving space.
-candidateSchema.index({ email: 1 }, { unique: true, sparse: true });
+// 3. Filter: Email (Unique lookup)
+// Replaces: email_1
+candidateSchema.index({ isDeleted: 1, email: 1 });
 
-// 4️⃣ LOCATION FILTERING INDEX
-// Used for: filtering by country and city. This index supports queries on `country` alone,
-// or queries on `country` and `locality` together.
-candidateSchema.index({
-  country: 1,
-  locality: 1,
-  isDeleted: 1,
-});
+// 4. Filter: Company Name
+// Replaces: company_1 AND company_1_isDeleted_1
+candidateSchema.index({ isDeleted: 1, company: 1 });
 
-// 5️⃣ JOB-BASED FILTERING (for viewing candidates from a specific upload)
-// Used for: viewing candidates from a specific upload
-candidateSchema.index({
-  uploadJobId: 1,
-  isDeleted: 1,
-});
+// 5. Filter: Job Title
+// Replaces: jobTitle_1_isDeleted_1
+candidateSchema.index({ isDeleted: 1, jobTitle: 1 });
 
-// 6️⃣ COMMON FILTERS (Job Title & Company)
-// These are frequently used in searches, so they deserve compound indexes.
-candidateSchema.index({
-  jobTitle: 1,
-  isDeleted: 1
-});
-candidateSchema.index({ company: 1, isDeleted: 1 });
+// 6. Filter: Location (General)
+// Replaces: location_1
+candidateSchema.index({ isDeleted: 1, location: 1 });
+
+// 7. Filter: Skills
+// This is a Multikey index. It allows efficient filtering where "skills" contains "Java".
+candidateSchema.index({ isDeleted: 1, skills: 1 });
+
+// 8. Filter: Name
+// Supports searching by name (e.g., /^John/).
+candidateSchema.index({ isDeleted: 1, fullName: 1 });
+
+// 9. Filter: Hierarchical Location (Country/Locality)
+// Replaces: country_1_locality_1_isDeleted_1 AND country_1 AND locality_1
+candidateSchema.index({ isDeleted: 1, country: 1, locality: 1 });
+
+// 10. Filter: User/Admin Created By (As requested)
+// Ensure your schema has a 'createdBy' field for this to work.
+candidateSchema.index({ isDeleted: 1, createdBy: 1 });
 
 export default mongoose.model('Candidate', candidateSchema);

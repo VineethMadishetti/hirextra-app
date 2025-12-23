@@ -216,6 +216,7 @@ export const processCsvJob = async ({ jobId }) => {
 		const JOB_CHECK_INTERVAL = 5000; // Check every 5 seconds if job still exists
 
 		// Helper to parse CSV line with proper quote handling
+		// Optimized to reduce string allocations
 		const parseCSVLine = (csvLine) => {
 			if (!csvLine) return [];
 			// FIX: Strip BOM (Byte Order Mark) if present to prevent header mismatch
@@ -268,28 +269,34 @@ export const processCsvJob = async ({ jobId }) => {
 				failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
 			};
 
+			// Helper to update job progress in DB (throttled)
+			const updateJobProgress = async () => {
+				const now = Date.now();
+				if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
+					await UploadJob.findByIdAndUpdate(jobId, {
+						successRows: successCount,
+						failedRows: failedCount,
+						totalRows: rowCounter,
+						failureReasons: Object.fromEntries(failureReasonCounts),
+					});
+					lastProgressUpdate = now;
+				}
+			};
+
 			const insertBatch = async (batchToInsert) => {
 				if (batchToInsert.length === 0) return;
 				try {
 					await Candidate.insertMany(batchToInsert, { ordered: false });
 					successCount += batchToInsert.length;
 
-					const now = Date.now();
-					if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
-						await UploadJob.findByIdAndUpdate(jobId, {
-							successRows: successCount,
-							failedRows: failedCount,
-							totalRows: rowCounter,
-							failureReasons: Object.fromEntries(failureReasonCounts),
-						});
-						lastProgressUpdate = now;
-					}
+					await updateJobProgress();
 				} catch (err) {
 					// Duplicate key error - count as failed but continue
 					// If ordered: false, err.insertedDocs contains successful ones
 					// We'll approximate failed count for now
 					failedCount += batchToInsert.length;
 					logger.warn(`Batch insert warning: ${err.message}`);
+					await updateJobProgress();
 				}
 			};
 
@@ -317,6 +324,9 @@ export const processCsvJob = async ({ jobId }) => {
 			const stream = fileStream
 				.pipe(csvParser)
 				.on("data", async (row) => {
+					// --- SAFETY CHECK: STOP IF PAUSED OR JOB DELETED ---
+					if (isPaused) return; 
+
 					try {
 						// --- ABORT IF JOB IS DELETED (PERIODIC CHECK) ---
 						// To prevent orphaned jobs from running indefinitely if they are
@@ -408,6 +418,7 @@ export const processCsvJob = async ({ jobId }) => {
 
 							sourceFile: filePath,
 							uploadJobId: jobId,
+							createdBy: job.uploadedBy,
 							isDeleted: false,
 						};
 
@@ -421,6 +432,11 @@ export const processCsvJob = async ({ jobId }) => {
 								logger.warn(`⚠️ Row rejected (${validationResult.reason}): Email=${candidateData.email}, Phone=${candidateData.phone}`);
 							}
 							incrementFailure(validationResult.reason || 'INVALID_DATA');
+						}
+
+						// Update progress periodically (every 50 rows) to ensure live feedback
+						if (rowCounter % 50 === 0) {
+							await updateJobProgress();
 						}
 
 						// Process batch when it reaches batchSize
