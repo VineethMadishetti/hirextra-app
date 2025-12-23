@@ -200,22 +200,23 @@ const UserSearch = () => {
 
 	const candidates = useMemo(() => {
 		if (!data?.pages) return [];
-		const allCandidates = data.pages.flatMap((page) => page.candidates || []);
+		return data.pages.flatMap((page) => page.candidates || []);
+		// const allCandidates = data.pages.flatMap((page) => page.candidates || []);
 
 		// Sort candidates: Rows with all columns filled appear first
-		return allCandidates.sort((a, b) => {
-			const getScore = (c) => {
-				let score = 0;
-				if (c.fullName) score++;
-				if (c.jobTitle) score++;
-				if (c.skills) score++;
-				if (c.company) score++;
-				if (c.experience) score++;
-				if (c.phone || c.email || c.linkedinUrl || c.locality || c.location) score++;
-				return score;
-			};
-			return getScore(b) - getScore(a);
-		});
+		// return allCandidates.sort((a, b) => {
+		// 	const getScore = (c) => {
+		// 		let score = 0;
+		// 		if (c.fullName) score++;
+		// 		if (c.jobTitle) score++;
+		// 		if (c.skills) score++;
+		// 		if (c.company) score++;
+		// 		if (c.experience) score++;
+		// 		if (c.phone || c.email || c.linkedinUrl || c.locality || c.location) score++;
+		// 		return score;
+		// 	};
+		// 	return getScore(b) - getScore(a);
+		// });
 	}, [data?.pages]);
 
 	const totalCount = useMemo(() => {
