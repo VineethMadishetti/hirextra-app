@@ -451,7 +451,7 @@ const UserSearch = () => {
 
 	return (
 		<ErrorBoundary>
-		<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50/50 text-slate-800 font-sans">
+		<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans">
 
 			{/* Fixed Filters Header - Stays below admin header */}
 			<div className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md">
@@ -563,9 +563,9 @@ const UserSearch = () => {
 
 					{/* Bulk Actions Bar */}
 					{selectedIds.size > 0 && (
-						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-b-xl animate-in fade-in slide-in-from-top-2 duration-200 mx-4 shadow-sm">
+						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-900/30 border border-indigo-500/30 rounded-b-xl animate-in fade-in slide-in-from-top-2 duration-200 mx-4 shadow-sm">
 
-							<span className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
+							<span className="text-sm font-semibold text-indigo-200 flex items-center gap-2">
 								<div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
 								{selectedIds.size} candidate{selectedIds.size > 1 ? "s" : ""}{" "}
 								selected
@@ -573,7 +573,7 @@ const UserSearch = () => {
 							<div className="flex gap-2">
 								<button
 									onClick={handleCancelSelection}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold transition-colors shadow-sm">
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-colors shadow-sm">
 									<X size={16} />
 									Cancel
 								</button>
@@ -622,17 +622,17 @@ const UserSearch = () => {
 					<div className="mx-4 mt-3 mb-2">
 
 						{/* Table with fixed header and scrollable body */}
-						<div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+						<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
 							{/* Single table with sticky header */}
-							<div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 170px)' }}>
+							<div className="overflow-y-scroll" style={{ maxHeight: 'calc(100vh - 170px)' }}>
 
 								<table className="w-full table-fixed">
-									<thead className="bg-slate-50/90 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-30">
+									<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
 										<tr>
-											<th className="w-14 px-6 py-4 text-left">
+											<th className="w-12 px-3 py-4 text-left">
 												<input
 													type="checkbox"
-													className="h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer transition"
+													className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition"
 													checked={
 														selectedIds.size > 0 &&
 														selectedIds.size === candidates.length
@@ -640,30 +640,30 @@ const UserSearch = () => {
 													onChange={(e) => handleSelectAll(e.target.checked)}
 												/>
 											</th>
-											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-48 px-3 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Full Name
 											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Job Title
 											</th>
-											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Skills
 											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Company Name
 											</th>
-											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Experience
 											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Contact
 											</th>
-											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
 												Actions
 											</th>
 										</tr>
 									</thead>
-									<tbody className="divide-y divide-slate-100 bg-white">
+									<tbody className="divide-y divide-slate-800 bg-slate-900">
 										{candidates.map((candidate, index) => (
 											<CandidateRow
 												key={`${candidate._id}-${index}`}
@@ -750,36 +750,36 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`group hover:bg-slate-50/80 transition-all duration-200 border-b border-slate-100 last:border-none ${
-					isSelected ? "bg-indigo-50/40" : ""
+				className={`group hover:bg-slate-800 transition-all duration-200 border-b border-slate-800 last:border-none ${
+					isSelected ? "bg-indigo-900/20" : ""
 				}`}>
 				{/* Checkbox */}
-				<td className="px-6 py-4 align-top">
+				<td className="px-3 py-4 align-top">
 					<input
 						type="checkbox"
-						className="h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer transition mt-1"
+						className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition mt-1"
 						checked={isSelected}
 						onChange={(e) => onSelect(candidate._id, e.target.checked)}
 					/>
 				</td>
 
 				{/* Name */}
-				<td className="w-48 px-6 py-4 align-top">
-					<div className="font-semibold text-slate-700 break-words leading-tight">
+				<td className="w-48 px-3 py-4 align-top">
+					<div className="font-semibold text-slate-200 break-words leading-tight">
 						{val(candidate.fullName)}
 					</div>
 				</td>
 
 				{/* Job Title */}
 				<td className="w-40 px-6 py-4 align-top">
-					<div className="text-slate-600 font-medium break-words text-sm leading-snug">
+					<div className="text-slate-400 font-medium break-words text-sm leading-snug">
 						{val(candidate.jobTitle)}
 					</div>
 				</td>
 
 				{/* Skills with Scrollable Container */}
 				<td className="w-48 px-6 py-4 align-top">
-					<div className="max-h-16 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent pr-1">
+					<div className="max-h-16 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent pr-1">
 						<div className="flex flex-wrap gap-1.5">
 							{candidate.skills
 								? candidate.skills
@@ -788,13 +788,13 @@ const CandidateRow = React.memo(
 										.map((skill, i) => (
 											<span
 												key={i}
-												className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-white border border-slate-200 text-slate-600 shadow-sm">
+												className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-800 border border-slate-700 text-slate-300 shadow-sm">
 												{skill.trim()}
 											</span>
 										))
 								: "-"}
 							{candidate.skills && candidate.skills.split(",").length > 3 && (
-								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
 									+{candidate.skills.split(",").length - 3}
 								</span>
 							)}
@@ -804,14 +804,14 @@ const CandidateRow = React.memo(
 
 				{/* Company Name */}
 				<td className="w-40 px-6 py-4 align-top">
-					<div className="text-slate-600 text-sm break-words">
+					<div className="text-slate-400 text-sm break-words">
 						{val(candidate.company)}
 					</div>
 				</td>
 
 				{/* Experience */}
 				<td className="w-32 px-6 py-4 align-top">
-					<div className="text-slate-500 text-sm break-words">
+					<div className="text-slate-400 text-sm break-words">
 						{val(candidate.experience)}
 					</div>
 				</td>
@@ -823,7 +823,7 @@ const CandidateRow = React.memo(
 							<div className="relative group/icon">
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
-									className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
 									>
 									<Phone size={16} />
 								</button>
@@ -836,7 +836,7 @@ const CandidateRow = React.memo(
 							<div className="relative group/icon">
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
-									className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
 									>
 									<Mail size={16} />
 								</button>
@@ -853,7 +853,7 @@ const CandidateRow = React.memo(
 										if (!url.startsWith('http')) url = 'https://' + url;
 										window.open(url, '_blank');
 									}}
-									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-blue-50 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-slate-800 rounded-lg transition-all"
 									>
 									<Linkedin size={16} />
 								</button>
@@ -868,7 +868,7 @@ const CandidateRow = React.memo(
 			<div className="relative group/icon">
 				<button
 					className="p-1.5 rounded-lg text-slate-400 
-						hover:text-rose-500 hover:bg-rose-50 
+						hover:text-rose-500 hover:bg-slate-800 
 						transition-colors"
 				>
 					<MapPin size={15} />
@@ -890,13 +890,13 @@ const CandidateRow = React.memo(
 					<div className="flex justify-end gap-1">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
-							className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+							className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
 							title="View">
 							<Eye size={16} />
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
-							className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+							className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-all"
 							title="Download Resume">
 							<Download size={16} />
 						</button>
@@ -904,7 +904,7 @@ const CandidateRow = React.memo(
 							<button
 								onClick={(e) => onDelete(candidate._id, e)}
 								disabled={isDeleting}
-								className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+								className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								title="Delete">
 								{isDeleting ? (
 									<Loader className="animate-spin" size={16} />
@@ -926,13 +926,13 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 		className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
 		onClick={onClose}>
 		<div
-			className="w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl shadow-slate-900/20 overflow-hidden animate-slide-up flex flex-col border border-slate-100"
+			className="w-full max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-800"
 			onClick={(e) => e.stopPropagation()}>
 			{/* Header */}
-			<div className="bg-white border-b border-slate-100 p-8 relative">
+			<div className="bg-slate-900 border-b border-slate-800 p-8 relative">
 				<div className="flex justify-between items-start">
 					<div>
-						<h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
+						<h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
 							{profile.fullName}
 						</h1>
 						<div className="flex items-center gap-4 text-slate-500 font-medium">
@@ -958,20 +958,20 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 					</div>
 					<button
 						onClick={onClose}
-						className="text-slate-400 hover:text-slate-800 p-2 rounded-full hover:bg-slate-100 transition-colors absolute top-6 right-6">
+						className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors absolute top-6 right-6">
 						<X size={24} />
 					</button>
 				</div>
 			</div>
 
 			{/* Body */}
-			<div className="p-8 overflow-y-auto flex-1 bg-slate-50/30">
+			<div className="p-8 overflow-y-auto flex-1 bg-slate-950/50">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
 						{/* Contact Card */}
-						<div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-5 shadow-sm">
-							<h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 mb-4">
+						<div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-sm">
+							<h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
 								{/* <span className="bg-blue-100 p-2 rounded-lg">
 									<Mail className="text-blue-600" size={20} />
 								</span> */}
@@ -988,7 +988,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
 											<a
 												href={`mailto:${profile.email}`}
-												className="text-indigo-600 hover:text-indigo-800 break-all font-medium">
+												className="text-indigo-400 hover:text-indigo-300 break-all font-medium">
 												{profile.email}
 											</a>
 										</div>
@@ -1004,7 +1004,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
 											<a
 												href={`tel:${profile.phone}`}
-												className="text-slate-700 hover:text-indigo-600 font-medium">
+												className="text-slate-300 hover:text-indigo-400 font-medium">
 												{profile.phone}
 											</a>
 										</div>
@@ -1018,7 +1018,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Location</p>
-											<p className="text-slate-700 font-medium">
+											<p className="text-slate-300 font-medium">
 												{formatLocation(profile.locality, profile.location)}
 											</p>
 										</div>
@@ -1028,9 +1028,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 						</div>
 
 						{/* Experience & Industry */}
-						<div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-4 shadow-sm">
-							<h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 mb-4">
-								<span className="bg-indigo-50 p-1.5 rounded-lg">
+						<div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-sm">
+							<h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
+								<span className="bg-indigo-900/50 p-1.5 rounded-lg">
 									<Award className="text-indigo-600" size={16} />
 								</span>
 								Professional Details
@@ -1040,7 +1040,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 									<div className="flex items-start gap-3">
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Experience</p>
-											<p className="text-slate-700 font-medium">
+											<p className="text-slate-300 font-medium">
 												{profile.experience} years
 											</p>
 										</div>
@@ -1049,13 +1049,13 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.industry && (
 									<div>
 										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Industry</p>
-										<p className="text-slate-700 font-medium capitalize">{profile.industry.toLowerCase()}</p>
+										<p className="text-slate-300 font-medium capitalize">{profile.industry.toLowerCase()}</p>
 									</div>
 								)}
 								{profile.gender && (
 									<div>
 										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Gender</p>
-										<p className="text-slate-700 font-medium">{profile.gender}</p>
+										<p className="text-slate-300 font-medium">{profile.gender}</p>
 									</div>
 								)}
 
@@ -1065,9 +1065,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 
 					{/* Right Column - Skills */}
 					<div className="lg:col-span-2">
-						<div className="bg-white border border-slate-100 rounded-2xl p-8 h-full flex flex-col shadow-sm">
-							<h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-3 flex-shrink-0">
-								<span className="bg-emerald-50 p-2 rounded-xl">
+						<div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 h-full flex flex-col shadow-sm">
+							<h3 className="text-lg font-bold text-slate-200 mb-6 flex items-center gap-3 flex-shrink-0">
+								<span className="bg-emerald-900/30 p-2 rounded-xl">
 									<Award className="text-emerald-600" size={24} />
 								</span>
 								Skills & Expertise
@@ -1078,7 +1078,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										{profile.skills.split(",").map((skill, i) => (
 											<span
 												key={i}
-												className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium hover:bg-white hover:border-indigo-200 hover:text-indigo-700 transition-all duration-200 cursor-default">
+												className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-medium hover:bg-slate-700 hover:border-indigo-500 hover:text-indigo-400 transition-all duration-200 cursor-default">
 												{skill.trim()}
 											</span>
 										))}
@@ -1089,13 +1089,13 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 							</div>
 
 							{/* Download Button */}
-							<div className="mt-8 pt-6 border-t border-slate-100 flex-shrink-0">
+							<div className="mt-8 pt-6 border-t border-slate-800 flex-shrink-0">
 								<button
 									onClick={(e) => {
 										e.stopPropagation();
 										onDownload(profile._id, e);
 									}}
-									className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold shadow-lg shadow-slate-200 hover:shadow-xl hover:shadow-slate-300 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
+									className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-indigo-900/20 hover:shadow-xl hover:shadow-indigo-900/30 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
 									<Download size={20} />
 									Download Full Profile
 									<ExternalLink size={18} />
