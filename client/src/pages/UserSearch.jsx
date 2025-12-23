@@ -416,28 +416,31 @@ const UserSearch = () => {
 		Object.values(filters).some((v) => v && v !== false && v !== "");
 
 	return (
-		<div className="flex flex-col h-[calc(100vh-64px)] bg-gray-50 text-gray-800">
+		<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50/50 text-slate-800 font-sans">
 
 			{/* Fixed Filters Header - Stays below admin header */}
-			<div className="sticky top-0 z-40 bg-white border-b border-gray-200">
+			<div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shadow-sm">
 	<div className="px-4 py-1.5 space-y-2">
 
 					{/* Filters Toggle */}
-					<div className="flex items-center justify-between h-9">
+					<div className="flex items-center justify-between h-12">
 
-						<div className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
-							<Filter size={16} />
+						<div className="flex items-center gap-2 text-sm font-bold text-slate-700 tracking-tight">
+							<div className="p-1.5 bg-slate-100 rounded-lg text-slate-500">
+								<Filter size={14} />
+							</div>
 							<span>Search & Filters</span>
 						</div>
 						<div className="flex items-center gap-4">
-							<span className="text-sm text-gray-600">
+							<span className="text-xs font-medium text-slate-500 bg-slate-100/50 px-3 py-1 rounded-full border border-slate-200/50">
 								Showing{" "}
-								<span className="font-semibold">{candidates.length}</span> of{" "}
-								<span className="font-semibold">{totalCount}</span> candidates
+								<span className="text-slate-900 font-bold">{candidates.length}</span>
+								<span className="mx-1 text-slate-300">/</span>
+								<span className="text-slate-900 font-bold">{totalCount}</span>
 							</span>
 							<button
 								onClick={() => setFiltersVisible(!filtersVisible)}
-								className="text-gray-500 hover:text-gray-700">
+								className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all">
 								{filtersVisible ? (
 									<ChevronUp size={18} />
 								) : (
@@ -454,20 +457,20 @@ const UserSearch = () => {
 		{/* Search Bar */}
 		<div className="relative min-w-[260px]">
 			<Search
-				className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-				size={18}
+				className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+				size={16}
 			/>
 			<input
 				placeholder="Search by name, keywords..."
-				className="w-full pl-10 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
+				className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
 				value={searchInput}
 				onChange={handleSearchChange}
 			/>
 			{searchInput && (
 				<button
 					onClick={() => setSearchInput("")}
-					className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-					<X size={16} />
+					className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 hover:bg-slate-200 rounded-full transition-colors">
+					<X size={14} />
 				</button>
 			)}
 		</div>
@@ -475,7 +478,7 @@ const UserSearch = () => {
 		{/* Job Title */}
 		<input
 			placeholder="Job Title"
-			className="min-w-[160px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
+			className="min-w-[160px] px-4 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
 			value={filters.jobTitle}
 			onChange={(e) =>
 				handleFilterChange("jobTitle", e.target.value)
@@ -485,7 +488,7 @@ const UserSearch = () => {
 		{/* Location */}
 		<input
 			placeholder="Location"
-			className="min-w-[160px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
+			className="min-w-[160px] px-4 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
 			value={filters.location}
 			onChange={(e) =>
 				handleFilterChange("location", e.target.value)
@@ -495,7 +498,7 @@ const UserSearch = () => {
 		{/* Skills */}
 		<input
 			placeholder="Skills"
-			className="min-w-[160px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
+			className="min-w-[160px] px-4 py-2.5 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-slate-700 placeholder-slate-400 outline-none transition-all duration-200"
 			value={filters.skills}
 			onChange={(e) =>
 				handleFilterChange("skills", e.target.value)
@@ -503,17 +506,17 @@ const UserSearch = () => {
 		/>
 
 		{/* Divider */}
-		<div className="h-8 w-px bg-gray-200 mx-2" />
+		<div className="h-8 w-px bg-slate-200 mx-2" />
 
 		{/* Email Filter */}
 		<button
 			onClick={() =>
 				handleFilterChange("hasEmail", !filters.hasEmail)
 			}
-			className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
+			className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
 				filters.hasEmail
-					? "bg-slate-900 text-white border-slate-900 shadow-md"
-					: "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+					? "bg-slate-800 text-white border-slate-800 shadow-lg shadow-slate-200"
+					: "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
 			}`}>
 			@ Email
 		</button>
@@ -523,10 +526,10 @@ const UserSearch = () => {
 			onClick={() =>
 				handleFilterChange("hasPhone", !filters.hasPhone)
 			}
-			className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
+			className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
 				filters.hasPhone
-					? "bg-slate-900 text-white border-slate-900 shadow-md"
-					: "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+					? "bg-slate-800 text-white border-slate-800 shadow-lg shadow-slate-200"
+					: "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
 			}`}>
 			📞 Phone
 		</button>
@@ -535,7 +538,7 @@ const UserSearch = () => {
 		{hasActiveFilters && (
 			<button
 				onClick={clearAllFilters}
-				className="ml-auto text-xs text-slate-400 hover:text-red-400 whitespace-nowrap">
+				className="ml-auto text-xs font-medium text-slate-400 hover:text-rose-500 whitespace-nowrap transition-colors px-2">
 				Clear all filters
 			</button>
 		)}
@@ -545,22 +548,23 @@ const UserSearch = () => {
 
 					{/* Bulk Actions Bar */}
 					{selectedIds.size > 0 && (
-						<div className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-200 rounded-md mt-1">
+						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl mt-2 animate-in fade-in slide-in-from-top-2 duration-200">
 
-							<span className="text-sm font-medium text-blue-900">
+							<span className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
+								<div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
 								{selectedIds.size} candidate{selectedIds.size > 1 ? "s" : ""}{" "}
 								selected
 							</span>
 							<div className="flex gap-2">
 								<button
 									onClick={handleCancelSelection}
-									className="flex items-center gap-1 px-4 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold transition-colors shadow-sm">
 									<X size={16} />
 									Cancel
 								</button>
 								<button
 									onClick={handleExport}
-									className="flex items-center gap-1 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200">
 									<Download size={16} />
 									Export
 								</button>
@@ -568,7 +572,7 @@ const UserSearch = () => {
 									<button
 										onClick={handleBulkDelete}
 										disabled={bulkDeleteMutation.isPending}
-										className="flex items-center gap-1 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+										className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50">
 										{bulkDeleteMutation.isPending ? (
 											<Loader className="animate-spin" size={16} />
 										) : (
@@ -588,30 +592,33 @@ const UserSearch = () => {
 				{isLoading && !data ? (
 					<div className="flex items-center justify-center h-[calc(100vh-180px)]">
 						<div className="text-center">
-							<Loader className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
-							<p className="text-gray-500">Loading candidates...</p>
+							<Loader className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4 opacity-80" />
+							<p className="text-slate-500 font-medium">Loading candidates...</p>
 						</div>
 					</div>
 				) : candidates.length === 0 ? (
 					<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4">
-						<p className="text-gray-500 text-lg">No candidates found</p>
-						<p className="text-gray-400 text-sm">Try adjusting your filters</p>
+						<div className="bg-slate-100 p-4 rounded-full">
+							<Search className="h-8 w-8 text-slate-400" />
+						</div>
+						<p className="text-slate-600 text-lg font-medium">No candidates found</p>
+						<p className="text-slate-400 text-sm">Try adjusting your search or filters</p>
 					</div>
 				) : (
-					<div className="mx-4 mt-2 mb-1">
+					<div className="mx-4 mt-3 mb-2">
 
 						{/* Table with fixed header and scrollable body */}
-						<div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+						<div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
 							{/* Single table with sticky header */}
 							<div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 170px)' }}>
 
 								<table className="w-full table-fixed">
-									<thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-30">
+									<thead className="bg-slate-50/90 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-30">
 										<tr>
-											<th className="w-12 px-6 py-4 text-left bg-gray-50 border-b border-gray-200">
+											<th className="w-14 px-6 py-4 text-left">
 												<input
 													type="checkbox"
-													className="h-4 w-4 text-slate-900 border-gray-300 rounded focus:ring-slate-900 cursor-pointer transition"
+													className="h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer transition"
 													checked={
 														selectedIds.size > 0 &&
 														selectedIds.size === candidates.length
@@ -619,30 +626,30 @@ const UserSearch = () => {
 													onChange={(e) => handleSelectAll(e.target.checked)}
 												/>
 											</th>
-											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Full Name
 											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Job Title
 											</th>
-											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Skills
 											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Company Name
 											</th>
-											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Experience
 											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Contact
 											</th>
-											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
 												Actions
 											</th>
 										</tr>
 									</thead>
-									<tbody className="divide-y divide-gray-200 bg-white">
+									<tbody className="divide-y divide-slate-100 bg-white">
 										{candidates.map((candidate, index) => (
 											<CandidateRow
 												key={`${candidate._id}-${index}`}
@@ -668,17 +675,17 @@ const UserSearch = () => {
 													className="h-20 flex items-center justify-center">
 													{isFetchingNextPage ? (
 														<div className="flex items-center gap-2">
-															<Loader className="animate-spin h-4 w-4 text-blue-600" />
-															<span className="text-sm text-gray-500">
+															<Loader className="animate-spin h-4 w-4 text-indigo-600" />
+															<span className="text-sm text-slate-500">
 																Loading more candidates...
 															</span>
 														</div>
 													) : hasNextPage ? (
-														<span className="text-sm text-gray-400">
+														<span className="text-sm text-slate-400">
 															Scroll down to load more
 														</span>
 													) : candidates.length > 0 ? (
-														<span className="text-sm text-gray-400 py-4">
+														<span className="text-sm text-slate-400 py-4">
 															No more candidates to load
 														</span>
 													) : null}
@@ -693,8 +700,8 @@ const UserSearch = () => {
 						{/* Loading indicator for initial load */}
 						{isFetching && !isFetchingNextPage && (
 							<div className="flex items-center justify-center mt-4">
-								<Loader className="animate-spin h-6 w-6 text-blue-600 mr-2" />
-								<span className="text-sm text-gray-500">Loading...</span>
+								<Loader className="animate-spin h-6 w-6 text-indigo-600 mr-2" />
+								<span className="text-sm text-slate-500">Loading...</span>
 							</div>
 						)}
 					</div>
@@ -728,36 +735,36 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`group hover:bg-gray-50 transition-all duration-200 border-b border-gray-100 last:border-none ${
-					isSelected ? "bg-slate-50" : ""
+				className={`group hover:bg-slate-50/80 transition-all duration-200 border-b border-slate-100 last:border-none ${
+					isSelected ? "bg-indigo-50/40" : ""
 				}`}>
 				{/* Checkbox */}
-				<td className="px-6 py-4">
+				<td className="px-6 py-4 align-top">
 					<input
 						type="checkbox"
-						className="h-4 w-4 text-slate-900 border-gray-300 rounded focus:ring-slate-900 cursor-pointer transition"
+						className="h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer transition mt-1"
 						checked={isSelected}
 						onChange={(e) => onSelect(candidate._id, e.target.checked)}
 					/>
 				</td>
 
 				{/* Name */}
-				<td className="w-48 px-6 py-4">
-					<div className="font-semibold text-gray-900 break-words">
+				<td className="w-48 px-6 py-4 align-top">
+					<div className="font-bold text-slate-800 break-words leading-tight">
 						{val(candidate.fullName)}
 					</div>
 				</td>
 
 				{/* Job Title */}
-				<td className="w-40 px-6 py-4">
-					<div className="text-gray-600 font-medium break-words">
+				<td className="w-40 px-6 py-4 align-top">
+					<div className="text-slate-600 font-medium break-words text-sm leading-snug">
 						{val(candidate.jobTitle)}
 					</div>
 				</td>
 
 				{/* Skills with Scrollable Container */}
-				<td className="w-48 px-6 py-4">
-					<div className="max-h-10 overflow-y-auto">
+				<td className="w-48 px-6 py-4 align-top">
+					<div className="max-h-16 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent pr-1">
 						<div className="flex flex-wrap gap-1.5">
 							{candidate.skills
 								? candidate.skills
@@ -766,13 +773,13 @@ const CandidateRow = React.memo(
 										.map((skill, i) => (
 											<span
 												key={i}
-												className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-white border border-gray-200 text-gray-600 shadow-sm">
+												className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-white border border-slate-200 text-slate-600 shadow-sm">
 												{skill.trim()}
 											</span>
 										))
 								: "-"}
 							{candidate.skills && candidate.skills.split(",").length > 3 && (
-								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gray-50 text-gray-500 border border-gray-200">
+								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
 									+{candidate.skills.split(",").length - 3}
 								</span>
 							)}
@@ -781,27 +788,27 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Company Name */}
-				<td className="w-40 px-6 py-4">
-					<div className="text-gray-900 font-medium break-words">
+				<td className="w-40 px-6 py-4 align-top">
+					<div className="text-slate-800 font-medium break-words text-sm">
 						{val(candidate.company)}
 					</div>
 				</td>
 
 				{/* Experience */}
-				<td className="w-32 px-6 py-4">
-					<div className="text-gray-600 break-words">
+				<td className="w-32 px-6 py-4 align-top">
+					<div className="text-slate-500 text-sm break-words">
 						{val(candidate.experience)}
 					</div>
 				</td>
 
 				{/* Contact with Icons */}
-				<td className="w-40 px-6 py-4">
-					<div className="flex gap-1 flex-wrap">
+				<td className="w-40 px-6 py-4 align-top">
+					<div className="flex gap-1.5 flex-wrap">
 						{candidate.phone && (
 							<div className="relative group">
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
-									className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
 									>
 									<Phone size={16} />
 								</button>
@@ -814,7 +821,7 @@ const CandidateRow = React.memo(
 							<div className="relative group">
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
-									className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
 									>
 									<Mail size={16} />
 								</button>
@@ -831,7 +838,7 @@ const CandidateRow = React.memo(
 										if (!url.startsWith('http')) url = 'https://' + url;
 										window.open(url, '_blank');
 									}}
-									className="p-1.5 text-gray-400 hover:text-[#0077b5] hover:bg-blue-50 rounded-lg transition-all"
+									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-blue-50 rounded-lg transition-all"
 									>
 									<Linkedin size={16} />
 								</button>
@@ -845,8 +852,8 @@ const CandidateRow = React.memo(
 		{(candidate.locality || candidate.location) && (
 			<div className="relative group">
 				<button
-					className="p-1.5 rounded-lg text-gray-400 
-						hover:text-slate-900 hover:bg-gray-100 
+					className="p-1.5 rounded-lg text-slate-400 
+						hover:text-rose-500 hover:bg-rose-50 
 						transition-colors"
 				>
 					<MapPin size={15} />
@@ -864,17 +871,17 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Actions */}
-				<td className="w-32 px-6 py-4">
-					<div className="flex justify-end gap-2">
+				<td className="w-32 px-6 py-4 align-top">
+					<div className="flex justify-end gap-1">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
-							className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
+							className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
 							title="View">
 							<Eye size={16} />
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
-							className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
+							className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
 							title="Download Resume">
 							<Download size={16} />
 						</button>
@@ -882,7 +889,7 @@ const CandidateRow = React.memo(
 							<button
 								onClick={(e) => onDelete(candidate._id, e)}
 								disabled={isDeleting}
-								className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+								className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								title="Delete">
 								{isDeleting ? (
 									<Loader className="animate-spin" size={16} />
@@ -901,33 +908,34 @@ const CandidateRow = React.memo(
 // Professional Personal Card Design Modal
 const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 	<div
-		className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+		className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
 		onClick={onClose}>
 		<div
-			className="w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col"
+			className="w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl shadow-slate-900/20 overflow-hidden animate-slide-up flex flex-col border border-slate-100"
 			onClick={(e) => e.stopPropagation()}>
 			{/* Header */}
-			<div className="bg-white border-b border-gray-100 p-8">
+			<div className="bg-white border-b border-slate-100 p-8 relative">
 				<div className="flex justify-between items-start">
 					<div>
-						<h1 className="text-3xl font-bold text-gray-900 mb-2">
+						<h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
 							{profile.fullName}
 						</h1>
-						<div className="flex items-center gap-4 text-gray-600">
+						<div className="flex items-center gap-4 text-slate-500 font-medium">
 							{profile.jobTitle && (
 								<div className="flex items-center gap-2">
-									<Briefcase size={16} />
+									<Briefcase size={18} className="text-slate-400" />
 									<span>{profile.jobTitle}</span>
 								</div>
 							)}
 							{profile.company && (
 								<div className="flex items-center gap-2">
-									<Building size={16} />
+									<Building size={18} className="text-slate-400" />
 									<span>{profile.company}</span>
 								</div>
 							)}
 							{profile.experience && (
 								<div className="flex items-center gap-2">
+									<Calendar size={18} className="text-slate-400" />
 									<span>Expereince: {profile.experience}</span>
 								</div>
 							)}
@@ -935,20 +943,20 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 					</div>
 					<button
 						onClick={onClose}
-						className="text-gray-400 hover:text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors">
+						className="text-slate-400 hover:text-slate-800 p-2 rounded-full hover:bg-slate-100 transition-colors absolute top-6 right-6">
 						<X size={24} />
 					</button>
 				</div>
 			</div>
 
 			{/* Body */}
-			<div className="p-8 overflow-y-auto flex-1">
+			<div className="p-8 overflow-y-auto flex-1 bg-slate-50/30">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
 						{/* Contact Card */}
-						<div className="bg-gray-50 rounded-xl p-6 space-y-4">
-							<h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+						<div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-5 shadow-sm">
+							<h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 mb-4">
 								{/* <span className="bg-blue-100 p-2 rounded-lg">
 									<Mail className="text-blue-600" size={20} />
 								</span> */}
@@ -958,14 +966,14 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.email && (
 									<div className="flex items-start gap-3">
 										<Mail
-											className="text-gray-400 mt-1 flex-shrink-0"
+											className="text-slate-400 mt-0.5 flex-shrink-0"
 											size={18}
 										/>
 										<div>
-											<p className="text-sm text-gray-500">Email</p>
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
 											<a
 												href={`mailto:${profile.email}`}
-												className="text-blue-600 hover:text-blue-800 break-all">
+												className="text-indigo-600 hover:text-indigo-800 break-all font-medium">
 												{profile.email}
 											</a>
 										</div>
@@ -974,14 +982,14 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.phone && (
 									<div className="flex items-start gap-3">
 										<Phone
-											className="text-gray-400 mt-1 flex-shrink-0"
+											className="text-slate-400 mt-0.5 flex-shrink-0"
 											size={18}
 										/>
 										<div>
-											<p className="text-sm text-gray-500">Phone</p>
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
 											<a
 												href={`tel:${profile.phone}`}
-												className="text-gray-900 hover:text-blue-600">
+												className="text-slate-700 hover:text-indigo-600 font-medium">
 												{profile.phone}
 											</a>
 										</div>
@@ -990,12 +998,12 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{(profile.locality || profile.location) && (
 									<div className="flex items-start gap-3">
 										<MapPin
-											className="text-gray-400 mt-1 flex-shrink-0"
+											className="text-slate-400 mt-0.5 flex-shrink-0"
 											size={18}
 										/>
 										<div>
-											<p className="text-sm text-gray-500">Location</p>
-											<p className="text-gray-900">
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Location</p>
+											<p className="text-slate-700 font-medium">
 												{formatLocation(profile.locality, profile.location)}
 											</p>
 										</div>
@@ -1005,23 +1013,19 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 						</div>
 
 						{/* Experience & Industry */}
-						<div className="bg-gray-50 rounded-xl p-6 space-y-4">
-							<h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-								<span className="bg-indigo-100 p-2 rounded-lg">
-									<Award className="text-indigo-600" size={20} />
+						<div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-4 shadow-sm">
+							<h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 mb-4">
+								<span className="bg-indigo-50 p-1.5 rounded-lg">
+									<Award className="text-indigo-600" size={16} />
 								</span>
 								Professional Details
 							</h3>
 							<div className="space-y-3">
 								{profile.experience && (
 									<div className="flex items-start gap-3">
-										<Calendar
-											className="text-gray-400 mt-1 flex-shrink-0"
-											size={18}
-										/>
 										<div>
-											<p className="text-sm text-gray-500">Experience</p>
-											<p className="text-gray-900">
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Experience</p>
+											<p className="text-slate-700 font-medium">
 												{profile.experience} years
 											</p>
 										</div>
@@ -1029,14 +1033,14 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								)}
 								{profile.industry && (
 									<div>
-										<p className="text-sm text-gray-500">Industry</p>
-										<p className="text-gray-900 capitalize">{profile.industry.toLowerCase()}</p>
+										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Industry</p>
+										<p className="text-slate-700 font-medium capitalize">{profile.industry.toLowerCase()}</p>
 									</div>
 								)}
 								{profile.gender && (
 									<div>
-										<p className="text-sm text-gray-500">Gender</p>
-										<p className="text-gray-900">{profile.gender}</p>
+										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Gender</p>
+										<p className="text-slate-700 font-medium">{profile.gender}</p>
 									</div>
 								)}
 
@@ -1046,37 +1050,37 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 
 					{/* Right Column - Skills */}
 					<div className="lg:col-span-2">
-						<div className="bg-gray-50 rounded-xl p-6 h-full flex flex-col">
-							<h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2 flex-shrink-0">
-								<span className="bg-green-100 p-2 rounded-lg">
-									<Award className="text-green-600" size={20} />
+						<div className="bg-white border border-slate-100 rounded-2xl p-8 h-full flex flex-col shadow-sm">
+							<h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-3 flex-shrink-0">
+								<span className="bg-emerald-50 p-2 rounded-xl">
+									<Award className="text-emerald-600" size={24} />
 								</span>
 								Skills & Expertise
 							</h3>
 							<div className="flex-1 overflow-y-auto">
 								{profile.skills ? (
-									<div className="flex flex-wrap gap-3">
+									<div className="flex flex-wrap gap-2">
 										{profile.skills.split(",").map((skill, i) => (
 											<span
 												key={i}
-												className="inline-flex items-center px-4 py-1.5 rounded-full bg-white border border-gray-200 text-gray-700 text-sm font-medium shadow-sm hover:border-gray-300 transition-colors">
+												className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium hover:bg-white hover:border-indigo-200 hover:text-indigo-700 transition-all duration-200 cursor-default">
 												{skill.trim()}
 											</span>
 										))}
 									</div>
 								) : (
-									<p className="text-gray-500 italic">No skills listed</p>
+									<p className="text-slate-400 italic">No skills listed</p>
 								)}
 							</div>
 
 							{/* Download Button */}
-							<div className="mt-8 pt-6 border-t border-gray-200 flex-shrink-0">
+							<div className="mt-8 pt-6 border-t border-slate-100 flex-shrink-0">
 								<button
 									onClick={(e) => {
 										e.stopPropagation();
 										onDownload(profile._id, e);
 									}}
-									className="w-full bg-slate-900 hover:bg-black text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3">
+									className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold shadow-lg shadow-slate-200 hover:shadow-xl hover:shadow-slate-300 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
 									<Download size={20} />
 									Download Full Profile
 									<ExternalLink size={18} />

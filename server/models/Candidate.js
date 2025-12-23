@@ -7,7 +7,7 @@ const candidateSchema = new mongoose.Schema(
     // -------------------------
     fullName: { type: String },
     jobTitle: { type: String },
-    skills: { type: String }, // Part of text index
+    skills: { type: String },
     experience: { type: String },
 
     // -------------------------
@@ -15,7 +15,7 @@ const candidateSchema = new mongoose.Schema(
     // -------------------------
     country: { type: String }, // Part of compound index
     locality: { type: String }, // Part of compound index
-    location: { type: String }, // Not indexed directly, searched via text index or regex
+    location: { type: String },
 
     // -------------------------
     // Contact / metadata
