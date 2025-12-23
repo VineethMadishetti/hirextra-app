@@ -655,7 +655,7 @@ const UserSearch = () => {
 							{hasActiveFilters && (
 								<button
 									onClick={clearAllFilters}
-									className="ml-2 text-xs font-medium text-slate-500 hover:text-rose-400 whitespace-nowrap transition-colors px-2">
+									className="ml-2 text-xs font-medium text-slate-500 hover:text-rose-400 whitespace-nowrap transition-colors px-2 cursor-pointer">
 									Clear
 								</button>
 							)}
@@ -691,7 +691,7 @@ const UserSearch = () => {
 								</button>
 								<button
 									onClick={handleExport}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200">
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200 cursor-pointer">
 									<Download size={16} />
 									Export
 								</button>
@@ -699,7 +699,7 @@ const UserSearch = () => {
 									<button
 										onClick={handleBulkDelete}
 										disabled={bulkDeleteMutation.isPending}
-										className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50">
+										className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50 cursor-pointer">
 										{bulkDeleteMutation.isPending ? (
 											<Loader className="animate-spin" size={16} />
 										) : (
@@ -750,7 +750,7 @@ const UserSearch = () => {
 												<th className="w-12 px-3 py-4 text-left">
 													<input
 														type="checkbox"
-														className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition"
+														className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 transition"
 														checked={
 															selectedIds.size > 0 &&
 															selectedIds.size === candidates.length
@@ -1096,11 +1096,11 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
-												Email
+												Email:
 											</p>
 											<a
 												href={`mailto:${profile.email}`}
-												className="text-indigo-400 hover:text-indigo-300 break-all font-medium">
+												className="text-indigo-400 hover:text-indigo-300 break-all font-small">
 												{profile.email}
 											</a>
 										</div>
@@ -1114,11 +1114,11 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
-												Phone
+												Phone:
 											</p>
 											<a
 												href={`tel:${profile.phone}`}
-												className="text-slate-300 hover:text-indigo-400 font-medium">
+												className="text-slate-300 hover:text-indigo-400 font-small">
 												{profile.phone}
 											</a>
 										</div>
@@ -1132,9 +1132,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
-												Location
+												Location:
 											</p>
-											<p className="text-slate-300 font-medium">
+											<p className="text-slate-300 font-small">
 												{formatLocation(profile.locality, profile.location)}
 											</p>
 										</div>
@@ -1156,9 +1156,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 									<div className="flex items-start gap-3">
 										<div>
 											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
-												Experience
+												Experience:
 											</p>
-											<p className="text-slate-300 font-medium">
+											<p className="text-slate-300 font-small">
 												{profile.experience}
 											</p>
 										</div>
@@ -1167,23 +1167,14 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.industry && (
 									<div>
 										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
-											Industry
+											Industry:
 										</p>
-										<p className="text-slate-300 font-medium capitalize">
+										<p className="text-slate-300 font-small capitalize">
 											{profile.industry.toLowerCase()}
 										</p>
 									</div>
 								)}
-								{profile.gender && (
-									<div>
-										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
-											Gender
-										</p>
-										<p className="text-slate-300 font-medium">
-											{profile.gender}
-										</p>
-									</div>
-								)}
+							
 							</div>
 						</div>
 					</div>
