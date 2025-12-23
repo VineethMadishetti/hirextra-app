@@ -449,7 +449,7 @@ const UserSearch = () => {
 
 					{/* Collapsible Filters */}
 {filtersVisible && (
-	<div className="flex items-center gap-2 w-full overflow-x-auto bg-slate-900 border border-slate-800 rounded-md px-3 py-1.5 scrollbar-hide">
+	<div className="flex items-center gap-2 w-full overflow-x-auto bg-white border border-gray-200 rounded-xl px-4 py-3 scrollbar-hide shadow-sm">
 
 		{/* Search Bar */}
 		<div className="relative min-w-[260px]">
@@ -459,14 +459,14 @@ const UserSearch = () => {
 			/>
 			<input
 				placeholder="Search by name, keywords..."
-				className="w-full pl-10 pr-9 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+				className="w-full pl-10 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
 				value={searchInput}
 				onChange={handleSearchChange}
 			/>
 			{searchInput && (
 				<button
 					onClick={() => setSearchInput("")}
-					className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+					className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
 					<X size={16} />
 				</button>
 			)}
@@ -475,7 +475,7 @@ const UserSearch = () => {
 		{/* Job Title */}
 		<input
 			placeholder="Job Title"
-			className="min-w-[160px] px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+			className="min-w-[160px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
 			value={filters.jobTitle}
 			onChange={(e) =>
 				handleFilterChange("jobTitle", e.target.value)
@@ -485,7 +485,7 @@ const UserSearch = () => {
 		{/* Location */}
 		<input
 			placeholder="Location"
-			className="min-w-[160px] px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+			className="min-w-[160px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
 			value={filters.location}
 			onChange={(e) =>
 				handleFilterChange("location", e.target.value)
@@ -495,7 +495,7 @@ const UserSearch = () => {
 		{/* Skills */}
 		<input
 			placeholder="Skills"
-			className="min-w-[160px] px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+			className="min-w-[160px] px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 outline-none transition-all"
 			value={filters.skills}
 			onChange={(e) =>
 				handleFilterChange("skills", e.target.value)
@@ -503,17 +503,17 @@ const UserSearch = () => {
 		/>
 
 		{/* Divider */}
-		<div className="h-8 w-px bg-slate-700 mx-1" />
+		<div className="h-8 w-px bg-gray-200 mx-2" />
 
 		{/* Email Filter */}
 		<button
 			onClick={() =>
 				handleFilterChange("hasEmail", !filters.hasEmail)
 			}
-			className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+			className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
 				filters.hasEmail
-					? "bg-blue-600 text-white shadow"
-					: "bg-slate-800 text-slate-300 hover:bg-slate-700"
+					? "bg-slate-900 text-white border-slate-900 shadow-md"
+					: "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
 			}`}>
 			@ Email
 		</button>
@@ -523,10 +523,10 @@ const UserSearch = () => {
 			onClick={() =>
 				handleFilterChange("hasPhone", !filters.hasPhone)
 			}
-			className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+			className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border ${
 				filters.hasPhone
-					? "bg-blue-600 text-white shadow"
-					: "bg-slate-800 text-slate-300 hover:bg-slate-700"
+					? "bg-slate-900 text-white border-slate-900 shadow-md"
+					: "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
 			}`}>
 			📞 Phone
 		</button>
@@ -601,17 +601,17 @@ const UserSearch = () => {
 					<div className="mx-4 mt-2 mb-1">
 
 						{/* Table with fixed header and scrollable body */}
-						<div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+						<div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
 							{/* Single table with sticky header */}
 							<div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 170px)' }}>
 
 								<table className="w-full table-fixed">
-									<thead className="bg-slate-900 sticky top-0 z-30">
+									<thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-30">
 										<tr>
-											<th className="w-12 px-4 py-3 text-left bg-slate-900">
+											<th className="w-12 px-6 py-4 text-left bg-gray-50 border-b border-gray-200">
 												<input
 													type="checkbox"
-													className="h-4 w-4 text-blue-600 rounded cursor-pointer"
+													className="h-4 w-4 text-slate-900 border-gray-300 rounded focus:ring-slate-900 cursor-pointer transition"
 													checked={
 														selectedIds.size > 0 &&
 														selectedIds.size === candidates.length
@@ -619,25 +619,25 @@ const UserSearch = () => {
 													onChange={(e) => handleSelectAll(e.target.checked)}
 												/>
 											</th>
-											<th className="w-48 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Full Name
 											</th>
-											<th className="w-40 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Job Title
 											</th>
-											<th className="w-48 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Skills
 											</th>
-											<th className="w-40 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Company Name
 											</th>
-											<th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Experience
 											</th>
-											<th className="w-40 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Contact
 											</th>
-											<th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
 												Actions
 											</th>
 										</tr>
@@ -728,37 +728,37 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`hover:bg-gray-50 transition-colors ${
-					isSelected ? "bg-blue-50" : ""
+				className={`group hover:bg-gray-50 transition-all duration-200 border-b border-gray-100 last:border-none ${
+					isSelected ? "bg-slate-50" : ""
 				}`}>
 				{/* Checkbox */}
-				<td className="px-4 py-3">
+				<td className="px-6 py-4">
 					<input
 						type="checkbox"
-						className="h-4 w-4 text-blue-600 rounded cursor-pointer"
+						className="h-4 w-4 text-slate-900 border-gray-300 rounded focus:ring-slate-900 cursor-pointer transition"
 						checked={isSelected}
 						onChange={(e) => onSelect(candidate._id, e.target.checked)}
 					/>
 				</td>
 
 				{/* Name */}
-				<td className="w-48 px-4 py-3">
-					<div className="font-medium text-gray-900 break-words">
+				<td className="w-48 px-6 py-4">
+					<div className="font-semibold text-gray-900 break-words">
 						{val(candidate.fullName)}
 					</div>
 				</td>
 
 				{/* Job Title */}
-				<td className="w-40 px-4 py-3">
-					<div className="text-gray-700 break-words">
+				<td className="w-40 px-6 py-4">
+					<div className="text-gray-600 font-medium break-words">
 						{val(candidate.jobTitle)}
 					</div>
 				</td>
 
 				{/* Skills with Scrollable Container */}
-				<td className="w-48 px-4 py-3">
+				<td className="w-48 px-6 py-4">
 					<div className="max-h-10 overflow-y-auto">
-						<div className="flex flex-wrap gap-1">
+						<div className="flex flex-wrap gap-1.5">
 							{candidate.skills
 								? candidate.skills
 										.split(",")
@@ -766,13 +766,13 @@ const CandidateRow = React.memo(
 										.map((skill, i) => (
 											<span
 												key={i}
-												className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+												className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-white border border-gray-200 text-gray-600 shadow-sm">
 												{skill.trim()}
 											</span>
 										))
 								: "-"}
 							{candidate.skills && candidate.skills.split(",").length > 3 && (
-								<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+								<span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gray-50 text-gray-500 border border-gray-200">
 									+{candidate.skills.split(",").length - 3}
 								</span>
 							)}
@@ -781,27 +781,27 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Company Name */}
-				<td className="w-40 px-4 py-3">
-					<div className="text-gray-700 break-words">
+				<td className="w-40 px-6 py-4">
+					<div className="text-gray-900 font-medium break-words">
 						{val(candidate.company)}
 					</div>
 				</td>
 
 				{/* Experience */}
-				<td className="w-32 px-4 py-3">
-					<div className="text-gray-700 break-words">
+				<td className="w-32 px-6 py-4">
+					<div className="text-gray-600 break-words">
 						{val(candidate.experience)}
 					</div>
 				</td>
 
 				{/* Contact with Icons */}
-				<td className="w-40 px-4 py-3">
+				<td className="w-40 px-6 py-4">
 					<div className="flex gap-1 flex-wrap">
 						{candidate.phone && (
 							<div className="relative group">
 								<button
 									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
-									className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
+									className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
 									>
 									<Phone size={16} />
 								</button>
@@ -814,7 +814,7 @@ const CandidateRow = React.memo(
 							<div className="relative group">
 								<button
 									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
-									className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+									className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
 									>
 									<Mail size={16} />
 								</button>
@@ -831,7 +831,7 @@ const CandidateRow = React.memo(
 										if (!url.startsWith('http')) url = 'https://' + url;
 										window.open(url, '_blank');
 									}}
-									className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+									className="p-1.5 text-gray-400 hover:text-[#0077b5] hover:bg-blue-50 rounded-lg transition-all"
 									>
 									<Linkedin size={16} />
 								</button>
@@ -845,8 +845,8 @@ const CandidateRow = React.memo(
 		{(candidate.locality || candidate.location) && (
 			<div className="relative group">
 				<button
-					className="p-1.5 rounded-md text-slate-400 
-						hover:text-rose-600 hover:bg-rose-50 
+					className="p-1.5 rounded-lg text-gray-400 
+						hover:text-slate-900 hover:bg-gray-100 
 						transition-colors"
 				>
 					<MapPin size={15} />
@@ -864,17 +864,17 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Actions */}
-				<td className="w-32 px-4 py-3">
+				<td className="w-32 px-6 py-4">
 					<div className="flex justify-end gap-2">
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
-							className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+							className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
 							title="View">
 							<Eye size={16} />
 						</button>
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
-							className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded-md transition-colors"
+							className="p-1.5 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-all"
 							title="Download Resume">
 							<Download size={16} />
 						</button>
@@ -882,7 +882,7 @@ const CandidateRow = React.memo(
 							<button
 								onClick={(e) => onDelete(candidate._id, e)}
 								disabled={isDeleting}
-								className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+								className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								title="Delete">
 								{isDeleting ? (
 									<Loader className="animate-spin" size={16} />
@@ -907,13 +907,13 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 			className="w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col"
 			onClick={(e) => e.stopPropagation()}>
 			{/* Header */}
-			<div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-8">
+			<div className="bg-white border-b border-gray-100 p-8">
 				<div className="flex justify-between items-start">
 					<div>
-						<h1 className="text-3xl font-bold text-white mb-2">
+						<h1 className="text-3xl font-bold text-gray-900 mb-2">
 							{profile.fullName}
 						</h1>
-						<div className="flex items-center gap-4 text-white/90">
+						<div className="flex items-center gap-4 text-gray-600">
 							{profile.jobTitle && (
 								<div className="flex items-center gap-2">
 									<Briefcase size={16} />
@@ -935,7 +935,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 					</div>
 					<button
 						onClick={onClose}
-						className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors">
+						className="text-gray-400 hover:text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors">
 						<X size={24} />
 					</button>
 				</div>
@@ -1059,7 +1059,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										{profile.skills.split(",").map((skill, i) => (
 											<span
 												key={i}
-												className="inline-flex items-center px-4 py-1.5 rounded-full bg-slate-800 text-slate-100 text-sm font-medium hover:bg-slate-900 transition-colors">
+												className="inline-flex items-center px-4 py-1.5 rounded-full bg-white border border-gray-200 text-gray-700 text-sm font-medium shadow-sm hover:border-gray-300 transition-colors">
 												{skill.trim()}
 											</span>
 										))}
@@ -1076,7 +1076,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										e.stopPropagation();
 										onDownload(profile._id, e);
 									}}
-									className="w-full bg-gradient-to-r from-blue-800 to-indigo-900 hover:from-blue-900 hover:to-indigo-900 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3">
+									className="w-full bg-slate-900 hover:bg-black text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3">
 									<Download size={20} />
 									Download Full Profile
 									<ExternalLink size={18} />
