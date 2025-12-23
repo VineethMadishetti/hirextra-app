@@ -38,24 +38,24 @@ connectDB();
 /* ---------------------------------------------------
    CREATE DEFAULT ADMIN
 --------------------------------------------------- */
-// const createDefaultAdmin = async () => {
-//   try {
-//     const User = (await import('./models/User.js')).default;
-//     const adminExists = await User.findOne({ email: 'admin@test.com' });
+const createDefaultAdmin = async () => {
+  try {
+    const User = (await import('./models/User.js')).default;
+    const adminExists = await User.findOne({ email: 'admin@test.com' });
 
-//     if (!adminExists) {
-//       await User.create({
-//         name: 'Super Admin',
-//         email: 'admin@test.com',
-//         password: 'password123',
-//         role: 'ADMIN',
-//       });
-//       logger.info('Default admin user created');
-//     }
-//   } catch (error) {
-//     logger.error('Error creating default admin:', error);
-//   }
-// };
+    if (!adminExists) {
+      await User.create({
+        name: 'Super Admin',
+        email: 'admin@test.com',
+        password: 'password123',
+        role: 'ADMIN',
+      });
+      logger.info('Default admin user created');
+    }
+  } catch (error) {
+    logger.error('Error creating default admin:', error);
+  }
+};
 
 createDefaultAdmin();
 
