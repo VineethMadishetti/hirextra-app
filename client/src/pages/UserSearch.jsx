@@ -42,7 +42,10 @@ const PAGE_SIZE = 60; // Increased page size for better initial load
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
 	const raw = [locality, location].filter(Boolean).join(", ");
-	const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+	const parts = raw
+		.split(",")
+		.map((p) => p.trim())
+		.filter(Boolean);
 	const unique = [];
 	const seen = new Set();
 
@@ -51,9 +54,12 @@ const formatLocation = (locality, location) => {
 		if (!seen.has(lower)) {
 			seen.add(lower);
 			// Capitalize first letter of each word
-			unique.push(
-				part.toLowerCase().replace(/(?:^|\s)\S/g, (a) => a.toUpperCase())
-			);
+			let formatted = part.toLowerCase().replace(/(?:^|\s)\S/g, (a) => a.toUpperCase());
+
+			// Fix specific data quality issues
+			if (formatted === "Hyderbd") formatted = "Hyderabad";
+
+			unique.push(formatted);
 		}
 	}
 	return unique.join(", ");
@@ -88,8 +94,14 @@ class ErrorBoundary extends React.Component {
 		if (this.state.hasError) {
 			return (
 				<div className="p-6 bg-red-50 border border-red-100 rounded-xl text-center m-4">
-					<h3 className="text-red-800 font-semibold">Something went wrong displaying this section.</h3>
-					<button onClick={() => window.location.reload()} className="mt-2 text-sm text-red-600 underline hover:text-red-800">Refresh Page</button>
+					<h3 className="text-red-800 font-semibold">
+						Something went wrong displaying this section.
+					</h3>
+					<button
+						onClick={() => window.location.reload()}
+						className="mt-2 text-sm text-red-600 underline hover:text-red-800">
+						Refresh Page
+					</button>
 				</div>
 			);
 		}
@@ -190,7 +202,7 @@ const UserSearch = () => {
 	const { ref: loadMoreRef, inView } = useInView({
 		threshold: 0.1,
 		triggerOnce: false,
-		rootMargin: '100px', // Start loading 100px before the element is visible
+		rootMargin: "100px", // Start loading 100px before the element is visible
 	});
 
 	const {
@@ -252,9 +264,9 @@ const UserSearch = () => {
 			});
 		};
 
-		window.addEventListener('candidatesUpdated', handleCandidatesUpdated);
+		window.addEventListener("candidatesUpdated", handleCandidatesUpdated);
 		return () => {
-			window.removeEventListener('candidatesUpdated', handleCandidatesUpdated);
+			window.removeEventListener("candidatesUpdated", handleCandidatesUpdated);
 		};
 	}, [queryClient, refetch]);
 
@@ -313,9 +325,7 @@ const UserSearch = () => {
 	const bulkDeleteMutation = useMutation({
 		mutationFn: async (ids) => {
 			const idsArray = Array.from(ids);
-			await Promise.all(
-				idsArray.map((id) => api.delete(`/candidates/${id}`)),
-			);
+			await Promise.all(idsArray.map((id) => api.delete(`/candidates/${id}`)));
 			return idsArray;
 		},
 		onMutate: async (ids) => {
@@ -456,17 +466,24 @@ const UserSearch = () => {
 
 		try {
 			toast.success(`Exporting ${selectedIds.size} candidates...`);
-			
-			const response = await api.post('/candidates/export', {
-				ids: Array.from(selectedIds)
-			}, {
-				responseType: 'blob'
-			});
+
+			const response = await api.post(
+				"/candidates/export",
+				{
+					ids: Array.from(selectedIds),
+				},
+				{
+					responseType: "blob",
+				},
+			);
 
 			const url = window.URL.createObjectURL(new Blob([response.data]));
-			const link = document.createElement('a');
+			const link = document.createElement("a");
 			link.href = url;
-			link.setAttribute('download', `candidates_export_${new Date().toISOString().split('T')[0]}.csv`);
+			link.setAttribute(
+				"download",
+				`candidates_export_${new Date().toISOString().split("T")[0]}.csv`,
+			);
 			document.body.appendChild(link);
 			link.click();
 			link.remove();
@@ -508,9 +525,13 @@ const UserSearch = () => {
 					<div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
 						<AlertTriangle className="w-6 h-6 text-red-600" />
 					</div>
-					<h3 className="text-lg font-semibold text-slate-900 mb-2">Unable to load candidates</h3>
+					<h3 className="text-lg font-semibold text-slate-900 mb-2">
+						Unable to load candidates
+					</h3>
 					<p className="text-slate-500 mb-6 text-sm">
-						{error?.response?.status === 500 ? "Server error. If searching, try simpler keywords." : (error?.message || "Something went wrong.")}
+						{error?.response?.status === 500
+							? "Server error. If searching, try simpler keywords."
+							: error?.message || "Something went wrong."}
 					</p>
 					<button
 						onClick={() => refetch()}
@@ -528,134 +549,134 @@ const UserSearch = () => {
 
 	return (
 		<ErrorBoundary>
-		<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans">
+			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-950 text-slate-100 font-sans">
+				{/* Fixed Filters Header - Stays below admin header */}
+				<div className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md">
+					<div className="flex items-center justify-between px-4 py-3 gap-4">
+						{/* Filters Row (Scrollable) */}
+						<div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide">
+							{/* Search Bar */}
+							<div className="relative min-w-[240px]">
+								<Search
+									className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+									size={15}
+								/>
+								<input
+									placeholder="Search candidates..."
+									className="w-full pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
+									value={searchInput}
+									onChange={handleSearchChange}
+								/>
+								{searchInput && (
+									<button
+										onClick={() => setSearchInput("")}
+										className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 rounded-full transition-colors">
+										<X size={14} />
+									</button>
+								)}
+							</div>
 
-			{/* Fixed Filters Header - Stays below admin header */}
-			<div className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md">
-				<div className="flex items-center justify-between px-4 py-3 gap-4">
+							{/* Job Title */}
+							<input
+								placeholder="Job Title"
+								className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
+								value={filters.jobTitle}
+								onChange={(e) => handleFilterChange("jobTitle", e.target.value)}
+							/>
 
-					{/* Filters Row (Scrollable) */}
-					<div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide">
+							{/* Location */}
+							<input
+								placeholder="Location"
+								className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
+								value={filters.location}
+								onChange={(e) => handleFilterChange("location", e.target.value)}
+							/>
 
-		{/* Search Bar */}
-		<div className="relative min-w-[240px]">
-			<Search
-				className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
-				size={15}
-			/>
-			<input
-				placeholder="Search candidates..."
-				className="w-full pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
-				value={searchInput}
-				onChange={handleSearchChange}
-			/>
-			{searchInput && (
-				<button
-					onClick={() => setSearchInput("")}
-					className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 rounded-full transition-colors">
-					<X size={14} />
-				</button>
-			)}
-		</div>
+							{/* Skills */}
+							<input
+								placeholder="Skills"
+								className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
+								value={filters.skills}
+								onChange={(e) => handleFilterChange("skills", e.target.value)}
+							/>
 
-		{/* Job Title */}
-		<input
-			placeholder="Job Title"
-			className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
-			value={filters.jobTitle}
-			onChange={(e) =>
-				handleFilterChange("jobTitle", e.target.value)
-			}
-		/>
+							{/* Divider */}
+							<div className="h-6 w-px bg-slate-700 mx-1" />
 
-		{/* Location */}
-		<input
-			placeholder="Location"
-			className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
-			value={filters.location}
-			onChange={(e) =>
-				handleFilterChange("location", e.target.value)
-			}
-		/>
+							<div className="flex items-center gap-1">
+								<span className="text-xs font-medium text-slate-500 px-1">
+									Contact:
+								</span>
 
-		{/* Skills */}
-		<input
-			placeholder="Skills"
-			className="min-w-[140px] px-3 py-2 bg-slate-800 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
-			value={filters.skills}
-			onChange={(e) =>
-				handleFilterChange("skills", e.target.value)
-			}
-		/>
+								{/* Email Filter */}
+								<button
+									onClick={() =>
+										handleFilterChange("hasEmail", !filters.hasEmail)
+									}
+									title="Has Email"
+									className={`p-2 rounded-lg transition-all border ${
+										filters.hasEmail
+											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+											: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
+									}`}>
+									<Mail size={16} />
+								</button>
 
-		{/* Divider */}
-		<div className="h-6 w-px bg-slate-700 mx-1" />
+								{/* Phone Filter */}
+								<button
+									onClick={() =>
+										handleFilterChange("hasPhone", !filters.hasPhone)
+									}
+									title="Has Phone"
+									className={`p-2 rounded-lg transition-all border ${
+										filters.hasPhone
+											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+											: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
+									}`}>
+									<Phone size={16} />
+								</button>
 
-		<div className="flex items-center gap-1">
-			<span className="text-xs font-medium text-slate-500 px-1">Contact:</span>
+								{/* LinkedIn Filter */}
+								<button
+									onClick={() =>
+										handleFilterChange("hasLinkedin", !filters.hasLinkedin)
+									}
+									title="Has LinkedIn"
+									className={`p-2 rounded-lg transition-all border ${
+										filters.hasLinkedin
+											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+											: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
+									}`}>
+									<Linkedin size={16} />
+								</button>
+							</div>
 
-			{/* Email Filter */}
-			<button
-				onClick={() => handleFilterChange("hasEmail", !filters.hasEmail)}
-				title="Has Email"
-				className={`p-2 rounded-lg transition-all border ${
-					filters.hasEmail
-						? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-						: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
-				}`}>
-				<Mail size={16} />
-			</button>
+							{/* Clear Filters */}
+							{hasActiveFilters && (
+								<button
+									onClick={clearAllFilters}
+									className="ml-2 text-xs font-medium text-slate-500 hover:text-rose-400 whitespace-nowrap transition-colors px-2">
+									Clear
+								</button>
+							)}
+						</div>
 
-			{/* Phone Filter */}
-			<button
-				onClick={() => handleFilterChange("hasPhone", !filters.hasPhone)}
-				title="Has Phone"
-				className={`p-2 rounded-lg transition-all border ${
-					filters.hasPhone
-						? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-						: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
-				}`}>
-				<Phone size={16} />
-			</button>
-
-			{/* LinkedIn Filter */}
-			<button
-				onClick={() => handleFilterChange("hasLinkedin", !filters.hasLinkedin)}
-				title="Has LinkedIn"
-				className={`p-2 rounded-lg transition-all border ${
-					filters.hasLinkedin
-						? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-						: "bg-transparent text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200"
-				}`}>
-				<Linkedin size={16} />
-			</button>
-		</div>
-
-		{/* Clear Filters */}
-		{hasActiveFilters && (
-			<button
-				onClick={clearAllFilters}
-				className="ml-2 text-xs font-medium text-slate-500 hover:text-rose-400 whitespace-nowrap transition-colors px-2">
-				Clear
-			</button>
-		)}
-	</div>
-
-					{/* Count Display */}
-					<div className="flex-shrink-0 pl-4 border-l border-slate-800">
-						<span className="text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-							Showing{" "}
-							<span className="text-slate-400 font-bold">{candidates.length}</span>
-							<span className="mx-1 text-slate-600">/</span>
-							<span className="text-slate-400 font-bold">{totalCount}</span>
-						</span>
+						{/* Count Display */}
+						<div className="flex-shrink-0 pl-4 border-l border-slate-800">
+							<span className="text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+								Showing{" "}
+								<span className="text-slate-400 font-bold">
+									{candidates.length}
+								</span>
+								<span className="mx-1 text-slate-600">/</span>
+								<span className="text-slate-400 font-bold">{totalCount}</span>
+							</span>
+						</div>
 					</div>
-				</div>
 
 					{/* Bulk Actions Bar */}
 					{selectedIds.size > 0 && (
 						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-900/30 border border-indigo-500/30 rounded-b-xl animate-in fade-in slide-in-from-top-2 duration-200 mx-4 shadow-sm">
-
 							<span className="text-sm font-semibold text-indigo-200 flex items-center gap-2">
 								<div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
 								{selectedIds.size} candidate{selectedIds.size > 1 ? "s" : ""}{" "}
@@ -690,137 +711,143 @@ const UserSearch = () => {
 							</div>
 						</div>
 					)}
-			</div>
+				</div>
 
-			{/* Table Container - Scrollable area starting below filters and table head */}
-			<div className="flex-1 overflow-hidden flex flex-col">
-				{isLoading && !data ? (
-					<div className="flex items-center justify-center h-[calc(100vh-180px)]">
-						<div className="text-center">
-							<Loader className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4 opacity-80" />
-							<p className="text-slate-400 font-medium">Loading candidates...</p>
+				{/* Table Container - Scrollable area starting below filters and table head */}
+				<div className="flex-1 overflow-hidden flex flex-col">
+					{isLoading && !data ? (
+						<div className="flex items-center justify-center h-[calc(100vh-180px)]">
+							<div className="text-center">
+								<Loader className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4 opacity-80" />
+								<p className="text-slate-400 font-medium">
+									Loading candidates...
+								</p>
+							</div>
 						</div>
-					</div>
-				) : candidates.length === 0 ? (
-					<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4">
-						<div className="bg-slate-100 p-4 rounded-full">
-							<Search className="h-8 w-8 text-slate-400" />
+					) : candidates.length === 0 ? (
+						<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4">
+							<div className="bg-slate-100 p-4 rounded-full">
+								<Search className="h-8 w-8 text-slate-400" />
+							</div>
+							<p className="text-slate-600 text-lg font-medium">
+								No candidates found
+							</p>
+							<p className="text-slate-400 text-sm">
+								Try adjusting your search or filters
+							</p>
 						</div>
-						<p className="text-slate-600 text-lg font-medium">No candidates found</p>
-						<p className="text-slate-400 text-sm">Try adjusting your search or filters</p>
-					</div>
-				) : (
-					<div className="mx-4 mt-3 mb-2">
-
-						{/* Table with fixed header and scrollable body */}
-						<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
-							{/* Single table with sticky header */}
-							<div className="overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]" style={{ maxHeight: 'calc(100vh - 170px)' }}>
-
-								<table className="w-full table-fixed">
-									<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
-										<tr>
-											<th className="w-12 px-3 py-4 text-left">
-												<input
-													type="checkbox"
-													className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition"
-													checked={
-														selectedIds.size > 0 &&
-														selectedIds.size === candidates.length
+					) : (
+						<div className="mx-4 mt-3 mb-2">
+							{/* Table with fixed header and scrollable body */}
+							<div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
+								{/* Single table with sticky header */}
+								<div
+									className="overflow-y-scroll [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#0f172a]"
+									style={{ maxHeight: "calc(100vh - 170px)" }}>
+									<table className="w-full table-fixed">
+										<thead className="bg-slate-900 border-b border-slate-700 sticky top-0 z-30">
+											<tr>
+												<th className="w-12 px-3 py-4 text-left">
+													<input
+														type="checkbox"
+														className="h-4 w-4 text-indigo-600 border-slate-600 bg-slate-800 rounded focus:ring-indigo-500 cursor-pointer transition"
+														checked={
+															selectedIds.size > 0 &&
+															selectedIds.size === candidates.length
+														}
+														onChange={(e) => handleSelectAll(e.target.checked)}
+													/>
+												</th>
+												<th className="w-48 px-3 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Full Name
+												</th>
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Job Title
+												</th>
+												<th className="w-48 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Skills
+												</th>
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Company Name
+												</th>
+												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Experience
+												</th>
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Contact
+												</th>
+												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
+													Actions
+												</th>
+											</tr>
+										</thead>
+										<tbody className="divide-y divide-slate-800 bg-slate-900">
+											{candidates.map((candidate, index) => (
+												<CandidateRow
+													key={`${candidate._id}-${index}`}
+													candidate={candidate}
+													isSelected={selectedIds.has(candidate._id)}
+													onSelect={handleSelectOne}
+													onQuickView={handleQuickView}
+													onDownload={handleDownload}
+													onDelete={handleDeleteRow}
+													isAdmin={user?.role === "ADMIN"}
+													isDeleting={
+														deleteCandidate.isPending &&
+														deleteCandidate.variables === candidate._id
 													}
-													onChange={(e) => handleSelectAll(e.target.checked)}
 												/>
-											</th>
-											<th className="w-48 px-3 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Full Name
-											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Job Title
-											</th>
-											<th className="w-48 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Skills
-											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Company Name
-											</th>
-											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Experience
-											</th>
-											<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Contact
-											</th>
-											<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider">
-												Actions
-											</th>
-										</tr>
-									</thead>
-									<tbody className="divide-y divide-slate-800 bg-slate-900">
-										{candidates.map((candidate, index) => (
-											<CandidateRow
-												key={`${candidate._id}-${index}`}
-												candidate={candidate}
-												isSelected={selectedIds.has(candidate._id)}
-												onSelect={handleSelectOne}
-												onQuickView={handleQuickView}
-												onDownload={handleDownload}
-												onDelete={handleDeleteRow}
-												isAdmin={user?.role === "ADMIN"}
-												isDeleting={
-													deleteCandidate.isPending &&
-													deleteCandidate.variables === candidate._id
-												}
-											/>
-										))}
+											))}
 
-										{/* Load More Trigger Row */}
-										<tr>
-											<td colSpan="7" className="p-0">
-												<div
-													ref={loadMoreRef}
-													className="h-20 flex items-center justify-center">
-													{isFetchingNextPage ? (
-														<div className="flex items-center gap-2">
-															<Loader className="animate-spin h-4 w-4 text-indigo-600" />
-															<span className="text-sm text-slate-500">
-																Loading more candidates...
+											{/* Load More Trigger Row */}
+											<tr>
+												<td colSpan="7" className="p-0">
+													<div
+														ref={loadMoreRef}
+														className="h-20 flex items-center justify-center">
+														{isFetchingNextPage ? (
+															<div className="flex items-center gap-2">
+																<Loader className="animate-spin h-4 w-4 text-indigo-600" />
+																<span className="text-sm text-slate-500">
+																	Loading more candidates...
+																</span>
+															</div>
+														) : hasNextPage ? (
+															<span className="text-sm text-slate-400">
+																Scroll down to load more
 															</span>
-														</div>
-													) : hasNextPage ? (
-														<span className="text-sm text-slate-400">
-															Scroll down to load more
-														</span>
-													) : candidates.length > 0 ? (
-														<span className="text-sm text-slate-400 py-4">
-															No more candidates to load
-														</span>
-													) : null}
-												</div>
-											</td>
-										</tr>
-									</tbody>
-								</table>
+														) : candidates.length > 0 ? (
+															<span className="text-sm text-slate-400 py-4">
+																No more candidates to load
+															</span>
+														) : null}
+													</div>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
 							</div>
-						</div>
 
-						{/* Loading indicator for initial load */}
-						{isFetching && !isFetchingNextPage && (
-							<div className="flex items-center justify-center mt-4">
-								<Loader className="animate-spin h-6 w-6 text-indigo-600 mr-2" />
-								<span className="text-sm text-slate-500">Loading...</span>
-							</div>
-						)}
-					</div>
+							{/* Loading indicator for initial load */}
+							{isFetching && !isFetchingNextPage && (
+								<div className="flex items-center justify-center mt-4">
+									<Loader className="animate-spin h-6 w-6 text-indigo-600 mr-2" />
+									<span className="text-sm text-slate-500">Loading...</span>
+								</div>
+							)}
+						</div>
+					)}
+				</div>
+
+				{selectedProfile && (
+					<ProfileModal
+						profile={selectedProfile}
+						onClose={() => setSelectedProfile(null)}
+						onDownload={handleDownload}
+					/>
 				)}
 			</div>
-
-			{selectedProfile && (
-				<ProfileModal
-					profile={selectedProfile}
-					onClose={() => setSelectedProfile(null)}
-					onDownload={handleDownload}
-				/>
-			)}
-		</div>
 		</ErrorBoundary>
 	);
 };
@@ -872,7 +899,14 @@ const CandidateRow = React.memo(
 				<td className="w-48 px-6 py-4 align-top">
 					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
 						<p className="text-sm text-slate-300 leading-relaxed">
-							{candidate.skills ? candidate.skills.split(",").map(s => s.trim().replace(/\b\w/g, l => l.toUpperCase())).join(", ") : "-"}
+							{candidate.skills
+								? candidate.skills
+										.split(",")
+										.map((s) =>
+											s.trim().replace(/\b\w/g, (l) => l.toUpperCase()),
+										)
+										.join(", ")
+								: "-"}
 						</p>
 					</div>
 				</td>
@@ -897,26 +931,28 @@ const CandidateRow = React.memo(
 						{candidate.phone && (
 							<div className="relative group/icon">
 								<button
-									onClick={() => window.open(`tel:${candidate.phone}`, '_blank')}
-									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
-									>
+									onClick={() =>
+										window.open(`tel:${candidate.phone}`, "_blank")
+									}
+									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Phone size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-									 {candidate.phone}
+									{candidate.phone}
 								</div>
 							</div>
 						)}
 						{candidate.email && (
 							<div className="relative group/icon">
 								<button
-									onClick={() => window.open(`mailto:${candidate.email}`, '_blank')}
-									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
-									>
+									onClick={() =>
+										window.open(`mailto:${candidate.email}`, "_blank")
+									}
+									className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Mail size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-									 {candidate.email}
+									{candidate.email}
 								</div>
 							</div>
 						)}
@@ -925,38 +961,37 @@ const CandidateRow = React.memo(
 								<button
 									onClick={() => {
 										let url = candidate.linkedinUrl;
-										if (!url.startsWith('http')) url = 'https://' + url;
-										window.open(url, '_blank');
+										if (!url.startsWith("http")) url = "https://" + url;
+										window.open(url, "_blank");
 									}}
-									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
-									>
+									className="p-1.5 text-slate-400 hover:text-[#0077b5] hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Linkedin size={16} />
 								</button>
 								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50">
-									{candidate.linkedinUrl.replace(/^https?:\/\//, '')}
+									{candidate.linkedinUrl.replace(/^https?:\/\//, "")}
 								</div>
 							</div>
 						)}
 
 						{/* Location */}
-		{(candidate.locality || candidate.location) && (
-			<div className="relative group/icon">
-				<button
-					className="p-1.5 rounded-lg text-slate-400 
+						{(candidate.locality || candidate.location) && (
+							<div className="relative group/icon">
+								<button
+									className="p-1.5 rounded-lg text-slate-400 
 						hover:text-rose-500 hover:bg-slate-800 hover:scale-110
-						transition-all duration-200"
-				>
-					<MapPin size={15} />
-				</button>
-				<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+						transition-all duration-200">
+									<MapPin size={15} />
+								</button>
+								<div
+									className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
 					max-w-xs truncate
 					px-2 py-1 rounded bg-slate-900 text-white text-[11px]
 					opacity-0 group-hover/icon:opacity-100 transition-opacity
 					pointer-events-none shadow-lg z-50">
-					{formatLocation(candidate.locality, candidate.location)}
-				</div>
-			</div>
-		)}
+									{formatLocation(candidate.locality, candidate.location)}
+								</div>
+							</div>
+						)}
 					</div>
 				</td>
 
@@ -1060,7 +1095,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											size={18}
 										/>
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Email</p>
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+												Email
+											</p>
 											<a
 												href={`mailto:${profile.email}`}
 												className="text-indigo-400 hover:text-indigo-300 break-all font-medium">
@@ -1076,7 +1113,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											size={18}
 										/>
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Phone</p>
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+												Phone
+											</p>
 											<a
 												href={`tel:${profile.phone}`}
 												className="text-slate-300 hover:text-indigo-400 font-medium">
@@ -1092,7 +1131,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											size={18}
 										/>
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Location</p>
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+												Location
+											</p>
 											<p className="text-slate-300 font-medium">
 												{formatLocation(profile.locality, profile.location)}
 											</p>
@@ -1114,7 +1155,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.experience && (
 									<div className="flex items-start gap-3">
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Experience</p>
+											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+												Experience
+											</p>
 											<p className="text-slate-300 font-medium">
 												{profile.experience}
 											</p>
@@ -1123,17 +1166,24 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								)}
 								{profile.industry && (
 									<div>
-										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Industry</p>
-										<p className="text-slate-300 font-medium capitalize">{profile.industry.toLowerCase()}</p>
+										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+											Industry
+										</p>
+										<p className="text-slate-300 font-medium capitalize">
+											{profile.industry.toLowerCase()}
+										</p>
 									</div>
 								)}
 								{profile.gender && (
 									<div>
-										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Gender</p>
-										<p className="text-slate-300 font-medium">{profile.gender}</p>
+										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+											Gender
+										</p>
+										<p className="text-slate-300 font-medium">
+											{profile.gender}
+										</p>
 									</div>
 								)}
-
 							</div>
 						</div>
 					</div>
@@ -1154,7 +1204,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											<span
 												key={i}
 												className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-medium hover:bg-slate-700 hover:border-indigo-500 hover:text-indigo-400 transition-all duration-200 cursor-default">
-												{skill.trim().replace(/\b\w/g, l => l.toUpperCase())}
+												{skill.trim().replace(/\b\w/g, (l) => l.toUpperCase())}
 											</span>
 										))}
 									</div>
