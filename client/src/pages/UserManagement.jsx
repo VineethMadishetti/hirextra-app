@@ -174,6 +174,10 @@ const [userToDelete, setUserToDelete] = useState(null);
 												<Mail size={12} />
 												<span>{user.email}</span>
 											</p>
+											<p className="text-xs text-slate-500 mt-1">
+												Created {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+												{" • "} by {user.createdBy?.name || "System"}
+											</p>
 										</div>
 
 									</div>
