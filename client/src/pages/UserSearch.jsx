@@ -788,7 +788,7 @@ const UserSearch = () => {
 												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider hidden sm:table-cell">
 													Contact
 												</th>
-												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider sticky right-0 bg-slate-900">
+												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-400 uppercase tracking-wider sticky right-0 bg-slate-900 border-l border-slate-800">
 													Actions
 												</th>
 											</tr>
@@ -1047,19 +1047,20 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Actions */}
-				<td className="w-32 px-6 py-4 align-top sticky right-0 bg-slate-900 group-hover:bg-slate-800 transition-colors duration-200 hidden md:table-cell">
+				<td className="w-32 px-6 py-4 align-top sticky right-0 bg-slate-900 group-hover:bg-slate-800 transition-colors duration-200 hidden md:table-cell border-l border-slate-800">
 					<div className="flex justify-end gap-1">
+						<button
+								className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
+								title="Enrich">
+								<Sparkles size={16} />
+							</button>
 						<button
 							onClick={(e) => onQuickView(candidate, e)}
 							className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
 							title="View">
 							<Eye size={16} />
 						</button>
-							<button
-								className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
-								title="Enrich">
-								<Sparkles size={16} />
-							</button>
+							
 						<button
 							onClick={(e) => onDownload(candidate._id, e)}
 							className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
