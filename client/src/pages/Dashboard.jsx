@@ -20,8 +20,11 @@ const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
 	const navigate = useNavigate();
 
-	// Theme state
-	const [theme, setTheme] = useState("light");
+	// Theme state - load from localStorage or default to light
+	const [theme, setTheme] = useState(() => {
+		const savedTheme = localStorage.getItem("theme");
+		return savedTheme || "light";
+	});
 
 	// Apply theme to document
 	useEffect(() => {
