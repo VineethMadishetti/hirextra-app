@@ -26,7 +26,11 @@ const Dashboard = () => {
 	// Apply theme to document
 	useEffect(() => {
 		const root = document.documentElement;
-		root.classList.toggle('dark', theme === 'dark');
+		if (theme === 'dark') {
+			root.classList.add('dark');
+		} else {
+			root.classList.remove('dark');
+		}
 		localStorage.setItem("theme", theme);
 	}, [theme]);
 

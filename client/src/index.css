@@ -1,17 +1,29 @@
 @import "tailwindcss";
 
-/* Dark mode support */
-@layer base {
-  :root {
-    --background: 255 255 255;
-    --foreground: 15 23 42;
-  }
-
-  .dark {
-    --background: 15 23 42;
-    --foreground: 248 250 252;
-  }
+/* Force dark mode to work */
+html.dark {
+  color-scheme: dark;
 }
+
+html.dark body {
+  background-color: rgb(15 23 42);
+  color: rgb(248 250 252);
+}
+
+:root {
+  --bg-primary: rgb(255 255 255);
+  --bg-secondary: rgb(15 23 42);
+  --text-primary: rgb(15 23 42);
+  --text-secondary: rgb(248 250 252);
+}
+
+html.dark {
+  --bg-primary: rgb(15 23 42);
+  --bg-secondary: rgb(255 255 255);
+  --text-primary: rgb(248 250 252);
+  --text-secondary: rgb(15 23 42);
+}
+
 @layer utilities {
   .line-clamp-1 {
     display: -webkit-box;
