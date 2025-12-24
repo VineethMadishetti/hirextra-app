@@ -4,7 +4,15 @@ import { useNavigate } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard"; // Assuming you have this component
 import UserSearch from "./UserSearch";
 import UserManagement from "./UserManagement"; // Corrected casing
-import { LayoutDashboard, Search, LogOut, User, Users } from "lucide-react";
+import {
+	LayoutDashboard,
+	Search,
+	LogOut,
+	User,
+	Users,
+	CircleDollarSign,
+	Plus,
+} from "lucide-react";
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
@@ -99,6 +107,24 @@ const Dashboard = () => {
 
 				{/* Right: User Profile & Logout */}
 				<div className="flex items-center gap-4">
+					{/* Credits Display */}
+					<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 p-1 rounded-full shadow-inner">
+						<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 px-2">
+							<CircleDollarSign size={16} className="text-amber-500" />
+							<span>1,250</span>
+							<span className="font-normal text-slate-500">Credits</span>
+						</div>
+						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full shadow-md transition-all">
+							<Plus size={14} />
+							Buy
+						</button>
+					</div>
+
+					<div
+						className="h-8 w-px bg-slate-200/80 mx-1 hidden sm:block"
+						aria-hidden="true"
+					/>
+
 					<div className="hidden sm:flex flex-col items-end leading-tight">
 						<span className="text-sm font-semibold text-slate-800">
 							{user?.name}
