@@ -513,9 +513,15 @@ const UserSearch = () => {
 			});
 
 			// Extract filename from Content-Disposition header
+			const customFileName = response.headers["x-filename"];
 			const contentDisposition = response.headers["content-disposition"];
 			let fileName = `candidate_${candidateId}.docx`; // Fallback
-			if (contentDisposition) {
+
+			if (customFileName) {
+				// Prioritize the custom header as it's more reliable
+				fileName = customFileName;
+			} else if (contentDisposition) {
+				// Fallback to standard header
 				const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
 				if (fileNameMatch && fileNameMatch.length > 1) {
 					fileName = fileNameMatch[1];

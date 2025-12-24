@@ -1112,18 +1112,22 @@ export const downloadProfile = async (req, res) => {
 		const day = String(today.getDate()).padStart(2, "0");
 		const month = String(today.getMonth() + 1).padStart(2, "0");
 		const year = today.getFullYear();
-		const dateString = `${day}-${month}-${year}`;
+		const dateString = `${day}${month}${year}`;
 		const fileName = `${firstName}_${dateString}.docx`;
 
+		// Set both standard and custom headers for robustness
+		res.setHeader("X-Filename", fileName);
 		res.setHeader(
 			"Content-Disposition",
 			`attachment; filename="${fileName}"`,
 		);
+
 		res.setHeader(
 			"Content-Type",
 			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		);
-		res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+		// Expose both headers to the client-side script
+		res.setHeader("Access-Control-Expose-Headers", "Content-Disposition, X-Filename");
 		res.send(buffer);
 	} catch (error) {
 		console.error(error);
