@@ -42,20 +42,36 @@
   border-radius: 4px;
 }
 
+::-webkit-scrollbar-track:where(.dark) {
+  background: #1e293b;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
   transition: background 0.2s ease;
 }
 
+::-webkit-scrollbar-thumb:where(.dark) {
+  background: #475569;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+::-webkit-scrollbar-thumb:hover:where(.dark) {
+  background: #64748b;
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+*:where(.dark) {
+  scrollbar-color: #475569 #1e293b;
 }
 
 /* Smooth scrolling */

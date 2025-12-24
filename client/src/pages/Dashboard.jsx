@@ -1,5 +1,6 @@
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard"; // Assuming you have this component
 import UserSearch from "./UserSearch";
@@ -18,6 +19,7 @@ import {
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
+	const { theme, setTheme } = useTheme();
 	const navigate = useNavigate();
 
 	// State to control which view is shown
@@ -25,13 +27,6 @@ const Dashboard = () => {
 	const [currentView, setCurrentView] = useState(
 		() => user?.role === "ADMIN" ? "admin" : "search"
 	);
-
-	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
-
-	useEffect(() => {
-		document.documentElement.classList.toggle('dark', theme === 'dark');
-		localStorage.setItem("theme", theme);
-	}, [theme]);
 
 	useEffect(() => {
 		if (user && user.role === "ADMIN") {
