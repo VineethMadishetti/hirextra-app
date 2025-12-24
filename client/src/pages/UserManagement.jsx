@@ -20,7 +20,6 @@ const UserManagement = () => {
 	const [users, setUsers] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [showCreateModal, setShowCreateModal] = useState(false);
-
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 const [passwordInput, setPasswordInput] = useState("");
 const [passwordError, setPasswordError] = useState("");
