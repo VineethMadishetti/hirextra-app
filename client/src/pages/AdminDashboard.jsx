@@ -421,7 +421,7 @@ const AdminDashboard = () => {
 										<h3 className="text-xl font-semibold text-slate-900 dark:text-white">
 											Column Mapping
 										</h3>
-										<p className="text-sm text-slate-500 dark:text-slate-400">
+										<p className="text-sm text-slate-400">
 											Map CSV headers to PeopleFinder fields
 										</p>
 										<p className="text-xs text-slate-500 mt-1">
@@ -555,7 +555,7 @@ const AdminDashboard = () => {
 														}}
 													/>
 													<p className="text-xs text-slate-500">
-														💡 Use just the S3 key (e.g., "India.csv"), not the full URL
+														💡 Use just the S3 key (e.g., "India.csv"), not the full URL.
 													</p>
 												</div>
 
@@ -596,7 +596,7 @@ const AdminDashboard = () => {
 							<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
 								Upload History
 							</h3>
-							<p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+							<p className="text-sm text-slate-400 mt-1">
 								View and manage processed files
 							</p>
 						</div>
