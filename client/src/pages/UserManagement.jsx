@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management1.svg";
+import UserManagementImage from "../assets/user-management.svg";
 import toast from 'react-hot-toast';
 
 
@@ -173,7 +173,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 									{users.map((user) => (
 										<div
 											key={user._id}
-											className="bg-slate-100 dark:bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-200 dark:hover:bg-slate-800 transition">
+											className="bg-white dark:bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-transparent">
 											{/* User Info */}
 											<div className="flex items-center gap-4 md:w-2/5">
 												<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">

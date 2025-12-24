@@ -516,7 +516,7 @@ const AdminDashboard = () => {
 								</div>
 
 								{useS3Path ? (
-									<div className="bg-slate-100 dark:bg-slate-800/50 rounded-xl p-6">
+									<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-transparent">
 										<div className="flex flex-col md:flex-row items-center gap-8">
 											{/* Left: Image */}
 											<div className="w-full md:w-1/3 flex justify-center">
@@ -630,9 +630,9 @@ const AdminDashboard = () => {
 									return (
 										<div
 											key={job._id}
-											className="bg-slate-100 dark:bg-slate-800/60 rounded-xl p-4
+											className="bg-white dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-transparent
                          flex flex-col lg:flex-row lg:items-center lg:justify-between
-                         gap-4 hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer">
+                         gap-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">
 											{/* File Info */}
 											<div className="flex items-center gap-4 min-w-0">
 												<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">
