@@ -1131,13 +1131,13 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 							)}
 							{profile.company && (
 								<div className="flex items-center gap-2">
-									<Building size={18} className="text-slate-200" />
+									<Building size={18} className="text-slate-500 dark:text-slate-200" />
 									<span>{profile.company}</span>
 								</div>
 							)}
 							{profile.experience && (
 								<div className="flex items-center gap-2">
-									<Calendar size={18} className="text-slate-200" />
+									<Calendar size={18} className="text-slate-500 dark:text-slate-200" />
 									<span>Expereince: {profile.experience}</span>
 								</div>
 							)}
@@ -1172,7 +1172,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											size={18}
 										/>
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Email:
 											</p>
 											<a
@@ -1190,7 +1190,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											size={18}
 										/>
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Phone:
 											</p>
 											<a
@@ -1208,7 +1208,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											size={18}
 										/>
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Location:
 											</p>
 											<p className="text-slate-700 dark:text-slate-300 font-small">
@@ -1232,7 +1232,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.experience && (
 									<div className="flex items-start gap-3">
 										<div>
-											<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Experience:
 											</p>
 											<p className="text-slate-700 dark:text-slate-300 font-small">
@@ -1243,7 +1243,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								)}
 								{profile.industry && (
 									<div>
-										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">
+										<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 											Industry:
 										</p>
 										<p className="text-slate-700 dark:text-slate-300 font-small capitalize">

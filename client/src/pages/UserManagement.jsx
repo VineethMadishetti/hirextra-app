@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management.svg";
+import UserManagementImage from "../assets/user-management1.svg";
 import toast from 'react-hot-toast';
 
 
@@ -280,7 +280,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 										type="text"
 										required
 										className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                       rounded-xl px-4 py-2.5 text-white
+                       rounded-xl px-4 py-2.5 text-slate-800 dark:text-white
                        focus:ring-2 focus:ring-indigo-500/40
                        outline-none transition"
 										value={formData.name}
@@ -299,7 +299,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 										type="email"
 										required
 										className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                       rounded-xl px-4 py-2.5 text-white
+                       rounded-xl px-4 py-2.5 text-slate-800 dark:text-white
                        focus:ring-2 focus:ring-indigo-500/40
                        outline-none transition"
 										value={formData.email}
@@ -319,7 +319,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 											type={showPassword ? "text" : "password"}
 											required
 											className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-white pr-10
+							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white pr-10
 							focus:ring-2 focus:ring-indigo-500/40
 							outline-none transition"
 											value={formData.password}
@@ -346,7 +346,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 											type={showConfirmPassword ? "text" : "password"}
 											required
 											className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-white pr-10
+							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white pr-10
 							focus:ring-2 focus:ring-indigo-500/40
 							outline-none transition"
 											value={formData.confirmPassword}
@@ -371,7 +371,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 									<div className="relative">
 										<select
 											className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-white appearance-none
+							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white appearance-none
 							focus:ring-2 focus:ring-indigo-500/40
 							outline-none transition cursor-pointer pr-10"
 											value={formData.role}
@@ -438,7 +438,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 								if (passwordError) setPasswordError("");
 							}}
 							className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                         rounded-xl px-4 py-2 text-white
+                         rounded-xl px-4 py-2 text-slate-800 dark:text-white
                          focus:ring-2 focus:ring-rose-500/40
                          outline-none"
 							autoFocus

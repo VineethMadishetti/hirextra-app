@@ -449,7 +449,7 @@ const AdminDashboard = () => {
 
 											<select
 												className="w-full bg-slate-100 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700
-                           rounded-xl px-3 py-2 text-sm text-white
+                           rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-white
                            focus:ring-2 focus:ring-indigo-500/40
                            cursor-pointer transition"
 												onChange={(e) =>
@@ -761,7 +761,7 @@ const AdminDashboard = () => {
 							<input
 								type="password"
 								className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                   rounded-xl px-4 py-2 text-white
+                   rounded-xl px-4 py-2 text-slate-800 dark:text-white
                    focus:ring-2 focus:ring-rose-500/40
                    outline-none transition"
 								value={passwordInput}
