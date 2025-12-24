@@ -728,6 +728,7 @@ export const exportCandidates = async (req, res) => {
 			"Content-Disposition",
 			`attachment; filename="candidates_export_${dateString}.csv"`,
 		);
+		res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
 		res.send(csvContent);
 	} catch (err) {
 		console.error("Export Error:", err);
@@ -1122,6 +1123,7 @@ export const downloadProfile = async (req, res) => {
 			"Content-Type",
 			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		);
+		res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
 		res.send(buffer);
 	} catch (error) {
 		console.error(error);

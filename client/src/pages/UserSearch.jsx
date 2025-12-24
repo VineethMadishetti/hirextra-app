@@ -37,6 +37,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import FilterImage from "../assets/filter.svg";
 
 const PAGE_SIZE = 60; // Increased page size for better initial load
 
@@ -740,16 +741,18 @@ const UserSearch = () => {
 						</div>
 					) : candidates.length === 0 ? (
 						!hasActiveFilters ? (
-							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
-								<div className="bg-slate-800 p-5 rounded-full">
-									<Search className="h-10 w-10 text-slate-500" />
+							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
+								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
+									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs" />
+									<div>
+										<h2 className="text-2xl font-semibold text-slate-300 mb-2">
+											Begin Your Search
+										</h2>
+										<p className="text-slate-500 max-w-xs">
+											Use the filters above to find candidates by name, job title, location, or skills.
+										</p>
+									</div>
 								</div>
-								<p className="text-slate-300 text-lg font-medium">
-									Begin Your Search
-								</p>
-								<p className="text-slate-500 text-sm max-w-xs">
-									Use the filters above to find candidates by name, job title, location, or skills.
-								</p>
 							</div>
 						) : (
 							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
