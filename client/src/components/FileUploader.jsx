@@ -100,7 +100,7 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
   return (
     <div
       className={`relative border-2 border-dashed rounded-xl p-12 transition-colors
-        ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50'}
+        ${dragActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50'}
       `}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -110,9 +110,9 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
       {/* IDLE - NO FILE */}
       {!file && status === 'idle' && (
         <div className="flex flex-col items-center gap-4 text-center">
-          <img src={AddFilesIcon} alt="Upload CSV" className="w-24 h-24" />
-          <h3 className="text-xl font-semibold text-gray-800">Upload CSV File</h3>
-          <p className="text-sm text-gray-500">
+          <img src={AddFilesIcon} alt="Upload CSV" className="w-24 h-24 dark:invert-[.85]" />
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-slate-200">Upload CSV File</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400">
             Drag & drop your CSV here or select a file
           </p>
 
@@ -129,11 +129,11 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
       {/* FILE SELECTED (CENTER COLUMN LAYOUT) */}
       {file && status === 'idle' && (
         <div className="flex flex-col items-center justify-center gap-4 text-center">
-          <FileText className="w-16 h-16 text-blue-600" />
+          <FileText className="w-16 h-16 text-blue-600 dark:text-blue-400" />
 
           <div className="min-w-0">
-            <p className="font-semibold text-gray-800 truncate">{file.name}</p>
-            <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
+            <p className="font-semibold text-gray-800 dark:text-slate-200 truncate">{file.name}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{formatFileSize(file.size)}</p>
           </div>
 
           <button
@@ -141,7 +141,7 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
               setFile(null);
               setProgress(0);
             }}
-            className="text-sm text-cyan-950 hover:underline"
+            className="text-sm text-slate-600 dark:text-slate-400 hover:underline"
           >
             or, Choose another file...
           </button>
@@ -159,14 +159,14 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
       {/* UPLOADING */}
       {status === 'uploading' && (
         <div className="max-w-md mx-auto text-center space-y-4">
-          <Loader className="w-12 h-12 text-blue-600 animate-spin mx-auto" />
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <Loader className="w-12 h-12 text-blue-600 dark:text-blue-400 animate-spin mx-auto" />
+          <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-sm text-gray-600">{progress}% uploading</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400">{progress}% uploading</p>
         </div>
       )}
 

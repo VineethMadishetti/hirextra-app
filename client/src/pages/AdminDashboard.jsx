@@ -363,19 +363,19 @@ const AdminDashboard = () => {
 	};
 
 	return (
-		<div className="min-h-full bg-slate-950 text-slate-100 p-4 md:p-6">
+		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header & Tabs */}
-				<div className="bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg">
+				<div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg border border-slate-200 dark:border-transparent">
 					<div className="flex flex-col sm:flex-row justify-between gap-4">
-						<div className="flex gap-1 bg-slate-800/70 p-1 rounded-xl">
+						<div className="flex gap-1 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-xl">
 							<button
 								onClick={() => setActiveTab("upload")}
 								className={`px-5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all
           ${
 						activeTab === "upload"
-							? "bg-slate-900 text-white shadow"
-							: "text-slate-400 hover:text-white hover:bg-slate-700/60"
+							? "bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow"
+							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700/60"
 					}`}>
 								Upload & Map
 							</button>
@@ -385,8 +385,8 @@ const AdminDashboard = () => {
 								className={`px-5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all
           ${
 						activeTab === "history"
-							? "bg-slate-900 text-white shadow"
-							: "text-slate-400 hover:text-white hover:bg-slate-700/60"
+							? "bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow"
+							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700/60"
 					}`}>
 								History
 							</button>
@@ -412,13 +412,13 @@ const AdminDashboard = () => {
 				</div>
 
 				{activeTab === "upload" && (
-					<div className="bg-slate-900 rounded-2xl p-8 shadow-xl">
+					<div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-xl border border-slate-200 dark:border-transparent">
 						{/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
 						{uploadData ? (
 							<div className="max-w-4xl mx-auto animate-fade-in">
 								<div className="mb-6 flex items-center justify-between">
 									<div>
-										<h3 className="text-xl font-semibold text-white">
+										<h3 className="text-xl font-semibold text-slate-900 dark:text-white">
 											Column Mapping
 										</h3>
 										<p className="text-sm text-slate-400">
@@ -435,7 +435,7 @@ const AdminDashboard = () => {
 											setUseS3Path(false);
 											setS3FilePath("");
 										}}
-										className="px-4 py-2 text-sm text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-lg transition">
+										className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition">
 										Change File
 									</button>
 								</div>
@@ -443,12 +443,12 @@ const AdminDashboard = () => {
 								<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 									{fields.map((field) => (
 										<div key={field} className="space-y-1">
-											<label className="text-xs text-slate-400 uppercase tracking-wide">
+											<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
 												{field}
 											</label>
 
 											<select
-												className="w-full bg-slate-800/70 border border-slate-700
+												className="w-full bg-slate-100 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700
                            rounded-xl px-3 py-2 text-sm text-white
                            focus:ring-2 focus:ring-indigo-500/40
                            cursor-pointer transition"
@@ -488,8 +488,7 @@ const AdminDashboard = () => {
 						) : (
 							/* BEFORE UPLOAD → FILE UPLOADER OR S3 PATH */
 							<div className="w-full">
-								{/* Toggle between Upload and S3 Path */}
-								<div className="mb-6 flex gap-2 bg-slate-800/50 p-1 rounded-xl">
+								<div className="mb-6 flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl">
 									<button
 										onClick={() => {
 											setUseS3Path(false);
@@ -498,7 +497,7 @@ const AdminDashboard = () => {
 										className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
 											!useS3Path
 												? "bg-indigo-600 text-white"
-												: "text-slate-400 hover:text-white"
+												: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
 										}`}>
 										Upload New File
 									</button>
@@ -510,38 +509,37 @@ const AdminDashboard = () => {
 										className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
 											useS3Path
 												? "bg-indigo-600 text-white"
-												: "text-slate-400 hover:text-white"
+												: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
 										}`}>
 										Use Existing S3 File
 									</button>
 								</div>
 
 								{useS3Path ? (
-									/* S3 FILE PATH INPUT */
-									<div className="bg-slate-800/50 rounded-xl p-6">
+									<div className="bg-slate-100 dark:bg-slate-800/50 rounded-xl p-6">
 										<div className="flex flex-col md:flex-row items-center gap-8">
 											{/* Left: Image */}
 											<div className="w-full md:w-1/3 flex justify-center">
 												<img
 													src={ExistingFilesIcon}
 													alt="Process existing file"
-													className="w-48 md:w-full max-w-xs"
+													className="w-48 md:w-full max-w-xs dark:invert-[.85]"
 												/>
 											</div>
 
 											{/* Right: Content */}
 											<div className="w-full md:w-2/3 space-y-4">
 												<div>
-													<h3 className="text-lg font-semibold text-white mb-1">
+													<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
 														Process File from S3
 													</h3>
-													<p className="text-sm text-slate-400">
+													<p className="text-sm text-slate-500 dark:text-slate-400">
 														Enter the S3 key of your CSV file (e.g., "India.csv")
 													</p>
 												</div>
 
 												<div className="space-y-2">
-													<label className="text-xs text-slate-400 uppercase tracking-wide">
+													<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
 														S3 File Path / Key
 													</label>
 													<input
@@ -549,7 +547,7 @@ const AdminDashboard = () => {
 														value={s3FilePath}
 														onChange={(e) => setS3FilePath(e.target.value)}
 														placeholder="India.csv"
-														className="w-full bg-slate-800/70 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+														className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
 														onKeyPress={(e) => {
 															if (e.key === "Enter" && !isLoadingHeaders) {
 																handleLoadS3File();
@@ -557,7 +555,7 @@ const AdminDashboard = () => {
 														}}
 													/>
 													<p className="text-xs text-slate-500">
-														💡 Use just the S3 key (e.g., "India.csv"), not the full URL
+														💡 Use just the S3 key (e.g., "India.csv"), not the full URL.
 													</p>
 												</div>
 
@@ -592,10 +590,10 @@ const AdminDashboard = () => {
 
 				{/* HISTORY TAB */}
 				{activeTab === "history" && (
-					<div className="bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-800 animate-fade-in">
+					<div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 						{/* Header */}
-						<div className="p-6 border-b border-slate-800">
-							<h3 className="text-xl font-semibold text-slate-100">
+						<div className="p-6 border-b border-slate-200 dark:border-slate-800">
+							<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
 								Upload History
 							</h3>
 							<p className="text-sm text-slate-400 mt-1">
@@ -605,8 +603,8 @@ const AdminDashboard = () => {
 
 						{jobs.length === 0 ? (
 							<div className="p-12 text-center">
-								<FileText className="w-14 h-14 text-slate-600 mx-auto mb-4" />
-								<p className="text-slate-400 font-medium">
+								<FileText className="w-14 h-14 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+								<p className="text-slate-500 dark:text-slate-400 font-medium">
 									No upload history found
 								</p>
 							</div>
@@ -632,20 +630,20 @@ const AdminDashboard = () => {
 									return (
 										<div
 											key={job._id}
-											className="bg-slate-800/60 rounded-xl p-4
+											className="bg-slate-100 dark:bg-slate-800/60 rounded-xl p-4
                          flex flex-col lg:flex-row lg:items-center lg:justify-between
-                         gap-4 hover:bg-slate-800 transition cursor-pointer">
+                         gap-4 hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer">
 											{/* File Info */}
 											<div className="flex items-center gap-4 min-w-0">
-												<div className="bg-indigo-500/10 p-2 rounded-lg">
-													<FileText className="w-5 h-5 text-indigo-400" />
+												<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">
+													<FileText className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
 												</div>
 
 												<div className="min-w-0">
-													<p className="font-medium text-slate-100 truncate">
+													<p className="font-medium text-slate-800 dark:text-slate-100 truncate">
 														{job.originalName || job.fileName}
 													</p>
-													<p className="text-xs text-slate-400">
+													<p className="text-xs text-slate-500 dark:text-slate-400">
 														{formatDate(job.createdAt)}
 													</p>
 												</div>
@@ -659,7 +657,7 @@ const AdminDashboard = () => {
 												</span>
 
 												{/* Records */}
-												<div className="text-sm text-slate-300 min-w-[110px] text-right">
+												<div className="text-sm text-slate-700 dark:text-slate-300 min-w-[110px] text-right">
 													{(job.status === "PROCESSING" ||
 														job.status === "MAPPING_PENDING") &&
 													processingJobId === job._id ? (
@@ -669,12 +667,12 @@ const AdminDashboard = () => {
 															<span className="font-semibold">
 																{processingProgress.successRows.toLocaleString()}
 															</span>
-															<span className="text-xs text-slate-400">
+															<span className="text-xs text-slate-500 dark:text-slate-400">
 																/{" "}
 																{processingProgress.totalRows.toLocaleString()}
 															</span>
 															</div>
-															<div className="w-full bg-slate-700 rounded-full h-1.5 mt-1">
+															<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
 																<div
 																	className="bg-indigo-500 h-1.5 rounded-full transition-all"
 																	style={{
@@ -694,7 +692,7 @@ const AdminDashboard = () => {
 															<span className="font-semibold">
 																{job.successRows?.toLocaleString() || "0"}
 															</span>
-															<span className="text-xs text-slate-400">
+															<span className="text-xs text-slate-500 dark:text-slate-400">
 																{" "}
 																records
 															</span>
@@ -724,8 +722,8 @@ const AdminDashboard = () => {
 
 													<button
 														onClick={() => initiateAction("deleteJob", job._id)}
-														className="p-2 rounded-lg bg-slate-700/40
-                               hover:bg-rose-500/20 text-rose-400
+														className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
+                               hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400
                                transition cursor-pointer">
 														<Trash2 size={16} />
 													</button>
@@ -746,15 +744,15 @@ const AdminDashboard = () => {
 						className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
                   flex items-center justify-center transition-all">
 						<div
-							className="bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl
+							className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-transparent
                     animate-in fade-in zoom-in-95 duration-200">
-							<h3 className="text-lg font-semibold text-white mb-1">
+							<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
 								{confirmActionType === "RESET"
 									? "Reset Database"
 									: "Confirm Action"}
 							</h3>
 
-							<p className="text-sm text-slate-400 mb-4">
+							<p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
 								{confirmActionType === "RESET"
 									? "This will permanently erase all data"
 									: "Enter admin password to continue"}
@@ -762,7 +760,7 @@ const AdminDashboard = () => {
 
 							<input
 								type="password"
-								className="w-full bg-slate-800 border border-slate-700
+								className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
                    rounded-xl px-4 py-2 text-white
                    focus:ring-2 focus:ring-rose-500/40
                    outline-none transition"
@@ -781,7 +779,7 @@ const AdminDashboard = () => {
 							<div className="flex justify-end gap-3 mt-6">
 								<button
 									onClick={() => setShowPasswordModal(false)}
-									className="text-slate-400 hover:text-white transition cursor-pointer">
+									className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
 									Cancel
 								</button>
 
