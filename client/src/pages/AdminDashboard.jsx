@@ -13,6 +13,7 @@ import {
 	XCircle,
 	Loader,
 } from "lucide-react";
+import ExistingFilesIcon from "../assets/existing-files.svg";
 import toast from "react-hot-toast";
 
 const AdminDashboard = () => {
@@ -517,54 +518,68 @@ const AdminDashboard = () => {
 
 								{useS3Path ? (
 									/* S3 FILE PATH INPUT */
-									<div className="bg-slate-800/50 rounded-xl p-6 space-y-4">
-										<div>
-											<h3 className="text-lg font-semibold text-white mb-2">
-												Process File from S3
-											</h3>
-											<p className="text-sm text-slate-400 mb-4">
-												Enter the S3 key/path of your CSV file (e.g., "India.csv" or "uploads/user123/file.csv")
-											</p>
-										</div>
+									<div className="bg-slate-800/50 rounded-xl p-6">
+										<div className="flex flex-col md:flex-row items-center gap-8">
+											{/* Left: Image */}
+											<div className="w-full md:w-1/3 flex justify-center">
+												<img
+													src={ExistingFilesIcon}
+													alt="Process existing file"
+													className="w-48 md:w-full max-w-xs"
+												/>
+											</div>
 
-										<div className="space-y-2">
-											<label className="text-xs text-slate-400 uppercase tracking-wide">
-												S3 File Path / Key
-											</label>
-											<input
-												type="text"
-												value={s3FilePath}
-												onChange={(e) => setS3FilePath(e.target.value)}
-												placeholder="India.csv"
-												className="w-full bg-slate-800/70 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
-												onKeyPress={(e) => {
-													if (e.key === "Enter" && !isLoadingHeaders) {
-														handleLoadS3File();
-													}
-												}}
-											/>
-											<p className="text-xs text-slate-500">
-												💡 Use just the S3 key (e.g., "India.csv"), not the full URL
-											</p>
-										</div>
+											{/* Right: Content */}
+											<div className="w-full md:w-2/3 space-y-4">
+												<div>
+													<h3 className="text-lg font-semibold text-white mb-1">
+														Process File from S3
+													</h3>
+													<p className="text-sm text-slate-400">
+														Enter the S3 key of your CSV file (e.g., "India.csv")
+													</p>
+												</div>
 
-										<button
-											onClick={handleLoadS3File}
-											disabled={isLoadingHeaders || !s3FilePath.trim()}
-											className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${
-												isLoadingHeaders || !s3FilePath.trim()
-													? "bg-indigo-400 cursor-not-allowed"
-													: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-											}`}>
-											{isLoadingHeaders ? (
-												<span className="flex items-center justify-center gap-2">
-													<RefreshCw className="w-4 h-4 animate-spin" />
-													Loading Headers...
-												</span>
-											) : (
-												"Load File Headers"
-											)}
-										</button>
+												<div className="space-y-2">
+													<label className="text-xs text-slate-400 uppercase tracking-wide">
+														S3 File Path / Key
+													</label>
+													<input
+														type="text"
+														value={s3FilePath}
+														onChange={(e) => setS3FilePath(e.target.value)}
+														placeholder="India.csv"
+														className="w-full bg-slate-800/70 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+														onKeyPress={(e) => {
+															if (e.key === "Enter" && !isLoadingHeaders) {
+																handleLoadS3File();
+															}
+														}}
+													/>
+													<p className="text-xs text-slate-500">
+														💡 Use just the S3 key (e.g., "India.csv"), not the full URL
+													</p>
+												</div>
+
+												<button
+													onClick={handleLoadS3File}
+													disabled={isLoadingHeaders || !s3FilePath.trim()}
+													className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${
+														isLoadingHeaders || !s3FilePath.trim()
+															? "bg-indigo-400 cursor-not-allowed"
+															: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+													}`}>
+													{isLoadingHeaders ? (
+														<span className="flex items-center justify-center gap-2">
+															<RefreshCw className="w-4 h-4 animate-spin" />
+															Loading Headers...
+														</span>
+													) : (
+														"Load File Headers"
+													)}
+												</button>
+											</div>
+										</div>
 									</div>
 								) : (
 									/* REGULAR FILE UPLOADER */
