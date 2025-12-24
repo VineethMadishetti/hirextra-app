@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management.svg";
+import UserManagementImage from "../assets/user-management1.svg";
 import toast from 'react-hot-toast';
 
 
@@ -204,7 +204,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 											</div>
 
 											{/* Role & Actions */}
-											<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
+											<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-200 dark:border-slate-700/50 md:border-none">
 												<span
 													className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
 													<Shield size={12} />
@@ -263,7 +263,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 									<button
 										onClick={() => setShowCreateModal(false)}
-										className="text-slate-400 hover:text-white transition cursor-pointer">
+										className="text-slate-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer">
 										<X size={20} />
 									</button>
 								</div>

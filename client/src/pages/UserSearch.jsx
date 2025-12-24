@@ -748,13 +748,13 @@ const UserSearch = () => {
 					) : candidates.length === 0 ? (
 						!hasActiveFilters ? (
 							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
-								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
-									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs" />
+								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left ">
+									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85]" />
 									<div>
-										<h2 className="text-2xl font-semibold text-slate-300 mb-2">
+										<h2 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
 											Begin Your Search...
 										</h2>
-										<p className="text-slate-500 max-w-xs">
+										<p className="text-slate-500 dark:text-slate-400 max-w-xs">
 											Use the filters above to find candidates by name, job title, location, or skills.
 										</p>
 									</div>
@@ -762,11 +762,11 @@ const UserSearch = () => {
 							</div>
 						) : (
 							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
-								<div className="bg-slate-800 p-5 rounded-full">
-									<Search className="h-10 w-10 text-slate-500" />
+								<div className="bg-slate-100 dark:bg-slate-800 p-5 rounded-full">
+									<Search className="h-10 w-10 text-slate-400 dark:text-slate-500" />
 								</div>
-								<p className="text-slate-300 text-lg font-medium">No Candidates Found</p>
-								<p className="text-slate-500 text-sm">Try adjusting your search or filters.</p>
+								<p className="text-slate-700 dark:text-slate-300 text-lg font-medium">No Candidates Found</p>
+								<p className="text-slate-500 dark:text-slate-400 text-sm">Try adjusting your search or filters.</p>
 							</div>
 						)
 					) : (
@@ -1168,7 +1168,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.email && (
 									<div className="flex items-start gap-3">
 										<Mail
-											className="text-slate-400 mt-0.5 flex-shrink-0"
+											className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
 											size={18}
 										/>
 										<div>
@@ -1177,7 +1177,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											</p>
 											<a
 												href={`mailto:${profile.email}`}
-												className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 break-all font-small">
+												className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 break-all font-medium">
 												{profile.email}
 											</a>
 										</div>
@@ -1186,7 +1186,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.phone && (
 									<div className="flex items-start gap-3">
 										<Phone
-											className="text-slate-400 mt-0.5 flex-shrink-0"
+											className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
 											size={18}
 										/>
 										<div>
@@ -1195,7 +1195,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											</p>
 											<a
 												href={`tel:${profile.phone}`}
-												className="text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-small">
+												className="text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
 												{profile.phone}
 											</a>
 										</div>
@@ -1204,14 +1204,14 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{(profile.locality || profile.location) && (
 									<div className="flex items-start gap-3">
 										<MapPin
-											className="text-slate-400 mt-0.5 flex-shrink-0"
+											className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
 											size={18}
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Location:
 											</p>
-											<p className="text-slate-700 dark:text-slate-300 font-small">
+											<p className="text-slate-700 dark:text-slate-300 font-medium">
 												{formatLocation(profile.locality, profile.location)}
 											</p>
 										</div>
@@ -1235,7 +1235,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Experience:
 											</p>
-											<p className="text-slate-700 dark:text-slate-300 font-small">
+											<p className="text-slate-700 dark:text-slate-300 font-medium">
 												{profile.experience}
 											</p>
 										</div>
@@ -1246,7 +1246,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 											Industry:
 										</p>
-										<p className="text-slate-700 dark:text-slate-300 font-small capitalize">
+										<p className="text-slate-700 dark:text-slate-300 font-medium capitalize">
 											{profile.industry.toLowerCase()}
 										</p>
 									</div>
