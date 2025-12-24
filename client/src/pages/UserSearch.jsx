@@ -839,16 +839,16 @@ const UserSearch = () => {
 														{isFetchingNextPage ? (
 															<div className="flex items-center gap-2">
 																<Loader className="animate-spin h-4 w-4 text-indigo-600" />
-																<span className="text-sm text-slate-500">
+																<span className="text-sm text-slate-500 dark:text-slate-400">
 																	Loading more candidates...
 																</span>
 															</div>
 														) : hasNextPage ? (
-															<span className="text-sm text-slate-400">
+															<span className="text-sm text-slate-500 dark:text-slate-400">
 																Scroll down to load more
 															</span>
 														) : candidates.length > 0 ? (
-															<span className="text-sm text-slate-400 py-4">
+															<span className="text-sm text-slate-500 dark:text-slate-400 py-4">
 																No more candidates to load
 															</span>
 														) : null}

@@ -185,7 +185,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 														<Mail size={12} />
 														<span className="truncate">{user.email}</span>
 													</p>
-													<p className="md:hidden text-xs text-slate-400 dark:text-slate-500 mt-1">
+													<p className="md:hidden text-xs text-slate-500 dark:text-slate-500 mt-1">
 														Created {formatDate(user.createdAt)}
 														{" • "} by {user.createdBy?.name || "System"}
 													</p>
@@ -197,7 +197,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 												<p className="text-slate-700 dark:text-slate-300">
 													Created {formatDate(user.createdAt)}
 												</p>
-												<p className="text-xs text-slate-400 dark:text-slate-500">
+												<p className="text-xs text-slate-500 dark:text-slate-500">
 													by {user.createdBy?.name || "System"}
 												</p>
 											</div>
@@ -233,7 +233,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 					{/* Right side static image */}
 					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
-						<img src={UserManagementImage} alt="User Management" className="max-w-sm" />
+						<img src={UserManagementImage} alt="User Management" className="max-w-sm dark:invert-[.85]" />
 					</div>
 				</div>
 
