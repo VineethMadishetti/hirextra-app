@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { UploadCloud, CheckCircle, AlertCircle, Loader, FileText, X, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import AddFilesIcon from '../assets/add-files.svg';
 import toast from 'react-hot-toast';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
@@ -109,7 +110,7 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
       {/* IDLE - NO FILE */}
       {!file && status === 'idle' && (
         <div className="flex flex-col items-center gap-4 text-center">
-          <UploadCloud className="w-16 h-16 text-gray-400" />
+          <img src={AddFilesIcon} alt="Upload CSV" className="w-24 h-24" />
           <h3 className="text-xl font-semibold text-gray-800">Upload CSV File</h3>
           <p className="text-sm text-gray-500">
             Drag & drop your CSV here or select a file

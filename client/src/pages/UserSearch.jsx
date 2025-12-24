@@ -745,8 +745,9 @@ const UserSearch = () => {
 								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
 									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs" />
 									<div>
+										<Search className="w-16 h-16 text-gray-400" />
 										<h2 className="text-2xl font-semibold text-slate-300 mb-2">
-											Begin Your Search
+											Begin Your Search...
 										</h2>
 										<p className="text-slate-500 max-w-xs">
 											Use the filters above to find candidates by name, job title, location, or skills.
