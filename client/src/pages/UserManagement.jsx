@@ -12,6 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
+import UserManagementImage from "../assets/user-management.svg";
 import toast from 'react-hot-toast';
 
 
@@ -128,9 +129,9 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 	return (
 		<div className="min-h-full bg-slate-950 text-slate-100 p-4 md:p-6">
-			<div className="max-w-6xl mx-auto h-full flex flex-col">
+			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header */}
-				<div className="bg-slate-900/80 backdrop-blur rounded-2xl p-6 mb-6 shadow-xl border border-slate-800">
+				<div className="bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-xl border border-slate-800">
 					<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 						<div>
 							<h2 className="text-2xl font-semibold text-white mb-1">
@@ -155,77 +156,86 @@ const [userToDelete, setUserToDelete] = useState(null);
 					</div>
 				</div>
 
-				{/* Users Table */}
-				<div className="bg-slate-900/80 rounded-2xl border border-slate-800 shadow-xl flex-1 overflow-y-auto">
-					{loading ? (
-						<div className="p-12 text-center">
-							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
-						</div>
-					) : !Array.isArray(users) || users.length === 0 ? (
-						<div className="p-12 text-center">
-							<User className="w-14 h-14 text-slate-600 mx-auto mb-4" />
-							<p className="text-slate-400 font-medium">No users found</p>
-						</div>
-					) : (
-						<div className="p-4 space-y-3">
-							{users.map((user) => (
-								<div
-									key={user._id}
-									className="bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-800 transition">
-									{/* User Info */}
-									<div className="flex items-center gap-4 md:w-2/5">
-										<div className="bg-indigo-500/10 p-2 rounded-lg">
-											<User size={18} className="text-indigo-400" />
-										</div>
-										<div className="flex-1 min-w-0">
-											<p className="font-medium text-white truncate">{user.name}</p>
-											<p className="text-xs text-slate-400 flex items-center gap-1.5 truncate">
-												<Mail size={12} />
-												<span className="truncate">{user.email}</span>
-											</p>
-											<p className="md:hidden text-xs text-slate-500 mt-1">
-												Created {formatDate(user.createdAt)}
-												{" • "} by {user.createdBy?.name || "System"}
-											</p>
-										</div>
-									</div>
+				<div className="flex-1 flex flex-row gap-8 overflow-hidden">
+					{/* Users Table */}
+					<div className="w-full lg:w-2/3 flex flex-col">
+						<div className="bg-slate-900/80 rounded-2xl border border-slate-800 shadow-xl flex-1 overflow-y-auto">
+							{loading ? (
+								<div className="p-12 text-center">
+									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+								</div>
+							) : !Array.isArray(users) || users.length === 0 ? (
+								<div className="p-12 text-center">
+									<User className="w-14 h-14 text-slate-600 mx-auto mb-4" />
+									<p className="text-slate-400 font-medium">No users found</p>
+								</div>
+							) : (
+								<div className="p-4 space-y-3">
+									{users.map((user) => (
+										<div
+											key={user._id}
+											className="bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-800 transition">
+											{/* User Info */}
+											<div className="flex items-center gap-4 md:w-2/5">
+												<div className="bg-indigo-500/10 p-2 rounded-lg">
+													<User size={18} className="text-indigo-400" />
+												</div>
+												<div className="flex-1 min-w-0">
+													<p className="font-medium text-white truncate">{user.name}</p>
+													<p className="text-xs text-slate-400 flex items-center gap-1.5 truncate">
+														<Mail size={12} />
+														<span className="truncate">{user.email}</span>
+													</p>
+													<p className="md:hidden text-xs text-slate-500 mt-1">
+														Created {formatDate(user.createdAt)}
+														{" • "} by {user.createdBy?.name || "System"}
+													</p>
+												</div>
+											</div>
 
-									{/* Created At - Desktop */}
-									<div className="hidden md:block text-sm text-slate-400 md:w-2/5">
-										<p className="text-slate-300">
-											Created {formatDate(user.createdAt)}
-										</p>
-										<p className="text-xs text-slate-500">
-											by {user.createdBy?.name || "System"}
-										</p>
-									</div>
+											{/* Created At - Desktop */}
+											<div className="hidden md:block text-sm text-slate-400 md:w-2/5">
+												<p className="text-slate-300">
+													Created {formatDate(user.createdAt)}
+												</p>
+												<p className="text-xs text-slate-500">
+													by {user.createdBy?.name || "System"}
+												</p>
+											</div>
 
-									{/* Role & Actions */}
-									<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
-										<span
-											className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
-											<Shield size={12} />
-											{user.role}
-										</span>
-										<button
-											onClick={() => {
-												setUserToDelete(user);
-												setPasswordInput("");
-												setPasswordError("");
-												setShowPasswordModal(true);
-											}}
-											className="p-2 rounded-lg
+											{/* Role & Actions */}
+											<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-700/50 md:border-none">
+												<span
+													className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
+													<Shield size={12} />
+													{user.role}
+												</span>
+												<button
+													onClick={() => {
+														setUserToDelete(user);
+														setPasswordInput("");
+														setPasswordError("");
+														setShowPasswordModal(true);
+													}}
+													className="p-2 rounded-lg
                        bg-slate-700/40
                        hover:bg-rose-500/20
                        text-rose-400
 											transition cursor-pointer">
-											<Trash2 size={16} />
-										</button>
-									</div>
+													<Trash2 size={16} />
+												</button>
+											</div>
+										</div>
+									))}
 								</div>
-							))}
+							)}
 						</div>
-					)}
+					</div>
+
+					{/* Right side static image */}
+					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
+						<img src={UserManagementImage} alt="User Management" className="max-w-sm" />
+					</div>
 				</div>
 
 				{/* Create User Modal */}

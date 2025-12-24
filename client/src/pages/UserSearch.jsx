@@ -745,7 +745,6 @@ const UserSearch = () => {
 								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
 									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs" />
 									<div>
-										<Search className="w-14 h-14 text-gray-600 p-4 justify-center" />
 										<h2 className="text-2xl font-semibold text-slate-300 mb-2">
 											Begin Your Search...
 										</h2>
