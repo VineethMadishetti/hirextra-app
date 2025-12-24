@@ -363,10 +363,10 @@ const AdminDashboard = () => {
 	};
 
 	return (
-		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
+		<div className="min-h-full bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header & Tabs */}
-				<div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg border border-slate-200 dark:border-transparent">
+				<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg border border-slate-200 dark:border-transparent">
 					<div className="flex flex-col sm:flex-row justify-between gap-4">
 						<div className="flex gap-1 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-xl">
 							<button
@@ -590,7 +590,7 @@ const AdminDashboard = () => {
 
 				{/* HISTORY TAB */}
 				{activeTab === "history" && (
-					<div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 						{/* Header */}
 						<div className="p-6 border-b border-slate-200 dark:border-slate-800">
 							<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">

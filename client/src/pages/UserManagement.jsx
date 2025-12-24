@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management.svg";
+import UserManagementImage from "../assets/user-management1.svg";
 import toast from 'react-hot-toast';
 
 
@@ -127,10 +127,10 @@ const [userToDelete, setUserToDelete] = useState(null);
 	};
 
 	return (
-		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
+		<div className="min-h-full bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header */}
-				<div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-xl border border-slate-200 dark:border-slate-800">
+				<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-xl border border-slate-200 dark:border-slate-800">
 					<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 						<div>
 							<h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-1">
@@ -158,7 +158,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 				<div className="flex-1 flex flex-row gap-8 overflow-hidden ">
 					{/* Users Table */}
 					<div className="w-full lg:w-2/3 flex flex-col">
-						<div className="bg-white/80 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl flex-1 overflow-y-auto">
+						<div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl flex-1 overflow-y-auto">
 							{loading ? (
 								<div className="p-12 text-center">
 									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>

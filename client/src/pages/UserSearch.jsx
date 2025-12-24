@@ -545,7 +545,7 @@ const UserSearch = () => {
 
 	if (status === "error") {
 		return (
-			<div className="flex flex-col items-center justify-center h-[calc(100vh-65px)] p-4 bg-slate-50">
+			<div className="flex flex-col items-center justify-center h-[calc(100vh-65px)] p-4 bg-white dark:bg-slate-950">
 				<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md">
 					<div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
 						<AlertTriangle className="w-6 h-6 text-red-600" />
@@ -570,7 +570,7 @@ const UserSearch = () => {
 
 	return (
 		<ErrorBoundary>
-			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+			<div className="flex flex-col h-[calc(100vh-64px)] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
 				<div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-md ">
 					<div className="flex flex-col md:flex-row items-center justify-between px-4 py-3 gap-3">
