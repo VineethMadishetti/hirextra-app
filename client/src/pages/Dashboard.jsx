@@ -29,12 +29,7 @@ const Dashboard = () => {
 	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
 
 	useEffect(() => {
-		const root = window.document.documentElement;
-		if (theme === "dark") {
-			root.classList.add("dark");
-		} else {
-			root.classList.remove("dark");
-		}
+		document.documentElement.classList.toggle('dark', theme === 'dark');
 		localStorage.setItem("theme", theme);
 	}, [theme]);
 
@@ -123,8 +118,8 @@ const Dashboard = () => {
 
 				{/* Right: User Profile & Logout */}
 				<div className="flex items-center gap-4">
-					<button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-						{theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+					<button onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+						{theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
 					</button>
 
 					<div
