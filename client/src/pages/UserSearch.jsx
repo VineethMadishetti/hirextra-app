@@ -748,7 +748,7 @@ const UserSearch = () => {
 					) : candidates.length === 0 ? (
 						!hasActiveFilters ? (
 							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
-								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left ">
+								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
 									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85]" />
 									<div>
 										<h2 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
@@ -1173,7 +1173,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Email:
+												Email
 											</p>
 											<a
 												href={`mailto:${profile.email}`}
@@ -1191,7 +1191,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Phone:
+												Phone
 											</p>
 											<a
 												href={`tel:${profile.phone}`}
@@ -1209,7 +1209,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										/>
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Location:
+												Location
 											</p>
 											<p className="text-slate-700 dark:text-slate-300 font-medium">
 												{formatLocation(profile.locality, profile.location)}
@@ -1233,7 +1233,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 									<div className="flex items-start gap-3">
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Experience:
+												Experience
 											</p>
 											<p className="text-slate-700 dark:text-slate-300 font-medium">
 												{profile.experience}
@@ -1244,7 +1244,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								{profile.industry && (
 									<div>
 										<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-											Industry:
+											Industry
 										</p>
 										<p className="text-slate-700 dark:text-slate-300 font-medium capitalize">
 											{profile.industry.toLowerCase()}

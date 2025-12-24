@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management1.svg";
+import UserManagementImage from "../assets/user-management.svg";
 import toast from 'react-hot-toast';
 
 
@@ -185,7 +185,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 														<Mail size={12} />
 														<span className="truncate">{user.email}</span>
 													</p>
-													<p className="md:hidden text-xs text-slate-500 dark:text-slate-500 mt-1">
+													<p className="md:hidden text-xs text-slate-500 dark:text-slate-400 mt-1">
 														Created {formatDate(user.createdAt)}
 														{" • "} by {user.createdBy?.name || "System"}
 													</p>
@@ -197,7 +197,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 												<p className="text-slate-700 dark:text-slate-300">
 													Created {formatDate(user.createdAt)}
 												</p>
-												<p className="text-xs text-slate-500 dark:text-slate-500">
+												<p className="text-xs text-slate-500 dark:text-slate-400">
 													by {user.createdBy?.name || "System"}
 												</p>
 											</div>
@@ -262,7 +262,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 									<button
 										onClick={() => setShowCreateModal(false)}
-										className="text-slate-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer">
+										className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer">
 										<X size={20} />
 									</button>
 								</div>

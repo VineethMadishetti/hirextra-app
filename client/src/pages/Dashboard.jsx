@@ -113,11 +113,11 @@ const Dashboard = () => {
 
 				{/* Right: User Profile & Logout */}
 				<div className="flex items-center gap-4">
-					<button 
-						onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 
+					<button
+						onClick={() => setTheme(theme === "light" ? "dark" : "light")}
 						className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-						title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-						{theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
+						title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>
+						{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
 					</button>
 
 					<div
@@ -134,7 +134,7 @@ const Dashboard = () => {
 								Credits
 							</span>
 						</div>
-						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 rounded-full shadow-md transition-all cursor-pointer">
+						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full shadow-md transition-all cursor-pointer">
 							<Plus size={14} />
 							BUY
 						</button>
