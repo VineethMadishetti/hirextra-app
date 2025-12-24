@@ -28,12 +28,9 @@
     <script>
       // Initialize theme before React renders to avoid flash
       (function() {
-        const theme = localStorage.getItem("theme") || "dark";
-        if (theme === "dark") {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
+        // Start with light theme
+        localStorage.setItem("theme", "light");
+        document.documentElement.classList.remove("dark");
       })();
     </script>
   </body>

@@ -1,6 +1,5 @@
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard"; // Assuming you have this component
 import UserSearch from "./UserSearch";
@@ -19,8 +18,17 @@ import {
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
-	const { theme, setTheme } = useTheme();
 	const navigate = useNavigate();
+
+	// Theme state
+	const [theme, setTheme] = useState("light");
+
+	// Apply theme to document
+	useEffect(() => {
+		const root = document.documentElement;
+		root.classList.toggle('dark', theme === 'dark');
+		localStorage.setItem("theme", theme);
+	}, [theme]);
 
 	// State to control which view is shown
 	// If user is ADMIN, default to 'admin', else 'search'

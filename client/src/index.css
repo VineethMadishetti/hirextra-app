@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
-/* Line clamp utilities for text truncation */
+/* Dark mode support */
+@layer base {
+  :root {
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+  }
+
+  .dark {
+    --background: 15 23 42;
+    --foreground: 248 250 252;
+  }
+}
 @layer utilities {
   .line-clamp-1 {
     display: -webkit-box;
