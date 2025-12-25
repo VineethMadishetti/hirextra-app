@@ -4,11 +4,12 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  // 1. Set the initial theme to 'light' as requested.
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState(() => {
+    // On initial load, check localStorage. Default to 'light' if nothing is found.
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme || 'light';
+  });
 
-  // 2. This effect runs once on mount and whenever the `theme` state changes.
-  // It is the single source of truth for applying the theme class to the document.
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -16,11 +17,9 @@ export const ThemeProvider = ({ children }) => {
     } else {
       root.classList.remove('dark');
     }
-    // Persist the user's choice in localStorage
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // 3. The toggle function now only needs to update the state.
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
   };

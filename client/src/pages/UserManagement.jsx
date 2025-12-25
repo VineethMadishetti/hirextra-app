@@ -127,7 +127,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 	};
 
 	return (
-		<div className="min-h-full bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
+		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header */}
 				<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-xl border border-slate-200 dark:border-slate-800">
