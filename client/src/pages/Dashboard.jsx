@@ -116,7 +116,7 @@ const Dashboard = () => {
 				{/* Right: User Profile & Logout */}
 				<div className="flex items-center gap-4">
 					<button
-						onClick={() => toggleTheme(theme === "light" ? "dark" : "light")}
+						onClick={toggleTheme}
 						className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
 						title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>
 						{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}

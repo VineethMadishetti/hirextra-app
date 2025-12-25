@@ -7,16 +7,17 @@ export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState('light');
   const [mounted, setMounted] = useState(false);
 
-  // Set theme on initial load
+  // Set theme on initial load - always start with light theme
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    setTheme(savedTheme);
-    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    // Always start with light theme, regardless of localStorage
+    setTheme('light');
+    document.documentElement.classList.remove('dark'); // Ensure dark class is removed
     setMounted(true);
   }, []);
 
   // Update document class and localStorage when theme changes
-  const toggleTheme = (newTheme) => {
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
     localStorage.setItem('theme', newTheme);
