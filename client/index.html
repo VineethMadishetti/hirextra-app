@@ -26,12 +26,13 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Initialize theme before React renders to avoid flash
-      (function() {
-        // Start with light theme
-        localStorage.setItem("theme", "light");
-        document.documentElement.classList.remove("dark");
-      })();
-    </script>
+  // Check for saved theme preference before React loads
+  (function() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  })();
+</script>
   </body>
 </html>

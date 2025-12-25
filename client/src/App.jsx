@@ -5,6 +5,7 @@ import { UploadProvider } from './context/UploadContext'; // Assuming UploadCont
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { ThemeProvider } from './context/ThemeContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 // --- Placeholder Imports for Nested Routes ---
@@ -12,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel'; // Assuming this is the main dashboard view
 import UserManagement from './pages/UserManagement';
 import SearchDatabase from './pages/SearchDatabase';
+
 
 // Optimized QueryClient for production-grade caching
 const queryClient = new QueryClient({
@@ -36,6 +38,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+         <ThemeProvider>
         <UploadProvider>
           <Toaster position="top-right" reverseOrder={false} />
           <BrowserRouter>
@@ -50,6 +53,7 @@ function App() {
           </BrowserRouter>
           <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
         </UploadProvider>
+        </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
