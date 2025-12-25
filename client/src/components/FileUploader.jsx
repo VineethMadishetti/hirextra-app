@@ -100,7 +100,7 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
   return (
     <div
       className={`relative border-2 border-dashed rounded-xl p-12 transition-colors
-        ${dragActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800/50'}
+        ${dragActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'}
       `}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}

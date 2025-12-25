@@ -4,28 +4,26 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
+  // 1. Set the initial theme to 'light' as requested.
   const [theme, setTheme] = useState('light');
-  const [mounted, setMounted] = useState(false);
 
-  // Set theme on initial load - always start with light theme
+  // 2. This effect runs once on mount and whenever the `theme` state changes.
+  // It is the single source of truth for applying the theme class to the document.
   useEffect(() => {
-    // Always start with light theme, regardless of localStorage
-    setTheme('light');
-    document.documentElement.classList.remove('dark'); // Ensure dark class is removed
-    setMounted(true);
-  }, []);
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    // Persist the user's choice in localStorage
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
-  // Update document class and localStorage when theme changes
+  // 3. The toggle function now only needs to update the state.
   const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
-    localStorage.setItem('theme', newTheme);
+    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
   };
-
-  if (!mounted) {
-    return null; // Prevent flash of unstyled content
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
