@@ -127,16 +127,16 @@ const [userToDelete, setUserToDelete] = useState(null);
 	};
 
 	return (
-		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
+		<div className="min-h-full bg-slate-50  text-slate-900  p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header */}
-				<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-xl border border-slate-200 dark:border-slate-800">
+				<div className="bg-whitebackdrop-blur rounded-2xl p-5 mb-6 shadow-xl border border-slate-200 dark:border-slate-800">
 					<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 						<div>
-							<h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-1">
+							<h2 className="text-2xl font-semibold text-slate-900  mb-1">
 								User Management
 							</h2>
-							<p className="text-sm text-slate-500 dark:text-slate-400">
+							<p className="text-sm text-slate-500 ">
 								Manage system users and permissions
 							</p>
 						</div>
@@ -158,34 +158,34 @@ const [userToDelete, setUserToDelete] = useState(null);
 				<div className="flex-1 flex flex-row gap-8 overflow-hidden ">
 					{/* Users Table */}
 					<div className="w-full lg:w-2/3 flex flex-col">
-						<div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl flex-1 overflow-y-auto">
+						<div className="bg-white  rounded-2xl border border-slate-200  shadow-xl flex-1 overflow-y-auto">
 							{loading ? (
 								<div className="p-12 text-center">
 									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
 								</div>
 							) : !Array.isArray(users) || users.length === 0 ? (
 								<div className="p-12 text-center">
-									<User className="w-14 h-14 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
-									<p className="text-slate-500 dark:text-slate-400 font-medium">No users found</p>
+									<User className="w-14 h-14 text-slate-400  mx-auto mb-4" />
+									<p className="text-slate-500 font-medium">No users found</p>
 								</div>
 							) : (
 								<div className="p-4 space-y-3">
 									{users.map((user) => (
 										<div
 											key={user._id}
-											className="bg-white dark:bg-slate-800/60 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
+											className="bg-white  rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-50  transition border border-slate-200 ">
 											{/* User Info */}
 											<div className="flex items-center gap-4 md:w-2/5">
-												<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">
-													<User size={18} className="text-indigo-500 dark:text-indigo-400" />
+												<div className="bg-indigo-100  p-2 rounded-lg">
+													<User size={18} className="text-indigo-500 " />
 												</div>
 												<div className="flex-1 min-w-0">
-													<p className="font-medium text-slate-800 dark:text-white truncate">{user.name}</p>
-													<p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate">
+													<p className="font-medium text-slate-800 ">{user.name}</p>
+													<p className="text-xs text-slate-500  flex items-center gap-1.5 truncate">
 														<Mail size={12} />
 														<span className="truncate">{user.email}</span>
 													</p>
-													<p className="md:hidden text-xs text-slate-500 dark:text-slate-400 mt-1">
+													<p className="md:hidden text-xs text-slate-500  mt-1">
 														Created {formatDate(user.createdAt)}
 														{" • "} by {user.createdBy?.name || "System"}
 													</p>
@@ -193,17 +193,17 @@ const [userToDelete, setUserToDelete] = useState(null);
 											</div>
 
 											{/* Created At - Desktop */}
-											<div className="hidden md:block text-sm text-slate-500 dark:text-slate-400 md:w-2/5">
-												<p className="text-slate-700 dark:text-slate-300">
+											<div className="hidden md:block text-sm text-slate-500  md:w-2/5">
+												<p className="text-slate-700 ">
 													Created {formatDate(user.createdAt)}
 												</p>
-												<p className="text-xs text-slate-500 dark:text-slate-400">
+												<p className="text-xs text-slate-500 ">
 													by {user.createdBy?.name || "System"}
 												</p>
 											</div>
 
 											{/* Role & Actions */}
-											<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-200 dark:border-slate-700/50 md:border-none">
+											<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-200  md:border-none">
 												<span
 													className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
 													<Shield size={12} />
@@ -218,8 +218,8 @@ const [userToDelete, setUserToDelete] = useState(null);
 													}}
 													className="p-2 rounded-lg
                        bg-slate-200 dark:bg-slate-700/40
-                       hover:bg-rose-100 dark:hover:bg-rose-500/20
-                       text-rose-500 dark:text-rose-400
+                       hover:bg-rose-100 
+                       text-rose-500 
 											transition cursor-pointer">
 													<Trash2 size={16} />
 												</button>
@@ -233,7 +233,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 					{/* Right side static image */}
 					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
-						<img src={UserManagementImage} alt="User Management" className="max-w-sm dark:invert-[.85]" />
+						<img src={UserManagementImage} alt="User Management" className="max-w-sm " />
 					</div>
 				</div>
 
@@ -245,24 +245,24 @@ const [userToDelete, setUserToDelete] = useState(null);
 						onClick={() => setShowCreateModal(false)}>
 						<div
 							onClick={(e) => e.stopPropagation()}
-							className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md
-                 shadow-2xl border border-slate-200 dark:border-slate-800
+							className="bg-white  rounded-2xl w-full max-w-md
+                 shadow-2xl border border-slate-200 
                  animate-in fade-in zoom-in-95 duration-200">
 							{/* Header */}
-							<div className="p-6 border-b border-slate-200 dark:border-slate-800">
+							<div className="p-6 border-b border-slate-200 ">
 								<div className="flex items-center justify-between">
 									<div className="flex items-center gap-3">
-										<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">
+										<div className="bg-indigo-100  p-2 rounded-lg">
 											<UserPlus className="w-5 h-5 text-indigo-400" />
 										</div>
-										<h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+										<h3 className="text-lg font-semibold text-slate-900 ">
 											Create New User
 										</h3>
 									</div>
 
 									<button
 										onClick={() => setShowCreateModal(false)}
-										className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer">
+										className="text-slate-500  hover:text-slate-800  transition cursor-pointer">
 										<X size={20} />
 									</button>
 								</div>
@@ -272,14 +272,14 @@ const [userToDelete, setUserToDelete] = useState(null);
 							<form onSubmit={handleCreateUser} className="p-6 space-y-4">
 								{/* Name */}
 								<div>
-									<label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+									<label className="block text-xs font-medium text-slate-500  mb-1">
 										Full Name
 									</label>
 									<input
 										type="text"
 										required
-										className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                       rounded-xl px-4 py-2.5 text-slate-800 dark:text-white
+										className="w-full bg-slate-100  border border-slate-300 
+                       rounded-xl px-4 py-2.5 text-slate-800 
                        focus:ring-2 focus:ring-indigo-500/40
                        outline-none transition"
 										value={formData.name}
@@ -291,14 +291,14 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 								{/* Email */}
 								<div>
-									<label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+									<label className="block text-xs font-medium text-slate-500  mb-1">
 										Email Address
 									</label>
 									<input
 										type="email"
 										required
-										className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                       rounded-xl px-4 py-2.5 text-slate-800 dark:text-white
+										className="w-full bg-slate-100 border border-slate-300
+                       rounded-xl px-4 py-2.5 text-slate-800 
                        focus:ring-2 focus:ring-indigo-500/40
                        outline-none transition"
 										value={formData.email}
@@ -310,15 +310,15 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 								{/* Password */}
 								<div>
-									<label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+									<label className="block text-xs font-medium text-slate-500  mb-1">
 										Password
 									</label>
 									<div className="relative">
 										<input
 											type={showPassword ? "text" : "password"}
 											required
-											className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white pr-10
+											className="w-full bg-slate-100  border border-slate-300 
+							rounded-xl px-4 py-2.5 text-slate-800  pr-10
 							focus:ring-2 focus:ring-indigo-500/40
 							outline-none transition"
 											value={formData.password}
@@ -329,7 +329,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 										<button
 											type="button"
 											onClick={() => setShowPassword(!showPassword)}
-											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition">
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500  hover:text-slate-800  transition">
 											{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
 										</button>
 									</div>
@@ -337,15 +337,15 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 								{/* Confirm Password */}
 								<div>
-									<label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+									<label className="block text-xs font-medium text-slate-500 mb-1">
 										Confirm Password
 									</label>
 									<div className="relative">
 										<input
 											type={showConfirmPassword ? "text" : "password"}
 											required
-											className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white pr-10
+											className="w-full bg-slate-100  border border-slate-300 
+							rounded-xl px-4 py-2.5 text-slate-800  pr-10
 							focus:ring-2 focus:ring-indigo-500/40
 							outline-none transition"
 											value={formData.confirmPassword}
@@ -356,7 +356,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 										<button
 											type="button"
 											onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition">
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500  hover:text-slate-800  transition">
 											{showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
 										</button>
 									</div>
@@ -364,13 +364,13 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 								{/* Role */}
 								<div>
-									<label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+									<label className="block text-xs font-medium text-slate-500  mb-1">
 										Role
 									</label>
 									<div className="relative">
 										<select
-											className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white appearance-none
+											className="w-full bg-slate-100  border border-slate-300 
+							rounded-xl px-4 py-2.5 text-slate-800  appearance-none
 							focus:ring-2 focus:ring-indigo-500/40
 							outline-none transition cursor-pointer pr-10"
 											value={formData.role}
@@ -381,7 +381,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 											<option value="ADMIN">Admin (Full Access)</option>
 										</select>
 										<ChevronDown
-											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none"
+											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500  pointer-events-none"
 											size={16}
 										/>
 									</div>
@@ -392,7 +392,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 									<button
 										type="button"
 										onClick={() => setShowCreateModal(false)}
-										className="px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+										className="px-5 py-2.5 rounded-xl text-slate-600  hover:text-slate-900  hover:bg-slate-100  transition cursor-pointer">
 										Cancel
 									</button>
 
@@ -420,12 +420,12 @@ const [userToDelete, setUserToDelete] = useState(null);
 					className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
                         flex items-center justify-center p-4">
 					<div onClick={(e) => e.stopPropagation()}
-						className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+						className="bg-white  rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 ">
 						<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
 							Delete User
 						</h3>
 
-						<p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+						<p className="text-sm text-slate-500  mb-4">
 							Enter admin password to confirm deletion
 						</p>
 
@@ -436,8 +436,8 @@ const [userToDelete, setUserToDelete] = useState(null);
 								setPasswordInput(e.target.value);
 								if (passwordError) setPasswordError("");
 							}}
-							className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
-                         rounded-xl px-4 py-2 text-slate-800 dark:text-white
+							className="w-full bg-slate-100  border border-slate-300 
+                         rounded-xl px-4 py-2 text-slate-800 
                          focus:ring-2 focus:ring-rose-500/40
                          outline-none"
 							autoFocus
@@ -450,7 +450,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 						<div className="flex justify-end gap-3 mt-6">
 							<button
 								onClick={() => setShowPasswordModal(false)}
-								className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+								className="text-slate-600  hover:text-slate-900  transition">
 								Cancel
 							</button>
 
