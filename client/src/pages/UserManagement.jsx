@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management.svg";
+import UserManagementImage from "../assets/user-management1.svg";
 import toast from 'react-hot-toast';
 
 
