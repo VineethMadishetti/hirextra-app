@@ -4,14 +4,10 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    // On initial load, check localStorage. Default to 'light' if nothing is found.
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme || 'light';
-  });
+  const [theme, setTheme] = useState('light');
 
   useEffect(() => {
-    const root = document.documentElement;
+    const root = document.body;
     if (theme === 'dark') {
       root.classList.add('dark');
     } else {
