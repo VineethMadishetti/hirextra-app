@@ -8,7 +8,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Configure Axios globally
-  const baseURL = import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api';
+  // In development, use '/api' to trigger the Vite proxy (solves Incognito/CORS issues)
+  // In production, use the environment variable or fallback
+  const baseURL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api');
+  
   axios.defaults.baseURL = baseURL;
   axios.defaults.withCredentials = true;
 
