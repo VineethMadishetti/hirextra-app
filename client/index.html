@@ -21,9 +21,14 @@
     <meta name="description" content="PeopleFinder – AI-powered talent intelligence platform for fast, ranked candidate discovery." />
 
     <title>PeopleFinder</title>
+    <script>
+      // Force light mode by default when the page loads
+      document.documentElement.classList.remove('dark');
+    </script>
   </head>
 
-  <bodyv id="root"></div>
+  <body class="bg-white text-slate-900">
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
