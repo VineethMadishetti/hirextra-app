@@ -14,7 +14,6 @@ import {
 } from "@tanstack/react-query";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
-import { useTheme } from '../context/ThemeContext';
 import {
 	Search,
 	Eye,
@@ -114,7 +113,6 @@ class ErrorBoundary extends React.Component {
 
 const UserSearch = () => {
 	const { user } = useContext(AuthContext);
-	const { theme } = useTheme(); // Subscribe to theme changes
 	const queryClient = useQueryClient();
 	const [selectedProfile, setSelectedProfile] = useState(null);
 

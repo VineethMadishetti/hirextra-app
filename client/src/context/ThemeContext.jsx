@@ -7,11 +7,14 @@ export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState('light');
 
   useEffect(() => {
-    const root = document.body;
+    const html = document.documentElement;
+    const body = document.body;
     if (theme === 'dark') {
-      root.classList.add('dark');
+      html.classList.add('dark');
+      body.classList.add('dark');
     } else {
-      root.classList.remove('dark');
+      html.classList.remove('dark');
+      body.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
