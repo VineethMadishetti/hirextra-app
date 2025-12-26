@@ -25,14 +25,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-  // Check for saved theme preference before React loads
-  (function() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
-  })();
-</script>
   </body>
 </html>
