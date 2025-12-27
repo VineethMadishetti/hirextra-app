@@ -1,9 +1,13 @@
 @import "tailwindcss";
 
-/* Force dark mode to work */
+html {
+  color-scheme: light;
+}
+
 html.dark {
   color-scheme: dark;
 }
+
 
 /* html.dark body {
   background-color: rgb(15 23 42);
@@ -20,11 +24,6 @@ html.dark {
 :root {
   --bg: 255 255 255;
   --text: 15 23 42;
-}
-
-html.dark {
-  --bg: 15 23 42;
-  --text: 248 250 252;
 }
 
 /* html.dark {
