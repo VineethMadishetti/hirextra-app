@@ -22,9 +22,15 @@
 
     <title>PeopleFinder</title>
     <script>
-      // Force light mode by default when the page loads
-      document.documentElement.classList.remove('dark');
-    </script>
+  (function () {
+    const theme = localStorage.getItem("theme") || "light";
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  })();
+</script>
   </head>
 
   <body class="bg-white text-slate-900">
