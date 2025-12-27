@@ -35,7 +35,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-super-secure-jwt
 
 connectDB();
 
-/* ---------------------------------------------------
+/* --------------------------------------------------
    CREATE DEFAULT ADMIN
 --------------------------------------------------- */
 const createDefaultAdmin = async () => {
