@@ -9,6 +9,7 @@ import logger from "./logger.js";
 import { downloadFromS3, fileExistsInS3 } from "./s3Service.js";
 import { cleanAndValidateCandidate } from "./dataCleaner.js";
 
+
 // ---------------------------------------------------
 // Redis connection configuration
 // ---------------------------------------------------
