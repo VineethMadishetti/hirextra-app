@@ -12,7 +12,7 @@ import {
 	EyeOff,
 	ChevronDown,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management1.svg";
+import UserManagementImage from "../assets/user-management2.svg";
 import toast from 'react-hot-toast';
 
 
@@ -233,7 +233,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 					{/* Right side static image */}
 					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
-						<img src={UserManagementImage} alt="User Management" className="max-w-sm " />
+						<img src={UserManagementImage} alt="User Management" className="max-w-sm dark:invert-[.85]" />
 					</div>
 				</div>
 

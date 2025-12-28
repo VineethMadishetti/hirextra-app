@@ -128,6 +128,7 @@ const Dashboard = () => {
 					/>
 
 					{/* Credits Display */}
+					{user?.role === "USER" && (
 					<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-full shadow-inner">
 						<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
 							<CircleDollarSign size={16} className="text-amber-500" />
@@ -136,11 +137,12 @@ const Dashboard = () => {
 								Credits
 							</span>
 						</div>
-						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full shadow-md transition-all cursor-pointer">
+						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-green-500 rounded-full shadow-md transition-all cursor-pointer">
 							<Plus size={14} />
 							BUY
 						</button>
 					</div>
+					)}
 
 					<div
 						className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
