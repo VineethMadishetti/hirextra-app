@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/axios";
 import FileUploader from "../components/FileUploader";
 import {
@@ -14,13 +14,23 @@ import {
 	Loader,
 } from "lucide-react";
 import ExistingFilesIcon from "../assets/existing-files.svg";
+import HistoryIcon from "../assets/history.svg";
 import toast from "react-hot-toast";
 
 const AdminDashboard = () => {
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState("upload");
-	const [jobs, setJobs] = useState([]);
 	const [uploadData, setUploadData] = useState(null);
+
+	const { data: jobs = [], isLoading: isHistoryLoading } = useQuery({
+		queryKey: ["history"],
+		queryFn: async () => {
+			const { data } = await api.get("/candidates/history");
+			return Array.isArray(data) ? data : [];
+		},
+		refetchInterval: activeTab === 'history' && !processingJobId ? 60000 : false,
+	});
+
 	const [mapping, setMapping] = useState({});
 	const [processingJobId, setProcessingJobId] = useState(null);
 	const [isProcessing, setIsProcessing] = useState(false);
@@ -40,45 +50,6 @@ const AdminDashboard = () => {
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 	const [pendingAction, setPendingAction] = useState(null);
 	const [passwordInput, setPasswordInput] = useState("");
-
-	const fetchHistory = async (showLoading = true) => {
-		try {
-			// Show cached data immediately if available (optimistic update)
-			if (jobs.length > 0 && !showLoading) {
-				// Keep existing data visible while fetching
-			}
-			
-			const { data } = await api.get("/candidates/history");
-			setJobs(data || []); // Ensure we always set an array
-		} catch (e) {
-			console.error("Failed to load history:", e);
-			toast.error("Failed to load history");
-			// Set empty array on error to stop loading spinner
-			setJobs([]);
-		}
-	};
-
-	useEffect(() => {
-		if (activeTab === "history") {
-			fetchHistory();
-		}
-	}, [activeTab]);
-
-	// Also fetch history when processing starts to show the new job
-	useEffect(() => {
-		if (processingJobId && activeTab === "history") {
-			fetchHistory();
-		}
-	}, [processingJobId, activeTab]);
-
-	// Auto-refresh history every minute
-	useEffect(() => {
-		let interval;
-		if (activeTab === "history" && !processingJobId) {
-			interval = setInterval(fetchHistory, 60000);
-		}
-		return () => clearInterval(interval);
-	}, [activeTab, processingJobId]);
 
 	const fields = [
 		"fullName",
@@ -114,8 +85,7 @@ const AdminDashboard = () => {
 			setMapping({});
 			setProcessingJobId(data.jobId);
 			setActiveTab("history");
-			// Fetch history immediately to show the new job
-			fetchHistory();
+			queryClient.invalidateQueries({ queryKey: ["history"] });
 			// Start polling for progress updates
 			startProgressPolling(data.jobId);
 		} catch (e) {
@@ -142,17 +112,12 @@ const AdminDashboard = () => {
 					totalRows: data.totalRows || 0,
 				});
 
-				// Update local jobs state immediately for instant UI update (optimistic)
-				setJobs(prevJobs => 
-					prevJobs.map(job => 
+				// Optimistically update the job in the query cache
+				queryClient.setQueryData(['history'], (oldData = []) =>
+					oldData.map(job =>
 						job._id === jobId ? { ...job, ...data } : job
 					)
 				);
-
-				// Refresh history in background (non-blocking)
-				if (activeTab === "history") {
-					fetchHistory(false);
-				}
 
 				// Refresh candidates table DURING processing (every 1000 rows or every 15 seconds)
 				// This ensures new rows appear in the table as they're processed
@@ -176,9 +141,8 @@ const AdminDashboard = () => {
 					pollingIntervalRef.current = null;
 					setProcessingJobId(null);
 					setIsProcessing(false);
-					
-					// Final history refresh
-					fetchHistory(false);
+
+					queryClient.invalidateQueries({ queryKey: ["history"] });
 
 					if (data.status === "COMPLETED") {
 						toast.success(
@@ -202,7 +166,7 @@ const AdminDashboard = () => {
 					pollingIntervalRef.current = null;
 					setProcessingJobId(null);
 					setIsProcessing(false);
-					fetchHistory();
+					queryClient.invalidateQueries({ queryKey: ["history"] });
 				}
 			}
 		}, 2000); // Poll every 2 seconds
@@ -226,7 +190,7 @@ const AdminDashboard = () => {
 			setProcessingJobId(processingJob._id);
 			startProgressPolling(processingJob._id);
 		}
-	}, [jobs.length]);
+	}, [jobs, processingJobId]);
 
 	const [isConfirming, setIsConfirming] = useState(false);
 	const [passwordError, setPasswordError] = useState("");
@@ -330,11 +294,11 @@ const AdminDashboard = () => {
 			if (confirmActionType === "RESET") {
 				await api.post("/admin/reset-database");
 				toast.success("Database reset successfully");
-				fetchHistory(); // Refresh the history after reset
+				queryClient.invalidateQueries({ queryKey: ["history"] });
 			} else if (pendingAction?.type === "deleteJob") {
 				await api.delete(`/admin/jobs/${pendingAction.payload}`);
 				toast.success("Job deleted successfully");
-				fetchHistory();
+				queryClient.invalidateQueries({ queryKey: ["history"] });
 				queryClient.invalidateQueries({ queryKey: ["candidates"] });
 			}
 
@@ -601,9 +565,17 @@ const AdminDashboard = () => {
 							</p>
 						</div>
 
-						{jobs.length === 0 ? (
+						{isHistoryLoading ? (
 							<div className="p-12 text-center">
-								<FileText className="w-14 h-14 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+							</div>
+						) : jobs.length === 0 ? (
+							<div className="p-12 text-center">
+								<img
+									src={HistoryIcon}
+									alt="No history"
+									className="w-24 h-24 mx-auto mb-4 opacity-50 dark:invert-[.75]"
+								/>
 								<p className="text-slate-500 dark:text-slate-400 font-medium">
 									No upload history found
 								</p>

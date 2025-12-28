@@ -57,7 +57,7 @@ const Login = () => {
     AI-powered talent intelligence.
   </span>
   <span className="block mt-1 text-gray-300">
-    Search global data. Get decision-ready candidates - instantly.
+    Search global data. Get decision-ready candidates, instantly.
   </span>
 </p>
 

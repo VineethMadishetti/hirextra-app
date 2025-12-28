@@ -225,7 +225,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 					{/* Right side static image */}
 					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
-						<img src={UserManagementImage} alt="User Management" className="w-48 md:w-full max-w-xs dark:invert-[.85]" />
+						<img src={UserManagementImage} alt="User Management" className="w-48 md:w-full max-w-[10rem] dark:invert-[.85]" />
 					</div>
 				</div>
 
