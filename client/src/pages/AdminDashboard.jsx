@@ -55,16 +55,6 @@ const AdminDashboard = () => {
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState("upload");
 	const [uploadData, setUploadData] = useState(null);
-
-	const { data: jobs = [], isLoading: isHistoryLoading } = useQuery({
-		queryKey: ["history"],
-		queryFn: async () => {
-			const { data } = await api.get("/candidates/history");
-			return Array.isArray(data) ? data : [];
-		},
-		refetchInterval: activeTab === 'history' && !processingJobId ? 60000 : false,
-	});
-
 	const [mapping, setMapping] = useState({});
 	const [processingJobId, setProcessingJobId] = useState(null);
 	const [isProcessing, setIsProcessing] = useState(false);
@@ -84,6 +74,15 @@ const AdminDashboard = () => {
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 	const [pendingAction, setPendingAction] = useState(null);
 	const [passwordInput, setPasswordInput] = useState("");
+
+	const { data: jobs = [], isLoading: isHistoryLoading } = useQuery({
+		queryKey: ["history"],
+		queryFn: async () => {
+			const { data } = await api.get("/candidates/history");
+			return Array.isArray(data) ? data : [];
+		},
+		refetchInterval: activeTab === 'history' && !processingJobId ? 60000 : false,
+	});
 
 	const fields = [
 		"fullName",
