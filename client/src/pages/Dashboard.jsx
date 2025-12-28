@@ -122,10 +122,10 @@ const Dashboard = () => {
 						{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
 					</button>
 
-					<div
+					{/* <div
 						className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
 						aria-hidden="true"
-					/>
+					/> */}
 
 					{/* Credits Display */}
 					{user?.role === "USER" && (

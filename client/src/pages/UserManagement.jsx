@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/axios";
 import {
 	UserPlus,
@@ -17,8 +18,14 @@ import toast from 'react-hot-toast';
 
 
 const UserManagement = () => {
-	const [users, setUsers] = useState([]);
-	const [loading, setLoading] = useState(false);
+	const queryClient = useQueryClient();
+	const { data: users = [], isLoading: loading } = useQuery({
+		queryKey: ["users"],
+		queryFn: async () => {
+			const { data } = await api.get("/auth/users");
+			return Array.isArray(data) ? data : [];
+		},
+	});
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 const [passwordInput, setPasswordInput] = useState("");
@@ -36,21 +43,6 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-	useEffect(() => {
-		fetchUsers();
-	}, []);
-
-	const fetchUsers = async () => {
-		setLoading(true);
-		try {
-			const { data } = await api.get("/auth/users");
-			setUsers(Array.isArray(data) ? data : []);
-		} catch (error) {
-			toast.error("Failed to load users");
-		}
-		setLoading(false);
-	};
 
 	const handleCreateUser = async (e) => {
 		e.preventDefault();
@@ -70,7 +62,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 			setFormData({ name: "", email: "", password: "", confirmPassword: "", role: "USER" });
 			setShowPassword(false);
 			setShowConfirmPassword(false);
-			fetchUsers();
+			queryClient.invalidateQueries({ queryKey: ["users"] });
 		} catch (error) {
 			toast.error(error.response?.data?.message || "Failed to create user");
 		}
@@ -100,7 +92,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 			setShowPasswordModal(false);
 			setUserToDelete(null);
 			setPasswordInput("");
-			fetchUsers();
+			queryClient.invalidateQueries({ queryKey: ["users"] });
 		} catch (err) {
 			setPasswordError(err.response?.data?.message || "Incorrect password");
 		} finally {
@@ -233,7 +225,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 
 					{/* Right side static image */}
 					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
-						<img src={UserManagementImage} alt="User Management" className="max-w-sm dark:invert-[.85]" />
+						<img src={UserManagementImage} alt="User Management" className="w-48 md:w-full max-w-xs dark:invert-[.85]" />
 					</div>
 				</div>
 
