@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/axios";
 import FileUploader from "../components/FileUploader";
@@ -16,6 +16,40 @@ import {
 import ExistingFilesIcon from "../assets/existing-files.svg";
 import HistoryIcon from "../assets/history.svg";
 import toast from "react-hot-toast";
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+	constructor(props) {
+		super(props);
+		this.state = { hasError: false };
+	}
+
+	static getDerivedStateFromError(error) {
+		return { hasError: true };
+	}
+
+	componentDidCatch(error, errorInfo) {
+		console.error("ErrorBoundary caught an error:", error, errorInfo);
+	}
+
+	render() {
+		if (this.state.hasError) {
+			return (
+				<div className="p-8 text-center">
+					<div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+						<ShieldAlert className="w-8 h-8 text-red-600" />
+					</div>
+					<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+						Something went wrong
+					</h3>
+					<p className="text-slate-500 dark:text-slate-400 mb-4">Unable to load this section.</p>
+					<button onClick={() => window.location.reload()} className="text-indigo-600 hover:underline">Refresh Page</button>
+				</div>
+			);
+		}
+		return this.props.children;
+	}
+}
 
 const AdminDashboard = () => {
 	const queryClient = useQueryClient();
@@ -37,9 +71,9 @@ const AdminDashboard = () => {
 	const [processingProgress, setProcessingProgress] = useState({
 		successRows: 0,
 		totalRows: 0,
-		lastRefreshCount: 0, // Track when we last refreshed the table
 	});
 	const pollingIntervalRef = useRef(null);
+	const lastRefreshCountRef = useRef(0); // Use ref to avoid stale closure in setInterval
 	
 	// S3 File Path Mode
 	const [useS3Path, setUseS3Path] = useState(false);
@@ -107,10 +141,11 @@ const AdminDashboard = () => {
 		pollingIntervalRef.current = setInterval(async () => {
 			try {
 				const { data } = await api.get(`/candidates/job/${jobId}/status`);
-				setProcessingProgress({
+				setProcessingProgress(prev => ({
+					...prev,
 					successRows: data.successRows || 0,
 					totalRows: data.totalRows || 0,
-				});
+				}));
 
 				// Optimistically update the job in the query cache
 				queryClient.setQueryData(['history'], (oldData = []) =>
@@ -123,7 +158,7 @@ const AdminDashboard = () => {
 				// This ensures new rows appear in the table as they're processed
 				if (data.status === "PROCESSING" && data.successRows > 0) {
 					// Only refresh if we've processed new rows (avoid unnecessary refreshes)
-					const lastRefreshCount = processingProgress.lastRefreshCount || 0;
+					const lastRefreshCount = lastRefreshCountRef.current;
 					const rowsSinceLastRefresh = data.successRows - lastRefreshCount;
 					
 					if (rowsSinceLastRefresh >= 1000) {
@@ -132,7 +167,7 @@ const AdminDashboard = () => {
 						queryClient.refetchQueries({ queryKey: ["candidates"] });
 						// Also emit event for UserSearch page to refresh
 						window.dispatchEvent(new CustomEvent("candidatesProcessing"));
-						setProcessingProgress(prev => ({ ...prev, lastRefreshCount: data.successRows }));
+						lastRefreshCountRef.current = data.successRows;
 					}
 				}
 
@@ -327,6 +362,7 @@ const AdminDashboard = () => {
 	};
 
 	return (
+		<ErrorBoundary>
 		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
 				{/* Header & Tabs */}
@@ -637,11 +673,11 @@ const AdminDashboard = () => {
 															<div className="flex items-center gap-2 justify-end w-full">
 																<Loader className="w-3 h-3 animate-spin text-indigo-400" />
 															<span className="font-semibold">
-																{processingProgress.successRows.toLocaleString()}
+																{(processingProgress?.successRows || 0).toLocaleString()}
 															</span>
 															<span className="text-xs text-slate-500 dark:text-slate-400">
 																/{" "}
-																{processingProgress.totalRows.toLocaleString()}
+																{(processingProgress?.totalRows || 0).toLocaleString()}
 															</span>
 															</div>
 															<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
@@ -649,9 +685,9 @@ const AdminDashboard = () => {
 																	className="bg-indigo-500 h-1.5 rounded-full transition-all"
 																	style={{
 																		width: `${
-																			processingProgress.totalRows > 0
-																				? (processingProgress.successRows /
-																						processingProgress.totalRows) *
+																			(processingProgress?.totalRows || 0) > 0
+																				? ((processingProgress?.successRows || 0) /
+																						(processingProgress?.totalRows || 1)) *
 																				  100
 																				: 0
 																		}%`,
@@ -778,6 +814,7 @@ const AdminDashboard = () => {
 				)}
 			</div>
 		</div>
+		</ErrorBoundary>
 	);
 };
 export default AdminDashboard;
