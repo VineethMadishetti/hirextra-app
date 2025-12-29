@@ -57,43 +57,38 @@ const candidateSchema = new mongoose.Schema(
 //
 
 // 1. Core Operational Index (Required for your queue.js delete job)
-// Replaces: uploadJobId_1_isDeleted_1
-candidateSchema.index({ uploadJobId: 1, isDeleted: 1 });
+// Optimized: Simple index for hard deletes (doesn't care about isDeleted status)
+candidateSchema.index({ uploadJobId: 1 });
 
 // 2. Date & Sorting (Files created at time/date)
-// Replaces: isDeleted_1_createdAt_-1
-candidateSchema.index({ isDeleted: 1, createdAt: -1 });
+// Optimized: Partial Index (Only indexes active candidates)
+candidateSchema.index({ createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 3. Filter: Email (Unique lookup)
-// Replaces: email_1
-candidateSchema.index({ isDeleted: 1, email: 1 });
+candidateSchema.index({ email: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 4. Filter: Company Name
-// Replaces: company_1 AND company_1_isDeleted_1
-candidateSchema.index({ isDeleted: 1, company: 1 });
+candidateSchema.index({ company: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 5. Filter: Job Title
-// Replaces: jobTitle_1_isDeleted_1
-candidateSchema.index({ isDeleted: 1, jobTitle: 1 });
+candidateSchema.index({ jobTitle: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 6. Filter: Location (General)
-// Replaces: location_1
-candidateSchema.index({ isDeleted: 1, location: 1 });
+candidateSchema.index({ location: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 7. Filter: Skills
 // This is a Multikey index. It allows efficient filtering where "skills" contains "Java".
-candidateSchema.index({ isDeleted: 1, skills: 1 });
+candidateSchema.index({ skills: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 8. Filter: Name
 // Supports searching by name (e.g., /^John/).
-candidateSchema.index({ isDeleted: 1, fullName: 1 });
+candidateSchema.index({ fullName: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 9. Filter: Hierarchical Location (Country/Locality)
-// Replaces: country_1_locality_1_isDeleted_1 AND country_1 AND locality_1
-candidateSchema.index({ isDeleted: 1, country: 1, locality: 1 });
+// candidateSchema.index({ country: 1, locality: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 10. Filter: User/Admin Created By (As requested)
 // Ensure your schema has a 'createdBy' field for this to work.
-candidateSchema.index({ isDeleted: 1, createdBy: 1 });
+candidateSchema.index({ createdBy: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 export default mongoose.model('Candidate', candidateSchema);
