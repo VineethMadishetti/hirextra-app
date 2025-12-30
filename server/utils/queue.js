@@ -197,7 +197,10 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 			return;
 		}
 
-		await UploadJob.findByIdAndUpdate(jobId, { status: "PROCESSING" });
+		// ✅ FIX: Update totalRows to resumeFrom immediately.
+		// This fixes the "4.5M" corrupted count in the UI and ensures the progress bar
+		// starts at the correct position (e.g., 13.7M) instead of 0 or a wrong number.
+		await UploadJob.findByIdAndUpdate(jobId, { status: "PROCESSING", totalRows: resumeFrom });
 
 		// 1. Auto-Detect where the headers are
 		const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
@@ -334,13 +337,10 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					// This is much more performant than `skipLines` for large offsets.
 					// We read every line but do minimal work until we reach the resume point.
 					streamRowCounter++;
-					if (streamRowCounter < resumeFrom) {
+					if (streamRowCounter <= resumeFrom) {
 						// Log progress during the fast-forward to show it's not stuck
 						if (streamRowCounter % 500000 === 0) {
-							// Give UI feedback during the fast-forward
-							UploadJob.findByIdAndUpdate(jobId, { totalRows: streamRowCounter }).catch(err => {
-								logger.warn(`Failed to update fast-forward progress: ${err.message}`);
-							});
+							// ✅ FIX: Removed DB update here to prevent overwriting totalRows with a smaller number
 							logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
 						}
 						return; // Skip this already-processed row
