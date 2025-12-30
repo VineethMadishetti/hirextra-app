@@ -332,8 +332,8 @@ export const uploadChunk = async (req, res) => {
 
 			// Upload to S3 after reading headers
 			try {
-				const fileBuffer = fs.readFileSync(finalFilePath);
-				await uploadToS3(fileBuffer, s3Key, "text/csv");
+				const fileStream = fs.createReadStream(finalFilePath);
+				await uploadToS3(fileStream, s3Key, "text/csv");
 				console.log(`✅ File uploaded to S3: ${s3Key}`);
 
 				// Clean up local temp file

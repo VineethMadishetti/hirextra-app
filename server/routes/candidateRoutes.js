@@ -4,10 +4,12 @@ import { uploadChunk, processFile, searchCandidates, getUploadHistory, getJobSta
   deleteUploadJob,   
   deleteCandidate,   
   getFileHeaders,
-nukeDatabase,
-softDeleteCandidate,
-    undoDeleteCandidate,
-    exportCandidates } from '../controllers/candidateController.js'; 
+  nukeDatabase,
+  softDeleteCandidate,
+  undoDeleteCandidate,
+  exportCandidates,
+  resumeUploadJob
+} from '../controllers/candidateController.js'; 
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -38,6 +40,7 @@ router.post('/headers', protect, adminOnly, getFileHeaders);    // Get headers t
 router.delete('/nuke/all', protect, adminOnly, nukeDatabase);
 router.delete('/:id', protect, adminOnly, softDeleteCandidate);
 router.put('/:id/restore', protect, adminOnly, undoDeleteCandidate);
+router.post('/:id/resume', protect, adminOnly, resumeUploadJob);
 
 
 export default router;
