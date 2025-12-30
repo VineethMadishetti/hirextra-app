@@ -17,6 +17,12 @@ const uploadJobSchema = new mongoose.Schema({
     of: Number,
     default: {}
   },
+  // ✅ ADD THESE FIELDS
+  excessFailureCount: { type: Number, default: 0 },
+  failureReasonSample: {
+    type: Map,
+    of: String,
+  },
   mapping: Object, // Store what mapping was used
   headers: [String], // ✅ Store the exact headers used for processing
   startedAt: Date,
