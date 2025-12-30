@@ -496,15 +496,6 @@ export const resumeUploadJob = async (req, res) => {
 		// Calculate where to resume based on what was already saved
 		const rowsProcessed = (job.successRows || 0) + (job.failedRows || 0);
 
-		// Check if job is already finished but stuck in PROCESSING
-		if (job.totalRows && rowsProcessed >= job.totalRows) {
-			await UploadJob.findByIdAndUpdate(id, { status: "COMPLETED" });
-			return res.json({
-				message: "Job marked as completed (all rows already processed)",
-				jobId: job._id,
-			});
-		}
-
 		// Trigger background process with resume parameters
 		processCsvJob({
 			jobId: id, // ✅ Pass the job ID
