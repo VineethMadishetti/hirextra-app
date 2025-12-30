@@ -8,7 +8,8 @@ import { uploadChunk, processFile, searchCandidates, getUploadHistory, getJobSta
   softDeleteCandidate,
   undoDeleteCandidate,
   exportCandidates,
-  resumeUploadJob
+  resumeUploadJob,
+  pauseUploadJob
 } from '../controllers/candidateController.js'; 
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -41,6 +42,7 @@ router.delete('/nuke/all', protect, adminOnly, nukeDatabase);
 router.delete('/:id', protect, adminOnly, softDeleteCandidate);
 router.put('/:id/restore', protect, adminOnly, undoDeleteCandidate);
 router.post('/:id/resume', protect, adminOnly, resumeUploadJob);
+router.post('/:id/pause', protect, adminOnly, pauseUploadJob);
 
 
 export default router;

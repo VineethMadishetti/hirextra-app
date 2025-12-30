@@ -334,9 +334,13 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					// This is much more performant than `skipLines` for large offsets.
 					// We read every line but do minimal work until we reach the resume point.
 					streamRowCounter++;
-					if (streamRowCounter <= resumeFrom) {
+					if (streamRowCounter < resumeFrom) {
 						// Log progress during the fast-forward to show it's not stuck
 						if (streamRowCounter % 500000 === 0) {
+							// Give UI feedback during the fast-forward
+							UploadJob.findByIdAndUpdate(jobId, { totalRows: streamRowCounter }).catch(err => {
+								logger.warn(`Failed to update fast-forward progress: ${err.message}`);
+							});
 							logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
 						}
 						return; // Skip this already-processed row
@@ -353,11 +357,16 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 						const now = Date.now();
 						if (now - lastJobCheck > JOB_CHECK_INTERVAL) {
 							lastJobCheck = now;
-							const jobExists = await UploadJob.findById(jobId).lean().select("_id");
-							if (!jobExists) {
+							const currentJobState = await UploadJob.findById(jobId).lean().select("status");
+							if (!currentJobState) {
 								logger.warn(`⚠️ Job ${jobId} was deleted. Aborting processing.`);
-								stream.destroy(new Error(`Job ${jobId} was deleted. Aborting.`));
+								stream.destroy();
 								return; // Stop processing this row and subsequent rows
+							}
+							if (currentJobState.status === 'PAUSED') {
+								logger.info(`⏸️ Job ${jobId} has been paused. Stopping stream and saving progress.`);
+								stream.destroy(); // This will trigger the 'end' handler
+								return;
 							}
 						}
 
@@ -493,10 +502,14 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							fileStream.destroy();
 						}
 
+						// Fetch the LATEST job status before finalizing
+						const finalJobState = await UploadJob.findById(jobId).lean().select("status");
+						const finalStatus = finalJobState?.status === 'PAUSED' ? 'PAUSED' : 'COMPLETED';
+
 						// Final progress update before marking as completed
 						await UploadJob.findByIdAndUpdate(jobId, {
-							status: "COMPLETED",
-							completedAt: new Date(),
+							status: finalStatus,
+							completedAt: finalStatus === 'COMPLETED' ? new Date() : job.completedAt,
 							successRows: successCount,
 							totalRows: rowCounter,
 							failedRows: failedCount,
@@ -504,9 +517,13 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							excessFailureCount: excessFailures,
 						});
 
-						logger.info(
-							`✅ Job ${jobId} Completed. Total Rows: ${rowCounter.toLocaleString()}, Success: ${successCount.toLocaleString()}, Failed: ${failedCount.toLocaleString()}`,
-						);
+						if (finalStatus === 'COMPLETED') {
+							logger.info(
+								`✅ Job ${jobId} Completed. Total Rows: ${rowCounter.toLocaleString()}, Success: ${successCount.toLocaleString()}, Failed: ${failedCount.toLocaleString()}`,
+							);
+						} else {
+							logger.info(`⏸️ Job ${jobId} Paused. Progress saved.`);
+						}
 						resolve();
 					} catch (err) {
 						logger.error(`❌ Error in end handler for job ${jobId}:`, err);

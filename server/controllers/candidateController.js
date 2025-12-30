@@ -515,6 +515,21 @@ export const resumeUploadJob = async (req, res) => {
 	}
 };
 
+// --- PAUSE STUCK JOB ---
+export const pauseUploadJob = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const job = await UploadJob.findByIdAndUpdate(id, { status: "PAUSED" }, { new: true });
+		if (!job) {
+			return res.status(404).json({ message: "Job not found" });
+		}
+		res.json({ message: "Job pause request sent. Processing will stop shortly.", jobId: job._id });
+	} catch (error) {
+		console.error("Error pausing job:", error);
+		res.status(500).json({ message: "Failed to pause job", error: error.message });
+	}
+};
+
 // --- GET UPLOAD HISTORY (For Admin Page) ---
 export const getUploadHistory = async (req, res) => {
 	try {

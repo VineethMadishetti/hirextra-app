@@ -10,6 +10,7 @@ import {
 	CheckCircle,
 	Clock,
 	Play,
+	Pause,
 	XCircle,
 	Loader,
 } from "lucide-react";
@@ -261,6 +262,21 @@ const AdminDashboard = () => {
 		} catch (error) {
 			console.error("Resume error:", error);
 			toast.error(error.response?.data?.message || "Failed to resume job", { id: "resume" });
+		}
+	};
+
+	const handlePause = async (jobId) => {
+		try {
+			toast.loading("Pausing job...", { id: "pause" });
+			await api.post(`/candidates/${jobId}/pause`);
+			toast.success("Pause request sent. Job will stop shortly.", { id: "pause" });
+			// Stop local polling immediately
+			clearInterval(pollingIntervalRef.current);
+			setProcessingJobId(null);
+			queryClient.invalidateQueries({ queryKey: ["history"] });
+		} catch (error) {
+			console.error("Pause error:", error);
+			toast.error(error.response?.data?.message || "Failed to pause job", { id: "pause" });
 		}
 	};
 
@@ -634,6 +650,8 @@ const AdminDashboard = () => {
 										}
 									};
 
+									const isCurrentlyProcessing = job.status === 'PROCESSING' && processingJobId === job._id;
+
 									return (
 										<div
 											key={job._id}
@@ -709,14 +727,19 @@ const AdminDashboard = () => {
 
 												{/* Actions */}
 												<div className="flex gap-2">
-													{/* Resume Button for Stuck Jobs */}
-													{(job.status === "PROCESSING" || job.status === "FAILED" || job.status === "COMPLETED") && (
-														<button
-															onClick={() => handleResume(job)}
-															className="p-2 rounded-lg bg-slate-700/40 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer"
-															title="Resume / Retry Upload">
-															<Play size={16} />
+													{isCurrentlyProcessing ? (
+														<button onClick={() => handlePause(job._id)} className="p-2 rounded-lg bg-slate-700/40 hover:bg-amber-500/20 text-amber-400 transition cursor-pointer" title="Pause Job">
+															<Pause size={16} />
 														</button>
+													) : (
+														(job.status === "PAUSED" || job.status === "FAILED" || job.status === "COMPLETED") && (
+															<button
+																onClick={() => handleResume(job)}
+																className="p-2 rounded-lg bg-slate-700/40 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer"
+																title="Resume / Retry Upload">
+																<Play size={16} />
+															</button>
+														)
 													)}
 
 													{/* <button

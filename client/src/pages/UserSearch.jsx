@@ -245,7 +245,7 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
-		enabled: hasActiveFilters,
+		enabled: !!hasActiveFilters,
 		staleTime: 10 * 1000, // Consider data stale after 10 seconds (shorter for live updates)
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: true,
