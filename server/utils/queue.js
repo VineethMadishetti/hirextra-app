@@ -304,8 +304,10 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 			const fileStream = await getFileStream(filePath);
 
+			// We will handle skipping manually as it's much faster for large files
+			// than using the library's built-in `skipLines`.
 			const csvParser = csv({
-				skipLines: skipLinesCount + 1 + resumeFrom, // Skip garbage + header + already processed rows
+				skipLines: skipLinesCount + 1, // ONLY skip garbage lines + the header row
 				headers: false, // ✅ RAW MODE: Get raw arrays to validate column count manually
 				strict: false,
 				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
@@ -321,11 +323,26 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				// Don't throw - let stream continue processing
 			});
 
+			// This counter tracks rows coming directly from the stream
+			let streamRowCounter = 0;
 			let isPaused = false;
 
 			const stream = fileStream
 				.pipe(csvParser)
 				.on("data", async (row) => {
+					// --- MANUAL RESUME LOGIC (FAST FORWARD) ---
+					// This is much more performant than `skipLines` for large offsets.
+					// We read every line but do minimal work until we reach the resume point.
+					streamRowCounter++;
+					if (streamRowCounter <= resumeFrom) {
+						// Log progress during the fast-forward to show it's not stuck
+						if (streamRowCounter % 500000 === 0) {
+							logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
+						}
+						return; // Skip this already-processed row
+					}
+					// --- END MANUAL RESUME LOGIC ---
+
 					// --- SAFETY CHECK: STOP IF PAUSED OR JOB DELETED ---
 					if (isPaused) return; 
 
