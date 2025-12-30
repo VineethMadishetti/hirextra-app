@@ -151,7 +151,7 @@ const findHeaderRowIndex = async (filePath, mapping) => {
 // Core CSV processing logic (shared between worker
 // and direct-processing fallback)
 // ---------------------------------------------------
-export const processCsvJob = async ({ jobId }) => {
+export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, initialSuccess: explicitSuccess, initialFailed: explicitFailed }) => {
 	logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
 
 	try {
@@ -166,10 +166,10 @@ export const processCsvJob = async ({ jobId }) => {
 		// If a job is picked up in 'PROCESSING' state, it means it was interrupted.
 		// We derive the starting point from its last saved progress, making the
 		// process resilient to server restarts, crashes, or deployments.
-		const isResuming = job.status === "PROCESSING" && (job.totalRows || 0) > 0;
-		const resumeFrom = isResuming ? job.totalRows : 0;
-		const initialSuccess = isResuming ? job.successRows : 0;
-		const initialFailed = isResuming ? job.failedRows : 0;
+		const isResuming = (explicitResumeFrom !== undefined) || (job.status === "PROCESSING" && (job.totalRows || 0) > 0);
+		const resumeFrom = explicitResumeFrom !== undefined ? explicitResumeFrom : (isResuming ? job.totalRows : 0);
+		const initialSuccess = explicitSuccess !== undefined ? explicitSuccess : (isResuming ? job.successRows : 0);
+		const initialFailed = explicitFailed !== undefined ? explicitFailed : (isResuming ? job.failedRows : 0);
 
 		if (isResuming) {
 			logger.info(`🔄 Resuming job ${jobId} from row ${resumeFrom}. Initial counts: Success=${initialSuccess}, Failed=${initialFailed}`);
@@ -208,6 +208,7 @@ export const processCsvJob = async ({ jobId }) => {
 		let candidates = []; // Batch of candidates to be inserted into DB
 		let successCount = initialSuccess;
 		let failedCount = initialFailed;
+		let excessFailures = 0;
 		let rowCounter = resumeFrom;
 		const failureReasonCounts = new Map();
 		let lastProgressUpdate = Date.now();
@@ -266,7 +267,13 @@ export const processCsvJob = async ({ jobId }) => {
 
 			const incrementFailure = (reason) => {
 				failedCount++;
-				failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
+				if (failureReasonCounts.size < 500) {
+					failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
+				} else if (failureReasonCounts.has(reason)) {
+					failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
+				} else {
+					excessFailures++;
+				}
 			};
 
 			const insertBatch = async (batchToInsert) => {
@@ -282,6 +289,7 @@ export const processCsvJob = async ({ jobId }) => {
 							failedRows: failedCount,
 							totalRows: rowCounter,
 							failureReasons: Object.fromEntries(failureReasonCounts),
+							excessFailureCount: excessFailures,
 						});
 						lastProgressUpdate = now;
 					}
@@ -476,6 +484,7 @@ export const processCsvJob = async ({ jobId }) => {
 							totalRows: rowCounter,
 							failedRows: failedCount,
 							failureReasons: Object.fromEntries(failureReasonCounts),
+							excessFailureCount: excessFailures,
 						});
 
 						logger.info(
@@ -491,6 +500,7 @@ export const processCsvJob = async ({ jobId }) => {
 							totalRows: rowCounter,
 							failedRows: failedCount,
 							failureReasons: Object.fromEntries(failureReasonCounts),
+							excessFailureCount: excessFailures,
 						});
 						reject(err);
 					}
@@ -516,6 +526,7 @@ export const processCsvJob = async ({ jobId }) => {
 						totalRows: rowCounter,
 						failedRows: failedCount,
 						failureReasons: Object.fromEntries(failureReasonCounts),
+						excessFailureCount: excessFailures,
 					}).catch((updateErr) => {
 						logger.error("Error updating job status:", updateErr);
 					});
@@ -589,8 +600,9 @@ if (connection) {
 					// The worker now only needs the jobId and resume info.
 					// The processCsvJob function is now self-sufficient and will
 					// determine if it needs to resume based on DB state.
-					const { jobId } = job.data;
-					await processCsvJob({ jobId });
+					// FIX: Pass all job data (including resume params) to processCsvJob
+					const { jobId, resumeFrom, initialSuccess, initialFailed } = job.data;
+					await processCsvJob({ jobId, resumeFrom, initialSuccess, initialFailed });
 				}
 			},
 			{
