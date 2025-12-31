@@ -85,6 +85,16 @@ const AdminDashboard = () => {
 		refetchInterval: activeTab === 'history' && !processingJobId ? 60000 : false,
 	});
 
+	const { data: statsData } = useQuery({
+		queryKey: ["candidateStats"],
+		queryFn: async () => {
+			// An empty search returns total count of non-deleted candidates
+			const { data } = await api.get("/candidates/search?limit=1");
+			return { totalCandidates: data.totalCount || 0 };
+		},
+		staleTime: 60000, // 1 minute
+	});
+
 	const fields = [
 		"fullName",
 		"jobTitle",
@@ -607,13 +617,25 @@ const AdminDashboard = () => {
 				{activeTab === "history" && (
 					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 						{/* Header */}
-						<div className="p-6 border-b border-slate-200 dark:border-slate-800">
-							<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-								Upload History
-							</h3>
-							<p className="text-sm text-slate-400 mt-1">
-								View and manage processed files
-							</p>
+						<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+							<div>
+								<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+									Upload History
+								</h3>
+								<p className="text-sm text-slate-400 mt-1">
+									View and manage processed files
+								</p>
+							</div>
+							{statsData && (
+								<div className="text-right">
+									<p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+										{(statsData.totalCandidates || 0).toLocaleString()}
+									</p>
+									<p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+										Total Candidates
+									</p>
+								</div>
+							)}
 						</div>
 
 						{isHistoryLoading ? (
