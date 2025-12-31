@@ -4,6 +4,7 @@ import api from "../api/axios";
 import FileUploader from "../components/FileUploader";
 import {
 	FileText,
+	cloudUpload,
 	Trash2,
 	RefreshCw,
 	ShieldAlert,
@@ -633,6 +634,7 @@ const AdminDashboard = () => {
 						<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
 							<div>
 								<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+									<cloudUpload className="w-5 h-5 text-blue-600" />
 									Upload History
 								</h3>
 								<p className="text-sm text-slate-400 mt-1">
