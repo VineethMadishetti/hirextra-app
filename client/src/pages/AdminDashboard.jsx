@@ -392,10 +392,10 @@ const AdminDashboard = () => {
 	const formatDate = (dateString) => {
 		if (!dateString) return "N/A";
 		const date = new Date(dateString);
-		const day = String(date.getDate()).padStart(2, '0');
-		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, "0");
+		const month = String(date.getMonth() + 1).padStart(2, "0");
 		const year = date.getFullYear();
-		return `${day}-${month}-${year}`;
+		return `${day}/${month}/${year}`;
 	};
 
 	return (
@@ -851,7 +851,7 @@ const AdminDashboard = () => {
 													{log.deletedBy?.name || 'Unknown'}
 												</td>
 												<td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-													{new Date(log.deletedAt).toLocaleString()}
+													{formatDate(log.deletedAt)}
 												</td>
 											</tr>
 										))}

@@ -1,10 +1,12 @@
 import { useContext, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import AdminDashboard from "./AdminDashboard"; // Assuming you have this component
 import UserSearch from "./UserSearch";
 import UserManagement from "./UserManagement"; // Corrected casing
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from "../context/ThemeContext";
 import {
 	LayoutDashboard,
 	Search,
@@ -20,15 +22,26 @@ import {
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
 	const navigate = useNavigate();
-	
+
 	// Theme state - load from localStorage or default to light
 	const { theme, toggleTheme } = useTheme();
 
 	// State to control which view is shown
 	// If user is ADMIN, default to 'admin', else 'search'
 	const [currentView, setCurrentView] = useState(
-		() => user?.role === "ADMIN" ? "admin" : "search"
+		() => (user?.role === "ADMIN" ? "admin" : "search"),
 	);
+
+	const { data: statsData } = useQuery({
+		queryKey: ["candidateStats"],
+		queryFn: async () => {
+			// An empty search returns total count of non-deleted candidates
+			const { data } = await api.get("/candidates/search?limit=1");
+			return { totalCandidates: data.totalCount || 0 };
+		},
+		staleTime: 5 * 60 * 1000, // 5 minutes
+		enabled: user?.role === "USER", // Only fetch for USER role
+	});
 
 	useEffect(() => {
 		if (user && user.role === "ADMIN") {
@@ -127,21 +140,32 @@ const Dashboard = () => {
 						aria-hidden="true"
 					/> */}
 
-					{/* Credits Display */}
-					{user?.role === "USER" && (
-					<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-full shadow-inner">
-						<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
-							<CircleDollarSign size={16} className="text-amber-500" />
-							<span>1,250</span>
+					{/* Candidate Count */}
+					{user?.role === "USER" && statsData && (
+						<div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pr-2">
+							<Users size={16} className="text-indigo-500" />
+							<span>{(statsData.totalCandidates || 0).toLocaleString()}</span>
 							<span className="font-normal text-slate-500 dark:text-slate-400">
-								Credits
+								Candidates
 							</span>
 						</div>
-						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-green-500 rounded-full shadow-md transition-all cursor-pointer">
-							<Plus size={14} />
-							BUY
-						</button>
-					</div>
+					)}
+
+					{/* Credits Display */}
+					{user?.role === "USER" && (
+						<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-full shadow-inner">
+							<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
+								<CircleDollarSign size={16} className="text-amber-500" />
+								<span>1,250</span>
+								<span className="font-normal text-slate-500 dark:text-slate-400">
+									Credits
+								</span>
+							</div>
+							<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-green-500 rounded-full shadow-md transition-all cursor-pointer">
+								<Plus size={14} />
+								BUY
+							</button>
+						</div>
 					)}
 
 					<div
