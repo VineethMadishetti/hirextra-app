@@ -85,6 +85,15 @@ const AdminDashboard = () => {
 		refetchInterval: activeTab === 'history' && !processingJobId ? 60000 : false,
 	});
 
+	const { data: deleteLogs = [], isLoading: isDeleteHistoryLoading } = useQuery({
+		queryKey: ["deleteHistory"],
+		queryFn: async () => {
+			const { data } = await api.get("/candidates/delete-history");
+			return Array.isArray(data) ? data : [];
+		},
+		refetchInterval: activeTab === 'history' ? 60000 : false,
+	});
+
 	const { data: statsData } = useQuery({
 		queryKey: ["candidateStats"],
 		queryFn: async () => {
@@ -130,6 +139,7 @@ const AdminDashboard = () => {
 			setProcessingJobId(data.jobId);
 			setActiveTab("history");
 			queryClient.invalidateQueries({ queryKey: ["history"] });
+			queryClient.invalidateQueries({ queryKey: ["deleteHistory"] });
 			// Start polling for progress updates
 			startProgressPolling(data.jobId);
 		} catch (e) {
@@ -355,11 +365,13 @@ const AdminDashboard = () => {
 				await api.post("/admin/reset-database");
 				toast.success("Database reset successfully");
 				queryClient.invalidateQueries({ queryKey: ["history"] });
+				queryClient.invalidateQueries({ queryKey: ["deleteHistory"] });
 			} else if (pendingAction?.type === "deleteJob") {
 				await api.delete(`/admin/jobs/${pendingAction.payload}`);
 				toast.success("Job deleted successfully");
 				queryClient.invalidateQueries({ queryKey: ["history"] });
 				queryClient.invalidateQueries({ queryKey: ["candidates"] });
+				queryClient.invalidateQueries({ queryKey: ["deleteHistory"] });
 			}
 
 			// Clean up
@@ -615,6 +627,7 @@ const AdminDashboard = () => {
 
 				{/* HISTORY TAB */}
 				{activeTab === "history" && (
+					<div className="space-y-8">
 					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 						{/* Header */}
 						<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
@@ -786,6 +799,67 @@ const AdminDashboard = () => {
 								})}
 							</div>
 						)}
+					</div>
+
+					{/* DELETE HISTORY TABLE */}
+					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+						<div className="p-6 border-b border-slate-200 dark:border-slate-800">
+							<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+								<Trash2 className="w-5 h-5 text-rose-500" />
+								Delete History
+							</h3>
+							<p className="text-sm text-slate-400 mt-1">
+								Audit log of deleted files and database resets
+							</p>
+						</div>
+
+						{isDeleteHistoryLoading ? (
+							<div className="p-12 text-center">
+								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500 mx-auto"></div>
+							</div>
+						) : deleteLogs.length === 0 ? (
+							<div className="p-8 text-center text-slate-500 dark:text-slate-400">
+								No deletion records found
+							</div>
+						) : (
+							<div className="overflow-x-auto">
+								<table className="w-full text-left border-collapse">
+									<thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
+										<tr>
+											<th className="px-6 py-4">Entity Name</th>
+											<th className="px-6 py-4">Type</th>
+											<th className="px-6 py-4">Deleted By</th>
+											<th className="px-6 py-4">Deleted At</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+										{deleteLogs.map((log) => (
+											<tr key={log._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+												<td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
+													{log.entityName}
+												</td>
+												<td className="px-6 py-4">
+													<span className={`px-2 py-1 rounded text-xs font-bold ${
+														log.entityType === 'DATABASE' 
+															? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' 
+															: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+													}`}>
+														{log.entityType}
+													</span>
+												</td>
+												<td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+													{log.deletedBy?.name || 'Unknown'}
+												</td>
+												<td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+													{new Date(log.deletedAt).toLocaleString()}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						)}
+					</div>
 					</div>
 				)}
 

@@ -3,6 +3,7 @@ import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
 import fs from "fs";
+import DeleteLog from "../models/DeleteLog.js";
 import csv from "csv-parser";
 import path from "path";
 import os from "os";
@@ -530,6 +531,20 @@ export const pauseUploadJob = async (req, res) => {
 	}
 };
 
+// --- GET DELETE HISTORY ---
+export const getDeleteHistory = async (req, res) => {
+	try {
+		const logs = await DeleteLog.find()
+			.sort({ deletedAt: -1 })
+			.limit(100)
+			.populate('deletedBy', 'name email')
+			.lean();
+		res.json(logs);
+	} catch (error) {
+		res.status(500).json({ message: error.message || "Failed to load delete history" });
+	}
+};
+
 // --- GET UPLOAD HISTORY (For Admin Page) ---
 export const getUploadHistory = async (req, res) => {
 	try {
@@ -783,8 +798,16 @@ export const nukeDatabase = async (req, res) => {
 			return res.status(400).json({ message: "Password is required" });
 		}
 		await verifyAdminPassword(req.user._id, password);
+
 		await Candidate.deleteMany({});
 		await UploadJob.deleteMany({});
+
+		await DeleteLog.create({
+			entityType: 'DATABASE',
+			entityName: 'Full Database Reset',
+			deletedBy: req.user._id
+		});
+
 		res.json({ message: "Database reset successfully" });
 	} catch (error) {
 		res.status(401).json({ message: error.message });
@@ -801,12 +824,25 @@ export const deleteUploadJob = async (req, res) => {
 		await verifyAdminPassword(req.user._id, password);
 
 		const { id } = req.params;
+		const job = await UploadJob.findById(id);
+		
 		await Candidate.deleteMany({ uploadJobId: id });
 		await UploadJob.findByIdAndUpdate(id, {
 			status: "DELETED",
 			successRows: 0,
 			failedRows: 0,
+			deletedAt: new Date(),
+			deletedBy: req.user._id
 		});
+
+		if (job) {
+			await DeleteLog.create({
+				entityType: 'FILE',
+				entityName: job.originalName || job.fileName,
+				deletedBy: req.user._id
+			});
+		}
+
 		res.json({ message: "Job deleted successfully" });
 	} catch (error) {
 		res.status(401).json({ message: error.message });

@@ -9,7 +9,8 @@ import { uploadChunk, processFile, searchCandidates, getUploadHistory, getJobSta
   undoDeleteCandidate,
   exportCandidates,
   resumeUploadJob,
-  pauseUploadJob
+  pauseUploadJob,
+  getDeleteHistory
 } from '../controllers/candidateController.js'; 
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -30,6 +31,7 @@ const upload = multer({ dest: uploadDir });
 router.post('/upload-chunk', protect, adminOnly, upload.single('file'), uploadChunk);
 router.post('/process', protect, adminOnly, processFile);
 router.get('/history', protect, adminOnly, getUploadHistory);
+router.get('/delete-history', protect, adminOnly, getDeleteHistory);
 router.get('/job/:id/status', protect, adminOnly, getJobStatus); // Get job status for live updates
 router.get('/search', protect, searchCandidates); // All authenticated users can search
 router.post('/export', protect, exportCandidates); // Export selected candidates
