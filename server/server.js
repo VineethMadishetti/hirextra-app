@@ -78,7 +78,6 @@ app.use(
 /* ---------------------------------------------------
    CORS (STABLE – DO NOT OVER-ENGINEER)
 --------------------------------------------------- */
-import cors from "cors";
 
 const allowedOrigins = [
   "https://app.stucrow.com",
