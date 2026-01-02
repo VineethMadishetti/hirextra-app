@@ -78,24 +78,34 @@ app.use(
 /* ---------------------------------------------------
    CORS (STABLE – DO NOT OVER-ENGINEER)
 --------------------------------------------------- */
+import cors from "cors";
+
+const allowedOrigins = [
+  "https://app.stucrow.com",
+  "https://hirextra-frontend.onrender.com",
+  "http://localhost:5173", // dev only
+];
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'https://hirextra-frontend.onrender.com',
-      'http://stucrow.com',
-      'https://stucrow.com',
-    ],
+    origin: function (origin, callback) {
+      // allow server-to-server, curl, Postman
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS not allowed"));
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// handle preflight explicitly
+app.options("*", cors());
 
 /* ---------------------------------------------------
    BODY PARSERS & COOKIES
