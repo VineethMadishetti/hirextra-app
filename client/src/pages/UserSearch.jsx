@@ -573,26 +573,26 @@ const UserSearch = () => {
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
 				<div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-md ">
-					<div className="flex flex-col md:flex-row items-center justify-between px-4 py-3 gap-3">
+					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
 						{/* Filters Row (Scrollable) */}
-						<div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide">
+						<div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2 md:flex-1 md:overflow-x-auto md:scrollbar-hide">
 							{/* Search Bar */}
-							<div className="relative min-w-[240px]">
+							<div className="relative col-span-1 md:min-w-[240px]">
 								<Search
-									className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
-									size={15}
+									className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none w-3 h-3 md:w-4 md:h-4"
+									size={14}
 								/>
 								<input
-									placeholder="Search candidates..."
-									className="w-full pl-9 pr-8 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all"
+									placeholder="Search..."
+									className="w-full pl-7 pr-6 py-1 md:pl-9 md:pr-8 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 									value={searchInput}
 									onChange={handleSearchChange}
 								/>
 								{searchInput && (
 									<button
 										onClick={() => setSearchInput("")}
-										className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 rounded-full transition-colors">
-										<X size={14} />
+										className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 rounded-full transition-colors">
+										<X size={12} className="md:w-[14px] md:h-[14px]" />
 									</button>
 								)}
 							</div>
@@ -600,7 +600,7 @@ const UserSearch = () => {
 							{/* Job Title */}
 							<input
 								placeholder="Job Title"
-								className="min-w-[140px] px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all"
+								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 								value={filters.jobTitle}
 								onChange={(e) => handleFilterChange("jobTitle", e.target.value)}
 							/>
@@ -608,7 +608,7 @@ const UserSearch = () => {
 							{/* Location */}
 							<input
 								placeholder="Location"
-								className="min-w-[140px] px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all"
+								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 								value={filters.location}
 								onChange={(e) => handleFilterChange("location", e.target.value)}
 							/>
@@ -616,16 +616,16 @@ const UserSearch = () => {
 							{/* Skills */}
 							<input
 								placeholder="Skills"
-								className="min-w-[140px] px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all"
+								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 								value={filters.skills}
 								onChange={(e) => handleFilterChange("skills", e.target.value)}
 							/>
 
 							{/* Divider */}
-							<div className="h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+							<div className="hidden md:block h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
 
-							<div className="flex items-center gap-1">
-								<span className="text-xs font-medium text-slate-500 dark:text-slate-400 px-1">
+							<div className="col-span-1 flex items-center justify-center gap-1 md:gap-1">
+								<span className="hidden md:inline text-xs font-medium text-slate-500 dark:text-slate-400 px-1">
 									Contact:
 								</span>
 
@@ -635,12 +635,12 @@ const UserSearch = () => {
 										handleFilterChange("hasEmail", !filters.hasEmail)
 									}
 									title="Has Email"
-									className={`p-2 rounded-lg transition-all border ${
+									className={`p-1.5 md:p-2 rounded-lg transition-all border h-8 w-8 md:h-auto md:w-auto flex items-center justify-center ${
 										filters.hasEmail
 											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
 											: "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
 									}`}>
-									<Mail size={16} />
+									<Mail size={14} className="md:w-4 md:h-4" />
 								</button>
 
 								{/* Phone Filter */}
@@ -649,12 +649,12 @@ const UserSearch = () => {
 										handleFilterChange("hasPhone", !filters.hasPhone)
 									}
 									title="Has Phone"
-									className={`p-2 rounded-lg transition-all border ${
+									className={`p-1.5 md:p-2 rounded-lg transition-all border h-8 w-8 md:h-auto md:w-auto flex items-center justify-center ${
 										filters.hasPhone
 											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
 											: "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
 									}`}>
-									<Phone size={16} />
+									<Phone size={14} className="md:w-4 md:h-4" />
 								</button>
 
 								{/* LinkedIn Filter */}
@@ -663,27 +663,34 @@ const UserSearch = () => {
 										handleFilterChange("hasLinkedin", !filters.hasLinkedin)
 									}
 									title="Has LinkedIn"
-									className={`p-2 rounded-lg transition-all border ${
+									className={`p-1.5 md:p-2 rounded-lg transition-all border h-8 w-8 md:h-auto md:w-auto flex items-center justify-center ${
 										filters.hasLinkedin
 											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
 											: "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
 									}`}>
-									<Linkedin size={16} />
+									<Linkedin size={14} className="md:w-4 md:h-4" />
 								</button>
+							</div>
+
+							{/* Mobile Showing Count (Row 2, Col 3) */}
+							<div className="col-span-1 flex items-center justify-end md:hidden">
+								<span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+									{candidates.length} / {totalCount}
+								</span>
 							</div>
 
 							{/* Clear Filters */}
 							{hasActiveFilters && (
 								<button
 									onClick={clearAllFilters}
-									className="ml-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 whitespace-nowrap transition-colors px-2 cursor-pointer">
+									className="hidden md:block ml-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 whitespace-nowrap transition-colors px-2 cursor-pointer">
 									Clear
 								</button>
 							)}
 						</div>
 
 						{/* Count Display */}
-						<div className="w-full md:w-auto md:pl-4 md:border-l border-slate-200 dark:border-slate-800">
+						<div className="hidden md:block w-full md:w-auto md:pl-4 md:border-l border-slate-200 dark:border-slate-800">
 							<span className="w-full text-center block md:inline-block text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700/50">
 								Showing{" "}
 								<span className="text-slate-700 dark:text-slate-300 font-bold">
