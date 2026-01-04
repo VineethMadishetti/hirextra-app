@@ -704,36 +704,36 @@ const UserSearch = () => {
 
 					{/* Bulk Actions Bar */}
 					{selectedIds.size > 0 && (
-						<div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-500/30 rounded-b-xl animate-in fade-in slide-in-from-top-2 duration-200 mx-4 shadow-sm">
+						<div className="flex items-center justify-between px-2 sm:px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 border-t border-indigo-100 dark:border-indigo-500/30 animate-in fade-in duration-200">
 							<span className="text-sm font-semibold text-indigo-800 dark:text-indigo-200 flex items-center gap-2">
 								<div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
 								{selectedIds.size} candidate{selectedIds.size > 1 ? "s" : ""}{" "}
 								selected
 							</span>
-							<div className="flex gap-2">
+							<div className="flex items-center gap-2">
 								<button
 									onClick={handleCancelSelection}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors shadow-sm">
+									className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors shadow-sm">
 									<X size={16} />
-									Cancel
+									<span className="hidden sm:inline">Cancel</span>
 								</button>
 								<button
 									onClick={handleExport}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200 cursor-pointer">
+									className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200 cursor-pointer">
 									<Download size={16} />
-									Export
+									<span className="hidden sm:inline">Export</span>
 								</button>
 								{user?.role === "ADMIN" && (
 									<button
 										onClick={handleBulkDelete}
 										disabled={bulkDeleteMutation.isPending}
-										className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50 cursor-pointer">
+										className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50 cursor-pointer">
 										{bulkDeleteMutation.isPending ? (
 											<Loader className="animate-spin" size={16} />
 										) : (
 											<Trash2 size={16} />
 										)}
-										Delete
+										<span className="hidden sm:inline">Delete</span>
 									</button>
 								)}
 							</div>
@@ -921,7 +921,7 @@ const CandidateRow = React.memo(
 
 
 				{/* --- MOBILE CARD HEADER --- */}
-				<td className="block md:hidden pb-3 border-b border-slate-200 dark:border-slate-700/50 mb-3">
+				<td className="block md:hidden">
 					<div className="flex items-start justify-between">
 						<div className="flex items-start gap-3">
 							<input
@@ -974,7 +974,7 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Skills with Scrollable Container */}
-				<td className="block md:table-cell w-auto md:w-48 px-0 md:px-6 py-2 md:py-4 align-top">
+				<td className="hidden md:table-cell w-auto md:w-48 px-0 md:px-6 py-2 md:py-4 align-top">
 					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_transparent] dark:[scrollbar-color:#475569_transparent]">
 						<p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
 							{candidate.skills
@@ -1119,17 +1119,17 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 	<div
 		className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
 		onClick={onClose}>
-		<div
-			className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
+		<div // Main modal container
+			className="w-full max-w-lg lg:max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
 			onClick={(e) => e.stopPropagation()}>
 			{/* Header */}
-			<div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-8 relative">
+			<div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 md:p-8 relative">
 				<div className="flex justify-between items-start">
 					<div>
-						<h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+						<h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
 							{profile.fullName}
 						</h1>
-						<div className="flex items-center gap-4 text-slate-600 dark:text-slate-300 font-medium">
+						<div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 text-slate-600 dark:text-slate-300 font-medium text-sm md:text-base">
 							{profile.jobTitle && (
 								<div className="flex items-center gap-2">
 									<Briefcase size={18} className="text-slate-500 dark:text-slate-200" />
@@ -1159,12 +1159,12 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 			</div>
 
 			{/* Body */}
-			<div className="p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
+			<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
 						{/* Contact Card */}
-						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-sm">
+						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-5 shadow-sm">
 							<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
 								{/* <span className="bg-blue-100 p-2 rounded-lg">
 									<Mail className="text-blue-600" size={20} />
@@ -1228,7 +1228,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 						</div>
 
 						{/* Experience & Industry */}
-						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4 shadow-sm">
+						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-4 shadow-sm">
 							<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
 								<span className="bg-indigo-100 dark:bg-indigo-900/50 p-1.5 rounded-lg">
 									<Award className="text-indigo-600 dark:text-indigo-500" size={16} />
@@ -1265,8 +1265,8 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 
 					{/* Right Column - Skills */}
 					<div className="lg:col-span-2">
-						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 h-full flex flex-col shadow-sm">
-							<h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-3 flex-shrink-0">
+						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 h-full flex flex-col shadow-sm">
+							<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3 flex-shrink-0">
 								<span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl">
 									<Award className="text-emerald-600 dark:text-emerald-500" size={24} />
 								</span>
@@ -1295,7 +1295,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 										e.stopPropagation();
 										onDownload(profile._id, e);
 									}}
-									className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-slate-200 dark:shadow-indigo-900/20 hover:shadow-xl hover:shadow-slate-300 dark:hover:shadow-indigo-900/30 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
+									className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-3 md:py-4 rounded-xl font-bold shadow-lg shadow-slate-200 dark:shadow-indigo-900/20 hover:shadow-xl hover:shadow-slate-300 dark:hover:shadow-indigo-900/30 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
 									<Download size={20} />
 									Download Full Profile
 									<ExternalLink size={18} />
