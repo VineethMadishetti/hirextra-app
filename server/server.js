@@ -7,6 +7,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
 import logger from './utils/logger.js';
+import { requestCache } from './middleware/requestCache.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -148,7 +149,7 @@ app.get('/test', (req, res) => res.send('Server is alive!'));
    ROUTES
 --------------------------------------------------- */
 app.use('/api/auth', authRoutes);
-app.use('/api/candidates', candidateRoutes);
+app.use('/api/candidates', requestCache(30), candidateRoutes);
 app.use('/api/admin', adminRoutes);
 
 /* ---------------------------------------------------
