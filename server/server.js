@@ -7,7 +7,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
 import logger from './utils/logger.js';
-import { requestCache } from './middleware/requestCache.js';
+import { requestCache } from './requestCache.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
