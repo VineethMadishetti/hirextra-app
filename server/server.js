@@ -8,6 +8,8 @@ import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
 import logger from './utils/logger.js';
 import { requestCache } from './requestCache.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -15,6 +17,10 @@ import candidateRoutes from './routes/candidateRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
+
+// Define __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Validate critical environment variables
 const requiredEnvVars = ['JWT_SECRET', 'MONGO_URI'];
@@ -166,6 +172,16 @@ app.use((err, req, res, next) => {
     message: isDev ? err.message : 'Internal Server Error',
     ...(isDev && { stack: err.stack }),
   });
+});
+
+/* ---------------------------------------------------
+   SERVE STATIC ASSETS (DEPLOYMENT)
+--------------------------------------------------- */
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+app.get('*', (req, res, next) => {
+  if (req.originalUrl.startsWith('/api')) return next();
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 /* ---------------------------------------------------
