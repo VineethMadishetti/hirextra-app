@@ -15,8 +15,8 @@ const generateToken = (res, userId) => {
 
   res.cookie('jwt', token, {
     httpOnly: true,
-    secure: true,        // REQUIRED on Render
-    sameSite: 'none',    // REQUIRED for cross-domain
+    secure: process.env.NODE_ENV === 'production', // True in prod, False in dev
+    sameSite: 'lax',     // 'lax' is best for same-domain/same-server deployment
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 };
@@ -29,7 +29,7 @@ const generateAccessToken = (userId) => {
   return jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: '15m' } // 15 minutes
+    { expiresIn: '1h' } // Increased to 1 hour for smoother user experience
   );
 };
 
@@ -96,9 +96,9 @@ export const refreshAccessToken = async (req, res) => {
 
     res.cookie('jwt', accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 15 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 1000, // 1 hour
     });
 
     res.json({ message: 'Access token refreshed' });
@@ -132,15 +132,15 @@ export const loginUser = async (req, res) => {
 
     res.cookie('jwt', accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 15 * 60 * 1000, // 15 min
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 1000, // 1 hour
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 

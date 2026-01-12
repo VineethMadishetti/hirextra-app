@@ -1,5 +1,5 @@
+import 'dotenv/config';
 import express from 'express';
-import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -15,8 +15,6 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/authRoutes.js';
 import candidateRoutes from './routes/candidateRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
-
-dotenv.config();
 
 // Define __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -90,7 +88,8 @@ const allowedOrigins = [
   "https://app.stucrow.com",
   "https://hirextra-frontend.onrender.com",
   "http://localhost:5173", // dev only
-];
+  process.env.CLIENT_URL, // Allow production domain via env var
+].filter(Boolean);
 
 app.use(
   cors({
@@ -119,6 +118,14 @@ app.options("*", cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+/* ---------------------------------------------------
+   DEBUG LOGGING
+--------------------------------------------------- */
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 /* ---------------------------------------------------
    RATE LIMIT (AFTER CORS)

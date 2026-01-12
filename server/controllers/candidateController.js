@@ -662,6 +662,7 @@ export const searchCandidates = async (req, res) => {
 				.select("-sourceFile -uploadJobId -__v") // Exclude unnecessary fields
 				.sort({ createdAt: -1 })
 				.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
+				.maxTimeMS(20000) // Fail if query takes longer than 20s (prevents server hang)
 				.exec(),
 			Candidate.countDocuments(query).exec(),
 		]);

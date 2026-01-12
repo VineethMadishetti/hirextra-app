@@ -1,11 +1,8 @@
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import AdminDashboard from "./AdminDashboard"; // Assuming you have this component
-import UserSearch from "./UserSearch";
-import UserManagement from "./UserManagement"; // Corrected casing
 import { useTheme } from "../context/ThemeContext";
 import {
 	LayoutDashboard,
@@ -17,7 +14,13 @@ import {
 	Plus,
 	Moon,
 	Sun,
+	Loader,
 } from "lucide-react";
+
+// Lazy load components to reduce initial bundle size
+const AdminDashboard = lazy(() => import("./AdminDashboard"));
+const UserSearch = lazy(() => import("./UserSearch"));
+const UserManagement = lazy(() => import("./UserManagement"));
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
@@ -41,6 +44,17 @@ const Dashboard = () => {
 		},
 		staleTime: 5 * 60 * 1000, // 5 minutes
 		enabled: user?.role === "USER", // Only fetch for USER role
+	});
+
+	// Heartbeat to keep session active while user is using the website
+	useQuery({
+		queryKey: ["heartbeat"],
+		queryFn: async () => {
+			await api.get("/candidates/search?limit=1"); // Lightweight call to keep token alive
+			return null;
+		},
+		refetchInterval: 2 * 60 * 1000, // Ping every 2 minutes
+		retry: false,
 	});
 
 	useEffect(() => {
@@ -237,13 +251,20 @@ const Dashboard = () => {
 				className={`flex-1 flex flex-col overflow-hidden ${
 					user?.role === "ADMIN" ? "pt-[112px] md:pt-16" : "pt-16"
 				}`}>
-				{user?.role === "ADMIN" && currentView === "admin" ? (
-					<AdminDashboard />
-				) : currentView === "users" ? (
-					<UserManagement />
-				) : (
-					<UserSearch />
-				)}
+				<Suspense
+					fallback={
+						<div className="flex items-center justify-center h-full bg-slate-50 dark:bg-slate-950">
+							<Loader className="animate-spin h-8 w-8 text-indigo-600" />
+						</div>
+					}>
+					{user?.role === "ADMIN" && currentView === "admin" ? (
+						<AdminDashboard />
+					) : currentView === "users" ? (
+						<UserManagement />
+					) : (
+						<UserSearch />
+					)}
+				</Suspense>
 			</main>
 
 			{/* Logout Confirmation Modal */}

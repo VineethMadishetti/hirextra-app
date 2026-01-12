@@ -39,7 +39,7 @@ import {
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filter.svg";
 
-const PAGE_SIZE = 60; // Increased page size for better initial load
+const PAGE_SIZE = 20; // Optimized page size for better performance
 
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
@@ -110,6 +110,59 @@ class ErrorBoundary extends React.Component {
 		return this.props.children;
 	}
 }
+
+// Skeleton Row Component for loading state
+const SkeletonRow = () => (
+	<tr className="block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-200 dark:border-slate-800 md:rounded-none md:bg-transparent animate-pulse">
+		{/* Checkbox */}
+		<td className="px-3 py-4 hidden md:table-cell">
+			<div className="h-4 w-4 bg-slate-200 dark:bg-slate-700 rounded"></div>
+		</td>
+
+		{/* Mobile View Skeleton */}
+		<td className="block md:hidden w-full">
+			<div className="flex justify-between items-start">
+				<div className="flex gap-3 w-full">
+					<div className="h-4 w-4 bg-slate-200 dark:bg-slate-700 rounded mt-1"></div>
+					<div className="space-y-2 w-3/4">
+						<div className="h-4 w-3/4 bg-slate-200 dark:bg-slate-700 rounded"></div>
+						<div className="h-3 w-1/2 bg-slate-200 dark:bg-slate-700 rounded"></div>
+					</div>
+				</div>
+			</div>
+		</td>
+
+		{/* Desktop Columns */}
+		<td className="w-48 px-3 py-4 hidden md:table-cell">
+			<div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded"></div>
+		</td>
+		<td className="w-40 px-6 py-4 hidden md:table-cell">
+			<div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+		</td>
+		<td className="w-48 px-6 py-4 hidden md:table-cell">
+			<div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded"></div>
+		</td>
+		<td className="w-40 px-6 py-4 hidden md:table-cell">
+			<div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+		</td>
+		<td className="w-32 px-6 py-4 hidden lg:table-cell">
+			<div className="h-4 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+		</td>
+		<td className="w-40 px-3 py-4 hidden sm:table-cell">
+			<div className="flex gap-2">
+				<div className="h-6 w-6 bg-slate-200 dark:bg-slate-700 rounded"></div>
+				<div className="h-6 w-6 bg-slate-200 dark:bg-slate-700 rounded"></div>
+				<div className="h-6 w-6 bg-slate-200 dark:bg-slate-700 rounded"></div>
+			</div>
+		</td>
+		<td className="w-32 px-4 py-4 hidden md:table-cell">
+			<div className="flex justify-end gap-2">
+				<div className="h-6 w-6 bg-slate-200 dark:bg-slate-700 rounded"></div>
+				<div className="h-6 w-6 bg-slate-200 dark:bg-slate-700 rounded"></div>
+			</div>
+		</td>
+	</tr>
+);
 
 const UserSearch = () => {
 	const { user } = useContext(AuthContext);
@@ -189,18 +242,19 @@ const UserSearch = () => {
 	}, [selectedIds]);
 
 	const debouncedSearch = useDebounce(searchInput, 500);
+	const debouncedFilters = useDebounce(filters, 500); // Debounce filters to reduce API calls
 
 	const queryFilters = useMemo(
 		() => ({
 			q: debouncedSearch,
-			locality: filters.location,
-			jobTitle: filters.jobTitle,
-			skills: filters.skills,
-			hasEmail: filters.hasEmail,
-			hasPhone: filters.hasPhone,
-			hasLinkedin: filters.hasLinkedin,
+			locality: debouncedFilters.location,
+			jobTitle: debouncedFilters.jobTitle,
+			skills: debouncedFilters.skills,
+			hasEmail: debouncedFilters.hasEmail,
+			hasPhone: debouncedFilters.hasPhone,
+			hasLinkedin: debouncedFilters.hasLinkedin,
 		}),
-		[debouncedSearch, filters],
+		[debouncedSearch, debouncedFilters],
 	);
 
 	const queryKey = useMemo(() => ["candidates", queryFilters], [queryFilters]);
@@ -246,11 +300,11 @@ const UserSearch = () => {
 		},
 		initialPageParam: 1,
 		enabled: !!hasActiveFilters,
-		staleTime: 10 * 1000, // Consider data stale after 10 seconds (shorter for live updates)
+		staleTime: 60 * 1000, // Increased to 60s to prevent UI flickering/unnecessary fetches
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
-		refetchInterval: 15000, // Auto-refresh every 15 seconds during processing
+		refetchInterval: false, // Disabled aggressive polling to prevent unnecessary load and 401s
 	});
 
 	// Simplified scroll loading logic
@@ -543,7 +597,16 @@ const UserSearch = () => {
 		}
 	}, []);
 
-	if (status === "error") {
+	// Effect to notify user of errors without hiding data
+	useEffect(() => {
+		if (status === "error") {
+			toast.error("Network error or session expired. Please check your connection.", {
+				id: "search-error", // Prevent duplicates
+			});
+		}
+	}, [status]);
+
+	if (status === "error" && !candidates.length) {
 		return (
 			<div className="flex flex-col items-center justify-center h-[calc(100vh-65px)] p-4 bg-slate-50 dark:bg-slate-950">
 				<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md">
@@ -674,9 +737,11 @@ const UserSearch = () => {
 
 							{/* Mobile Showing Count (Row 2, Col 3) */}
 							<div className="col-span-1 flex items-center justify-end md:hidden">
-								<span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
-									{candidates.length} / {totalCount}
-								</span>
+								{hasActiveFilters && (
+									<span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+										{candidates.length} / {totalCount}
+									</span>
+								)}
 							</div>
 
 							{/* Clear Filters */}
@@ -691,14 +756,26 @@ const UserSearch = () => {
 
 						{/* Count Display */}
 						<div className="hidden md:block w-full md:w-auto md:pl-4 md:border-l border-slate-200 dark:border-slate-800">
-							<span className="w-full text-center block md:inline-block text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700/50">
-								Showing{" "}
-								<span className="text-slate-700 dark:text-slate-300 font-bold">
-									{candidates.length}
-								</span>
-								<span className="mx-1 text-slate-400 dark:text-slate-600">/</span>
-								<span className="text-slate-700 dark:text-slate-300 font-bold">{totalCount}</span>
-							</span>
+							{hasActiveFilters && (
+								isFetching && !isFetchingNextPage ? (
+									<div className="flex items-center justify-center px-3 py-1.5 h-[30px] w-[120px]">
+										<Loader className="animate-spin h-5 w-5 text-indigo-500" />
+									</div>
+								) : (
+									<span className="w-full text-center block md:inline-block text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700/50">
+										Showing{" "}
+										<span className="text-slate-700 dark:text-slate-300 font-bold">
+											{candidates.length}
+										</span>
+										<span className="mx-1 text-slate-400 dark:text-slate-600">
+											/
+										</span>
+										<span className="text-slate-700 dark:text-slate-300 font-bold">
+											{totalCount}
+										</span>
+									</span>
+								)
+							)}
 						</div>
 					</div>
 
@@ -743,40 +820,7 @@ const UserSearch = () => {
 
 				{/* Table Container - Scrollable area starting below filters and table head */}
 				<div className="flex-1 overflow-hidden flex flex-col">
-					{isFetching && !data ? (
-						<div className="flex items-center justify-center h-[calc(100vh-180px)]">
-							<div className="text-center">
-								<Loader className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4 opacity-80" />
-								<p className="text-slate-400 font-medium">
-									Loading candidates...
-								</p>
-							</div>
-						</div>
-					) : candidates.length === 0 ? (
-						!hasActiveFilters ? (
-							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
-								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
-									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85]" />
-									<div>
-										<h2 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
-											Begin Your Search...
-										</h2>
-										<p className="text-slate-500 dark:text-slate-400 max-w-xs">
-											Use the filters above to find candidates by name, job title, location, or skills.
-										</p>
-									</div>
-								</div>
-							</div>
-						) : (
-							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
-								<div className="bg-slate-100 dark:bg-slate-800 p-5 rounded-full">
-									<Search className="h-10 w-10 text-slate-400 dark:text-slate-500" />
-								</div>
-								<p className="text-slate-700 dark:text-slate-300 text-lg font-medium">No Candidates Found</p>
-								<p className="text-slate-500 dark:text-slate-400 text-sm">Try adjusting your search or filters.</p>
-							</div>
-						)
-					) : (
+					{hasActiveFilters && ((isFetching && !data) || candidates.length > 0) ? (
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
 							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
@@ -790,10 +834,12 @@ const UserSearch = () => {
 														type="checkbox"
 														className="h-4 w-4 text-indigo-600 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 rounded focus:ring-indigo-500 transition"
 														checked={
+															candidates.length > 0 &&
 															selectedIds.size > 0 &&
 															selectedIds.size === candidates.length
 														}
 														onChange={(e) => handleSelectAll(e.target.checked)}
+														disabled={isFetching && !data}
 													/>
 												</th>
 												<th className="w-48 px-3 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
@@ -820,61 +866,85 @@ const UserSearch = () => {
 											</tr>
 										</thead>
 										<tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 block md:table-row-group">
-											{candidates.map((candidate, index) => (
-												<CandidateRow
-													key={`${candidate._id}-${index}`}
-													candidate={candidate}
-													isSelected={selectedIds.has(candidate._id)}
-													onSelect={handleSelectOne}
-													onQuickView={handleQuickView}
-													onDownload={handleDownload}
-													onDelete={handleDeleteRow}
-													isAdmin={user?.role === "ADMIN"}
-													isDeleting={
-														deleteCandidate.isPending &&
-														deleteCandidate.variables === candidate._id
-													}
-												/>
-											))}
+											{isFetching && !data ? (
+												// Render Skeletons
+												[...Array(10)].map((_, i) => <SkeletonRow key={i} />)
+											) : (
+												<>
+													{candidates.map((candidate, index) => (
+														<CandidateRow
+															key={`${candidate._id}-${index}`}
+															candidate={candidate}
+															isSelected={selectedIds.has(candidate._id)}
+															onSelect={handleSelectOne}
+															onQuickView={handleQuickView}
+															onDownload={handleDownload}
+															onDelete={handleDeleteRow}
+															isAdmin={user?.role === "ADMIN"}
+															isDeleting={
+																deleteCandidate.isPending &&
+																deleteCandidate.variables === candidate._id
+															}
+														/>
+													))}
 
-											{/* Load More Trigger Row */}
-											<tr className="block md:table-row">
-												<td colSpan="7" className="p-0">
-													<div
-														ref={loadMoreRef}
-														className="h-20 flex items-center justify-center">
-														{isFetchingNextPage ? (
-															<div className="flex items-center gap-2">
-																<Loader className="animate-spin h-4 w-4 text-indigo-600" />
-																<span className="text-sm text-slate-500 dark:text-slate-400">
-																	Loading more candidates...
-																</span>
+													{/* Load More Trigger Row */}
+													<tr className="block md:table-row">
+														<td colSpan="7" className="p-0">
+															<div
+																ref={loadMoreRef}
+																className="h-20 flex items-center justify-center">
+																{isFetchingNextPage ? (
+																	<div className="flex items-center gap-2">
+																		<Loader className="animate-spin h-4 w-4 text-indigo-600" />
+																		<span className="text-sm text-slate-500 dark:text-slate-400">
+																			Loading more candidates...
+																		</span>
+																	</div>
+																) : hasNextPage ? (
+																	<span className="text-sm text-slate-500 dark:text-slate-400">
+																		Scroll down to load more
+																	</span>
+																) : candidates.length > 0 ? (
+																	<span className="text-sm text-slate-500 dark:text-slate-400 py-4">
+																		No more candidates to load
+																	</span>
+																) : null}
 															</div>
-														) : hasNextPage ? (
-															<span className="text-sm text-slate-500 dark:text-slate-400">
-																Scroll down to load more
-															</span>
-														) : candidates.length > 0 ? (
-															<span className="text-sm text-slate-500 dark:text-slate-400 py-4">
-																No more candidates to load
-															</span>
-														) : null}
-													</div>
-												</td>
-											</tr>
+														</td>
+													</tr>
+												</>
+											)}
 										</tbody>
 									</table>
 								</div>
 							</div>
-
-							{/* Loading indicator for initial load */}
-							{isFetching && !isFetchingNextPage && (
-								<div className="flex items-center justify-center mt-4">
-									<Loader className="animate-spin h-6 w-6 text-indigo-600 mr-2" />
-									<span className="text-sm text-slate-500">Loading...</span>
-								</div>
-							)}
 						</div>
+					) : (
+						// Empty State Logic
+						!hasActiveFilters ? (
+							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
+								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
+									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85]" />
+									<div>
+										<h2 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+											Begin Your Search...
+										</h2>
+										<p className="text-slate-500 dark:text-slate-400 max-w-xs">
+											Use the filters above to find candidates by name, job title, location, or skills.
+										</p>
+									</div>
+								</div>
+							</div>
+						) : (
+							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
+								<div className="bg-slate-100 dark:bg-slate-800 p-5 rounded-full">
+									<Search className="h-10 w-10 text-slate-400 dark:text-slate-500" />
+								</div>
+								<p className="text-slate-700 dark:text-slate-300 text-lg font-medium">No Candidates Found</p>
+								<p className="text-slate-500 dark:text-slate-400 text-sm">Try adjusting your search or filters.</p>
+							</div>
+						)
 					)}
 				</div>
 
@@ -1040,7 +1110,8 @@ const CandidateRow = React.memo(
 									onClick={() => {
 										let url = candidate.linkedinUrl;
 										if (!url.startsWith("http")) url = "https://" + url;
-										window.open(url, "_blank");
+										const win = window.open(url, "_blank");
+										if (win) win.opener = null; // Security: Prevent reverse tabnabbing
 									}}
 									className="p-1 text-slate-500 dark:text-slate-400 hover:text-[#0077b5] hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Linkedin size={16} />

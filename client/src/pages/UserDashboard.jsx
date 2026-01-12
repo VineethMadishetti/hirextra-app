@@ -1,16 +1,11 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { Search } from 'lucide-react';
 
 const UserDashboard = () => {
   const [candidates, setCandidates] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const api = axios.create({ 
-    withCredentials: true, 
-    baseURL: import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api' 
-  });
 
   const search = async () => {
     setLoading(true);

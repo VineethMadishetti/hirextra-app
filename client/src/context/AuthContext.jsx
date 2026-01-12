@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 
 export const AuthContext = createContext();
 
@@ -10,14 +10,14 @@ export const AuthProvider = ({ children }) => {
   // Configure Axios globally
   // In development, use '/api' to trigger the Vite proxy (solves Incognito/CORS issues)
   // In production, use the environment variable or fallback
-  const baseURL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://hirextra-app.onrender.com/api');
+  const baseURL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api');
   
-  axios.defaults.baseURL = baseURL;
-  axios.defaults.withCredentials = true;
+  api.defaults.baseURL = baseURL;
+  api.defaults.withCredentials = true;
 
   // Add response interceptor for token refresh
   useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
+    const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
@@ -32,9 +32,9 @@ export const AuthProvider = ({ children }) => {
 
           try {
             // Try to refresh the token
-            await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
+            await api.post('/auth/refresh', {}, { withCredentials: true });
             // Retry the original request
-            return axios(originalRequest);
+            return api(originalRequest);
           } catch (refreshError) {
             // Refresh failed - clear user and redirect to login
             setUser(null);
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
     );
 
     return () => {
-      axios.interceptors.response.eject(interceptor);
+      api.interceptors.response.eject(interceptor);
     };
   }, [baseURL]);
 
@@ -67,16 +67,16 @@ export const AuthProvider = ({ children }) => {
       if (savedUser) {
         try {
           // Verify token by calling /auth/me endpoint
-          const { data } = await axios.get('/auth/me');
+          const { data } = await api.get('/auth/me');
           setUser(data);
           localStorage.setItem('userInfo', JSON.stringify(data));
         } catch (error) {
           // Token invalid or expired - try refresh first
           if (error.response?.status === 401) {
             try {
-              await axios.post('/auth/refresh', {}, { withCredentials: true });
+              await api.post('auth/refresh', {}, { withCredentials: true });
               // Retry /auth/me after refresh
-              const { data } = await axios.get('/auth/me');
+              const { data } = await api.get('/auth/me');
               setUser(data);
               localStorage.setItem('userInfo', JSON.stringify(data));
             } catch (refreshError) {
@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const { data } = await axios.post('/auth/login', { email, password });
+      const { data } = await api.post('auth/login', { email, password });
       setUser(data);
       localStorage.setItem('userInfo', JSON.stringify(data));
       return { success: true };
@@ -112,7 +112,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('/auth/logout');
+      await api.post('auth/logout');
     } catch (err) {
       console.error(err);
     }

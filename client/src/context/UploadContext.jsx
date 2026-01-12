@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 
 const UploadContext = createContext();
 
@@ -21,7 +21,7 @@ export const UploadProvider = ({ children }) => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('/api/upload', formData, {
+      const response = await api.post('/candidates/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
