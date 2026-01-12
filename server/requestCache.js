@@ -1,5 +1,10 @@
+import LRU from 'lru-cache';
+
 export const requestCache = (duration = 60) => {
-  const cache = new Map();
+  const cache = new LRU({
+    max: 500,
+    maxAge: duration * 1000,
+  });
 
   return (req, res, next) => {
     // Only cache GET requests
@@ -14,13 +19,10 @@ export const requestCache = (duration = 60) => {
       const { body, contentType, timestamp } = cachedResponse;
       // Check if cache is valid
       const age = (Date.now() - timestamp) / 1000;
-      if (age < duration) {
-        if (contentType) res.setHeader('Content-Type', contentType);
-        // Tell browser to use its local cache for the remaining time
-        res.setHeader('Cache-Control', `public, max-age=${Math.floor(duration - age)}, stale-while-revalidate=${duration}`);
-        return res.send(body);
-      }
-      cache.delete(key);
+      if (contentType) res.setHeader('Content-Type', contentType);
+      // Tell browser to use its local cache for the remaining time
+      res.setHeader('Cache-Control', `public, max-age=${Math.floor(duration - age)}, stale-while-revalidate=${duration}`);
+      return res.send(body);
     }
 
     const originalSend = res.send;

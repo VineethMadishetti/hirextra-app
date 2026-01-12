@@ -89,28 +89,32 @@ const allowedOrigins = [
   "https://hirextra-frontend.onrender.com",
   "http://localhost:5173", // dev only
   process.env.CLIENT_URL, // Allow production domain via env var
-].filter(Boolean);
+]
+  .filter(Boolean)
+  .map(origin => origin.replace(/\/$/, "")); // Remove trailing slash
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow server-to-server, curl, Postman
-      if (!origin) return callback(null, true);
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow server-to-server, curl, Postman
+    if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
 
-      return callback(new Error("CORS not allowed"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+    console.log(`[CORS] Blocked origin: ${origin}`);
+    return callback(new Error("CORS not allowed"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.use(cors(corsOptions));
 
 // handle preflight explicitly
-app.options("*", cors());
+app.options("*", cors(corsOptions));
 
 /* ---------------------------------------------------
    BODY PARSERS & COOKIES

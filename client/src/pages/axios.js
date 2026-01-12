@@ -13,6 +13,19 @@ const axiosRefresh = axios.create({
   withCredentials: true,
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Use a response interceptor to handle 401 errors globally
 api.interceptors.response.use(
@@ -22,7 +35,20 @@ api.interceptors.response.use(
 
     // Check if the error is a 401 Unauthorized and if it's the first time this request has failed
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise(function (resolve, reject) {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(function () {
+            return api(originalRequest);
+          })
+          .catch(function (err) {
+            return Promise.reject(err);
+          });
+      }
+
       originalRequest._retry = true; // Mark this request as having been retried
+      isRefreshing = true;
 
       try {
         // Attempt to get a new access token by calling the refresh endpoint
@@ -31,12 +57,16 @@ api.interceptors.response.use(
         // If the refresh is successful, the new access token is now in an httpOnly cookie.
         // The browser will automatically use it for the next request.
         // We can now retry the original request that failed.
+        processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
         // If the refresh token is also invalid or the refresh fails, the user must log in again.
         // We can trigger a logout or redirect here. For now, we'll let the request fail.
+        processQueue(refreshError, null);
         console.error('Token refresh failed. User needs to re-authenticate.', refreshError);
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
