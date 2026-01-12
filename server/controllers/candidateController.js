@@ -655,17 +655,24 @@ export const searchCandidates = async (req, res) => {
 		if (hasLinkedin === "true") query.linkedinUrl = { $exists: true, $ne: "" };
 
 		// Optimized: Use lean() for faster queries and parallel execution
-		const [candidates, totalCount] = await Promise.all([
-			Candidate.find(query)
-				.limit(limitNum)
-				.skip(skip)
-				.select("-sourceFile -uploadJobId -__v") // Exclude unnecessary fields
-				.sort({ createdAt: -1 })
-				.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
-				.maxTimeMS(20000) // Fail if query takes longer than 20s (prevents server hang)
-				.exec(),
-			Candidate.countDocuments(query).exec(),
-		]);
+		let candidates;
+		let totalCount = 0;
+
+		const findQuery = Candidate.find(query)
+			.limit(limitNum)
+			.skip(skip)
+			.select("-sourceFile -uploadJobId -__v") // Exclude unnecessary fields
+			.sort({ createdAt: -1 })
+			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
+			.maxTimeMS(20000); // Fail if query takes longer than 20s (prevents server hang)
+
+		if (pageNum === 1) {
+			// Only count documents on the first page to save resources
+			[candidates, totalCount] = await Promise.all([findQuery.exec(), Candidate.countDocuments(query).exec()]);
+		} else {
+			candidates = await findQuery.exec();
+			totalCount = -1; // Indicate count was skipped
+		}
 
 		res.json({
 			candidates,

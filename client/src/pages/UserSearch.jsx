@@ -292,8 +292,11 @@ const UserSearch = () => {
 			const response = await api.get(`/candidates/search?${params}`);
 			return { ...response.data, currentPage: pageParam };
 		},
-		getNextPageParam: (lastPage) => {
-			if (lastPage.currentPage < lastPage.totalPages) {
+		getNextPageParam: (lastPage, allPages) => {
+			// Use totalCount from the first page (since backend skips count on page > 1)
+			const totalCount = allPages[0]?.totalCount || 0;
+			const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+			if (lastPage.currentPage < totalPages) {
 				return lastPage.currentPage + 1;
 			}
 			return undefined;

@@ -28,14 +28,14 @@ if (missingVars.length > 0) {
   logger.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`);
   logger.error('Please set these variables in your Render environment settings.');
   logger.error(`Note: MongoDB connection string should be set as 'MONGO_URI' (not 'MONGODB_URI')`);
-  process.exit(1);
+  // process.exit(1); // Don't crash, just log error so server can respond with 500
 }
 
 // Validate JWT_SECRET is not default/empty
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-super-secure-jwt-secret-key-here') {
   logger.error('❌ JWT_SECRET is not set or is using default value!');
   logger.error('Please set a secure JWT_SECRET in your Render environment variables.');
-  process.exit(1);
+  // process.exit(1); // Don't crash
 }
 
 connectDB();
@@ -86,6 +86,8 @@ app.use(
 
 const allowedOrigins = [
   "https://app.stucrow.com",
+  "https://www.app.stucrow.com",
+  "https://api.stucrow.com",
   "https://hirextra-frontend.onrender.com",
   "http://localhost:5173", // dev only
   process.env.CLIENT_URL, // Allow production domain via env var
