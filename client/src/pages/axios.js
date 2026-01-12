@@ -1,15 +1,18 @@
 import axios from 'axios';
 
+// Use environment variable, or fallback to '/api' in dev (for proxy), or absolute URL in prod
+const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://hirextra-app.onrender.com/api');
+
 // Create a base instance for general API requests
 const api = axios.create({
-  baseURL: '/api', // Your API's base URL
+  baseURL: BASE_URL,
   withCredentials: true, // This is crucial for sending cookies (like the refresh token)
 });
 
 // Create a separate instance specifically for the token refresh logic
 // This prevents an infinite loop if the refresh endpoint itself returns a 401
 const axiosRefresh = axios.create({
-  baseURL: '/api',
+  baseURL: BASE_URL,
   withCredentials: true,
 });
 
