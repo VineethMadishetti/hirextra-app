@@ -661,7 +661,7 @@ export const searchCandidates = async (req, res) => {
 		const findQuery = Candidate.find(query)
 			.limit(limitNum)
 			.skip(skip)
-			.select("-sourceFile -uploadJobId -__v") // Exclude unnecessary fields
+			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt") // Explicitly select fields to reduce payload
 			.sort({ createdAt: -1 })
 			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
 			.maxTimeMS(20000); // Fail if query takes longer than 20s (prevents server hang)

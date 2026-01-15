@@ -430,7 +430,7 @@ const AdminDashboard = () => {
 							</button>
 						</div>
 
-						<button
+						{/* <button
 							onClick={() => {
 								setConfirmActionType("RESET");
 								setPasswordInput(""); // 🔹 clears old password
@@ -445,7 +445,7 @@ const AdminDashboard = () => {
              transition cursor-pointer">
 							<ShieldAlert size={16} />
 							Reset Database
-						</button>
+						</button> */}
 					</div>
 				</div>
 

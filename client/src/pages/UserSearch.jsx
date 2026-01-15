@@ -39,7 +39,7 @@ import {
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filter.svg";
 
-const PAGE_SIZE = 20; // Optimized page size for better performance
+const PAGE_SIZE = 15; // Optimized page size for faster initial load
 
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
@@ -241,8 +241,8 @@ const UserSearch = () => {
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
 	}, [selectedIds]);
 
-	const debouncedSearch = useDebounce(searchInput, 500);
-	const debouncedFilters = useDebounce(filters, 500); // Debounce filters to reduce API calls
+	const debouncedSearch = useDebounce(searchInput, 300);
+	const debouncedFilters = useDebounce(filters, 300); // Reduced to 300ms for faster feedback
 
 	const queryFilters = useMemo(
 		() => ({
@@ -871,7 +871,7 @@ const UserSearch = () => {
 										<tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 block md:table-row-group">
 											{isFetching && !data ? (
 												// Render Skeletons
-												[...Array(10)].map((_, i) => <SkeletonRow key={i} />)
+												[...Array(15)].map((_, i) => <SkeletonRow key={i} />)
 											) : (
 												<>
 													{candidates.map((candidate, index) => (
@@ -940,12 +940,32 @@ const UserSearch = () => {
 								</div>
 							</div>
 						) : (
-							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-4 text-center">
-								<div className="bg-slate-100 dark:bg-slate-800 p-5 rounded-full">
-									<Search className="h-10 w-10 text-slate-400 dark:text-slate-500" />
+							<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-6 text-center p-8 animate-in fade-in zoom-in duration-300">
+								<div className="relative">
+									<div className="absolute inset-0 bg-indigo-50 dark:bg-indigo-900/20 rounded-full blur-2xl"></div>
+									<div className="relative bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
+										<Search
+											className="h-12 w-12 text-slate-400 dark:text-slate-500"
+											strokeWidth={1.5}
+										/>
+									</div>
 								</div>
-								<p className="text-slate-700 dark:text-slate-300 text-lg font-medium">No Candidates Found</p>
-								<p className="text-slate-500 dark:text-slate-400 text-sm">Try adjusting your search or filters.</p>
+
+								<div className="max-w-sm space-y-2">
+									<h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+										No matches found
+									</h3>
+									<p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
+										Sorry, there is no suitable data found based on your search, try another.
+									</p>
+								</div>
+
+								<button
+									onClick={clearAllFilters}
+									className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm shadow-indigo-200 dark:shadow-none flex items-center gap-2">
+									<Filter size={16} />
+									Clear Filters
+								</button>
 							</div>
 						)
 					)}
