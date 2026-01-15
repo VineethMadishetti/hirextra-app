@@ -10,6 +10,8 @@ import logger from './utils/logger.js';
 import { requestCache } from './requestCache.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import https from 'https';
+import fs from 'fs';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -208,13 +210,23 @@ app.use('*', (req, res) => {
    SERVER START
 --------------------------------------------------- */
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  logger.info(
-    `🚀 Server running on port ${PORT} in ${
-      process.env.NODE_ENV || 'development'
-    } mode`
-  );
-});
+
+let server;
+
+// Check if SSL paths are provided for standalone HTTPS (No Nginx)
+if (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH) {
+  const httpsOptions = {
+    key: fs.readFileSync(process.env.SSL_KEY_PATH),
+    cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+  };
+  server = https.createServer(httpsOptions, app).listen(PORT, () => {
+    logger.info(`🚀 Secure Server (HTTPS) running on port ${PORT}`);
+  });
+} else {
+  server = app.listen(PORT, () => {
+    logger.info(`🚀 Server (HTTP) running on port ${PORT}`);
+  });
+}
 
 /* ---------------------------------------------------
    GRACEFUL SHUTDOWN
