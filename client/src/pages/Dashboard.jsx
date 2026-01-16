@@ -85,7 +85,7 @@ const Dashboard = () => {
 			{/* --- Top Navigation Bar --- */}
 			<nav
 				className="fixed top-0 left-0 right-0 z-50
-  bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50
+  bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60
   px-6 h-16 flex justify-between items-center transition-all duration-300">
 				{/* Left: Logo & Admin Navigation */}
 				<div className="flex items-center gap-10">

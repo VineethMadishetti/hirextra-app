@@ -387,7 +387,7 @@ const UserSearch = () => {
 		initialPageParam: 1,
 		enabled: isSearchApplied,
 		staleTime: 60 * 1000, // Increased to 60s to prevent UI flickering/unnecessary fetches
-		gcTime: 30 * 60 * 1000,
+		gcTime: 5 * 60 * 1000, // Reduced GC time to free up memory faster
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
 		refetchInterval: false, // Disabled aggressive polling to prevent unnecessary load and 401s
@@ -700,10 +700,10 @@ const UserSearch = () => {
 		return (
 			<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-6 text-center p-8 animate-in fade-in zoom-in duration-300">
 				<div className="relative">
-					<div className="absolute inset-0 bg-indigo-50 dark:bg-indigo-900/20 rounded-full blur-2xl"></div>
+					<div className="absolute inset-0 bg-rose-50 dark:bg-rose-900/20 rounded-full blur-2xl"></div>
 					<div className="relative bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
 						<RefreshCw
-							className="h-12 w-12 text-indigo-500 dark:text-indigo-400"
+							className="h-12 w-12 text-rose-500 dark:text-rose-400"
 							strokeWidth={1.5}
 						/>
 					</div>
@@ -732,7 +732,7 @@ const UserSearch = () => {
 		<ErrorBoundary>
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
-				<div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all duration-300">
+				<div className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm transition-all duration-300 supports-[backdrop-filter]:bg-white/60">
 					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
 						{/* Filters Row (Scrollable) */}
 						<div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2 md:flex-1 md:overflow-x-auto md:scrollbar-hide">
@@ -744,7 +744,7 @@ const UserSearch = () => {
 								/>
 								<input
 									placeholder="Search..."
-									className="w-full pl-7 pr-6 py-1 md:pl-9 md:pr-8 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
+									className="w-full pl-7 pr-6 py-1.5 md:pl-9 md:pr-8 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 									value={searchInput}
 									onChange={handleSearchChange}
 									onKeyDown={handleKeyDown}
@@ -761,7 +761,7 @@ const UserSearch = () => {
 							{/* Job Title */}
 							<input
 								placeholder="Job Title"
-								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
+								className="col-span-1 min-w-0 md:min-w-[140px] px-3 py-1.5 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 								value={filters.jobTitle}
 								onChange={(e) => handleFilterChange("jobTitle", e.target.value)}
 								onKeyDown={handleKeyDown}
@@ -770,7 +770,7 @@ const UserSearch = () => {
 							{/* Location */}
 							<input
 								placeholder="Location"
-								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
+								className="col-span-1 min-w-0 md:min-w-[140px] px-3 py-1.5 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 								value={filters.location}
 								onChange={(e) => handleFilterChange("location", e.target.value)}
 								onKeyDown={handleKeyDown}
@@ -779,7 +779,7 @@ const UserSearch = () => {
 							{/* Skills */}
 							<input
 								placeholder="Skills"
-								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
+								className="col-span-1 min-w-0 md:min-w-[140px] px-3 py-1.5 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 								value={filters.skills}
 								onChange={(e) => handleFilterChange("skills", e.target.value)}
 								onKeyDown={handleKeyDown}
@@ -796,9 +796,9 @@ const UserSearch = () => {
 										handleFilterChange("hasEmail", !filters.hasEmail)
 									}
 									title="Has Email"
-									className={`p-1.5 md:p-2 rounded-lg transition-all border h-8 w-8 md:h-auto md:w-auto flex items-center justify-center ${
+									className={`p-1.5 md:p-2 rounded-xl transition-all border h-9 w-9 md:h-auto md:w-auto flex items-center justify-center ${
 										filters.hasEmail
-											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+											? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200 dark:shadow-none"
 											: "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
 									}`}>
 									<Mail size={14} className="md:w-4 md:h-4" />
@@ -810,9 +810,9 @@ const UserSearch = () => {
 										handleFilterChange("hasPhone", !filters.hasPhone)
 									}
 									title="Has Phone"
-									className={`p-1.5 md:p-2 rounded-lg transition-all border h-8 w-8 md:h-auto md:w-auto flex items-center justify-center ${
+									className={`p-1.5 md:p-2 rounded-xl transition-all border h-9 w-9 md:h-auto md:w-auto flex items-center justify-center ${
 										filters.hasPhone
-											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+											? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200 dark:shadow-none"
 											: "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
 									}`}>
 									<Phone size={14} className="md:w-4 md:h-4" />
@@ -824,9 +824,9 @@ const UserSearch = () => {
 										handleFilterChange("hasLinkedin", !filters.hasLinkedin)
 									}
 									title="Has LinkedIn"
-									className={`p-1.5 md:p-2 rounded-lg transition-all border h-8 w-8 md:h-auto md:w-auto flex items-center justify-center ${
+									className={`p-1.5 md:p-2 rounded-xl transition-all border h-9 w-9 md:h-auto md:w-auto flex items-center justify-center ${
 										filters.hasLinkedin
-											? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+											? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200 dark:shadow-none"
 											: "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
 									}`}>
 									<Linkedin size={14} className="md:w-4 md:h-4" />
@@ -846,9 +846,9 @@ const UserSearch = () => {
 							<button
 								onClick={handleTriggerSearch}
 								disabled={!hasActiveFilters}
-								className={`hidden md:flex items-center gap-1 ml-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shadow-sm ${
+								className={`hidden md:flex items-center gap-1.5 ml-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all shadow-sm ${
 									hasActiveFilters
-										? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+										? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-indigo-200 dark:shadow-none hover:shadow-md"
 										: "bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600"
 								}`}>
 								<Search size={14} />
@@ -858,7 +858,7 @@ const UserSearch = () => {
 							{/* Clear Filters */}
 							<button
 								onClick={clearAllFilters}
-								className="hidden md:block ml-2 text-xs font-medium whitespace-nowrap transition-colors px-2 text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer"
+								className="hidden md:block ml-2 text-xs font-medium whitespace-nowrap transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
 							>
 								Clear
 							</button>
@@ -867,14 +867,14 @@ const UserSearch = () => {
 						{/* Count Display */}
 						<div className="hidden md:block w-full md:w-auto md:pl-4 md:border-l border-slate-200 dark:border-slate-800">
 							{isSearchApplied && (
-								isFetching && !isFetchingNextPage ? (
+								(isLoading || (isFetching && candidates.length === 0)) ? (
 									<div className="flex items-center justify-center px-3 py-1.5 h-[30px] w-[120px]">
 										<Loader className="animate-spin h-5 w-5 text-indigo-500" />
 									</div>
 								) : (
-									<span className="w-full text-center block md:inline-block text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700/50">
+									<span className="w-full text-center block md:inline-block text-xs font-medium text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm">
 										Showing{" "}
-										<span className="text-slate-700 dark:text-slate-300 font-bold">
+										<span className="text-indigo-600 dark:text-indigo-400 font-bold">
 											{candidates.length}
 										</span>
 										<span className="mx-1 text-slate-400 dark:text-slate-600">
@@ -900,13 +900,13 @@ const UserSearch = () => {
 							<div className="flex items-center gap-2">
 								<button
 									onClick={handleCancelSelection}
-									className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors shadow-sm">
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors shadow-sm">
 									<X size={16} />
 									<span className="hidden sm:inline">Cancel</span>
 								</button>
 								<button
 									onClick={handleExport}
-									className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200 cursor-pointer">
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-200 cursor-pointer">
 									<Download size={16} />
 									<span className="hidden sm:inline">Export</span>
 								</button>
@@ -914,7 +914,7 @@ const UserSearch = () => {
 									<button
 										onClick={handleBulkDelete}
 										disabled={bulkDeleteMutation.isPending}
-										className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50 cursor-pointer">
+										className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-rose-200 disabled:opacity-50 cursor-pointer">
 										{bulkDeleteMutation.isPending ? (
 											<Loader className="animate-spin" size={16} />
 										) : (
@@ -933,13 +933,13 @@ const UserSearch = () => {
 					{isSearchApplied && ((isFetching && !data) || candidates.length > 0) ? (
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
-							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
+							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
 								<div
 									className="overflow-x-auto overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
 									<table className="w-full min-w-[900px] md:table-fixed">
-										<thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+										<thead className="bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
 											<tr>
-												<th className="w-12 px-3 py-4 text-left">
+												<th className="w-12 px-4 py-4 text-left">
 													<input
 														type="checkbox"
 														className="h-4 w-4 text-indigo-600 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 rounded focus:ring-indigo-500 transition"
@@ -952,25 +952,25 @@ const UserSearch = () => {
 														disabled={isFetching && !data}
 													/>
 												</th>
-												<th className="w-48 px-3 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+												<th className="w-48 px-3 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
 													Full Name
 												</th>
-												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
 													Job Title
 												</th>
-												<th className="w-48 px-6 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+												<th className="w-48 px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
 													Skills
 												</th>
-												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hidden md:table-cell">
+												<th className="w-40 px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden md:table-cell">
 													Company Name
 												</th>
-												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hidden lg:table-cell">
+												<th className="w-32 px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden lg:table-cell">
 													Experience
 												</th>
-												<th className="w-40 px-3 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hidden sm:table-cell">
+												<th className="w-40 px-3 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden sm:table-cell">
 													Contact
 												</th>
-												<th className="w-32 px-4 py-4 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider sticky right-0 bg-slate-100 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800">
+												<th className="w-32 px-4 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider sticky right-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-l border-slate-200 dark:border-slate-800">
 													Actions
 												</th>
 											</tr>
@@ -1106,7 +1106,7 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-200/60 dark:border-slate-800 md:rounded-none md:bg-transparent hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-all duration-200 last:border-none animate-in fade-in slide-in-from-bottom-2 duration-500 ${
+				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-100 dark:border-slate-800 md:rounded-none md:bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-200 last:border-none animate-in fade-in slide-in-from-bottom-2 duration-500 ${
 					isSelected ? "bg-indigo-50 dark:bg-indigo-900/20" : ""
 				}`}>
 				{/* Checkbox */}
@@ -1165,7 +1165,7 @@ const CandidateRow = React.memo(
 
 				{/* Name (Desktop) */}
 				<td className="w-48 px-3 py-4 align-top hidden md:table-cell">
-					<div className="font-semibold text-slate-800 dark:text-slate-200 break-words leading-tight">{val(candidate.fullName)}</div>
+					<div className="font-semibold text-slate-900 dark:text-slate-100 break-words leading-tight">{val(candidate.fullName)}</div>
 				</td>
 
 				{/* Job Title (Desktop) */}
@@ -1179,7 +1179,7 @@ const CandidateRow = React.memo(
 						<p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
 							{candidate.skills
 								? candidate.skills
-										.split(",")
+										.split(/,|;/)
 										.map((s) =>
 											s.trim().replace(/\b\w/g, (l) => l.toUpperCase()),
 										)
@@ -1275,7 +1275,7 @@ const CandidateRow = React.memo(
 				</td>
 
 				{/* Actions */}
-				<td className="w-32 px-4 py-4 align-top sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 transition-colors duration-200 hidden md:table-cell border-l border-slate-200 dark:border-slate-800">
+				<td className="w-32 px-4 py-4 align-top sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors duration-200 hidden md:table-cell border-l border-slate-200 dark:border-slate-800">
 					<div className="flex justify-end gap-0.5">
 						<button
 								className="p-1 text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"

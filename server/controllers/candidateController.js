@@ -599,15 +599,15 @@ export const searchCandidates = async (req, res) => {
 		// 1. Keyword Search (Regex replacement for Text Search)
 		if (q && q.trim()) {
 			const safeQ = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			
+
 			// Performance Optimization: Detect specific formats to avoid scanning all fields
 			const isEmail = safeQ.includes('@');
 			const isPhone = /^[0-9+\-\s()]+$/.test(safeQ) && safeQ.replace(/\D/g, '').length > 5;
 
 			if (isEmail) {
-				andConditions.push({ email: new RegExp(safeQ, "i") });
+				andConditions.push({ email: new RegExp(`^${safeQ}`, "i") }); // Start-of-string optimization
 			} else if (isPhone) {
-				andConditions.push({ phone: new RegExp(safeQ, "i") });
+				andConditions.push({ phone: new RegExp(safeQ.replace(/\s+/g, ''), "i") });
 			} else {
 				// Optimization: Use start-of-string anchor if possible, or simple regex
 				// Note: Full text search (Atlas Search) is recommended for production speed

@@ -427,25 +427,25 @@ const AdminDashboard = () => {
 				{/* Header & Tabs */}
 				<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg border border-slate-200 dark:border-transparent">
 					<div className="flex flex-col sm:flex-row justify-between gap-4">
-						<div className="flex gap-1 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-xl">
+						<div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/70 p-1.5 rounded-xl">
 							<button
 								onClick={() => setActiveTab("upload")}
-								className={`px-5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all
+								className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
           ${
 						activeTab === "upload"
-							? "bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow"
-							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700/60"
+							? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
+							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
 					}`}>
 								Upload & Map
 							</button>
 
 							<button
 								onClick={() => setActiveTab("history")}
-								className={`px-5 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all
+								className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
           ${
 						activeTab === "history"
-							? "bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow"
-							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700/60"
+							? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
+							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
 					}`}>
 								History
 							</button>
