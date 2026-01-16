@@ -777,9 +777,6 @@ const UserSearch = () => {
 							<div className="hidden md:block h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
 
 							<div className="col-span-1 flex items-center justify-center gap-1 md:gap-1">
-								<span className="hidden md:inline text-xs font-medium text-slate-500 dark:text-slate-400 px-1">
-									Contact:
-								</span>
 
 								{/* Email Filter */}
 								<button
@@ -836,23 +833,27 @@ const UserSearch = () => {
 							{/* Search Button */}
 							<button
 								onClick={handleTriggerSearch}
-								className={`hidden md:flex items-center gap-1 ml-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shadow-sm cursor-pointer ${
+								disabled={!hasActiveFilters}
+								className={`hidden md:flex items-center gap-1 ml-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shadow-sm ${
 									hasActiveFilters
-										? "bg-indigo-600 hover:bg-indigo-700 text-white"
-										: "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+										? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+										: "bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600"
 								}`}>
 								<Search size={14} />
 								Search
 							</button>
 
 							{/* Clear Filters */}
-							{hasActiveFilters && (
-								<button
-									onClick={clearAllFilters}
-									className="hidden md:block ml-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 whitespace-nowrap transition-colors px-2 cursor-pointer">
-									Clear
-								</button>
-							)}
+							<button
+								onClick={clearAllFilters}
+								disabled={!hasActiveFilters}
+								className={`hidden md:block ml-2 text-xs font-medium whitespace-nowrap transition-colors px-2 ${
+									hasActiveFilters
+										? "text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer"
+										: "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+								}`}>
+								Clear
+							</button>
 						</div>
 
 						{/* Count Display */}
