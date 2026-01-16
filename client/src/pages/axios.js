@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 // Use environment variable, or fallback to '/api' in dev (for proxy), or absolute URL in prod
 const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://api.stucrow.com:8444/api');
@@ -7,7 +8,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' :
 const api = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // This is crucial for sending cookies (like the refresh token)
-  timeout: 30000, // 30 seconds timeout to prevent hanging requests
+  timeout: 60000, // Increased to 60s for slow search queries
 });
 
 // Create a separate instance specifically for the token refresh logic
@@ -72,6 +73,12 @@ api.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    // Handle Server Errors (500-599)
+    if (error.response && error.response.status >= 500) {
+      console.error('Server Error:', error.response.data);
+      toast.error('Server error. Please try a more specific search.');
     }
 
     // For any other errors, just reject the promise

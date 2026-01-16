@@ -664,21 +664,30 @@ export const searchCandidates = async (req, res) => {
 		const findQuery = Candidate.find(query)
 			.limit(limitNum)
 			.skip(skip)
-			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry createdAt") // Removed summary to reduce payload size
+			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt")
 			.sort({ createdAt: -1 })
 			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
-			.maxTimeMS(20000); // Fail if query takes longer than 20s (prevents server hang)
+			.maxTimeMS(60000); // Increased timeout to 60s
 
 		if (pageNum === 1) {
-			// Optimization: Run find first to potentially skip expensive count
-			candidates = await findQuery.exec();
+			// Optimization: Run find and count in parallel to reduce latency
+			// Wrap count in catch to prevent 500 error on timeout
+			const countPromise = Candidate.countDocuments(query).maxTimeMS(60000).exec().catch(err => {
+				console.warn("Count query failed:", err.message);
+				return -1;
+			});
 
-			if (candidates.length < limitNum) {
-				// If fewer results than limit, we know the total count without querying DB again
-				totalCount = candidates.length;
-			} else {
-				// Only run expensive count if there might be more pages
-				totalCount = await Candidate.countDocuments(query).maxTimeMS(10000).exec();
+			const [candidatesResult, countResult] = await Promise.all([
+				findQuery.exec(),
+				countPromise
+			]);
+
+			candidates = candidatesResult;
+			totalCount = countResult;
+
+			// Fallback if count failed
+			if (totalCount === -1) {
+				totalCount = candidates.length < limitNum ? candidates.length : 10000;
 			}
 		} else {
 			candidates = await findQuery.exec();

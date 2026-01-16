@@ -253,40 +253,44 @@ const UserSearch = () => {
 	const debouncedSearchInput = useDebounce(searchInput, 500);
 	const debouncedFilters = useDebounce(filters, 500);
 
-	useEffect(() => {
-		const hasData = debouncedSearchInput || Object.values(debouncedFilters).some(v => v && v !== false && v !== "");
-		
-		if (hasData) {
-			const prefetchFilters = {
-				q: debouncedSearchInput,
-				locality: debouncedFilters.location,
-				jobTitle: debouncedFilters.jobTitle,
-				skills: debouncedFilters.skills,
-				hasEmail: debouncedFilters.hasEmail,
-				hasPhone: debouncedFilters.hasPhone,
-				hasLinkedin: debouncedFilters.hasLinkedin,
-			};
-
-			queryClient.prefetchInfiniteQuery({
-				queryKey: ["candidates", prefetchFilters],
-				queryFn: async ({ pageParam = 1 }) => {
-					const params = new URLSearchParams({
-						page: pageParam,
-						limit: PAGE_SIZE,
-						...Object.fromEntries(
-							Object.entries(prefetchFilters).filter(
-								([_, v]) => v !== "" && v !== false && v !== undefined && v !== null
-							)
-						),
-					});
-					const response = await api.get(`/candidates/search?${params}`);
-					return { ...response.data, currentPage: pageParam };
-				},
-				initialPageParam: 1,
-				staleTime: 60 * 1000, // Keep data fresh for 1 minute
+	// Background query to pre-fetch data while typing
+	// This handles cancellation automatically unlike the previous useEffect approach
+	useInfiniteQuery({
+		queryKey: ["candidates", {
+			q: debouncedSearchInput,
+			locality: debouncedFilters.location,
+			jobTitle: debouncedFilters.jobTitle,
+			skills: debouncedFilters.skills,
+			hasEmail: debouncedFilters.hasEmail,
+			hasPhone: debouncedFilters.hasPhone,
+			hasLinkedin: debouncedFilters.hasLinkedin,
+		}],
+		queryFn: async ({ pageParam = 1 }) => {
+			const params = new URLSearchParams({
+				page: pageParam,
+				limit: PAGE_SIZE,
+				...Object.fromEntries(
+					Object.entries({
+						q: debouncedSearchInput,
+						locality: debouncedFilters.location,
+						jobTitle: debouncedFilters.jobTitle,
+						skills: debouncedFilters.skills,
+						hasEmail: debouncedFilters.hasEmail,
+						hasPhone: debouncedFilters.hasPhone,
+						hasLinkedin: debouncedFilters.hasLinkedin,
+					}).filter(
+						([_, v]) => v !== "" && v !== false && v !== undefined && v !== null
+					)
+				),
 			});
-		}
-	}, [debouncedSearchInput, debouncedFilters, queryClient]);
+			const response = await api.get(`/candidates/search?${params}`);
+			return { ...response.data, currentPage: pageParam };
+		},
+		initialPageParam: 1,
+		enabled: !!(debouncedSearchInput || Object.values(debouncedFilters).some(v => v && v !== false && v !== "")),
+		staleTime: 60 * 1000,
+		notifyOnChangeProps: [], // Prevent re-renders from this background fetch
+	});
 
 	// Prevent accidental tab closure if candidates are selected
 	useEffect(() => {
@@ -702,7 +706,7 @@ const UserSearch = () => {
 						We couldn't find what you searched for
 					</h3>
 					<p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-						Please search for correct data or try again with correct keywords.
+						Try again with correct keywords.
 					</p>
 				</div>
 
