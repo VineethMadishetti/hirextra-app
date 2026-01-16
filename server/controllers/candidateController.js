@@ -677,7 +677,7 @@ export const searchCandidates = async (req, res) => {
 				totalCount = candidates.length;
 			} else {
 				// Only run expensive count if there might be more pages
-				totalCount = await Candidate.countDocuments(query).exec();
+				totalCount = await Candidate.countDocuments(query).maxTimeMS(10000).exec();
 			}
 		} else {
 			candidates = await findQuery.exec();

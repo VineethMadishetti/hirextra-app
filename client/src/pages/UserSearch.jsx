@@ -216,6 +216,12 @@ const UserSearch = () => {
 	const [appliedSearchInput, setAppliedSearchInput] = useState(searchInput);
 	const [appliedFilters, setAppliedFilters] = useState(filters);
 
+	// Track if search has been explicitly applied (or restored from storage)
+	const [isSearchApplied, setIsSearchApplied] = useState(() => {
+		const hasFilters = Object.values(filters).some((v) => v && v !== false && v !== "");
+		return !!(searchInput || hasFilters);
+	});
+
 	// Ensure applied state syncs with initial localStorage load
 	useEffect(() => {
 		setAppliedSearchInput(searchInput);
@@ -242,6 +248,46 @@ const UserSearch = () => {
 		localStorage.setItem("hirextra_filters", JSON.stringify(filters));
 	}, [filters]);
 
+	// --- PRE-FETCHING LOGIC ---
+	// Satisfies: "filtering should happen backend right from typing... but display after entering search"
+	const debouncedSearchInput = useDebounce(searchInput, 500);
+	const debouncedFilters = useDebounce(filters, 500);
+
+	useEffect(() => {
+		const hasData = debouncedSearchInput || Object.values(debouncedFilters).some(v => v && v !== false && v !== "");
+		
+		if (hasData) {
+			const prefetchFilters = {
+				q: debouncedSearchInput,
+				locality: debouncedFilters.location,
+				jobTitle: debouncedFilters.jobTitle,
+				skills: debouncedFilters.skills,
+				hasEmail: debouncedFilters.hasEmail,
+				hasPhone: debouncedFilters.hasPhone,
+				hasLinkedin: debouncedFilters.hasLinkedin,
+			};
+
+			queryClient.prefetchInfiniteQuery({
+				queryKey: ["candidates", prefetchFilters],
+				queryFn: async ({ pageParam = 1 }) => {
+					const params = new URLSearchParams({
+						page: pageParam,
+						limit: PAGE_SIZE,
+						...Object.fromEntries(
+							Object.entries(prefetchFilters).filter(
+								([_, v]) => v !== "" && v !== false && v !== undefined && v !== null
+							)
+						),
+					});
+					const response = await api.get(`/candidates/search?${params}`);
+					return { ...response.data, currentPage: pageParam };
+				},
+				initialPageParam: 1,
+				staleTime: 60 * 1000, // Keep data fresh for 1 minute
+			});
+		}
+	}, [debouncedSearchInput, debouncedFilters, queryClient]);
+
 	// Prevent accidental tab closure if candidates are selected
 	useEffect(() => {
 		const handleBeforeUnload = (e) => {
@@ -259,6 +305,7 @@ const UserSearch = () => {
 		setAppliedSearchInput(searchInput);
 		setAppliedFilters(filters);
 		setSelectedIds(new Set());
+		setIsSearchApplied(true);
 	}, [searchInput, filters]);
 
 	// Handle Enter key in inputs
@@ -326,7 +373,7 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
-		enabled: !!hasActiveFilters,
+		enabled: isSearchApplied,
 		staleTime: 60 * 1000, // Increased to 60s to prevent UI flickering/unnecessary fetches
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: true,
@@ -410,6 +457,7 @@ const UserSearch = () => {
 		setAppliedSearchInput("");
 		setAppliedFilters({ location: "", jobTitle: "", skills: "", hasEmail: false, hasPhone: false, hasLinkedin: false });
 		setSelectedIds(new Set());
+		setIsSearchApplied(false);
 	}, []);
 
 	// Bulk delete mutation
@@ -778,7 +826,7 @@ const UserSearch = () => {
 
 							{/* Mobile Showing Count (Row 2, Col 3) */}
 							<div className="col-span-1 flex items-center justify-end md:hidden">
-								{hasActiveFilters && (
+								{isSearchApplied && (
 									<span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
 										{candidates.length} / {totalCount}
 									</span>
@@ -788,7 +836,11 @@ const UserSearch = () => {
 							{/* Search Button */}
 							<button
 								onClick={handleTriggerSearch}
-								className="hidden md:flex items-center gap-1 ml-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm cursor-pointer">
+								className={`hidden md:flex items-center gap-1 ml-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shadow-sm cursor-pointer ${
+									hasActiveFilters
+										? "bg-indigo-600 hover:bg-indigo-700 text-white"
+										: "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+								}`}>
 								<Search size={14} />
 								Search
 							</button>
@@ -805,7 +857,7 @@ const UserSearch = () => {
 
 						{/* Count Display */}
 						<div className="hidden md:block w-full md:w-auto md:pl-4 md:border-l border-slate-200 dark:border-slate-800">
-							{hasActiveFilters && (
+							{isSearchApplied && (
 								isFetching && !isFetchingNextPage ? (
 									<div className="flex items-center justify-center px-3 py-1.5 h-[30px] w-[120px]">
 										<Loader className="animate-spin h-5 w-5 text-indigo-500" />
@@ -869,7 +921,7 @@ const UserSearch = () => {
 
 				{/* Table Container - Scrollable area starting below filters and table head */}
 				<div className="flex-1 overflow-hidden flex flex-col">
-					{hasActiveFilters && ((isFetching && !data) || candidates.length > 0) ? (
+					{isSearchApplied && ((isFetching && !data) || candidates.length > 0) ? (
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
 							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
@@ -971,7 +1023,7 @@ const UserSearch = () => {
 						</div>
 					) : (
 						// Empty State Logic
-						!hasActiveFilters ? (
+						!isSearchApplied ? (
 							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
 								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
 									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85]" />
@@ -980,7 +1032,7 @@ const UserSearch = () => {
 											Begin Your Search...
 										</h2>
 										<p className="text-slate-500 dark:text-slate-400 max-w-xs">
-											Use the filters above to find candidates by name, job title, location, or skills.
+											Use the filters above to find candidates by name, job title, location, or skills and Enter Search.
 										</p>
 									</div>
 								</div>
