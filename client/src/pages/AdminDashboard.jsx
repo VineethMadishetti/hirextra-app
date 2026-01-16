@@ -708,6 +708,11 @@ const AdminDashboard = () => {
 													<p className="text-xs text-slate-500 dark:text-slate-400">
 														{formatDate(job.createdAt)}
 													</p>
+													{job.error && (
+														<p className="text-xs text-rose-500 mt-1 truncate max-w-[250px]" title={job.error}>
+															Error: {job.error}
+														</p>
+													)}
 												</div>
 											</div>
 
@@ -750,15 +755,18 @@ const AdminDashboard = () => {
 															</div>
 														</div>
 													) : (
-														<>
-															<span className="font-semibold">
-																{job.successRows?.toLocaleString() || "0"}
-															</span>
-															<span className="text-xs text-slate-500 dark:text-slate-400">
-																{" "}
-																records
-															</span>
-														</>
+														<div className="flex flex-col items-end gap-0.5">
+															<div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400" title="Successful Records">
+																<CheckCircle size={12} />
+																<span className="font-semibold">{job.successRows?.toLocaleString() || "0"}</span>
+															</div>
+															{(job.failedRows > 0 || job.status === 'FAILED') && (
+																<div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400" title="Failed Records">
+																	<XCircle size={12} />
+																	<span className="font-semibold">{job.failedRows?.toLocaleString() || "0"}</span>
+																</div>
+															)}
+														</div>
 													)}
 												</div>
 

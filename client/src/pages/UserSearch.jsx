@@ -11,6 +11,7 @@ import {
 	useInfiniteQuery,
 	useMutation,
 	useQueryClient,
+	keepPreviousData,
 } from "@tanstack/react-query";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
@@ -308,6 +309,7 @@ const UserSearch = () => {
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
 		refetchInterval: false, // Disabled aggressive polling to prevent unnecessary load and 401s
+		placeholderData: keepPreviousData, // Keep previous results while fetching new ones to prevent flash
 	});
 
 	// Simplified scroll loading logic
@@ -611,25 +613,32 @@ const UserSearch = () => {
 
 	if (status === "error" && !candidates.length) {
 		return (
-			<div className="flex flex-col items-center justify-center h-[calc(100vh-65px)] p-4 bg-slate-50 dark:bg-slate-950">
-				<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-md">
-					<div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
-						<AlertTriangle className="w-6 h-6 text-red-600" />
+			<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-6 text-center p-8 animate-in fade-in zoom-in duration-300">
+				<div className="relative">
+					<div className="absolute inset-0 bg-yellow-50 dark:bg-yellow-900/20 rounded-full blur-2xl"></div>
+					<div className="relative bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
+						<AlertTriangle
+							className="h-12 w-12 text-yellow-500 dark:text-yellow-400"
+							strokeWidth={1.5}
+						/>
 					</div>
-					<h3 className="text-lg font-semibold text-slate-900 mb-2">
-						Unable to load candidates
-					</h3>
-					<p className="text-slate-500 mb-6 text-sm">
-						{error?.response?.status === 500
-							? "Server error. If searching, try simpler keywords."
-							: error?.message || "Something went wrong."}
-					</p>
-					<button
-						onClick={() => refetch()}
-						className="px-5 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium text-sm">
-						Try Again
-					</button>
 				</div>
+
+				<div className="max-w-sm space-y-2">
+					<h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+						We couldn't find what you searched for
+					</h3>
+					<p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
+						A server error may have occurred. Please search for correct data or try again with simpler keywords.
+					</p>
+				</div>
+
+				<button
+					onClick={clearAllFilters}
+					className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm shadow-indigo-200 dark:shadow-none flex items-center gap-2">
+					<Filter size={16} />
+					Clear Filters & Try Again
+				</button>
 			</div>
 		);
 	}

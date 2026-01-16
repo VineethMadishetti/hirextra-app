@@ -343,7 +343,7 @@ export const uploadChunk = async (req, res) => {
 				}
 
 				// Only on successful upload, tell frontend upload is complete
-				res.json({
+				res.status(200).json({
 					status: "done",
 					message: "Upload complete",
 					filePath: s3Key, // Return S3 key instead of local path
@@ -551,7 +551,7 @@ export const getUploadHistory = async (req, res) => {
 		// Optimized query: only fetch essential fields, limit to recent 100 jobs
 		const jobs = await UploadJob.find()
 			.select(
-				"fileName originalName uploadedBy status totalRows successRows failedRows mapping createdAt updatedAt completedAt",
+				"fileName originalName uploadedBy status totalRows successRows failedRows error mapping createdAt updatedAt completedAt",
 			)
 			.sort({ createdAt: -1 })
 			.limit(100) // Limit to recent 100 jobs for faster loading
@@ -667,8 +667,16 @@ export const searchCandidates = async (req, res) => {
 			.maxTimeMS(20000); // Fail if query takes longer than 20s (prevents server hang)
 
 		if (pageNum === 1) {
-			// Only count documents on the first page to save resources
-			[candidates, totalCount] = await Promise.all([findQuery.exec(), Candidate.countDocuments(query).exec()]);
+			// Optimization: Run find first to potentially skip expensive count
+			candidates = await findQuery.exec();
+
+			if (candidates.length < limitNum) {
+				// If fewer results than limit, we know the total count without querying DB again
+				totalCount = candidates.length;
+			} else {
+				// Only run expensive count if there might be more pages
+				totalCount = await Candidate.countDocuments(query).exec();
+			}
 		} else {
 			candidates = await findQuery.exec();
 			totalCount = -1; // Indicate count was skipped
