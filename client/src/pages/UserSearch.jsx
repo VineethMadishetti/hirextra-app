@@ -844,15 +844,16 @@ const UserSearch = () => {
 
 							{/* Search Button */}
 							<button
-  onClick={() => setCurrentView("search")}
-  className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider text-center transition-all duration-300 transform
-    ${currentView === "search"
-      ? "text-brand-secondary border-b-2 border-brand-secondary bg-white/5"
-      : "text-gray-400 hover:text-white hover:-translate-y-1 hover:scale-[1.02] active:scale-95 hover:bg-white/5"
-    }`}
->
-  Search
-</button>
+								onClick={handleTriggerSearch}
+								disabled={!hasActiveFilters}
+								className={`hidden md:flex items-center gap-1.5 ml-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all shadow-sm ${
+									hasActiveFilters
+										? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-indigo-200 dark:shadow-none hover:shadow-md"
+										: "bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600"
+								}`}>
+								<Search size={14} />
+								Search
+							</button>
 
 							{/* Clear Filters */}
 							<button
