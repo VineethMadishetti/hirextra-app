@@ -210,6 +210,18 @@ const UserSearch = () => {
 		}
 	});
 
+	// --- APPLIED STATE (For Manual Search) ---
+	// These states are what the API query actually listens to.
+	// They only update when the user clicks "Search" or presses Enter.
+	const [appliedSearchInput, setAppliedSearchInput] = useState(searchInput);
+	const [appliedFilters, setAppliedFilters] = useState(filters);
+
+	// Ensure applied state syncs with initial localStorage load
+	useEffect(() => {
+		setAppliedSearchInput(searchInput);
+		setAppliedFilters(filters);
+	}, []); // Run once on mount
+
 	const hasActiveFilters =
 		searchInput ||
 		Object.values(filters).some((v) => v && v !== false && v !== "");
@@ -242,20 +254,31 @@ const UserSearch = () => {
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
 	}, [selectedIds]);
 
-	const debouncedSearch = useDebounce(searchInput, 300);
-	const debouncedFilters = useDebounce(filters, 300); // Reduced to 300ms for faster feedback
+	// Trigger Search Action
+	const handleTriggerSearch = useCallback(() => {
+		setAppliedSearchInput(searchInput);
+		setAppliedFilters(filters);
+		setSelectedIds(new Set());
+	}, [searchInput, filters]);
+
+	// Handle Enter key in inputs
+	const handleKeyDown = (e) => {
+		if (e.key === "Enter") {
+			handleTriggerSearch();
+		}
+	};
 
 	const queryFilters = useMemo(
 		() => ({
-			q: debouncedSearch,
-			locality: debouncedFilters.location,
-			jobTitle: debouncedFilters.jobTitle,
-			skills: debouncedFilters.skills,
-			hasEmail: debouncedFilters.hasEmail,
-			hasPhone: debouncedFilters.hasPhone,
-			hasLinkedin: debouncedFilters.hasLinkedin,
+			q: appliedSearchInput,
+			locality: appliedFilters.location,
+			jobTitle: appliedFilters.jobTitle,
+			skills: appliedFilters.skills,
+			hasEmail: appliedFilters.hasEmail,
+			hasPhone: appliedFilters.hasPhone,
+			hasLinkedin: appliedFilters.hasLinkedin,
 		}),
-		[debouncedSearch, debouncedFilters],
+		[appliedSearchInput, appliedFilters],
 	);
 
 	const queryKey = useMemo(() => ["candidates", queryFilters], [queryFilters]);
@@ -309,7 +332,7 @@ const UserSearch = () => {
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
 		refetchInterval: false, // Disabled aggressive polling to prevent unnecessary load and 401s
-		placeholderData: keepPreviousData, // Keep previous results while fetching new ones to prevent flash
+		// placeholderData: keepPreviousData, // Removed to prevent displaying old data while searching
 	});
 
 	// Simplified scroll loading logic
@@ -384,6 +407,8 @@ const UserSearch = () => {
 			hasPhone: false,
 			hasLinkedin: false,
 		});
+		setAppliedSearchInput("");
+		setAppliedFilters({ location: "", jobTitle: "", skills: "", hasEmail: false, hasPhone: false, hasLinkedin: false });
 		setSelectedIds(new Set());
 	}, []);
 
@@ -662,6 +687,7 @@ const UserSearch = () => {
 									className="w-full pl-7 pr-6 py-1 md:pl-9 md:pr-8 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 									value={searchInput}
 									onChange={handleSearchChange}
+									onKeyDown={handleKeyDown}
 								/>
 								{searchInput && (
 									<button
@@ -678,6 +704,7 @@ const UserSearch = () => {
 								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 								value={filters.jobTitle}
 								onChange={(e) => handleFilterChange("jobTitle", e.target.value)}
+								onKeyDown={handleKeyDown}
 							/>
 
 							{/* Location */}
@@ -686,6 +713,7 @@ const UserSearch = () => {
 								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 								value={filters.location}
 								onChange={(e) => handleFilterChange("location", e.target.value)}
+								onKeyDown={handleKeyDown}
 							/>
 
 							{/* Skills */}
@@ -694,6 +722,7 @@ const UserSearch = () => {
 								className="col-span-1 min-w-0 md:min-w-[140px] px-2 py-1 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500 outline-none transition-all h-8 md:h-auto"
 								value={filters.skills}
 								onChange={(e) => handleFilterChange("skills", e.target.value)}
+								onKeyDown={handleKeyDown}
 							/>
 
 							{/* Divider */}
@@ -755,6 +784,14 @@ const UserSearch = () => {
 									</span>
 								)}
 							</div>
+
+							{/* Search Button */}
+							<button
+								onClick={handleTriggerSearch}
+								className="hidden md:flex items-center gap-1 ml-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm cursor-pointer">
+								<Search size={14} />
+								Search
+							</button>
 
 							{/* Clear Filters */}
 							{hasActiveFilters && (
