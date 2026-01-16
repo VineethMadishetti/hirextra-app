@@ -609,16 +609,17 @@ export const searchCandidates = async (req, res) => {
 			} else if (isPhone) {
 				andConditions.push({ phone: new RegExp(safeQ, "i") });
 			} else {
-				const regex = new RegExp(safeQ, "i");
+				// Optimization: Use start-of-string anchor if possible, or simple regex
+				// Note: Full text search (Atlas Search) is recommended for production speed
+				const regex = new RegExp(safeQ, "i"); 
 				andConditions.push({
 					$or: [
 						{ fullName: regex },
 						{ jobTitle: regex },
 						{ skills: regex },
-						{ company: regex },
-						{ location: regex },
-						{ locality: regex },
-						{ country: regex },
+						{ company: regex }, 
+						{ location: regex }, // Prioritize common fields
+						{ locality: regex }
 					],
 				});
 			}
@@ -663,7 +664,7 @@ export const searchCandidates = async (req, res) => {
 		const findQuery = Candidate.find(query)
 			.limit(limitNum)
 			.skip(skip)
-			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt") // Explicitly select fields to reduce payload
+			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry createdAt") // Removed summary to reduce payload size
 			.sort({ createdAt: -1 })
 			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
 			.maxTimeMS(20000); // Fail if query takes longer than 20s (prevents server hang)

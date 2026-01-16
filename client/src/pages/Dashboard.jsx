@@ -53,7 +53,7 @@ const Dashboard = () => {
 			await api.get("/candidates/search?limit=1"); // Lightweight call to keep token alive
 			return null;
 		},
-		refetchInterval: 2 * 60 * 1000, // Ping every 2 minutes
+		refetchInterval: 45 * 1000, // Ping every 45 seconds to ensure token stays alive
 		retry: false,
 	});
 

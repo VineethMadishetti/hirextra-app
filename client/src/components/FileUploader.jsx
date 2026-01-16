@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { UploadCloud, CheckCircle, AlertCircle, Loader, FileText, X, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import AddFilesIcon from '../assets/add-files.svg';
@@ -58,8 +58,7 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
         formData.append('chunkIndex', chunkIndex);
         formData.append('totalChunks', totalChunks);
 
-        const { data } = await axios.post('/candidates/upload-chunk', formData, {
-          withCredentials: true,
+        const { data } = await api.post('/candidates/upload-chunk', formData, {
           timeout: 300000,
           onUploadProgress: (e) => {
             if (e.total) {

@@ -34,7 +34,7 @@ import {
 	Award,
 	Calendar,
 	Linkedin,
-	AlertTriangle,
+	RefreshCw,
 	Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -678,7 +678,7 @@ const UserSearch = () => {
 	// Effect to notify user of errors without hiding data
 	useEffect(() => {
 		if (status === "error") {
-			toast.error("Network error or session expired. Please check your connection.", {
+			toast.error("Try Again...", {
 				id: "search-error", // Prevent duplicates
 			});
 		}
@@ -688,10 +688,10 @@ const UserSearch = () => {
 		return (
 			<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-6 text-center p-8 animate-in fade-in zoom-in duration-300">
 				<div className="relative">
-					<div className="absolute inset-0 bg-yellow-50 dark:bg-yellow-900/20 rounded-full blur-2xl"></div>
+					<div className="absolute inset-0 bg-indigo-50 dark:bg-indigo-900/20 rounded-full blur-2xl"></div>
 					<div className="relative bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
-						<AlertTriangle
-							className="h-12 w-12 text-yellow-500 dark:text-yellow-400"
+						<RefreshCw
+							className="h-12 w-12 text-indigo-500 dark:text-indigo-400"
 							strokeWidth={1.5}
 						/>
 					</div>
@@ -702,7 +702,7 @@ const UserSearch = () => {
 						We couldn't find what you searched for
 					</h3>
 					<p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-						A server error may have occurred. Please search for correct data or try again with simpler keywords.
+						Please search for correct data or try again with correct keywords.
 					</p>
 				</div>
 
@@ -846,12 +846,8 @@ const UserSearch = () => {
 							{/* Clear Filters */}
 							<button
 								onClick={clearAllFilters}
-								disabled={!hasActiveFilters}
-								className={`hidden md:block ml-2 text-xs font-medium whitespace-nowrap transition-colors px-2 ${
-									hasActiveFilters
-										? "text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer"
-										: "text-slate-300 dark:text-slate-600 cursor-not-allowed"
-								}`}>
+								className="hidden md:block ml-2 text-xs font-medium whitespace-nowrap transition-colors px-2 text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer"
+							>
 								Clear
 							</button>
 						</div>
