@@ -74,7 +74,7 @@ const Login = () => {
 						{/* Header */}
 						<div className="mb-10 text-center lg:text-left">
 					<h2 className="text-3xl font-bold text-white tracking-tight">
-						Welcome,
+						Welcome
 					</h2>
 					<p className="text-gray-400 mt-2 text-sm">
 						Sign in to your account

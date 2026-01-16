@@ -331,38 +331,25 @@ export const uploadChunk = async (req, res) => {
 		if (!responseSent) {
 			responseSent = true;
 
-			// Upload to S3 after reading headers
-			try {
-				const fileStream = fs.createReadStream(finalFilePath);
-				await uploadToS3(fileStream, s3Key, "text/csv");
-				console.log(`✅ File uploaded to S3: ${s3Key}`);
-
-				// Clean up local temp file
-				if (fs.existsSync(finalFilePath)) {
-					fs.unlinkSync(finalFilePath);
-				}
-
-				// Only on successful upload, tell frontend upload is complete
-				res.status(200).json({
-					status: "done",
-					message: "Upload complete",
-					filePath: s3Key, // Return S3 key instead of local path
-					headers,
+			// Upload to S3 in background to prevent UI blocking (stuck at 99%)
+			const fileStream = fs.createReadStream(finalFilePath);
+			uploadToS3(fileStream, s3Key, "text/csv")
+				.then(() => {
+					console.log(`✅ File uploaded to S3: ${s3Key}`);
+					deleteFile(finalFilePath);
+				})
+				.catch((err) => {
+					console.error("❌ S3 upload failed:", err);
+					deleteFile(finalFilePath);
 				});
-			} catch (s3Error) {
-				console.error("❌ S3 upload failed:", s3Error);
 
-				// If upload fails, do NOT allow mapping/processing with a bad key
-				if (fs.existsSync(finalFilePath)) {
-					fs.unlinkSync(finalFilePath);
-				}
-
-				return res.status(500).json({
-					status: "error",
-					message: "Failed to upload file to storage. Please try again.",
-					error: s3Error.message,
-				});
-			}
+			// Respond immediately so frontend can show mapping section
+			res.status(200).json({
+				status: "done",
+				message: "Upload complete",
+				filePath: s3Key, // Return S3 key instead of local path
+				headers,
+			});
 		}
 	};
 
@@ -585,6 +572,10 @@ export const getJobStatus = async (req, res) => {
 // --- SEARCH (Updated for Soft Delete) ---
 export const searchCandidates = async (req, res) => {
 	try {
+		res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+		res.setHeader("Pragma", "no-cache");
+		res.setHeader("Expires", "0");
+		res.setHeader("Surrogate-Control", "no-store");
 		const {
 			q,
 			locality,
@@ -606,20 +597,31 @@ export const searchCandidates = async (req, res) => {
 		const andConditions = [];
 
 		// 1. Keyword Search (Regex replacement for Text Search)
-		if (q) {
-			const safeQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const regex = new RegExp(safeQ, "i");
-			andConditions.push({
-				$or: [
-					{ fullName: regex },
-					{ jobTitle: regex },
-					{ skills: regex },
-					{ company: regex },
-					{ location: regex },
-					{ locality: regex },
-					{ country: regex },
-				],
-			});
+		if (q && q.trim()) {
+			const safeQ = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			
+			// Performance Optimization: Detect specific formats to avoid scanning all fields
+			const isEmail = safeQ.includes('@');
+			const isPhone = /^[0-9+\-\s()]+$/.test(safeQ) && safeQ.replace(/\D/g, '').length > 5;
+
+			if (isEmail) {
+				andConditions.push({ email: new RegExp(safeQ, "i") });
+			} else if (isPhone) {
+				andConditions.push({ phone: new RegExp(safeQ, "i") });
+			} else {
+				const regex = new RegExp(safeQ, "i");
+				andConditions.push({
+					$or: [
+						{ fullName: regex },
+						{ jobTitle: regex },
+						{ skills: regex },
+						{ company: regex },
+						{ location: regex },
+						{ locality: regex },
+						{ country: regex },
+					],
+				});
+			}
 		}
 
 		// 2. Specific Filters

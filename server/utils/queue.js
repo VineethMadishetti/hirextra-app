@@ -147,6 +147,20 @@ const findHeaderRowIndex = async (filePath, mapping) => {
 	}
 };
 
+// Helper to wait for file to appear in S3 (handling background upload race condition)
+const waitForFileInS3 = async (filePath, maxRetries = 30, delayMs = 2000) => {
+	for (let i = 0; i < maxRetries; i++) {
+		if (await fileExistsInS3(filePath)) {
+			return true;
+		}
+		if (i % 5 === 0) {
+			logger.info(`⏳ Waiting for file ${filePath} to appear in S3... (Attempt ${i + 1}/${maxRetries})`);
+		}
+		await new Promise((resolve) => setTimeout(resolve, delayMs));
+	}
+	return false;
+};
+
 // ---------------------------------------------------
 // Core CSV processing logic (shared between worker
 // and direct-processing fallback)
@@ -187,7 +201,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		}
 
 		// Ensure source file exists in S3 before doing any heavy work
-		const exists = await fileExistsInS3(filePath);
+		const exists = await waitForFileInS3(filePath);
 		if (!exists) {
 			logger.error(`❌ Source file missing in S3 for job ${jobId}: ${filePath}`);
 			await UploadJob.findByIdAndUpdate(jobId, {

@@ -7,6 +7,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' :
 const api = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // This is crucial for sending cookies (like the refresh token)
+  timeout: 30000, // 30 seconds timeout to prevent hanging requests
 });
 
 // Create a separate instance specifically for the token refresh logic
