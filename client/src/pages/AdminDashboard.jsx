@@ -53,6 +53,27 @@ class ErrorBoundary extends React.Component {
 	}
 }
 
+// Skeleton Loader for History Items
+const HistorySkeleton = () => (
+	<div className="bg-white dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 animate-pulse">
+		<div className="flex items-center gap-4 min-w-0 w-full lg:w-1/3">
+			<div className="bg-slate-200 dark:bg-slate-700 p-2 rounded-lg w-9 h-9 shrink-0" />
+			<div className="min-w-0 flex-1 space-y-2">
+				<div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+				<div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+			</div>
+		</div>
+		<div className="flex items-center gap-4 justify-between lg:justify-end w-full lg:w-auto">
+			<div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full" />
+			<div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded hidden sm:block" />
+			<div className="flex gap-2">
+				<div className="h-8 w-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+				<div className="h-8 w-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+			</div>
+		</div>
+	</div>
+);
+
 const AdminDashboard = () => {
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState("upload");
@@ -654,8 +675,8 @@ const AdminDashboard = () => {
 						</div>
 
 						{isHistoryLoading ? (
-							<div className="p-12 text-center">
-								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+							<div className="p-4 space-y-3">
+								{[...Array(5)].map((_, i) => <HistorySkeleton key={i} />)}
 							</div>
 						) : jobs.length === 0 ? (
 							<div className="p-12 text-center">
@@ -694,7 +715,7 @@ const AdminDashboard = () => {
 											key={job._id}
 											className="bg-white dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700
                          flex flex-col lg:flex-row lg:items-center lg:justify-between
-                         gap-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                         gap-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all duration-300">
 											{/* File Info */}
 											<div className="flex items-center gap-4 min-w-0">
 												<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">

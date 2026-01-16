@@ -81,12 +81,12 @@ const Dashboard = () => {
 	};
 
 	return (
-		<div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+		<div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 font-sans text-slate-900 dark:text-slate-100">
 			{/* --- Top Navigation Bar --- */}
 			<nav
 				className="fixed top-0 left-0 right-0 z-50
-  bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800
-  px-6 h-16 flex justify-between items-center">
+  bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50
+  px-6 h-16 flex justify-between items-center transition-all duration-300">
 				{/* Left: Logo & Admin Navigation */}
 				<div className="flex items-center gap-10">
 					<h1 className="text-xl font-extrabold tracking-tight select-none leading-none">

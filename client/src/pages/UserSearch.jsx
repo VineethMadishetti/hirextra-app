@@ -732,7 +732,7 @@ const UserSearch = () => {
 		<ErrorBoundary>
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
-				<div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-md ">
+				<div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all duration-300">
 					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
 						{/* Filters Row (Scrollable) */}
 						<div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2 md:flex-1 md:overflow-x-auto md:scrollbar-hide">
@@ -933,7 +933,7 @@ const UserSearch = () => {
 					{isSearchApplied && ((isFetching && !data) || candidates.length > 0) ? (
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
-							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
+							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
 								<div
 									className="overflow-x-auto overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
 									<table className="w-full min-w-[900px] md:table-fixed">
@@ -1106,7 +1106,7 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-200 dark:border-slate-800 md:rounded-none md:bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200 last:border-none ${
+				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-200/60 dark:border-slate-800 md:rounded-none md:bg-transparent hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-all duration-200 last:border-none animate-in fade-in slide-in-from-bottom-2 duration-500 ${
 					isSelected ? "bg-indigo-50 dark:bg-indigo-900/20" : ""
 				}`}>
 				{/* Checkbox */}

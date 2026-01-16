@@ -98,8 +98,8 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
 
   return (
     <div
-      className={`relative border-2 border-dashed rounded-xl p-12 transition-colors
-        ${dragActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'}
+      className={`relative border-2 border-dashed rounded-2xl p-12 transition-all duration-300 ease-in-out
+        ${dragActive ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20 scale-[1.02] shadow-lg' : 'border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 hover:border-indigo-400 dark:hover:border-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800'}
       `}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -166,6 +166,26 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
             />
           </div>
           <p className="text-sm text-gray-600 dark:text-slate-400">{progress}% uploading</p>
+        </div>
+      )}
+
+      {/* SUCCESS */}
+      {status === 'done' && (
+        <div className="text-center space-y-4 animate-in fade-in zoom-in duration-300">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 mb-2">
+            <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Upload Successful!</h3>
+          <p className="text-slate-500 dark:text-slate-400">Your file is ready for mapping.</p>
+          <button
+            onClick={() => {
+              setFile(null);
+              setStatus('idle');
+              setProgress(0);
+            }}
+            className="text-indigo-600 hover:text-indigo-500 font-medium text-sm hover:underline">
+            Upload another file
+          </button>
         </div>
       )}
 
