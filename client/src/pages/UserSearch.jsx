@@ -286,6 +286,14 @@ const UserSearch = () => {
 			const response = await api.get(`/candidates/search?${params}`);
 			return { ...response.data, currentPage: pageParam };
 		},
+		getNextPageParam: (lastPage, allPages) => {
+			const totalCount = allPages[0]?.totalCount || 0;
+			const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+			if (lastPage.currentPage < totalPages) {
+				return lastPage.currentPage + 1;
+			}
+			return undefined;
+		},
 		initialPageParam: 1,
 		enabled: !!(debouncedSearchInput || Object.values(debouncedFilters).some(v => v && v !== false && v !== "")),
 		staleTime: 60 * 1000,
