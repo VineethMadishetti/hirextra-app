@@ -235,14 +235,15 @@ const Dashboard = () => {
 						User Management
 					</button>
 					<button
-						onClick={() => setCurrentView("search")}
-						className={`flex-1 py-3 text-sm font-medium text-center ${
-							currentView === "search"
-								? "text-indigo-600 border-b-2 border-indigo-600"
-								: "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-						}`}>
-						Search
-					</button>
+    onClick={() => setCurrentView("search")}
+    className={`flex-1 py-3 text-sm font-medium text-center transition-all duration-75 active:translate-y-1 ${
+        currentView === "search"
+            ? "text-indigo-600 border-b-2 border-indigo-600"
+            : "text-gray-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 shadow-[0_4px_0_0_rgba(0,0,0,0.1)] hover:shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:translate-y-[2px] active:shadow-none"
+    }`}
+>
+    Search
+</button>
 				</div>
 			)}
 
