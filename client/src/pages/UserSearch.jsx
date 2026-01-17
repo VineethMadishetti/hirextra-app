@@ -193,6 +193,30 @@ const UserSearch = () => {
 	const { user } = useContext(AuthContext);
 	const queryClient = useQueryClient();
 	const [selectedProfile, setSelectedProfile] = useState(null);
+	const tableContainerRef = useRef(null);
+	const searchInputRef = useRef(null);
+	const [showBackToTop, setShowBackToTop] = useState(false);
+
+	// Scroll handler for Back to Top button
+	const handleScroll = useCallback((e) => {
+		setShowBackToTop(e.target.scrollTop > 400);
+	}, []);
+
+	const scrollToTop = () => {
+		tableContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+	};
+
+	// Keyboard shortcut for search focus (Ctrl/Cmd + K)
+	useEffect(() => {
+		const handleGlobalKeyDown = (e) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+				e.preventDefault();
+				searchInputRef.current?.focus();
+			}
+		};
+		window.addEventListener("keydown", handleGlobalKeyDown);
+		return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+	}, []);
 
 	// --- STATE PERSISTENCE & RESTORATION ---
 	// Initialize state from localStorage to recover from crashes/refresh
@@ -767,7 +791,8 @@ const UserSearch = () => {
 									size={14}
 								/>
 								<input
-									placeholder="Search..."
+									ref={searchInputRef}
+									placeholder="Search... (Ctrl+K)"
 									className="w-full pl-7 pr-6 py-1.5 md:pl-9 md:pr-8 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 									value={searchInput}
 									onChange={handleSearchChange}
@@ -783,31 +808,58 @@ const UserSearch = () => {
 							</div>
 
 							{/* Job Title */}
-							<input
-								placeholder="Job Title"
-								className="col-span-1 min-w-0 md:min-w-[140px] px-3 py-1.5 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
-								value={filters.jobTitle}
-								onChange={(e) => handleFilterChange("jobTitle", e.target.value)}
-								onKeyDown={handleKeyDown}
-							/>
+							<div className="relative col-span-1 min-w-0 md:min-w-[140px]">
+								<input
+									placeholder="Job Title"
+									className="w-full px-3 py-1.5 md:py-2 pr-7 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
+									value={filters.jobTitle}
+									onChange={(e) => handleFilterChange("jobTitle", e.target.value)}
+									onKeyDown={handleKeyDown}
+								/>
+								{filters.jobTitle && (
+									<button
+										onClick={() => handleFilterChange("jobTitle", "")}
+										className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded-full transition-colors">
+										<X size={12} className="md:w-[14px] md:h-[14px]" />
+									</button>
+								)}
+							</div>
 
 							{/* Location */}
-							<input
-								placeholder="Location"
-								className="col-span-1 min-w-0 md:min-w-[140px] px-3 py-1.5 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
-								value={filters.location}
-								onChange={(e) => handleFilterChange("location", e.target.value)}
-								onKeyDown={handleKeyDown}
-							/>
+							<div className="relative col-span-1 min-w-0 md:min-w-[140px]">
+								<input
+									placeholder="Location"
+									className="w-full px-3 py-1.5 md:py-2 pr-7 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
+									value={filters.location}
+									onChange={(e) => handleFilterChange("location", e.target.value)}
+									onKeyDown={handleKeyDown}
+								/>
+								{filters.location && (
+									<button
+										onClick={() => handleFilterChange("location", "")}
+										className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded-full transition-colors">
+										<X size={12} className="md:w-[14px] md:h-[14px]" />
+									</button>
+								)}
+							</div>
 
 							{/* Skills */}
-							<input
-								placeholder="Skills"
-								className="col-span-1 min-w-0 md:min-w-[140px] px-3 py-1.5 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
-								value={filters.skills}
-								onChange={(e) => handleFilterChange("skills", e.target.value)}
-								onKeyDown={handleKeyDown}
-							/>
+							<div className="relative col-span-1 min-w-0 md:min-w-[140px]">
+								<input
+									placeholder="Skills"
+									className="w-full px-3 py-1.5 md:py-2 pr-7 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
+									value={filters.skills}
+									onChange={(e) => handleFilterChange("skills", e.target.value)}
+									onKeyDown={handleKeyDown}
+								/>
+								{filters.skills && (
+									<button
+										onClick={() => handleFilterChange("skills", "")}
+										className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded-full transition-colors">
+										<X size={12} className="md:w-[14px] md:h-[14px]" />
+									</button>
+								)}
+							</div>
 
 							{/* Divider */}
 							<div className="hidden md:block h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
@@ -961,7 +1013,10 @@ const UserSearch = () => {
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
 							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
-								<div className="overflow-x-hidden overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
+								<div
+									ref={tableContainerRef}
+									onScroll={handleScroll}
+									className="overflow-x-hidden overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
 									<table className="w-full md:table-fixed">
 										<thead className="hidden md:table-header-group bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
 											<tr>
@@ -1099,6 +1154,16 @@ const UserSearch = () => {
 					)}
 				</div>
 
+				{/* Back to Top Button */}
+				{showBackToTop && (
+					<button
+						onClick={scrollToTop}
+						className="fixed bottom-8 right-8 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg shadow-indigo-500/30 transition-all duration-300 z-50 animate-in fade-in slide-in-from-bottom-4 hover:scale-110 active:scale-95"
+						title="Back to Top">
+						<ChevronUp size={24} />
+					</button>
+				)}
+
 				{selectedProfile && (
 					<ProfileModal
 						profile={selectedProfile}
@@ -1198,7 +1263,7 @@ const CandidateRow = React.memo(
 
 				{/* Skills with Scrollable Container */}
 				<td className="hidden md:table-cell w-auto md:w-48 px-0 md:px-6 py-2 md:py-4 align-top">
-					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_transparent]">
+					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
 						<p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
 							{candidate.skills
 								? candidate.skills
@@ -1383,7 +1448,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 			</div>
 
 			{/* Body */}
-			<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
+			<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
@@ -1496,7 +1561,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								</span>
 								Skills & Expertise
 							</h3>
-							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
+							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
 								{profile.skills ? (
 									<div className="flex flex-wrap gap-2">
 										{profile.skills.split(",").map((skill, i) => (

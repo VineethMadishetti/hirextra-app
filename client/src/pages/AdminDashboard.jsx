@@ -653,7 +653,8 @@ const AdminDashboard = () => {
 					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 						{/* Header */}
 						<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-							<div>
+							<div className="flex items-center gap-4">
+								<div>
 								<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
 									<cloudUpload className="w-5 h-5 text-blue-600" />
 									Upload History
@@ -661,6 +662,13 @@ const AdminDashboard = () => {
 								<p className="text-sm text-slate-400 mt-1">
 									View and manage processed files
 								</p>
+								</div>
+								<button
+									onClick={() => queryClient.invalidateQueries({ queryKey: ["history"] })}
+									className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+									title="Refresh History">
+									<RefreshCw size={18} className={isHistoryLoading ? "animate-spin" : ""} />
+								</button>
 							</div>
 							{statsData && (
 								<div className="text-right">
@@ -853,7 +861,7 @@ const AdminDashboard = () => {
 								No deletion records found
 							</div>
 						) : (
-							<div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
+							<div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
 								<table className="w-full text-left border-collapse">
 									<thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
 										<tr>
