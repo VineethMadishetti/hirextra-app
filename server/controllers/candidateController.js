@@ -265,16 +265,41 @@ export const uploadChunk = async (req, res) => {
 	const finalFilePath = path.join(uploadDir, fileName);
 
 	/* ---------------------------------------------------
-     APPEND CHUNK (OPTIMIZED)
+     APPEND CHUNK (STREAMING – SAFE FOR LARGE FILES)
   --------------------------------------------------- */
 	try {
-		// Optimization: Read buffer directly (faster than streams for chunks)
-		const buffer = await fs.promises.readFile(chunk.path);
-		await fs.promises.appendFile(finalFilePath, buffer);
-		await fs.promises.unlink(chunk.path);
+		const chunkStream = fs.createReadStream(chunk.path);
+		const appendStream = fs.createWriteStream(finalFilePath, { flags: "a" });
+
+		await new Promise((resolve, reject) => {
+			chunkStream.pipe(appendStream);
+
+			chunkStream.on("error", reject);
+			appendStream.on("error", reject);
+
+			appendStream.on("finish", () => {
+				// Cleanup temp chunk
+				if (fs.existsSync(chunk.path)) {
+					fs.unlinkSync(chunk.path);
+				}
+				resolve();
+			});
+		});
 	} catch (error) {
-		console.error("❌ Chunk append failed:", error);
-		return res.status(500).json({ message: "Failed to save chunk" });
+		console.error("❌ Stream append failed, trying fallback:", error);
+
+		// Fallback for smaller chunks
+		try {
+			const chunkBuffer = fs.readFileSync(chunk.path);
+			fs.appendFileSync(finalFilePath, chunkBuffer);
+
+			if (fs.existsSync(chunk.path)) {
+				fs.unlinkSync(chunk.path);
+			}
+		} catch (fallbackError) {
+			console.error("❌ Fallback append also failed:", fallbackError);
+			return res.status(500).json({ message: "Failed to save chunk" });
+		}
 	}
 
 	/* ---------------------------------------------------
@@ -295,11 +320,41 @@ export const uploadChunk = async (req, res) => {
   --------------------------------------------------- */
 	console.log(`✅ File ${fileName} fully assembled at ${finalFilePath}`);
 
-	// Generate S3 key
-	const s3Key = generateS3Key(fileName, req.user._id.toString());
+	let headersReceived = false;
+	let responseSent = false;
+	let s3Key = null;
 
-	// Optimization: Read headers using readline (fastest for large files)
-	const getHeaders = async () => {
+	// Generate S3 key
+	s3Key = generateS3Key(fileName, req.user._id.toString());
+
+	const sendResponse = async (headers = []) => {
+		if (!responseSent) {
+			responseSent = true;
+
+			// Upload to S3 in background to prevent UI blocking (stuck at 99%)
+			const fileStream = fs.createReadStream(finalFilePath);
+			uploadToS3(fileStream, s3Key, "text/csv")
+				.then(() => {
+					console.log(`✅ File uploaded to S3: ${s3Key}`);
+					deleteFile(finalFilePath);
+				})
+				.catch((err) => {
+					console.error("❌ S3 upload failed:", err);
+					deleteFile(finalFilePath);
+				});
+
+			// Respond immediately so frontend can show mapping section
+			res.status(200).json({
+				status: "done",
+				message: "Upload complete",
+				filePath: s3Key, // Return S3 key instead of local path
+				headers,
+			});
+		}
+	};
+
+	/* ---------- Manual header reader (fallback) ---------- */
+	const readHeadersManually = async () => {
 		try {
 			const fileStream = fs.createReadStream(finalFilePath);
 			const rl = readline.createInterface({
@@ -325,26 +380,51 @@ export const uploadChunk = async (req, res) => {
 		}
 	};
 
-	const headers = await getHeaders();
+	/* ---------- CSV parser (primary) ---------- */
+	try {
+		const stream = fs
+			.createReadStream(finalFilePath)
+			.pipe(
+				csv({
+					headers: true,
+					skipEmptyLines: false,
+					mapHeaders: ({ header, index }) =>
+						header && header.trim() ? header.trim() : `Column_${index + 1}`,
+				}),
+			)
+			.on("headers", (csvHeaders) => {
+				if (!headersReceived) {
+					headersReceived = true;
+					console.log(`📋 Headers read via CSV parser (${csvHeaders.length})`);
+					sendResponse(csvHeaders);
+					stream.destroy();
+				}
+			})
+			.on("error", async (err) => {
+				if (!headersReceived) {
+					console.warn(
+						`⚠️ CSV parser error, falling back to manual read: ${err.message}`,
+					);
+					headersReceived = true;
+					const manualHeaders = await readHeadersManually();
+					sendResponse(manualHeaders);
+				}
+			});
 
-	// Upload to S3 in background to prevent UI blocking
-	const fileStream = fs.createReadStream(finalFilePath);
-	uploadToS3(fileStream, s3Key, "text/csv")
-		.then(() => {
-			console.log(`✅ File uploaded to S3: ${s3Key}`);
-			deleteFile(finalFilePath);
-		})
-		.catch((err) => {
-			console.error("❌ S3 upload failed:", err);
-			deleteFile(finalFilePath);
-		});
-
-	res.status(200).json({
-		status: "done",
-		message: "Upload complete",
-		filePath: s3Key,
-		headers,
-	});
+		// Timeout safety net
+		setTimeout(async () => {
+			if (!headersReceived) {
+				console.warn("⚠️ CSV parser timeout, using manual header read");
+				headersReceived = true;
+				const manualHeaders = await readHeadersManually();
+				sendResponse(manualHeaders);
+			}
+		}, 3000);
+	} catch (err) {
+		console.warn("⚠️ Stream creation failed, manual header read");
+		const manualHeaders = await readHeadersManually();
+		sendResponse(manualHeaders);
+	}
 };
 
 // --- START PROCESSING (Creates History Record) ---
