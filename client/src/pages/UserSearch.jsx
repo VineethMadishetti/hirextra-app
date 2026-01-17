@@ -867,15 +867,12 @@ const UserSearch = () => {
 
 							{/* Search Button */}
 							<button
-  onClick={() => setCurrentView("search")}
-  className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider text-center transition-all duration-300 transform
-    ${currentView === "search"
-      ? "text-brand-secondary border-b-2 border-brand-secondary bg-white/5"
-      : "text-gray-400 hover:text-white hover:-translate-y-1 hover:scale-[1.02] active:scale-95 hover:bg-white/5"
-    }`}
->
-  Search
-</button>
+								onClick={handleTriggerSearch}
+								className="col-span-1 md:w-auto px-6 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+							>
+								<Search size={16} />
+								<span className="hidden md:inline">Search</span>
+							</button>
 
 							{/* Clear Filters */}
 							<button
