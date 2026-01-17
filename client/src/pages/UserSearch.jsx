@@ -40,7 +40,7 @@ import {
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
 
-const PAGE_SIZE = 15; // Optimized page size for faster initial load
+const PAGE_SIZE = 50; // Increased to reduce frequency of loading states
 
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
@@ -177,8 +177,8 @@ const SearchLoading = () => (
 		</h3>
 		<p className="text-slate-500 dark:text-slate-400 text-center max-w-md mb-8 text-base leading-relaxed">
 			Finding your perfect match, <br />
-			Filtering through millions of professionals... <br/>
-			Qaulity take few seconds...
+			Filtering through "Millions" of professionals... <br/>
+			Qaulity take few seconds
 		</p>
 		
 		<div className="flex gap-2">
@@ -391,9 +391,9 @@ const UserSearch = () => {
 	const queryKey = useMemo(() => ["candidates", queryFilters], [queryFilters]);
 
 	const { ref: loadMoreRef, inView } = useInView({
-		threshold: 0.1,
+		threshold: 0,
 		triggerOnce: false,
-		rootMargin: "100px", // Start loading 100px before the element is visible
+		rootMargin: "1000px", // Start loading much earlier (approx 2 screens ahead)
 	});
 
 	const {
@@ -792,7 +792,7 @@ const UserSearch = () => {
 								/>
 								<input
 									ref={searchInputRef}
-									placeholder="Search... (Ctrl+K)"
+									placeholder="Search..."
 									className="w-full pl-7 pr-6 py-1.5 md:pl-9 md:pr-8 md:py-2 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 									value={searchInput}
 									onChange={handleSearchChange}
@@ -1601,4 +1601,3 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 ));
 
 export default UserSearch;
-
