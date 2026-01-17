@@ -176,7 +176,8 @@ const SearchLoading = () => (
 			Searching Database...
 		</h3>
 		<p className="text-slate-500 dark:text-slate-400 text-center max-w-md mb-8 text-base leading-relaxed">
-			Finding your perfect match, Filtering through millions of professionals... <br/>
+			Finding your perfect match, <br />
+			Filtering through millions of professionals... <br/>
 			Qaulity take few seconds...
 		</p>
 		
@@ -868,7 +869,12 @@ const UserSearch = () => {
 							{/* Search Button */}
 							<button
 								onClick={handleTriggerSearch}
-								className="col-span-1 md:w-auto px-6 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+								disabled={!hasActiveFilters}
+								className={`col-span-1 md:w-auto px-6 py-2 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-300 ease-out ${
+									!hasActiveFilters
+										? "bg-indigo-400 cursor-not-allowed opacity-70"
+										: "bg-indigo-600 hover:bg-indigo-700 hover:scale-105 hover:shadow-lg active:scale-95 cursor-pointer"
+								}`}
 							>
 								<Search size={16} />
 								<span className="hidden md:inline">Search</span>
@@ -1079,7 +1085,7 @@ const UserSearch = () => {
 										No matches found
 									</h3>
 									<p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-										Sorry, there is no suitable data found based on your search, try another.
+										Sorry, there is no suitable data found based on your search, Try another.
 									</p>
 								</div>
 
