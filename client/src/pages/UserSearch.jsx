@@ -38,7 +38,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import FilterImage from "../assets/filter.svg";
+import FilterImage from "../assets/filtering.svg";
 
 const PAGE_SIZE = 15; // Optimized page size for faster initial load
 
@@ -163,6 +163,29 @@ const SkeletonRow = () => (
 			</div>
 		</td>
 	</tr>
+);
+
+// Search Loading Component with Illustration
+const SearchLoading = () => (
+	<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] p-8 animate-in fade-in zoom-in duration-500">
+		<div className="relative mb-8">
+			<div className="absolute inset-0 bg-indigo-100 dark:bg-indigo-900/20 rounded-full blur-3xl animate-pulse"></div>
+			<img src={FilterImage} alt="Searching..." className="relative w-40 h-40 md:w-56 md:h-56 object-contain animate-pulse" />
+		</div>
+		<h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">
+			Searching Database...
+		</h3>
+		<p className="text-slate-500 dark:text-slate-400 text-center max-w-md mb-8 text-base leading-relaxed">
+			Finding your perfect match, Filtering through millions of professionals... <br/>
+			Qaulity take few seconds...
+		</p>
+		
+		<div className="flex gap-2">
+			<div className="w-3 h-3 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+			<div className="w-3 h-3 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+			<div className="w-3 h-3 bg-indigo-600 rounded-full animate-bounce"></div>
+		</div>
+	</div>
 );
 
 const UserSearch = () => {
@@ -844,16 +867,15 @@ const UserSearch = () => {
 
 							{/* Search Button */}
 							<button
-								onClick={handleTriggerSearch}
-								disabled={!hasActiveFilters}
-								className={`hidden md:flex items-center gap-1.5 ml-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all shadow-sm ${
-									hasActiveFilters
-										? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-indigo-200 dark:shadow-none hover:shadow-md"
-										: "bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600"
-								}`}>
-								<Search size={14} />
-								Search
-							</button>
+  onClick={() => setCurrentView("search")}
+  className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider text-center transition-all duration-300 transform
+    ${currentView === "search"
+      ? "text-brand-secondary border-b-2 border-brand-secondary bg-white/5"
+      : "text-gray-400 hover:text-white hover:-translate-y-1 hover:scale-[1.02] active:scale-95 hover:bg-white/5"
+    }`}
+>
+  Search
+</button>
 
 							{/* Clear Filters */}
 							<button
@@ -930,7 +952,9 @@ const UserSearch = () => {
 
 				{/* Table Container - Scrollable area starting below filters and table head */}
 				<div className="flex-1 overflow-hidden flex flex-col">
-					{isSearchApplied && ((isFetching && !data) || candidates.length > 0) ? (
+					{isSearchApplied && isFetching && !data ? (
+						<SearchLoading />
+					) : isSearchApplied && candidates.length > 0 ? (
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
 							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
@@ -976,55 +1000,50 @@ const UserSearch = () => {
 											</tr>
 										</thead>
 										<tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 block md:table-row-group">
-											{isFetching && !data ? (
-												// Render Skeletons
-												[...Array(15)].map((_, i) => <SkeletonRow key={i} />)
-											) : (
-												<>
-													{candidates.map((candidate, index) => (
-														<CandidateRow
-															key={`${candidate._id}-${index}`}
-															candidate={candidate}
-															isSelected={selectedIds.has(candidate._id)}
-															onSelect={handleSelectOne}
-															onQuickView={handleQuickView}
-															onDownload={handleDownload}
-															onDelete={handleDeleteRow}
-															isAdmin={user?.role === "ADMIN"}
-															isDeleting={
-																deleteCandidate.isPending &&
-																deleteCandidate.variables === candidate._id
-															}
-														/>
-													))}
+											<>
+												{candidates.map((candidate, index) => (
+													<CandidateRow
+														key={`${candidate._id}-${index}`}
+														candidate={candidate}
+														isSelected={selectedIds.has(candidate._id)}
+														onSelect={handleSelectOne}
+														onQuickView={handleQuickView}
+														onDownload={handleDownload}
+														onDelete={handleDeleteRow}
+														isAdmin={user?.role === "ADMIN"}
+														isDeleting={
+															deleteCandidate.isPending &&
+															deleteCandidate.variables === candidate._id
+														}
+													/>
+												))}
 
-													{/* Load More Trigger Row */}
-													<tr className="block md:table-row">
-														<td colSpan="7" className="p-0">
-															<div
-																ref={loadMoreRef}
-																className="h-20 flex items-center justify-center">
-																{isFetchingNextPage ? (
-																	<div className="flex items-center gap-2">
-																		<Loader className="animate-spin h-4 w-4 text-indigo-600" />
-																		<span className="text-sm text-slate-500 dark:text-slate-400">
-																			Loading more candidates...
-																		</span>
-																	</div>
-																) : hasNextPage ? (
+												{/* Load More Trigger Row */}
+												<tr className="block md:table-row">
+													<td colSpan="7" className="p-0">
+														<div
+															ref={loadMoreRef}
+															className="h-20 flex items-center justify-center">
+															{isFetchingNextPage ? (
+																<div className="flex items-center gap-2">
+																	<Loader className="animate-spin h-4 w-4 text-indigo-600" />
 																	<span className="text-sm text-slate-500 dark:text-slate-400">
-																		Scroll down to load more
+																		Loading more candidates...
 																	</span>
-																) : candidates.length > 0 ? (
-																	<span className="text-sm text-slate-500 dark:text-slate-400 py-4">
-																		No more candidates to load
-																	</span>
-																) : null}
-															</div>
-														</td>
-													</tr>
-												</>
-											)}
+																</div>
+															) : hasNextPage ? (
+																<span className="text-sm text-slate-500 dark:text-slate-400">
+																	Scroll down to load more
+																</span>
+															) : candidates.length > 0 ? (
+																<span className="text-sm text-slate-500 dark:text-slate-400 py-4">
+																	No more candidates to load
+																</span>
+															) : null}
+														</div>
+													</td>
+												</tr>
+											</>
 										</tbody>
 									</table>
 								</div>
@@ -1106,7 +1125,9 @@ const CandidateRow = React.memo(
 
 		return (
 			<tr
-				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-100 dark:border-slate-800 md:rounded-none md:bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-200 last:border-none animate-in fade-in slide-in-from-bottom-2 duration-500 ${
+				className={`group block md:table-row p-4 mb-3 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 md:p-0 md:mb-0 md:border-b md:border-slate-100 dark:border-slate-800 md:rounded-none md:bg-transparent 
+				hover:bg-white dark:hover:bg-slate-800 hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] dark:hover:shadow-none hover:border-indigo-200 dark:hover:border-indigo-900 hover:scale-[1.005] hover:z-10 hover:relative
+				transition-all duration-300 ease-out last:border-none animate-in fade-in slide-in-from-bottom-2 duration-500 ${
 					isSelected ? "bg-indigo-50 dark:bg-indigo-900/20" : ""
 				}`}>
 				{/* Checkbox */}
