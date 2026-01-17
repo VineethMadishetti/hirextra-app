@@ -853,7 +853,7 @@ const AdminDashboard = () => {
 								No deletion records found
 							</div>
 						) : (
-							<div className="overflow-x-auto">
+							<div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
 								<table className="w-full text-left border-collapse">
 									<thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
 										<tr>

@@ -150,7 +150,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 				<div className="flex-1 flex flex-row gap-8 overflow-hidden ">
 					{/* Users Table */}
 					<div className="w-full lg:w-2/3 flex flex-col">
-						<div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex-1 overflow-y-auto">
+						<div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
 							{loading ? (
 								<div className="p-12 text-center">
 									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>

@@ -961,10 +961,9 @@ const UserSearch = () => {
 						<div className="mx-4 mt-3 mb-2 flex-1 overflow-hidden">
 							{/* Table with fixed header and scrollable body */}
 							<div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden h-full">
-								<div
-									className="overflow-x-auto overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
-									<table className="w-full min-w-[900px] md:table-fixed">
-										<thead className="bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+								<div className="overflow-x-hidden overflow-y-scroll h-full [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
+									<table className="w-full md:table-fixed">
+										<thead className="hidden md:table-header-group bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
 											<tr>
 												<th className="w-12 px-4 py-4 text-left">
 													<input
@@ -1199,7 +1198,7 @@ const CandidateRow = React.memo(
 
 				{/* Skills with Scrollable Container */}
 				<td className="hidden md:table-cell w-auto md:w-48 px-0 md:px-6 py-2 md:py-4 align-top">
-					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_transparent] dark:[scrollbar-color:#475569_transparent]">
+					<div className="h-16 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_transparent]">
 						<p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
 							{candidate.skills
 								? candidate.skills
@@ -1384,7 +1383,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 			</div>
 
 			{/* Body */}
-			<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
+			<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
 					{/* Left Column - Contact Info */}
 					<div className="lg:col-span-1 space-y-6">
@@ -1497,7 +1496,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								</span>
 								Skills & Expertise
 							</h3>
-							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#a3a3a3_#f1f5f9] dark:[scrollbar-color:#475569_#0f172a]">
+							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-500 [scrollbar-width:thin] [scrollbar-color:#64748b_#1e293b]">
 								{profile.skills ? (
 									<div className="flex flex-wrap gap-2">
 										{profile.skills.split(",").map((skill, i) => (
