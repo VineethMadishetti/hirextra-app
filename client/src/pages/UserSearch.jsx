@@ -872,9 +872,9 @@ const UserSearch = () => {
 								disabled={!hasActiveFilters}
 								className={`col-span-1 md:w-auto px-6 py-2 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-300 ease-out ${
 									!hasActiveFilters
-										? "bg-indigo-400 cursor-not-allowed opacity-70"
-										: "bg-indigo-600 hover:bg-indigo-800 active:scale-95 cursor-pointer"
-								}`}
+										? "bg-indigo-400 cursor-not-allowed opacity-50"
+										: "bg-indigo-600 hover:bg-indigo-800 cursor-pointer"
+								}`}s
 							>
 								<Search size={16} />
 								<span className="hidden md:inline">Search</span>
