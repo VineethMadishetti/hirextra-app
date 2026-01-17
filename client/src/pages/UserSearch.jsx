@@ -168,7 +168,7 @@ const SkeletonRow = () => (
 // Search Loading Component with Illustration
 const SearchLoading = () => (
 	<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] p-8 animate-in fade-in zoom-in duration-500">
-		<div className="relative mb-8">
+		<div className="relative mt-3 mb-8">
 			<div className="absolute inset-0 bg-indigo-100 dark:bg-indigo-900/20 rounded-full blur-3xl animate-pulse"></div>
 			<img src={FilterImage} alt="Searching..." className="relative w-40 h-40 md:w-56 md:h-56 object-contain animate-pulse" />
 		</div>
@@ -873,7 +873,7 @@ const UserSearch = () => {
 								className={`col-span-1 md:w-auto px-6 py-2 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2 shadow-md transition-all duration-300 ease-out ${
 									!hasActiveFilters
 										? "bg-indigo-400 cursor-not-allowed opacity-70"
-										: "bg-indigo-600 hover:bg-indigo-700 hover:scale-105 hover:shadow-lg active:scale-95 cursor-pointer"
+										: "bg-indigo-600 hover:bg-indigo-800 active:scale-95 cursor-pointer"
 								}`}
 							>
 								<Search size={16} />
@@ -1057,7 +1057,7 @@ const UserSearch = () => {
 						!isSearchApplied ? (
 							<div className="flex items-center justify-center h-[calc(100vh-200px)] p-8">
 								<div className="flex flex-col md:flex-row items-center justify-center gap-12 text-center md:text-left">
-									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85]" />
+									<img src={FilterImage} alt="Start searching for candidates" className="w-full max-w-[250px] md:max-w-xs dark:invert-[.85] mt-3" />
 									<div>
 										<h2 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
 											Begin Your Search...
