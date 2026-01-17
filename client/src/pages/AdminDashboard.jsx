@@ -14,7 +14,6 @@ import {
 	Pause,
 	XCircle,
 	Loader,
-	ChevronDown,
 } from "lucide-react";
 import ExistingFilesIcon from "../assets/existing-files.svg";
 import HistoryIcon from "../assets/history.svg";
@@ -74,70 +73,6 @@ const HistorySkeleton = () => (
 		</div>
 	</div>
 );
-
-// Custom Select Component for Column Mapping
-const MappingSelect = ({ value, onChange, options }) => {
-	const [isOpen, setIsOpen] = useState(false);
-	const ref = useRef(null);
-
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (ref.current && !ref.current.contains(event.target)) {
-				setIsOpen(false);
-			}
-		};
-		document.addEventListener("mousedown", handleClickOutside);
-		return () => document.removeEventListener("mousedown", handleClickOutside);
-	}, []);
-
-	return (
-		<div className="relative" ref={ref}>
-			<div
-				onClick={() => setIsOpen(!isOpen)}
-				className="w-full bg-slate-100 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700
-                           rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-white
-                           focus:ring-2 focus:ring-indigo-500/40
-                           cursor-pointer transition flex justify-between items-center h-[38px]"
-			>
-				<span className="truncate block mr-2">{value || "Ignore"}</span>
-				<ChevronDown size={14} className={`text-slate-500 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
-			</div>
-			{isOpen && (
-				<div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-60 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full">
-					<div
-						className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-							!value 
-                                ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium" 
-                                : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-						}`}
-						onClick={() => {
-							onChange({ target: { value: "" } });
-							setIsOpen(false);
-						}}
-					>
-						Ignore
-					</div>
-					{options.map((h, i) => (
-						<div
-							key={i}
-							className={`px-3 py-2 text-sm cursor-pointer transition-colors truncate ${
-								value === h
-									? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium"
-									: "text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-							}`}
-							onClick={() => {
-								onChange({ target: { value: h } });
-								setIsOpen(false);
-							}}
-						>
-							{h}
-						</div>
-					))}
-				</div>
-			)}
-		</div>
-	);
-};
 
 const AdminDashboard = () => {
 	const queryClient = useQueryClient();
@@ -571,11 +506,21 @@ const AdminDashboard = () => {
 												{field}
 											</label>
 
-											<MappingSelect
-												value={mapping[field]}
-												onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
-												options={uploadData.headers}
-											/>
+											<select
+												className="w-full bg-slate-100 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700
+                           rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-white
+                           focus:ring-2 focus:ring-indigo-500/40
+                           cursor-pointer transition"
+												onChange={(e) =>
+													setMapping({ ...mapping, [field]: e.target.value })
+												}>
+												<option value="">Ignore</option>
+												{uploadData.headers.map((h, i) => (
+													<option key={i} value={h}>
+														{h}
+													</option>
+												))}
+											</select>
 										</div>
 									))}
 								</div>
