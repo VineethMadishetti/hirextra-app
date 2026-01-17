@@ -561,7 +561,7 @@ const AdminDashboard = () => {
 											setUseS3Path(false);
 											setS3FilePath("");
 										}}
-										className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition">
+										className="px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-800 rounded-xl shadow-md transition-all duration-300 ease-out cursor-pointer">
 										Change File
 									</button>
 								</div>
@@ -838,12 +838,12 @@ const AdminDashboard = () => {
 																<CheckCircle size={12} />
 																<span className="font-semibold">{job.successRows?.toLocaleString() || "0"}</span>
 															</div>
-															{(job.failedRows > 0 || job.status === 'FAILED') && (
+															{/* {(job.failedRows > 0 || job.status === 'FAILED') && (
 																<div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400" title="Failed Records">
 																	<XCircle size={12} />
 																	<span className="font-semibold">{job.failedRows?.toLocaleString() || "0"}</span>
 																</div>
-															)}
+															)} */}
 														</div>
 													)}
 												</div>

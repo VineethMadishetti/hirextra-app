@@ -178,7 +178,7 @@ const SearchLoading = () => (
 		<p className="text-slate-500 dark:text-slate-400 text-center max-w-md mb-8 text-base leading-relaxed">
 			Finding your perfect match, <br />
 			Filtering through "Millions" of professionals... <br/>
-			Qaulity take few seconds
+			Quality take few seconds
 		</p>
 		
 		<div className="flex gap-2">
