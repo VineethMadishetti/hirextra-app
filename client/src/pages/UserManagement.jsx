@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/axios";
 import {
@@ -16,6 +16,68 @@ import {
 import UserManagementImage from "../assets/user-management2.svg";
 import toast from 'react-hot-toast';
 
+// Custom Select Component for Role
+const RoleSelect = ({ value, onChange }) => {
+	const [isOpen, setIsOpen] = useState(false);
+	const ref = useRef(null);
+
+	useEffect(() => {
+		const handleClickOutside = (event) => {
+			if (ref.current && !ref.current.contains(event.target)) {
+				setIsOpen(false);
+			}
+		};
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
+	}, []);
+
+	const options = [
+		{ value: "USER", label: "User (View & Export Only)" },
+		{ value: "ADMIN", label: "Admin (Full Access)" },
+	];
+
+	const selectedLabel = options.find((o) => o.value === value)?.label || "Select Role";
+
+	return (
+		<div className="relative" ref={ref}>
+			<div
+				onClick={() => setIsOpen(!isOpen)}
+				className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700
+                       rounded-xl px-4 py-2.5 text-slate-800 dark:text-white
+                       focus:ring-2 focus:ring-indigo-500/40
+                       outline-none transition cursor-pointer flex justify-between items-center"
+			>
+				<span className="truncate">{selectedLabel}</span>
+				<ChevronDown
+					size={16}
+					className={`text-slate-500 dark:text-slate-400 transition-transform duration-200 ${
+						isOpen ? "rotate-180" : ""
+					}`}
+				/>
+			</div>
+			{isOpen && (
+				<div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+					{options.map((option) => (
+						<div
+							key={option.value}
+							className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+								value === option.value
+									? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium"
+									: "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+							}`}
+							onClick={() => {
+								onChange({ target: { value: option.value } });
+								setIsOpen(false);
+							}}
+						>
+							{option.label}
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	);
+};
 
 const UserManagement = () => {
 	const queryClient = useQueryClient();
@@ -359,24 +421,12 @@ const [userToDelete, setUserToDelete] = useState(null);
 									<label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
 										Role
 									</label>
-									<div className="relative">
-										<select
-											className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700
-							rounded-xl px-4 py-2.5 text-slate-800 dark:text-white appearance-none
-							focus:ring-2 focus:ring-indigo-500/40
-							outline-none transition cursor-pointer pr-10"
-											value={formData.role}
-											onChange={(e) =>
-												setFormData({ ...formData, role: e.target.value })
-											}>
-											<option value="USER">User (View & Export Only)</option>
-											<option value="ADMIN">Admin (Full Access)</option>
-										</select>
-										<ChevronDown
-											className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none"
-											size={16}
-										/>
-									</div>
+									<RoleSelect
+										value={formData.role}
+										onChange={(e) =>
+											setFormData({ ...formData, role: e.target.value })
+										}
+									/>
 								</div>
 
 								{/* Actions */}
