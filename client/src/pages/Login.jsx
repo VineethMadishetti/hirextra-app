@@ -1,6 +1,7 @@
 import { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import LoadingScreen from "../components/LoadingScreen";
 
 const Login = () => {
 	const [email, setEmail] = useState("");
@@ -28,6 +29,10 @@ const Login = () => {
 			setIsLoading(false);
 		}
 	};
+
+	if (isLoading) {
+		return <LoadingScreen message="Verifying credentials..." />;
+	}
 
 	return (
 		<div className="min-h-screen flex relative overflow-hidden font-sans">

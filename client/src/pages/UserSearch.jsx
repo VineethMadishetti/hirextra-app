@@ -1058,6 +1058,8 @@ const UserSearch = () => {
 										</thead>
 										<tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 block md:table-row-group">
 											<>
+												{/* Spacer Row for visual gap */}
+												<tr className="hidden md:table-row h-2"></tr>
 												{candidates.map((candidate, index) => (
 													<CandidateRow
 														key={`${candidate._id}-${index}`}
@@ -1303,7 +1305,7 @@ const CandidateRow = React.memo(
 									className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Phone size={16} />
 								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
 									{candidate.phone}
 								</div>
 							</div>
@@ -1317,7 +1319,7 @@ const CandidateRow = React.memo(
 									className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Mail size={16} />
 								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
 									{candidate.email}
 								</div>
 							</div>
@@ -1334,7 +1336,7 @@ const CandidateRow = React.memo(
 									className="p-1 text-slate-500 dark:text-slate-400 hover:text-[#0077b5] hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
 									<Linkedin size={16} />
 								</button>
-								<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50">
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50 shadow-lg">
 									{candidate.linkedinUrl.replace(/^https?:\/\//, "")}
 								</div>
 							</div>
@@ -1350,7 +1352,7 @@ const CandidateRow = React.memo(
 									<MapPin size={15} />
 								</button>
 								<div
-									className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+									className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
 					max-w-xs truncate
 					px-2 py-1 rounded bg-slate-900 text-white text-[11px]
 					opacity-0 group-hover/icon:opacity-100 transition-opacity
@@ -1599,3 +1601,4 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 ));
 
 export default UserSearch;
+

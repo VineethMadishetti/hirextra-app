@@ -16,6 +16,7 @@ import {
 	Sun,
 	Loader,
 } from "lucide-react";
+import LoadingScreen from "../components/LoadingScreen";
 
 // Lazy load components to reduce initial bundle size
 const AdminDashboard = lazy(() => import("./AdminDashboard"));
@@ -254,9 +255,7 @@ const Dashboard = () => {
 				}`}>
 				<Suspense
 					fallback={
-						<div className="flex items-center justify-center h-full bg-slate-50 dark:bg-slate-950">
-							<Loader className="animate-spin h-8 w-8 text-indigo-600" />
-						</div>
+						<LoadingScreen />
 					}>
 					{user?.role === "ADMIN" && currentView === "admin" ? (
 						<AdminDashboard />
