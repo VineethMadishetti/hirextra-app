@@ -498,6 +498,8 @@ export const searchCandidates = async (req, res) => {
 			hasLinkedin,
 			page = 1,
 			limit = 20,
+			lastCreatedAt, // For Seek Pagination (Speed Optimization)
+			lastId         // For Seek Pagination (Speed Optimization)
 		} = req.query;
 
 		const limitNum = Math.min(Number(limit) || 20, 100); // Max 100 per page
@@ -572,13 +574,26 @@ export const searchCandidates = async (req, res) => {
 		let candidates;
 		let totalCount = 0;
 
-		const findQuery = Candidate.find(query)
+		let findQuery = Candidate.find(query)
 			.limit(limitNum)
-			.skip(skip)
 			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt")
 			.sort({ createdAt: -1 })
 			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
 			.maxTimeMS(60000); // Increased timeout to 60s
+
+		// OPTIMIZATION: Seek Pagination vs Offset Pagination
+		if (lastCreatedAt && lastId) {
+			// Fast: Use index to "seek" to the next page
+			findQuery = findQuery.where({
+				$or: [
+					{ createdAt: { $lt: new Date(lastCreatedAt) } },
+					{ createdAt: new Date(lastCreatedAt), _id: { $lt: lastId } }
+				]
+			});
+		} else {
+			// Slow (Legacy): Use skip()
+			findQuery = findQuery.skip(skip);
+		}
 
 		if (pageNum === 1) {
 			// Optimization: Run find and count in parallel to reduce latency

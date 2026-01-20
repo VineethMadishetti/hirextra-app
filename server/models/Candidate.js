@@ -62,7 +62,7 @@ candidateSchema.index({ uploadJobId: 1 });
 
 // 2. Date & Sorting (Files created at time/date)
 // Optimized: Partial Index (Only indexes active candidates)
-candidateSchema.index({ createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index({ createdAt: -1, _id: -1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 3. Filter: Email (Unique lookup)
 candidateSchema.index({ email: 1 }, { partialFilterExpression: { isDeleted: false } });
@@ -85,10 +85,17 @@ candidateSchema.index({ skills: 1 }, { partialFilterExpression: { isDeleted: fal
 candidateSchema.index({ fullName: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 9. Filter: Hierarchical Location (Country/Locality)
-// candidateSchema.index({ country: 1, locality: 1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index({ locality: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 10. Filter: User/Admin Created By (As requested)
 // Ensure your schema has a 'createdBy' field for this to work.
 candidateSchema.index({ createdBy: 1 }, { partialFilterExpression: { isDeleted: false } });
+
+// 11. Compound Filter Index (High Performance for Search Page)
+// Matches the common filter pattern: Job Title + Location + Skills + Sort by Date
+candidateSchema.index(
+  { jobTitle: 1, locality: 1, skills: 1, createdAt: -1 }, 
+  { partialFilterExpression: { isDeleted: false }, background: true }
+);
 
 export default mongoose.model('Candidate', candidateSchema);
