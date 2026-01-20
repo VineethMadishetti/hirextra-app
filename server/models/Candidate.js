@@ -98,4 +98,19 @@ candidateSchema.index(
   { partialFilterExpression: { isDeleted: false }, background: true }
 );
 
+// 12. Full Text Search Index (CRITICAL for "Search..." performance)
+// Replaces slow regex $or queries with high-performance text search
+candidateSchema.index({
+  fullName: 'text',
+  jobTitle: 'text',
+  skills: 'text',
+  company: 'text',
+  location: 'text',
+  locality: 'text',
+  summary: 'text'
+}, {
+  weights: { fullName: 10, jobTitle: 5, skills: 5 },
+  name: "CandidateTextIndex"
+});
+
 export default mongoose.model('Candidate', candidateSchema);
