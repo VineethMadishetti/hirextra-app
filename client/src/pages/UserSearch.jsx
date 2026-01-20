@@ -335,9 +335,7 @@ const UserSearch = () => {
 			return { ...response.data, currentPage: pageParam };
 		},
 		getNextPageParam: (lastPage, allPages) => {
-			const totalCount = allPages[0]?.totalCount || 0;
-			const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-			if (lastPage.currentPage < totalPages) {
+			if (lastPage.hasMore) {
 				return lastPage.currentPage + 1;
 			}
 			return undefined;
@@ -424,10 +422,7 @@ const UserSearch = () => {
 			return { ...response.data, currentPage: pageParam };
 		},
 		getNextPageParam: (lastPage, allPages) => {
-			// Use totalCount from the first page (since backend skips count on page > 1)
-			const totalCount = allPages[0]?.totalCount || 0;
-			const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-			if (lastPage.currentPage < totalPages) {
+			if (lastPage.hasMore) {
 				return lastPage.currentPage + 1;
 			}
 			return undefined;
@@ -954,12 +949,18 @@ const UserSearch = () => {
 										<span className="text-indigo-600 dark:text-indigo-400 font-bold">
 											{candidates.length}
 										</span>
-										<span className="mx-1 text-slate-400 dark:text-slate-600">
-											/
-										</span>
-										<span className="text-slate-700 dark:text-slate-300 font-bold">
-											{totalCount}
-										</span>
+										{totalCount !== -1 ? (
+											<>
+												<span className="mx-1 text-slate-400 dark:text-slate-600">/</span>
+												<span className="text-slate-700 dark:text-slate-300 font-bold">
+													{totalCount}
+												</span>
+											</>
+										) : (
+											<span className="ml-1 text-slate-500 dark:text-slate-400">
+												Results
+											</span>
+										)}
 									</span>
 								)
 							)}

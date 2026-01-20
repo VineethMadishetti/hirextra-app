@@ -571,7 +571,6 @@ export const searchCandidates = async (req, res) => {
 		let totalCount = 0;
 
 		let findQuery = Candidate.find(query)
-			.limit(limitNum)
 			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt score")
 			.sort({ createdAt: -1 })
 			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
@@ -596,34 +595,28 @@ export const searchCandidates = async (req, res) => {
 			findQuery = findQuery.skip(skip);
 		}
 
-		if (pageNum === 1) {
-			// Optimization: Run find and count in parallel to reduce latency
-			// Wrap count in catch to prevent 500 error on timeout
-			const countPromise = Candidate.countDocuments(query).maxTimeMS(60000).exec().catch(err => {
-				console.warn("Count query failed:", err.message);
-				return -1;
-			});
+		// PERFORMANCE FIX: Fetch limit + 1 to check for next page without counting all docs
+		findQuery = findQuery.limit(limitNum + 1);
 
-			const [candidatesResult, countResult] = await Promise.all([
-				findQuery.exec(),
-				countPromise
-			]);
+		candidates = await findQuery.exec();
 
-			candidates = candidatesResult;
-			totalCount = countResult;
+		const hasMore = candidates.length > limitNum;
+		if (hasMore) {
+			candidates.pop(); // Remove the extra item used for check
+		}
 
-			// Fallback if count failed
-			if (totalCount === -1) {
-				totalCount = candidates.length < limitNum ? candidates.length : 10000;
-			}
+		// If we have fewer items than limit, we know the exact total (skip + current).
+		// If we have more, we return -1 (unknown total) to avoid slow counting.
+		if (!hasMore) {
+			totalCount = skip + candidates.length;
 		} else {
-			candidates = await findQuery.exec();
-			totalCount = -1; // Indicate count was skipped
+			totalCount = -1;
 		}
 
 		res.json({
 			candidates,
-			totalPages: Math.ceil(totalCount / limitNum),
+			hasMore,
+			totalPages: 0, // Deprecated in favor of hasMore
 			currentPage: pageNum,
 			totalCount,
 		});
