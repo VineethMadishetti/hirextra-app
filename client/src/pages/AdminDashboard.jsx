@@ -195,6 +195,8 @@ const AdminDashboard = () => {
 
 	const fields = [
 		"fullName",
+		"firstName",
+		"lastName",
 		"jobTitle",
 		"company",
 		"industry",
