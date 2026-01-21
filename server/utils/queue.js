@@ -503,8 +503,32 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							return "";
 						};
 
+						// --- SMART NAME RESOLUTION ---
+						// Handles cases where name is split into First/Last columns
+						// and prevents "John Doe John Doe" duplication if mapped incorrectly.
+						let finalFullName = getVal(mapping.fullName);
+						const fName = getVal(mapping.firstName);
+						const lName = getVal(mapping.lastName);
+
+						if (fName || lName) {
+							if (!finalFullName) {
+								finalFullName = [fName, lName].filter(Boolean).join(" ");
+							} else {
+								// Heuristic: If "Full Name" is mapped but equals "First Name", append "Last Name"
+								const normFull = finalFullName.trim().toLowerCase();
+								const normFirst = fName ? fName.trim().toLowerCase() : "";
+								const normLast = lName ? lName.trim().toLowerCase() : "";
+
+								if (normFirst && normFull === normFirst && lName) {
+									finalFullName = `${finalFullName} ${lName}`;
+								} else if (normLast && normFull === normLast && fName) {
+									finalFullName = `${fName} ${finalFullName}`;
+								}
+							}
+						}
+
 						const candidateData = {
-							fullName: getVal(mapping.fullName),
+							fullName: finalFullName,
 							email: getVal(mapping.email),
 							phone: getVal(mapping.phone),
 							company: getVal(mapping.company),
