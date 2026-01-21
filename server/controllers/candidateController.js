@@ -21,6 +21,7 @@ import {
 	WidthType,
 	BorderStyle,
 } from "docx";
+import xlsx from "xlsx";
 import {
 	uploadToS3,
 	generateS3Key,
@@ -86,6 +87,14 @@ export const deleteCandidate = async (req, res) => {
 	}
 };
 
+const streamToBuffer = (stream) =>
+	new Promise((resolve, reject) => {
+		const chunks = [];
+		stream.on("data", (chunk) => chunks.push(chunk));
+		stream.on("error", reject);
+		stream.on("end", () => resolve(Buffer.concat(chunks)));
+	});
+
 // 3. GET HEADERS FROM EXISTING FILE (For Reprocessing)
 export const getFileHeaders = async (req, res) => {
 	const { filePath } = req.body; // filePath is now S3 key
@@ -98,18 +107,30 @@ export const getFileHeaders = async (req, res) => {
 		// Check if it's an S3 key (starts with 'uploads/') or local path
 		const isS3Key =
 			filePath.startsWith("uploads/") || !filePath.includes(path.sep);
+		const isXlsx = filePath.toLowerCase().endsWith(".xlsx");
 
 		if (isS3Key) {
-			// For large files, use readline to read just the first line (fastest method)
-			// This avoids downloading/parsing the entire file
 			try {
+				if (isXlsx) {
+					const s3Stream = await downloadFromS3(filePath);
+					const buffer = await streamToBuffer(s3Stream);
+					const workbook = xlsx.read(buffer, { type: "buffer", sheetRows: 1 });
+					const sheetName = workbook.SheetNames[0];
+					const worksheet = workbook.Sheets[sheetName];
+					const json = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+					const headers = json.length > 0 ? json[0].map(String) : [];
+					return res.json({ headers, filePath });
+				}
+
+				// For CSV files, use readline to read just the first line (fastest method)
+				// This avoids downloading/parsing the entire file
 				let headersReceived = false;
 				let timeoutId;
 
 				// Use Range request to only fetch first 50KB (headers are always at top)
 				const s3Stream = await downloadFromS3(filePath, {
 					rangeStart: 0,
-					rangeEnd: 51200, // First 50 KB is more than enough for headers
+					rangeEnd: 51200, // First 50 KB is more than enough for CSV headers
 				});
 
 				const rl = readline.createInterface({
@@ -207,6 +228,15 @@ export const getFileHeaders = async (req, res) => {
 					.json({ message: "Original file not found on server" });
 			}
 
+			if (isXlsx) {
+				const workbook = xlsx.readFile(filePath, { sheetRows: 1 });
+				const sheetName = workbook.SheetNames[0];
+				const worksheet = workbook.Sheets[sheetName];
+				const json = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+				const headers = json.length > 0 ? json[0].map(String) : [];
+				return res.json({ headers, filePath });
+			}
+
 			// Optimization: Read headers using readline (fastest for large files)
 			const fileStream = fs.createReadStream(filePath);
 			const rl = readline.createInterface({
@@ -287,29 +317,38 @@ export const uploadChunk = async (req, res) => {
 	console.log(`✅ File ${fileName} fully assembled at ${finalFilePath}`);
 
 	// Generate S3 key
+	const isXlsx = fileName.toLowerCase().endsWith(".xlsx");
 	const s3Key = generateS3Key(fileName, req.user._id.toString());
 
-	// Optimization: Read headers using readline (fastest for large files)
+	// Read headers from the fully assembled file
 	const getHeaders = async () => {
 		try {
-			const fileStream = fs.createReadStream(finalFilePath);
-			const rl = readline.createInterface({
-				input: fileStream,
-				crlfDelay: Infinity,
-			});
+			if (isXlsx) {
+				const workbook = xlsx.readFile(finalFilePath, { sheetRows: 1 });
+				const sheetName = workbook.SheetNames[0];
+				const worksheet = workbook.Sheets[sheetName];
+				const json = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+				return json.length > 0 ? json[0].map(String) : [];
+			} else {
+				// For CSV, read headers using readline (fastest for large files)
+				const fileStream = fs.createReadStream(finalFilePath);
+				const rl = readline.createInterface({
+					input: fileStream,
+					crlfDelay: Infinity,
+				});
 
-			for await (const line of rl) {
-				if (line && line.trim()) {
-					rl.close();
-					fileStream.destroy();
-
-					return parseCsvLine(line);
+				for await (const line of rl) {
+					if (line && line.trim()) {
+						rl.close();
+						fileStream.destroy();
+						return parseCsvLine(line);
+					}
 				}
-			}
 
-			rl.close();
-			fileStream.destroy();
-			return [];
+				rl.close();
+				fileStream.destroy();
+				return [];
+			}
 		} catch (err) {
 			console.error("❌ Manual header read failed:", err);
 			return [];
@@ -320,7 +359,11 @@ export const uploadChunk = async (req, res) => {
 
 	// Upload to S3 in background to prevent UI blocking
 	const fileStream = fs.createReadStream(finalFilePath);
-	uploadToS3(fileStream, s3Key, "text/csv")
+	const contentType = isXlsx
+		? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+		: "text/csv";
+
+	uploadToS3(fileStream, s3Key, contentType)
 		.then(() => {
 			console.log(`✅ File uploaded to S3: ${s3Key}`);
 			deleteFile(finalFilePath);
@@ -522,13 +565,19 @@ export const searchCandidates = async (req, res) => {
 			} else if (isPhone) {
 				andConditions.push({ phone: new RegExp(safeQ.replace(/\s+/g, ''), "i") });
 			} else {
-				// PERFORMANCE FIX: Use MongoDB Text Search instead of slow Regex $or
-				// This reduces search time from ~50s to <1s for 2M+ records
-				if (q.includes('"')) {
-					andConditions.push({ $text: { $search: q } }); // Exact phrase search
-				} else {
-					andConditions.push({ $text: { $search: q } });
-				}
+				// Use Regex $or instead of $text for better compatibility and substring search
+				const regex = new RegExp(safeQ, "i");
+				andConditions.push({
+					$or: [
+						{ fullName: regex },
+						{ jobTitle: regex },
+						{ skills: regex },
+						{ company: regex },
+						{ location: regex },
+						{ locality: regex },
+						{ summary: regex }
+					]
+				});
 			}
 		}
 
@@ -585,11 +634,6 @@ export const searchCandidates = async (req, res) => {
 					{ createdAt: new Date(lastCreatedAt), _id: { $lt: lastId } }
 				]
 			});
-		} else if (q && !isEmail && !isPhone) {
-			// If using Text Search, sort by relevance score first, then date
-			findQuery = findQuery.sort({ score: { $meta: "textScore" }, createdAt: -1 });
-			// We must project the score to sort by it
-			findQuery.projection({ score: { $meta: "textScore" } });
 		} else {
 			// Slow (Legacy): Use skip()
 			findQuery = findQuery.skip(skip);

@@ -156,7 +156,7 @@ const Dashboard = () => {
 					/> */}
 
 					{/* Candidate Count */}
-					{user?.role === "USER" && statsData && (
+					{/* {user?.role === "USER" && statsData && (
 						<div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pr-2">
 							<Users size={16} className="text-indigo-500" />
 							<span>{(statsData.totalCandidates || 0).toLocaleString()}</span>
@@ -164,7 +164,7 @@ const Dashboard = () => {
 								Candidates
 							</span>
 						</div>
-					)}
+					)} */}
 
 					{/* Credits Display */}
 					{user?.role === "USER" && (

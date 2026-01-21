@@ -719,7 +719,7 @@ const AdminDashboard = () => {
 									View and manage processed files
 								</p>
 							</div>
-							{statsData && (
+							{/* {statsData && (
 								<div className="text-right">
 									<p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
 										{(statsData.totalCandidates || 0).toLocaleString()}
@@ -728,7 +728,7 @@ const AdminDashboard = () => {
 										Total Candidates
 									</p>
 								</div>
-							)}
+							)} */}
 						</div>
 
 						{isHistoryLoading ? (

@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import fs from "fs";
 import path from "path";
+import xlsx from "xlsx";
 import csv from "csv-parser";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
@@ -8,6 +9,15 @@ import readline from "readline";
 import logger from "./logger.js";
 import { downloadFromS3, fileExistsInS3 } from "./s3Service.js";
 import { cleanAndValidateCandidate } from "./dataCleaner.js";
+
+// Helper to convert a stream to a buffer
+const streamToBuffer = (stream) =>
+	new Promise((resolve, reject) => {
+		const chunks = [];
+		stream.on("data", (chunk) => chunks.push(chunk));
+		stream.on("error", reject);
+		stream.on("end", () => resolve(Buffer.concat(chunks)));
+	});
 
 // ---------------------------------------------------
 // Redis connection configuration
@@ -90,6 +100,7 @@ const getFileStream = async (filePath) => {
 
 // Helper to find which line the headers are on
 const findHeaderRowIndex = async (filePath, mapping) => {
+	const isXlsx = filePath.toLowerCase().endsWith(".xlsx");
 	// Get a list of expected headers from the user's mapping
 	// e.g. ["Full Name", "Email", "Job Title"]
 	const expectedHeaders = Object.values(mapping).filter(
@@ -103,6 +114,45 @@ const findHeaderRowIndex = async (filePath, mapping) => {
 
 	try {
 		fileStream = await getFileStream(filePath);
+
+		if (isXlsx) {
+			try {
+				const buffer = await streamToBuffer(fileStream);
+				const workbook = xlsx.read(buffer, { type: "buffer", sheetRows: 21 });
+				const sheetName = workbook.SheetNames[0];
+				const worksheet = workbook.Sheets[sheetName];
+				const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+
+				let lineNumber = 0;
+				let headerLineIndex = 0;
+				let found = false;
+
+				for (const row of data) {
+					if (lineNumber > 20) break; // Search limit
+					const line = row
+						.map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`)
+						.join(",");
+
+					const containsHeader = expectedHeaders.some((header) => {
+						return line.includes(header) || line.includes(`"${header}"`);
+					});
+
+					if (containsHeader) {
+						headerLineIndex = lineNumber;
+						found = true;
+						break;
+					}
+					lineNumber++;
+				}
+
+				logger.info(found ? `🔎 Detected Headers on Line: ${headerLineIndex}` : "⚠️ Could not auto-detect header line. Defaulting to 0.");
+				return headerLineIndex;
+			} finally {
+				if (fileStream) fileStream.destroy();
+			}
+		}
+
+
 		rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
 		let lineNumber = 0;
@@ -189,7 +239,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 			logger.info(`🔄 Resuming job ${jobId} from row ${resumeFrom}. Initial counts: Success=${initialSuccess}, Failed=${initialFailed}`);
 		}
 
-		const { fileName: filePath, mapping, headers: actualHeaders } = job;
+		const { fileName: filePath, mapping, headers: actualHeaders, originalName } = job;
 
 		if (!actualHeaders || actualHeaders.length === 0) {
 			logger.error(`❌ Job ${jobId} is missing stored headers. Cannot process.`);
@@ -215,6 +265,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		// This fixes the "4.5M" corrupted count in the UI and ensures the progress bar
 		// starts at the correct position (e.g., 13.7M) instead of 0 or a wrong number.
 		await UploadJob.findByIdAndUpdate(jobId, { status: "PROCESSING", totalRows: resumeFrom });
+		const isXlsx = (filePath.toLowerCase().endsWith(".xlsx") || (originalName && originalName.toLowerCase().endsWith(".xlsx")));
 
 		// 1. Auto-Detect where the headers are
 		const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
@@ -319,12 +370,23 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				}
 			};
 
+			let sourceStream;
 			const fileStream = await getFileStream(filePath);
+
+			if (isXlsx) {
+				const buffer = await streamToBuffer(fileStream);
+				const workbook = xlsx.read(buffer, { type: "buffer" });
+				const sheetName = workbook.SheetNames[0];
+				const worksheet = workbook.Sheets[sheetName];
+				sourceStream = xlsx.stream.to_csv(worksheet);
+			} else {
+				sourceStream = fileStream;
+			}
 
 			// We will handle skipping manually as it's much faster for large files
 			// than using the library's built-in `skipLines`.
 			const csvParser = csv({
-				skipLines: skipLinesCount + 1, // ONLY skip garbage lines + the header row
+				skipLines: skipLinesCount + 1, // Skip garbage lines + the header row itself
 				headers: false, // ✅ RAW MODE: Get raw arrays to validate column count manually
 				strict: false,
 				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
@@ -344,7 +406,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 			let streamRowCounter = 0;
 			let isPaused = false;
 
-			const stream = fileStream
+			const stream = sourceStream
 				.pipe(csvParser)
 				.on("data", async (row) => {
 					// --- MANUAL RESUME LOGIC (FAST FORWARD) ---
