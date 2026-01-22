@@ -422,10 +422,14 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 						// --- MANUAL STRICT VALIDATION ---
 						// Check if row has the correct number of columns to prevent data shifting.
+						// FIX: Relaxed strict equality. CSVs often have trailing empty columns or missing trailing commas.
+						// We only warn if the mismatch is significant, but we attempt to process anyway.
 						if (rowValues.length !== actualHeaders.length) {
-							logger.warn(`⚠️ Row ${rowCounter} skipped: Column count mismatch (Expected ${actualHeaders.length}, got ${rowValues.length})`);
-							incrementFailure('COLUMN_MISMATCH'); // ✅ Now defined!
-							return;
+							// Just log a warning for debugging, but DO NOT SKIP the row.
+							// getVal() handles out-of-bounds access safely.
+							if (failedCount < 5) {
+								logger.warn(`⚠️ Row ${rowCounter} column mismatch: Expected ${actualHeaders.length}, got ${rowValues.length}. Processing anyway.`);
+							}
 						}
 
 						// --- DEBUGGING FIRST ROW ---
