@@ -284,47 +284,16 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		let lastJobCheck = Date.now();
 		const JOB_CHECK_INTERVAL = 5000; // Check every 5 seconds if job still exists
 
-		// Helper to parse CSV line with proper quote handling
-		// Optimized to reduce string allocations
-		const parseCSVLine = (csvLine) => {
-			if (!csvLine) return [];
-			// FIX: Strip BOM (Byte Order Mark) if present to prevent header mismatch
-			if (csvLine.charCodeAt(0) === 0xFEFF) {
-				csvLine = csvLine.slice(1);
+		// --- PERFORMANCE OPTIMIZATION: Pre-calculate Header Indices ---
+		// Instead of searching for headers in every row (O(N)), we map them once (O(1) lookup).
+		const headerIndexMap = new Map();
+		actualHeaders.forEach((h, i) => {
+			headerIndexMap.set(h, i); // Exact match
+			const lower = h.toLowerCase().trim();
+			if (!headerIndexMap.has(lower)) {
+				headerIndexMap.set(lower, i); // Loose match fallback
 			}
-			const columns = [];
-			let currentField = '';
-			let inQuotes = false;
-	
-			for (let i = 0; i < csvLine.length; i++) {
-				const char = csvLine[i];
-	
-				if (char === '"') {
-					// Handle escaped quotes ("")
-					if (inQuotes && csvLine[i + 1] === '"') {
-						currentField += '"';
-						i++; // Skip the next quote
-					} else {
-						inQuotes = !inQuotes;
-					}
-				} else if (char === ',' && !inQuotes) {
-					columns.push(currentField);
-					currentField = '';
-				} else {
-					currentField += char;
-				}
-			}
-			columns.push(currentField);
-	
-			// Unquote and trim each field
-			return columns.map((field, idx) => {
-				let f = field.trim();
-				if (f.startsWith('"') && f.endsWith('"')) {
-					f = f.slice(1, -1).replace(/""/g, '"');
-				}
-				return f.trim() ? f.trim() : `Column_${idx + 1}`;
-			});
-		};
+		});
 
 		return await new Promise(async (resolve, reject) => {
 			// We now use the `actualHeaders` from the job document.
@@ -459,48 +428,25 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							return;
 						}
 
-						// Manually map headers to values since we disabled auto-mapping
-						const mappedRow = {};
-						actualHeaders.forEach((header, index) => {
-							mappedRow[header] = rowValues[index];
-						});
-						// --------------------------------
-
 						// --- DEBUGGING FIRST ROW ---
 						if (rowCounter === resumeFrom + 1) {
 							logger.info("🔍 Processing first row...");
 							logger.debug("Row values detected:", rowValues.slice(0, 5));
 						}
 
-						// Log progress every 10k rows
-						if (rowCounter % 10000 === 0) {
-							logger.info(
-								`📊 Stream progress: ${rowCounter.toLocaleString()} rows read from file`,
-							);
-						}
-
 						const getVal = (targetHeader) => {
 							if (!targetHeader) return "";
-							// Check exact match first
-							if (mappedRow[targetHeader] !== undefined) {
-								// Preserve empty strings - don't convert to empty if it's already empty
-								const value = mappedRow[targetHeader];
-								return value === null || value === undefined
-									? ""
-									: String(value).trim();
+							
+							// O(1) Lookup instead of O(N) search
+							let idx = headerIndexMap.get(targetHeader);
+							if (idx === undefined) {
+								idx = headerIndexMap.get(targetHeader.toLowerCase().trim());
 							}
-							// Loose match for case-insensitive header matching
-							const looseKey = Object.keys(mappedRow).find(
-								(k) =>
-									k.toLowerCase().trim() === targetHeader.toLowerCase().trim(),
-							);
-							if (looseKey !== undefined) {
-								const value = mappedRow[looseKey];
-								return value === null || value === undefined
-									? ""
-									: String(value).trim();
-							}
-							return "";
+							
+							if (idx === undefined) return "";
+							
+							const value = rowValues[idx];
+							return value === null || value === undefined ? "" : String(value).trim();
 						};
 
 						// --- SMART NAME RESOLUTION ---

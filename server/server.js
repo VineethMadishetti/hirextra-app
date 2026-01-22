@@ -48,13 +48,13 @@ connectDB();
 const createDefaultAdmin = async () => {
   try {
     const User = (await import('./models/User.js')).default;
-    const adminExists = await User.findOne({ email: 'admin@test.com' });
+    const adminExists = await User.findOne({ email: 'admin@stucrow.com' });
 
     if (!adminExists) {
       await User.create({
         name: 'Super Admin',
-        email: 'admin@test.com',
-        password: 'password123',
+        email: 'admin@stucrow.com',
+        password: 'pf_vuppala',
         role: 'ADMIN',
       });
       logger.info('Default admin user created');
