@@ -10,8 +10,6 @@ import {
 	ShieldAlert,
 	CheckCircle,
 	Clock,
-	Play,
-	Pause,
 	XCircle,
 	Loader,
 	ChevronDown,
@@ -360,34 +358,6 @@ const AdminDashboard = () => {
 				error.response?.data?.message || "File missing from server.",
 				{ id: "reprocess" },
 			);
-		}
-	};
-
-	const handleResume = async (job) => {
-		try {
-			toast.loading("Resuming job...", { id: "resume" });
-			await api.post(`/candidates/${job._id}/resume`);
-			toast.success("Job resumed! Check progress.", { id: "resume" });
-			setProcessingJobId(job._id);
-			startProgressPolling(job._id);
-		} catch (error) {
-			console.error("Resume error:", error);
-			toast.error(error.response?.data?.message || "Failed to resume job", { id: "resume" });
-		}
-	};
-
-	const handlePause = async (jobId) => {
-		try {
-			toast.loading("Pausing job...", { id: "pause" });
-			await api.post(`/candidates/${jobId}/pause`);
-			toast.success("Pause request sent. Job will stop shortly.", { id: "pause" });
-			// Stop local polling immediately
-			clearInterval(pollingIntervalRef.current);
-			setProcessingJobId(null);
-			queryClient.invalidateQueries({ queryKey: ["history"] });
-		} catch (error) {
-			console.error("Pause error:", error);
-			toast.error(error.response?.data?.message || "Failed to pause job", { id: "pause" });
 		}
 	};
 
@@ -852,21 +822,6 @@ const AdminDashboard = () => {
 
 												{/* Actions */}
 												<div className="flex gap-2">
-													{isCurrentlyProcessing ? (
-														<button onClick={() => handlePause(job._id)} className="p-2 rounded-lg bg-slate-700/40 hover:bg-amber-500/20 text-amber-400 transition cursor-pointer" title="Pause Job">
-															<Pause size={16} />
-														</button>
-													) : (
-														(job.status === "PAUSED" || job.status === "FAILED" || job.status === "COMPLETED") && (
-															<button
-																onClick={() => handleResume(job)}
-																className="p-2 rounded-lg bg-slate-700/40 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer"
-																title="Resume / Retry Upload">
-																<Play size={16} />
-															</button>
-														)
-													)}
-
 													{/* <button
 														onClick={() => handleReprocess(job)}
 														className="p-2 rounded-lg bg-slate-700/40

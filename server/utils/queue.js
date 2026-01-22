@@ -281,8 +281,6 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		const failureReasonCounts = new Map();
 		let lastProgressUpdate = Date.now();
 		const PROGRESS_UPDATE_INTERVAL = 2000; // Update progress every 2 seconds max
-		let lastJobCheck = Date.now();
-		const JOB_CHECK_INTERVAL = 5000; // Check every 5 seconds if job still exists
 
 		// --- PERFORMANCE OPTIMIZATION: Pre-calculate Header Indices ---
 		// Instead of searching for headers in every row (O(N)), we map them once (O(1) lookup).
@@ -396,25 +394,6 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					if (isPaused) return; 
 
 					try {
-						// --- ABORT IF JOB IS DELETED (PERIODIC CHECK) ---
-						// To prevent orphaned jobs from running indefinitely if they are
-						// deleted mid-process, we check for the job's existence periodically.
-						const now = Date.now();
-						if (now - lastJobCheck > JOB_CHECK_INTERVAL) {
-							lastJobCheck = now;
-							const currentJobState = await UploadJob.findById(jobId).lean().select("status");
-							if (!currentJobState) {
-								logger.warn(`⚠️ Job ${jobId} was deleted. Aborting processing.`);
-								stream.destroy();
-								return; // Stop processing this row and subsequent rows
-							}
-							if (currentJobState.status === 'PAUSED') {
-								logger.info(`⏸️ Job ${jobId} has been paused. Stopping stream and saving progress.`);
-								stream.destroy(); // This will trigger the 'end' handler
-								return;
-							}
-						}
-
 						rowCounter++; // This will now continue from resumeFrom + 1
 
 						// Convert raw row to array (csv-parser with headers:false emits arrays)

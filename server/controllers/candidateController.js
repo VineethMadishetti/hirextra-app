@@ -430,46 +430,12 @@ export const processFile = async (req, res) => {
 
 // --- RESUME STUCK JOB ---
 export const resumeUploadJob = async (req, res) => {
-	try {
-		const { id } = req.params;
-		const job = await UploadJob.findById(id);
-		if (!job) return res.status(404).json({ message: "Job not found" });
-
-		// Calculate where to resume based on what was already saved
-		const rowsProcessed = (job.successRows || 0) + (job.failedRows || 0);
-
-		// Trigger background process with resume parameters
-		processCsvJob({
-			jobId: id, // ✅ Pass the job ID
-			resumeFrom: rowsProcessed,
-			initialSuccess: job.successRows || 0,
-			initialFailed: job.failedRows || 0,
-		}).catch(async (processingError) => {
-			console.error("Background resume failed:", processingError);
-		});
-
-		res.json({
-			message: `Resuming job from row ${rowsProcessed}`,
-			jobId: job._id,
-		});
-	} catch (error) {
-		res.status(500).json({ message: error.message });
-	}
+	res.status(400).json({ message: "Resume functionality has been disabled for performance." });
 };
 
 // --- PAUSE STUCK JOB ---
 export const pauseUploadJob = async (req, res) => {
-	try {
-		const { id } = req.params;
-		const job = await UploadJob.findByIdAndUpdate(id, { status: "PAUSED" }, { new: true });
-		if (!job) {
-			return res.status(404).json({ message: "Job not found" });
-		}
-		res.json({ message: "Job pause request sent. Processing will stop shortly.", jobId: job._id });
-	} catch (error) {
-		console.error("Error pausing job:", error);
-		res.status(500).json({ message: "Failed to pause job", error: error.message });
-	}
+	res.status(400).json({ message: "Pause functionality has been disabled for performance." });
 };
 
 // --- GET DELETE HISTORY ---
