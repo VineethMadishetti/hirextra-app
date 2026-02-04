@@ -221,12 +221,25 @@ const generateFiltersFromQuery = async (userQuery) => {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
 		});
+
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({ message: response.statusText }));
+			console.error("AI API Error:", response.status, errorData);
+			throw new Error(`API request failed: ${errorData.error?.message || response.statusText}`);
+		}
+
 		const data = await response.json();
 		const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-		return text ? JSON.parse(text.replace(/```json|```/g, "").trim()) : null;
+
+		if (!text) {
+			console.warn("AI response did not contain text.", data);
+			return { error: "Could not understand query." };
+		}
+
+		return JSON.parse(text.replace(/```json|```/g, "").trim());
 	} catch (error) {
-		console.error("AI Parse Error:", error);
-		return null;
+		console.error("AI Processing Error:", error);
+		return { error: error.message || "An unknown error occurred." };
 	}
 };
 
@@ -420,7 +433,7 @@ const UserSearch = () => {
 		try {
 			const extracted = await generateFiltersFromQuery(aiQuery);
 			
-			if (extracted) {
+			if (extracted && !extracted.error) {
 				setSearchInput(extracted.q || "");
 				setFilters(prev => ({
 					...prev,
@@ -439,10 +452,11 @@ const UserSearch = () => {
 				setIsSearchApplied(true);
 				toast.success("Filters applied!", { id: toastId });
 			} else {
-				toast.error("Could not understand query", { id: toastId });
+				const errorMessage = extracted?.error || "AI Search failed";
+				toast.error(errorMessage, { id: toastId });
 			}
 		} catch (err) {
-			toast.error("AI Search failed", { id: toastId });
+			toast.error(err.message || "AI Search failed", { id: toastId });
 		} finally {
 			setIsAiProcessing(false);
 		}
@@ -858,16 +872,16 @@ const UserSearch = () => {
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
 				<div className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm transition-all duration-300 supports-[backdrop-filter]:bg-white/60">
-
-					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-3">
-						{/* AI Smart Search Bar */}
-						<div className="relative group w-full md:w-auto md:flex-grow">
+					
+					{/* AI Smart Search Bar */}
+					<div className="px-2 pt-3 md:px-4">
+						<div className="relative group w-full">
 							<div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-30 group-hover:opacity-100 focus-within:opacity-100 blur transition duration-500"></div>
 							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl shadow-sm h-full">
 								<div className="pl-4 pr-2 text-indigo-500">
 									<Sparkles size={16} className={isAiProcessing ? "animate-spin" : ""} />
 								</div>
-								<input
+								<input 
 									type="text"
 									placeholder="Ask AI: 'Java dev in Hyderabad...'"
 									className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 py-2.5"
@@ -875,7 +889,7 @@ const UserSearch = () => {
 									onChange={(e) => setAiQuery(e.target.value)}
 									onKeyDown={(e) => e.key === 'Enter' && handleAiSearch(e)}
 								/>
-								<button
+								<button 
 									onClick={handleAiSearch}
 									disabled={isAiProcessing || !aiQuery.trim()}
 									className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-r-xl text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 self-stretch">
@@ -883,7 +897,9 @@ const UserSearch = () => {
 								</button>
 							</div>
 						</div>
+					</div>
 
+					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
 						{/* Filters Row (Scrollable) */}
 						<div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2 md:flex-1 md:overflow-x-auto md:scrollbar-hide">
 							{/* Search Bar */}
