@@ -36,6 +36,7 @@ import {
 	Linkedin,
 	RefreshCw,
 	Sparkles,
+	Bot,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
@@ -189,6 +190,46 @@ const SearchLoading = () => (
 	</div>
 );
 
+// AI Search Helper Function
+const generateFiltersFromQuery = async (userQuery) => {
+	const apiKey = import.meta.env.GEMINI_API_KEY; 
+	
+	if (!apiKey) {
+		toast.error("Please set GEMINI_API_KEY in your .env file");
+		return null;
+	}
+
+	const prompt = `
+		You are a recruitment search assistant. Analyze the following user query and extract search filters.
+		Query: "${userQuery}"
+		
+		Return ONLY a valid JSON object with the following keys:
+		- q: (string) General keywords, names, or specific terms not covered by other filters
+		- jobTitle: (string) Job title if specified
+		- location: (string) Location or city
+		- skills: (string) Comma-separated skills
+		- hasEmail: (boolean) true if email/contact info is requested
+		- hasPhone: (boolean) true if phone number is requested
+		- hasLinkedin: (boolean) true if LinkedIn profile is requested
+		
+		If a field is not mentioned, use empty string or false.
+	`;
+
+	try {
+		const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+		});
+		const data = await response.json();
+		const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+		return text ? JSON.parse(text.replace(/```json|```/g, "").trim()) : null;
+	} catch (error) {
+		console.error("AI Parse Error:", error);
+		return null;
+	}
+};
+
 const UserSearch = () => {
 	const { user } = useContext(AuthContext);
 	const queryClient = useQueryClient();
@@ -196,6 +237,8 @@ const UserSearch = () => {
 	const tableContainerRef = useRef(null);
 	const searchInputRef = useRef(null);
 	const [showBackToTop, setShowBackToTop] = useState(false);
+	const [aiQuery, setAiQuery] = useState("");
+	const [isAiProcessing, setIsAiProcessing] = useState(false);
 
 	// Scroll handler for Back to Top button
 	const handleScroll = useCallback((e) => {
@@ -365,6 +408,45 @@ const UserSearch = () => {
 		setSelectedIds(new Set());
 		setIsSearchApplied(true);
 	}, [searchInput, filters]);
+
+	// Handle AI Search
+	const handleAiSearch = async (e) => {
+		e?.preventDefault();
+		if (!aiQuery.trim()) return;
+		
+		setIsAiProcessing(true);
+		const toastId = toast.loading("AI is analyzing your requirements...");
+
+		try {
+			const extracted = await generateFiltersFromQuery(aiQuery);
+			
+			if (extracted) {
+				setSearchInput(extracted.q || "");
+				setFilters(prev => ({
+					...prev,
+					jobTitle: extracted.jobTitle || "",
+					location: extracted.location || "",
+					skills: extracted.skills || "",
+					hasEmail: extracted.hasEmail || false,
+					hasPhone: extracted.hasPhone || false,
+					hasLinkedin: extracted.hasLinkedin || false
+				}));
+
+				// Apply search immediately
+				setAppliedSearchInput(extracted.q || "");
+				setAppliedFilters(extracted); // extracted matches structure mostly, but let's be safe if we pass extra keys it's fine or we can map explicitly
+				setSelectedIds(new Set());
+				setIsSearchApplied(true);
+				toast.success("Filters applied!", { id: toastId });
+			} else {
+				toast.error("Could not understand query", { id: toastId });
+			}
+		} catch (err) {
+			toast.error("AI Search failed", { id: toastId });
+		} finally {
+			setIsAiProcessing(false);
+		}
+	};
 
 	// Handle Enter key in inputs
 	const handleKeyDown = (e) => {
@@ -776,6 +858,33 @@ const UserSearch = () => {
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
 				<div className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm transition-all duration-300 supports-[backdrop-filter]:bg-white/60">
+					
+					{/* AI Smart Search Bar */}
+					<div className="px-2 pt-3 md:px-4">
+						<div className="relative group">
+							<div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-30 group-hover:opacity-100 blur transition duration-500"></div>
+							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl p-1">
+								<div className="pl-3 pr-2 text-indigo-500">
+									<Sparkles size={18} className={isAiProcessing ? "animate-spin" : ""} />
+								</div>
+								<input 
+									type="text"
+									placeholder="Ask AI: 'I need a Java Developer in Hyderabad with 5 years experience...'"
+									className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 py-2"
+									value={aiQuery}
+									onChange={(e) => setAiQuery(e.target.value)}
+									onKeyDown={(e) => e.key === 'Enter' && handleAiSearch(e)}
+								/>
+								<button 
+									onClick={handleAiSearch}
+									disabled={isAiProcessing || !aiQuery.trim()}
+									className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+									{isAiProcessing ? 'Thinking...' : 'AI Search'}
+								</button>
+							</div>
+						</div>
+					</div>
+
 					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
 						{/* Filters Row (Scrollable) */}
 						<div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2 md:flex-1 md:overflow-x-auto md:scrollbar-hide">

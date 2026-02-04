@@ -94,7 +94,7 @@ candidateSchema.index({ createdBy: 1 }, { partialFilterExpression: { isDeleted: 
 // 11. Compound Filter Index (High Performance for Search Page)
 // Matches the common filter pattern: Job Title + Location + Skills + Sort by Date
 candidateSchema.index(
-  { jobTitle: 1, locality: 1, skills: 1, createdAt: -1 }, 
+  { jobTitle: 1, locality: 1, skills: 1, createdAt: -1 },
   { partialFilterExpression: { isDeleted: false }, background: true }
 );
 

@@ -252,7 +252,7 @@ export const getFileHeaders = async (req, res) => {
 					return res.json({ headers, filePath });
 				}
 			}
-			
+
 			rl.close();
 			fileStream.destroy();
 			return res.json({ headers: [], filePath });
@@ -286,7 +286,7 @@ export const uploadChunk = async (req, res) => {
 	const finalFilePath = path.join(uploadDir, fileName);
 
 	/* ---------------------------------------------------
-     APPEND CHUNK (OPTIMIZED)
+	 APPEND CHUNK (OPTIMIZED)
   --------------------------------------------------- */
 	try {
 		// Optimization: Read buffer directly (faster than streams for chunks)
@@ -299,7 +299,7 @@ export const uploadChunk = async (req, res) => {
 	}
 
 	/* ---------------------------------------------------
-     CHUNK PROGRESS
+	 CHUNK PROGRESS
   --------------------------------------------------- */
 	const currentChunk = Number(chunkIndex) + 1;
 	const total = Number(totalChunks);
@@ -312,7 +312,7 @@ export const uploadChunk = async (req, res) => {
 	}
 
 	/* ---------------------------------------------------
-     FINAL CHUNK → READ HEADERS FIRST, THEN UPLOAD TO S3
+	 FINAL CHUNK → READ HEADERS FIRST, THEN UPLOAD TO S3
   --------------------------------------------------- */
 	console.log(`✅ File ${fileName} fully assembled at ${finalFilePath}`);
 
@@ -783,7 +783,7 @@ export const deleteUploadJob = async (req, res) => {
 
 		const { id } = req.params;
 		const job = await UploadJob.findById(id);
-		
+
 		await Candidate.deleteMany({ uploadJobId: id });
 		await UploadJob.findByIdAndUpdate(id, {
 			status: "DELETED",
@@ -838,8 +838,8 @@ export const downloadProfile = async (req, res) => {
 		const clean = (v) =>
 			v
 				? String(v)
-						.replace(/[\r\n]+/g, " ")
-						.trim()
+					.replace(/[\r\n]+/g, " ")
+					.trim()
 				: "";
 
 		// Prepare skills for 2-column layout
@@ -979,111 +979,111 @@ export const downloadProfile = async (req, res) => {
 						// ===== PROFESSIONAL SUMMARY =====
 						...(candidate.summary
 							? [
-									new Paragraph({
-										text: "PROFESSIONAL SUMMARY:",
-										style: "SectionHeader",
-									}),
-									new Paragraph({
-										text: clean(candidate.summary),
-										indent: { left: 400 },
-									}),
-							  ]
+								new Paragraph({
+									text: "PROFESSIONAL SUMMARY:",
+									style: "SectionHeader",
+								}),
+								new Paragraph({
+									text: clean(candidate.summary),
+									indent: { left: 400 },
+								}),
+							]
 							: []),
 
 						// ===== SKILLS =====
 						...(candidate.skills
 							? [
-									new Paragraph({
-										text: "SKILLS:",
-										style: "SectionHeader",
-									}),
+								new Paragraph({
+									text: "SKILLS:",
+									style: "SectionHeader",
+								}),
 
-									new Table({
-										indent: { size: 400, type: WidthType.DXA },
-										width: { size: 100, type: WidthType.PERCENTAGE },
-										borders: {
-											top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-											bottom: {
-												style: BorderStyle.NONE,
-												size: 0,
-												color: "auto",
-											},
-											left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-											right: {
-												style: BorderStyle.NONE,
-												size: 0,
-												color: "auto",
-											},
-											insideHorizontal: {
-												style: BorderStyle.NONE,
-												size: 0,
-												color: "auto",
-											},
-											insideVertical: {
-												style: BorderStyle.NONE,
-												size: 0,
-												color: "auto",
-											},
+								new Table({
+									indent: { size: 400, type: WidthType.DXA },
+									width: { size: 100, type: WidthType.PERCENTAGE },
+									borders: {
+										top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+										bottom: {
+											style: BorderStyle.NONE,
+											size: 0,
+											color: "auto",
 										},
-										rows: [
-											new TableRow({
-												children: [col1, col2, col3].map(
-													(column) =>
-														new TableCell({
-															width: { size: 33, type: WidthType.PERCENTAGE },
-															children: column.map(
-																(skill) =>
-																	new Paragraph({
-																		children: [
-																			new TextRun({
-																				text: skill,
-																				font: "Calibri",
-																				size: 24, // 12pt
-																			}),
-																		],
-																		bullet: { level: 0 },
-																	}),
-															),
-														}),
-												),
-											}),
-										],
-									}),
-							  ]
+										left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+										right: {
+											style: BorderStyle.NONE,
+											size: 0,
+											color: "auto",
+										},
+										insideHorizontal: {
+											style: BorderStyle.NONE,
+											size: 0,
+											color: "auto",
+										},
+										insideVertical: {
+											style: BorderStyle.NONE,
+											size: 0,
+											color: "auto",
+										},
+									},
+									rows: [
+										new TableRow({
+											children: [col1, col2, col3].map(
+												(column) =>
+													new TableCell({
+														width: { size: 33, type: WidthType.PERCENTAGE },
+														children: column.map(
+															(skill) =>
+																new Paragraph({
+																	children: [
+																		new TextRun({
+																			text: skill,
+																			font: "Calibri",
+																			size: 24, // 12pt
+																		}),
+																	],
+																	bullet: { level: 0 },
+																}),
+														),
+													}),
+											),
+										}),
+									],
+								}),
+							]
 							: []),
 
 						// ===== WORK EXPERIENCE =====
 						...(candidate.jobTitle || candidate.company
 							? [
-									new Paragraph({
-										text: "WORK EXPERIENCE:",
-										style: "SectionHeader",
-									}),
-									new Paragraph({
-										children: [
-											new TextRun({
-												text: clean(candidate.jobTitle),
-												bold: true,
-											}),
-										],
-										spacing: { after: 40 },
-										indent: { left: 400 },
-									}),
-									new Paragraph({
-										text: clean(candidate.company),
-										spacing: { after: 0 },
-										indent: { left: 400 },
-									}),
+								new Paragraph({
+									text: "WORK EXPERIENCE:",
+									style: "SectionHeader",
+								}),
+								new Paragraph({
+									children: [
+										new TextRun({
+											text: clean(candidate.jobTitle),
+											bold: true,
+										}),
+									],
+									spacing: { after: 40 },
+									indent: { left: 400 },
+								}),
+								new Paragraph({
+									text: clean(candidate.company),
+									spacing: { after: 0 },
+									indent: { left: 400 },
+								}),
 
-									...(candidate.experience
-										? [
-												new Paragraph({
-													text: `Experience: ${clean(candidate.experience)}`,
-													indent: { left: 400 },
-												}),
-										  ]
-										: []),
-							  ]
+								...(candidate.experience
+									? [
+										new Paragraph({
+											text: `Experience: ${clean(candidate.experience)}`,
+											indent: { left: 400 },
+										}),
+									]
+									: []),
+							]
 							: []),
 
 						// ===== FOOTER =====

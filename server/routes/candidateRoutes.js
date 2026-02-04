@@ -1,8 +1,9 @@
 import express from 'express';
 import multer from 'multer';
-import { uploadChunk, processFile, searchCandidates, getUploadHistory, getJobStatus, downloadProfile,
-  deleteUploadJob,   
-  deleteCandidate,   
+import {
+  uploadChunk, processFile, searchCandidates, getUploadHistory, getJobStatus, downloadProfile,
+  deleteUploadJob,
+  deleteCandidate,
   getFileHeaders,
   nukeDatabase,
   softDeleteCandidate,
@@ -11,7 +12,7 @@ import { uploadChunk, processFile, searchCandidates, getUploadHistory, getJobSta
   resumeUploadJob,
   pauseUploadJob,
   getDeleteHistory
-} from '../controllers/candidateController.js'; 
+} from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
 const router = express.Router();

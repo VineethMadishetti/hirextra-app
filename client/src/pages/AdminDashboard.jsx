@@ -103,11 +103,10 @@ const MappingSelect = ({ value, onChange, options }) => {
 			{isOpen && (
 				<div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full">
 					<div
-						className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-							!value 
-                                ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium" 
-                                : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-						}`}
+						className={`px-3 py-2 text-sm cursor-pointer transition-colors ${!value
+								? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium"
+								: "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+							}`}
 						onClick={() => {
 							onChange({ target: { value: "" } });
 							setIsOpen(false);
@@ -118,11 +117,10 @@ const MappingSelect = ({ value, onChange, options }) => {
 					{options.map((h, i) => (
 						<div
 							key={i}
-							className={`px-3 py-2 text-sm cursor-pointer transition-colors truncate ${
-								value === h
+							className={`px-3 py-2 text-sm cursor-pointer transition-colors truncate ${value === h
 									? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium"
 									: "text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-							}`}
+								}`}
 							onClick={() => {
 								onChange({ target: { value: h } });
 								setIsOpen(false);
@@ -150,7 +148,7 @@ const AdminDashboard = () => {
 	});
 	const pollingIntervalRef = useRef(null);
 	const lastRefreshCountRef = useRef(0); // Use ref to avoid stale closure in setInterval
-	
+
 	// S3 File Path Mode
 	const [useS3Path, setUseS3Path] = useState(false);
 	const [s3FilePath, setS3FilePath] = useState("");
@@ -189,7 +187,7 @@ const AdminDashboard = () => {
 		staleTime: 60000, // 1 minute
 	});
 
-	
+
 
 	const fields = [
 		"fullName",
@@ -269,7 +267,7 @@ const AdminDashboard = () => {
 					// Only refresh if we've processed new rows (avoid unnecessary refreshes)
 					const lastRefreshCount = lastRefreshCountRef.current;
 					const rowsSinceLastRefresh = data.successRows - lastRefreshCount;
-					
+
 					if (rowsSinceLastRefresh >= 1000) {
 						// Refresh every 1000 new rows
 						queryClient.invalidateQueries({ queryKey: ["candidates"] });
@@ -290,8 +288,7 @@ const AdminDashboard = () => {
 
 					if (data.status === "COMPLETED") {
 						toast.success(
-							`Processing completed! ${
-								data.successRows || 0
+							`Processing completed! ${data.successRows || 0
 							} records imported. Refreshing table...`,
 						);
 						// Immediately invalidate and refetch candidates table
@@ -371,14 +368,14 @@ const AdminDashboard = () => {
 		setIsLoadingHeaders(true);
 		try {
 			toast.loading("Loading file headers from S3...", { id: "s3load" });
-			const { data } = await api.post("/candidates/headers", { 
-				filePath: s3FilePath.trim() 
+			const { data } = await api.post("/candidates/headers", {
+				filePath: s3FilePath.trim()
 			});
-			
+
 			if (data.headers && data.headers.length > 0) {
-				setUploadData({ 
-					filePath: s3FilePath.trim(), 
-					headers: data.headers 
+				setUploadData({
+					filePath: s3FilePath.trim(),
+					headers: data.headers
 				});
 				toast.success("File headers loaded! Map your columns below.", { id: "s3load" });
 				setS3FilePath("");
@@ -388,8 +385,8 @@ const AdminDashboard = () => {
 			}
 		} catch (error) {
 			console.error("S3 file load error:", error);
-			const errorMessage = error.response?.data?.message || 
-				error.response?.data?.error || 
+			const errorMessage = error.response?.data?.message ||
+				error.response?.data?.error ||
 				"Failed to load file from S3. Check if the file path is correct.";
 			toast.error(errorMessage, { id: "s3load" });
 		} finally {
@@ -461,36 +458,34 @@ const AdminDashboard = () => {
 
 	return (
 		<ErrorBoundary>
-		<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
-			<div className="max-w-7xl mx-auto h-full flex flex-col">
-				{/* Header & Tabs */}
-				<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg border border-slate-200 dark:border-transparent">
-					<div className="flex flex-col sm:flex-row justify-between gap-4">
-						<div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/70 p-1.5 rounded-xl">
-							<button
-								onClick={() => setActiveTab("upload")}
-								className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
-          ${
-						activeTab === "upload"
-							? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
-							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
-					}`}>
-								Upload & Map
-							</button>
+			<div className="min-h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 md:p-6">
+				<div className="max-w-7xl mx-auto h-full flex flex-col">
+					{/* Header & Tabs */}
+					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl p-5 mb-6 shadow-lg border border-slate-200 dark:border-transparent">
+						<div className="flex flex-col sm:flex-row justify-between gap-4">
+							<div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/70 p-1.5 rounded-xl">
+								<button
+									onClick={() => setActiveTab("upload")}
+									className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
+          ${activeTab === "upload"
+											? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
+											: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
+										}`}>
+									Upload & Map
+								</button>
 
-							<button
-								onClick={() => setActiveTab("history")}
-								className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
-          ${
-						activeTab === "history"
-							? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
-							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
-					}`}>
-								History
-							</button>
-						</div>
+								<button
+									onClick={() => setActiveTab("history")}
+									className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
+          ${activeTab === "history"
+											? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
+											: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
+										}`}>
+									History
+								</button>
+							</div>
 
-						{/* <button
+							{/* <button
 							onClick={() => {
 								setConfirmActionType("RESET");
 								setPasswordInput(""); // 🔹 clears old password
@@ -506,192 +501,188 @@ const AdminDashboard = () => {
 							<ShieldAlert size={16} />
 							Reset Database
 						</button> */}
+						</div>
 					</div>
-				</div>
 
-				{activeTab === "upload" && (
-					<div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-xl border border-slate-200 dark:border-transparent">
-						{/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
-						{uploadData ? (
-							<div className="max-w-4xl mx-auto animate-fade-in">
-								<div className="mb-6 flex items-center justify-between">
-									<div>
-										<h3 className="text-xl font-semibold text-slate-900 dark:text-white">
-											Column Mapping
-										</h3>
-										<p className="text-sm text-slate-400">
-											Map CSV headers to PeopleFinder fields
-										</p>
-										<p className="text-xs text-slate-500 mt-1">
-											File: {uploadData.filePath}
-										</p>
-									</div>
-									<button
-										onClick={() => {
-											setUploadData(null);
-											setMapping({});
-											setUseS3Path(false);
-											setS3FilePath("");
-										}}
-										className="px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-800 rounded-xl shadow-md transition-all duration-300 ease-out cursor-pointer">
-										Change File
-									</button>
-								</div>
-
-								<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-									{fields.map((field) => (
-										<div key={field} className="space-y-1">
-											<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-												{field}
-											</label>
-
-											<MappingSelect
-												value={mapping[field]}
-												onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
-												options={uploadData.headers}
-											/>
+					{activeTab === "upload" && (
+						<div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-xl border border-slate-200 dark:border-transparent">
+							{/* AFTER UPLOAD → ONLY COLUMN MAPPING */}
+							{uploadData ? (
+								<div className="max-w-4xl mx-auto animate-fade-in">
+									<div className="mb-6 flex items-center justify-between">
+										<div>
+											<h3 className="text-xl font-semibold text-slate-900 dark:text-white">
+												Column Mapping
+											</h3>
+											<p className="text-sm text-slate-400">
+												Map CSV headers to PeopleFinder fields
+											</p>
+											<p className="text-xs text-slate-500 mt-1">
+												File: {uploadData.filePath}
+											</p>
 										</div>
-									))}
-								</div>
+										<button
+											onClick={() => {
+												setUploadData(null);
+												setMapping({});
+												setUseS3Path(false);
+												setS3FilePath("");
+											}}
+											className="px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-800 rounded-xl shadow-md transition-all duration-300 ease-out cursor-pointer">
+											Change File
+										</button>
+									</div>
 
-								<button
-									onClick={handleProcess}
-									disabled={isProcessing}
-									className={`mt-8 w-full text-white py-3 rounded-xl font-medium
-            shadow-lg transition ${
-							isProcessing
-								? "bg-indigo-400 cursor-not-allowed"
-								: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-						}`}>
-									{isProcessing ? (
-										<span className="flex items-center justify-center gap-2">
-											<RefreshCw className="w-4 h-4 animate-spin" />
-											Processing...
-										</span>
-									) : (
-										"Process File"
-									)}
-								</button>
-							</div>
-						) : (
-							/* BEFORE UPLOAD → FILE UPLOADER OR S3 PATH */
-							<div className="w-full">
-								<div className="mb-6 flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl">
-									<button
-										onClick={() => {
-											setUseS3Path(false);
-											setS3FilePath("");
-										}}
-										className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
-											!useS3Path
-												? "bg-indigo-600 text-white"
-												: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-										}`}>
-										Upload New File
-									</button>
-									<button
-										onClick={() => {
-											setUseS3Path(true);
-											setUploadData(null);
-										}}
-										className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
-											useS3Path
-												? "bg-indigo-600 text-white"
-												: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-										}`}>
-										Use Existing S3 File
-									</button>
-								</div>
+									<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+										{fields.map((field) => (
+											<div key={field} className="space-y-1">
+												<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+													{field}
+												</label>
 
-								{useS3Path ? (
-									<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-										<div className="flex flex-col md:flex-row items-center gap-8">
-											{/* Left: Image */}
-											<div className="w-full md:w-1/3 flex justify-center">
-												<img
-													src={ExistingFilesIcon}
-													alt="Process existing file"
-													className="w-48 md:w-full max-w-xs dark:invert-[.85]"
+												<MappingSelect
+													value={mapping[field]}
+													onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
+													options={uploadData.headers}
 												/>
 											</div>
+										))}
+									</div>
 
-											{/* Right: Content */}
-											<div className="w-full md:w-2/3 space-y-4">
-												<div>
-													<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
-														Process File from S3
-													</h3>
-													<p className="text-sm text-slate-500 dark:text-slate-400">
-														Enter the S3 key of your CSV file (e.g., "India.csv")
-													</p>
-												</div>
+									<button
+										onClick={handleProcess}
+										disabled={isProcessing}
+										className={`mt-8 w-full text-white py-3 rounded-xl font-medium
+            shadow-lg transition ${isProcessing
+												? "bg-indigo-400 cursor-not-allowed"
+												: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+											}`}>
+										{isProcessing ? (
+											<span className="flex items-center justify-center gap-2">
+												<RefreshCw className="w-4 h-4 animate-spin" />
+												Processing...
+											</span>
+										) : (
+											"Process File"
+										)}
+									</button>
+								</div>
+							) : (
+								/* BEFORE UPLOAD → FILE UPLOADER OR S3 PATH */
+								<div className="w-full">
+									<div className="mb-6 flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl">
+										<button
+											onClick={() => {
+												setUseS3Path(false);
+												setS3FilePath("");
+											}}
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${!useS3Path
+													? "bg-indigo-600 text-white"
+													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+												}`}>
+											Upload New File
+										</button>
+										<button
+											onClick={() => {
+												setUseS3Path(true);
+												setUploadData(null);
+											}}
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${useS3Path
+													? "bg-indigo-600 text-white"
+													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+												}`}>
+											Use Existing S3 File
+										</button>
+									</div>
 
-												<div className="space-y-2">
-													<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-														S3 File Path / Key
-													</label>
-													<input
-														type="text"
-														value={s3FilePath}
-														onChange={(e) => setS3FilePath(e.target.value)}
-														placeholder="India.csv"
-														className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
-														onKeyPress={(e) => {
-															if (e.key === "Enter" && !isLoadingHeaders) {
-																handleLoadS3File();
-															}
-														}}
+									{useS3Path ? (
+										<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+											<div className="flex flex-col md:flex-row items-center gap-8">
+												{/* Left: Image */}
+												<div className="w-full md:w-1/3 flex justify-center">
+													<img
+														src={ExistingFilesIcon}
+														alt="Process existing file"
+														className="w-48 md:w-full max-w-xs dark:invert-[.85]"
 													/>
-													<p className="text-xs text-slate-500">
-														💡 Use just the S3 key (e.g., "India.csv"), not the full URL.
-													</p>
 												</div>
 
-												<button
-													onClick={handleLoadS3File}
-													disabled={isLoadingHeaders || !s3FilePath.trim()}
-													className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${
-														isLoadingHeaders || !s3FilePath.trim()
-															? "bg-indigo-400 cursor-not-allowed"
-															: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-													}`}>
-													{isLoadingHeaders ? (
-														<span className="flex items-center justify-center gap-2">
-															<RefreshCw className="w-4 h-4 animate-spin" />
-															Loading Headers...
-														</span>
-													) : (
-														"Load File Headers"
-													)}
-												</button>
+												{/* Right: Content */}
+												<div className="w-full md:w-2/3 space-y-4">
+													<div>
+														<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+															Process File from S3
+														</h3>
+														<p className="text-sm text-slate-500 dark:text-slate-400">
+															Enter the S3 key of your CSV file (e.g., "India.csv")
+														</p>
+													</div>
+
+													<div className="space-y-2">
+														<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+															S3 File Path / Key
+														</label>
+														<input
+															type="text"
+															value={s3FilePath}
+															onChange={(e) => setS3FilePath(e.target.value)}
+															placeholder="India.csv"
+															className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+															onKeyPress={(e) => {
+																if (e.key === "Enter" && !isLoadingHeaders) {
+																	handleLoadS3File();
+																}
+															}}
+														/>
+														<p className="text-xs text-slate-500">
+															💡 Use just the S3 key (e.g., "India.csv"), not the full URL.
+														</p>
+													</div>
+
+													<button
+														onClick={handleLoadS3File}
+														disabled={isLoadingHeaders || !s3FilePath.trim()}
+														className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${isLoadingHeaders || !s3FilePath.trim()
+																? "bg-indigo-400 cursor-not-allowed"
+																: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+															}`}>
+														{isLoadingHeaders ? (
+															<span className="flex items-center justify-center gap-2">
+																<RefreshCw className="w-4 h-4 animate-spin" />
+																Loading Headers...
+															</span>
+														) : (
+															"Load File Headers"
+														)}
+													</button>
+												</div>
 											</div>
 										</div>
-									</div>
-								) : (
-									/* REGULAR FILE UPLOADER */
-									<FileUploader onUploadComplete={setUploadData} />
-								)}
-							</div>
-						)}
-					</div>
-				)}
+									) : (
+										/* REGULAR FILE UPLOADER */
+										<FileUploader onUploadComplete={setUploadData} />
+									)}
+								</div>
+							)}
+						</div>
+					)}
 
-				{/* HISTORY TAB */}
-				{activeTab === "history" && (
-					<div className="space-y-8">
-					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
-						{/* Header */}
-						<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-							<div>
-								<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-									<cloudUpload className="w-5 h-5 text-blue-600" />
-									Upload History
-								</h3>
-								<p className="text-sm text-slate-400 mt-1">
-									View and manage processed files
-								</p>
-							</div>
-							{/* {statsData && (
+					{/* HISTORY TAB */}
+					{activeTab === "history" && (
+						<div className="space-y-8">
+							<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+								{/* Header */}
+								<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+									<div>
+										<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+											<cloudUpload className="w-5 h-5 text-blue-600" />
+											Upload History
+										</h3>
+										<p className="text-sm text-slate-400 mt-1">
+											View and manage processed files
+										</p>
+									</div>
+									{/* {statsData && (
 								<div className="text-right">
 									<p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
 										{(statsData.totalCandidates || 0).toLocaleString()}
@@ -701,128 +692,127 @@ const AdminDashboard = () => {
 									</p>
 								</div>
 							)} */}
-						</div>
+								</div>
 
-						{isHistoryLoading ? (
-							<div className="p-4 space-y-3">
-								{[...Array(5)].map((_, i) => <HistorySkeleton key={i} />)}
-							</div>
-						) : jobs.length === 0 ? (
-							<div className="p-12 text-center">
-								<img
-									src={HistoryIcon}
-									alt="No history"
-									className="w-24 h-24 mx-auto mb-4 opacity-50 dark:invert-[.75]"
-								/>
-								<p className="text-slate-500 dark:text-slate-400 font-medium">
-									No upload history found
-								</p>
-							</div>
-						) : (
-							<div className="p-4 space-y-3">
-								{jobs.map((job) => {
-									const getStatusStyle = () => {
-										switch (job.status) {
-											case "COMPLETED":
-												return "bg-emerald-500/10 text-emerald-400";
-											case "PROCESSING":
-											case "MAPPING_PENDING":
-												return "bg-amber-500/10 text-amber-400";
-											case "FAILED":
-												return "bg-rose-500/10 text-rose-400";
-											case "DELETED":
-												return "bg-slate-800 text-slate-500 border border-slate-700";
-											default:
-												return "bg-slate-700 text-slate-300";
-										}
-									};
+								{isHistoryLoading ? (
+									<div className="p-4 space-y-3">
+										{[...Array(5)].map((_, i) => <HistorySkeleton key={i} />)}
+									</div>
+								) : jobs.length === 0 ? (
+									<div className="p-12 text-center">
+										<img
+											src={HistoryIcon}
+											alt="No history"
+											className="w-24 h-24 mx-auto mb-4 opacity-50 dark:invert-[.75]"
+										/>
+										<p className="text-slate-500 dark:text-slate-400 font-medium">
+											No upload history found
+										</p>
+									</div>
+								) : (
+									<div className="p-4 space-y-3">
+										{jobs.map((job) => {
+											const getStatusStyle = () => {
+												switch (job.status) {
+													case "COMPLETED":
+														return "bg-emerald-500/10 text-emerald-400";
+													case "PROCESSING":
+													case "MAPPING_PENDING":
+														return "bg-amber-500/10 text-amber-400";
+													case "FAILED":
+														return "bg-rose-500/10 text-rose-400";
+													case "DELETED":
+														return "bg-slate-800 text-slate-500 border border-slate-700";
+													default:
+														return "bg-slate-700 text-slate-300";
+												}
+											};
 
-									const isCurrentlyProcessing = job.status === 'PROCESSING' && processingJobId === job._id;
+											const isCurrentlyProcessing = job.status === 'PROCESSING' && processingJobId === job._id;
 
-									return (
-										<div
-											key={job._id}
-											className="bg-white dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700
+											return (
+												<div
+													key={job._id}
+													className="bg-white dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700
                          flex flex-col lg:flex-row lg:items-center lg:justify-between
                          gap-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all duration-300">
-											{/* File Info */}
-											<div className="flex items-center gap-4 min-w-0">
-												<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">
-													<FileText className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
-												</div>
-
-												<div className="min-w-0">
-													<p className="font-medium text-slate-800 dark:text-slate-100 truncate">
-														{job.originalName || job.fileName}
-													</p>
-													<p className="text-xs text-slate-500 dark:text-slate-400">
-														{formatDate(job.createdAt)}
-													</p>
-													{job.error && (
-														<p className="text-xs text-rose-500 mt-1 truncate max-w-[250px]" title={job.error}>
-															Error: {job.error}
-														</p>
-													)}
-												</div>
-											</div>
-
-											{/* Status */}
-											<div className="flex items-center gap-4">
-												<span
-													className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle()}`}>
-													{job.status}
-												</span>
-
-												{/* Records */}
-												<div className="text-sm text-slate-700 dark:text-slate-300 min-w-[110px] text-right">
-													{(job.status === "PROCESSING" ||
-														job.status === "MAPPING_PENDING") &&
-													processingJobId === job._id ? (
-														<div className="flex flex-col items-end w-full">
-															<div className="flex items-center gap-2 justify-end w-full">
-																<Loader className="w-3 h-3 animate-spin text-indigo-400" />
-															<span className="font-semibold">
-																{(processingProgress?.successRows || 0).toLocaleString()}
-															</span>
-															<span className="text-xs text-slate-500 dark:text-slate-400">
-																/{" "}
-																{(processingProgress?.totalRows || 0).toLocaleString()}
-															</span>
-															</div>
-															<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
-																<div
-																	className="bg-indigo-500 h-1.5 rounded-full transition-all"
-																	style={{
-																		width: `${
-																			(processingProgress?.totalRows || 0) > 0
-																				? ((processingProgress?.successRows || 0) /
-																						(processingProgress?.totalRows || 1)) *
-																				  100
-																				: 0
-																		}%`,
-																	}}
-																/>
-															</div>
+													{/* File Info */}
+													<div className="flex items-center gap-4 min-w-0">
+														<div className="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-lg">
+															<FileText className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
 														</div>
-													) : (
-														<div className="flex flex-col items-end gap-0.5">
-															<div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400" title="Successful Records">
-																<CheckCircle size={12} />
-																<span className="font-semibold">{job.successRows?.toLocaleString() || "0"}</span>
-															</div>
-															{/* {(job.failedRows > 0 || job.status === 'FAILED') && (
+
+														<div className="min-w-0">
+															<p className="font-medium text-slate-800 dark:text-slate-100 truncate">
+																{job.originalName || job.fileName}
+															</p>
+															<p className="text-xs text-slate-500 dark:text-slate-400">
+																{formatDate(job.createdAt)}
+															</p>
+															{job.error && (
+																<p className="text-xs text-rose-500 mt-1 truncate max-w-[250px]" title={job.error}>
+																	Error: {job.error}
+																</p>
+															)}
+														</div>
+													</div>
+
+													{/* Status */}
+													<div className="flex items-center gap-4">
+														<span
+															className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle()}`}>
+															{job.status}
+														</span>
+
+														{/* Records */}
+														<div className="text-sm text-slate-700 dark:text-slate-300 min-w-[110px] text-right">
+															{(job.status === "PROCESSING" ||
+																job.status === "MAPPING_PENDING") &&
+																processingJobId === job._id ? (
+																<div className="flex flex-col items-end w-full">
+																	<div className="flex items-center gap-2 justify-end w-full">
+																		<Loader className="w-3 h-3 animate-spin text-indigo-400" />
+																		<span className="font-semibold">
+																			{(processingProgress?.successRows || 0).toLocaleString()}
+																		</span>
+																		<span className="text-xs text-slate-500 dark:text-slate-400">
+																			/{" "}
+																			{(processingProgress?.totalRows || 0).toLocaleString()}
+																		</span>
+																	</div>
+																	<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
+																		<div
+																			className="bg-indigo-500 h-1.5 rounded-full transition-all"
+																			style={{
+																				width: `${(processingProgress?.totalRows || 0) > 0
+																						? ((processingProgress?.successRows || 0) /
+																							(processingProgress?.totalRows || 1)) *
+																						100
+																						: 0
+																					}%`,
+																			}}
+																		/>
+																	</div>
+																</div>
+															) : (
+																<div className="flex flex-col items-end gap-0.5">
+																	<div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400" title="Successful Records">
+																		<CheckCircle size={12} />
+																		<span className="font-semibold">{job.successRows?.toLocaleString() || "0"}</span>
+																	</div>
+																	{/* {(job.failedRows > 0 || job.status === 'FAILED') && (
 																<div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400" title="Failed Records">
 																	<XCircle size={12} />
 																	<span className="font-semibold">{job.failedRows?.toLocaleString() || "0"}</span>
 																</div>
 															)} */}
+																</div>
+															)}
 														</div>
-													)}
-												</div>
 
-												{/* Actions */}
-												<div className="flex gap-2">
-													{/* <button
+														{/* Actions */}
+														<div className="flex gap-2">
+															{/* <button
 														onClick={() => handleReprocess(job)}
 														className="p-2 rounded-lg bg-slate-700/40
                                hover:bg-indigo-500/20 text-indigo-400
@@ -830,153 +820,151 @@ const AdminDashboard = () => {
 														<RefreshCw size={16} />
 													</button> */}
 
-													<button
-														onClick={() => initiateAction("deleteJob", job._id)}
-														className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
+															<button
+																onClick={() => initiateAction("deleteJob", job._id)}
+																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
                                hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400
                                transition cursor-pointer">
-														<Trash2 size={16} />
-													</button>
+																<Trash2 size={16} />
+															</button>
+														</div>
+													</div>
 												</div>
-											</div>
-										</div>
-									);
-								})}
+											);
+										})}
+									</div>
+								)}
 							</div>
-						)}
-					</div>
 
-					{/* DELETE HISTORY TABLE */}
-					<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
-						<div className="p-6 border-b border-slate-200 dark:border-slate-800">
-							<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-								<Trash2 className="w-5 h-5 text-rose-500" />
-								Delete History
-							</h3>
-							<p className="text-sm text-slate-400 mt-1">
-								Audit log of deleted files and database resets
-							</p>
+							{/* DELETE HISTORY TABLE */}
+							<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+								<div className="p-6 border-b border-slate-200 dark:border-slate-800">
+									<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+										<Trash2 className="w-5 h-5 text-rose-500" />
+										Delete History
+									</h3>
+									<p className="text-sm text-slate-400 mt-1">
+										Audit log of deleted files and database resets
+									</p>
+								</div>
+
+								{isDeleteHistoryLoading ? (
+									<div className="p-12 text-center">
+										<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500 mx-auto"></div>
+									</div>
+								) : deleteLogs.length === 0 ? (
+									<div className="p-8 text-center text-slate-500 dark:text-slate-400">
+										No deletion records found
+									</div>
+								) : (
+									<div className="overflow-x-auto">
+										<table className="w-full text-left border-collapse">
+											<thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
+												<tr>
+													<th className="px-6 py-4">Entity Name</th>
+													<th className="px-6 py-4">Type</th>
+													<th className="px-6 py-4">Deleted By</th>
+													<th className="px-6 py-4">Deleted At</th>
+												</tr>
+											</thead>
+											<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+												{deleteLogs.map((log) => (
+													<tr key={log._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+														<td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
+															{log.entityName}
+														</td>
+														<td className="px-6 py-4">
+															<span className={`px-2 py-1 rounded text-xs font-bold ${log.entityType === 'DATABASE'
+																	? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'
+																	: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+																}`}>
+																{log.entityType}
+															</span>
+														</td>
+														<td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+															{log.deletedBy?.name || 'Unknown'}
+														</td>
+														<td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+															{formatDate(log.deletedAt)}
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								)}
+							</div>
 						</div>
+					)}
 
-						{isDeleteHistoryLoading ? (
-							<div className="p-12 text-center">
-								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500 mx-auto"></div>
-							</div>
-						) : deleteLogs.length === 0 ? (
-							<div className="p-8 text-center text-slate-500 dark:text-slate-400">
-								No deletion records found
-							</div>
-						) : (
-							<div className="overflow-x-auto">
-								<table className="w-full text-left border-collapse">
-									<thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
-										<tr>
-											<th className="px-6 py-4">Entity Name</th>
-											<th className="px-6 py-4">Type</th>
-											<th className="px-6 py-4">Deleted By</th>
-											<th className="px-6 py-4">Deleted At</th>
-										</tr>
-									</thead>
-									<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-										{deleteLogs.map((log) => (
-											<tr key={log._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-												<td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
-													{log.entityName}
-												</td>
-												<td className="px-6 py-4">
-													<span className={`px-2 py-1 rounded text-xs font-bold ${
-														log.entityType === 'DATABASE' 
-															? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' 
-															: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-													}`}>
-														{log.entityType}
-													</span>
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-													{log.deletedBy?.name || 'Unknown'}
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-													{formatDate(log.deletedAt)}
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
-						)}
-					</div>
-					</div>
-				)}
-
-				{/* PASSWORD CONFIRMATION MODAL */}
-				{/* PASSWORD CONFIRMATION MODAL */}
-				{showPasswordModal && (
-					<div
-						className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
-                  flex items-center justify-center transition-all">
+					{/* PASSWORD CONFIRMATION MODAL */}
+					{/* PASSWORD CONFIRMATION MODAL */}
+					{showPasswordModal && (
 						<div
-							className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-transparent
+							className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
+                  flex items-center justify-center transition-all">
+							<div
+								className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-transparent
                     animate-in fade-in zoom-in-95 duration-200">
-							<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
-								{confirmActionType === "RESET"
-									? "Reset Database"
-									: "Confirm Action"}
-							</h3>
+								<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+									{confirmActionType === "RESET"
+										? "Reset Database"
+										: "Confirm Action"}
+								</h3>
 
-							<p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-								{confirmActionType === "RESET"
-									? "This will permanently erase all data"
-									: "Enter admin password to continue"}
-							</p>
+								<p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+									{confirmActionType === "RESET"
+										? "This will permanently erase all data"
+										: "Enter admin password to continue"}
+								</p>
 
-							<input
-								type="password"
-								className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
+								<input
+									type="password"
+									className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700
                    rounded-xl px-4 py-2 text-slate-800 dark:text-white
                    focus:ring-2 focus:ring-rose-500/40
                    outline-none transition"
-								value={passwordInput}
-								onChange={(e) => {
-									setPasswordInput(e.target.value);
-									if (passwordError) setPasswordError("");
-								}}
-								autoFocus
-							/>
+									value={passwordInput}
+									onChange={(e) => {
+										setPasswordInput(e.target.value);
+										if (passwordError) setPasswordError("");
+									}}
+									autoFocus
+								/>
 
-							{passwordError && (
-								<p className="mt-2 text-sm text-rose-400">{passwordError}</p>
-							)}
+								{passwordError && (
+									<p className="mt-2 text-sm text-rose-400">{passwordError}</p>
+								)}
 
-							<div className="flex justify-end gap-3 mt-6">
-								<button
-									onClick={() => setShowPasswordModal(false)}
-									className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
-									Cancel
-								</button>
+								<div className="flex justify-end gap-3 mt-6">
+									<button
+										onClick={() => setShowPasswordModal(false)}
+										className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
+										Cancel
+									</button>
 
-								<button
-									onClick={confirmAction}
-									disabled={isConfirming}
-									className={`px-5 py-2 rounded-xl text-white transition
-    ${
-			isConfirming
-				? "cursor-not-allowed bg-red-400"
-				: confirmActionType === "RESET"
-				? "bg-red-700 hover:bg-red-600"
-				: "bg-rose-600 hover:bg-rose-500"
-		}`}>
-									{isConfirming
-										? confirmActionType === "RESET"
-											? "Resetting..."
-											: "Deleting..."
-										: "Confirm"}
-								</button>
+									<button
+										onClick={confirmAction}
+										disabled={isConfirming}
+										className={`px-5 py-2 rounded-xl text-white transition
+    ${isConfirming
+												? "cursor-not-allowed bg-red-400"
+												: confirmActionType === "RESET"
+													? "bg-red-700 hover:bg-red-600"
+													: "bg-rose-600 hover:bg-rose-500"
+											}`}>
+										{isConfirming
+											? confirmActionType === "RESET"
+												? "Resetting..."
+												: "Deleting..."
+											: "Confirm"}
+									</button>
+								</div>
 							</div>
 						</div>
-					</div>
-				)}
+					)}
+				</div>
 			</div>
-		</div>
 		</ErrorBoundary>
 	);
 };

@@ -391,7 +391,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					// --- END MANUAL RESUME LOGIC ---
 
 					// --- SAFETY CHECK: STOP IF PAUSED OR JOB DELETED ---
-					if (isPaused) return; 
+					if (isPaused) return;
 
 					try {
 						rowCounter++; // This will now continue from resumeFrom + 1
@@ -419,15 +419,15 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 						const getVal = (targetHeader) => {
 							if (!targetHeader) return "";
-							
+
 							// O(1) Lookup instead of O(N) search
 							let idx = headerIndexMap.get(targetHeader);
 							if (idx === undefined) {
 								idx = headerIndexMap.get(targetHeader.toLowerCase().trim());
 							}
-							
+
 							if (idx === undefined) return "";
-							
+
 							const value = rowValues[idx];
 							return value === null || value === undefined ? "" : String(value).trim();
 						};
