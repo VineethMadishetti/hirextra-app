@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import xlsx from "xlsx";
 import csv from "csv-parser";
-import pdf from "pdf-parse";
 import mammoth from "mammoth";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
@@ -11,6 +10,10 @@ import readline from "readline";
 import logger from "./logger.js";
 import { downloadFromS3, fileExistsInS3 } from "./s3Service.js";
 import { cleanAndValidateCandidate } from "./dataCleaner.js";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 
 // Helper to convert a stream to a buffer
 const streamToBuffer = (stream) =>
