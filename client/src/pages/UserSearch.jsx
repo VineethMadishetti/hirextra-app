@@ -192,7 +192,9 @@ const SearchLoading = () => (
 
 // AI Search Helper Function
 const generateFiltersFromQuery = async (userQuery) => {
-	const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+	const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+	const model = import.meta.env.VITE_GEMINI_MODEL || "gemini-1.5-flash";
+	const apiVersion = import.meta.env.VITE_GEMINI_API_VERSION || "v1beta";
 	
 	if (!apiKey) {
 		toast.error("Please set VITE_GEMINI_API_KEY in your .env file");
@@ -216,15 +218,26 @@ const generateFiltersFromQuery = async (userQuery) => {
 	`;
 
 	try {
-		const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+		const response = await fetch(
+			`https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`,
+			{
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-		});
+			},
+		);
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({ message: response.statusText }));
 			console.error("AI API Error:", response.status, errorData);
+			if (response.status === 404) {
+				fetch(
+					`https://generativelanguage.googleapis.com/${apiVersion}/models?key=${apiKey}`,
+				)
+					.then((r) => r.json())
+					.then((models) => console.log("Gemini models:", models))
+					.catch((err) => console.warn("ListModels failed:", err));
+			}
 			throw new Error(`API request failed: ${errorData.error?.message || response.statusText}`);
 		}
 
