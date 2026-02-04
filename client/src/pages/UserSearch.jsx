@@ -581,24 +581,23 @@ const UserSearch = () => {
 
 	const candidates = useMemo(() => {
 		if (!data?.pages) return [];
-		return data.pages.flatMap((page) => page.candidates || []);
-		// const allCandidates = data.pages.flatMap((page) => page.candidates || []);
+		let allCandidates = data.pages.flatMap((page) => page.candidates || []);
 
-		// Sort candidates: Rows with all columns filled appear first
-		// return allCandidates.sort((a, b) => {
-		// 	const getScore = (c) => {
-		// 		let score = 0;
-		// 		if (c.fullName) score++;
-		// 		if (c.jobTitle) score++;
-		// 		if (c.skills) score++;
-		// 		if (c.company) score++;
-		// 		if (c.experience) score++;
-		// 		if (c.phone || c.email || c.linkedinUrl || c.locality || c.location) score++;
-		// 		return score;
-		// 	};
-		// 	return getScore(b) - getScore(a);
-		// });
-	}, [data?.pages]);
+		// Client-side filtering for experience to ensure accuracy
+		if (appliedFilters.experience) {
+			const minExp = parseInt(appliedFilters.experience, 10);
+			if (!isNaN(minExp)) {
+				allCandidates = allCandidates.filter((c) => {
+					const expStr = String(c.experience || "");
+					const match = expStr.match(/(\d+)/);
+					const exp = match ? parseInt(match[1], 10) : 0;
+					return exp >= minExp;
+				});
+			}
+		}
+
+		return allCandidates;
+	}, [data?.pages, appliedFilters.experience]);
 
 	const totalCount = useMemo(() => {
 		return data?.pages?.[0]?.totalCount || 0;
