@@ -699,9 +699,11 @@ const AdminDashboard = () => {
 											<div className="flex flex-col md:flex-row items-center gap-8">
 												{/* Left: Image */}
 												<div className="w-full md:w-1/3 flex justify-center">
-													<div className="w-32 h-32 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
-														<FileText size={48} className="text-indigo-600 dark:text-indigo-400" />
-													</div>
+													<img
+														src={ResumeIcon}
+														alt="Process existing file"
+														className="w-48 md:w-full max-w-xs dark:invert-[.85]"
+													/>
 												</div>
 
 												{/* Right: Content */}
