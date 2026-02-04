@@ -192,10 +192,10 @@ const SearchLoading = () => (
 
 // AI Search Helper Function
 const generateFiltersFromQuery = async (userQuery) => {
-	const apiKey = import.meta.env.GEMINI_API_KEY; 
+	const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
 	
 	if (!apiKey) {
-		toast.error("Please set GEMINI_API_KEY in your .env file");
+		toast.error("Please set VITE_GEMINI_API_KEY in your .env file");
 		return null;
 	}
 
@@ -858,34 +858,32 @@ const UserSearch = () => {
 			<div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
 				{/* Fixed Filters Header - Stays below admin header */}
 				<div className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm transition-all duration-300 supports-[backdrop-filter]:bg-white/60">
-					
-					{/* AI Smart Search Bar */}
-					<div className="px-2 pt-3 md:px-4">
-						<div className="relative group">
-							<div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-30 group-hover:opacity-100 blur transition duration-500"></div>
-							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl p-1">
-								<div className="pl-3 pr-2 text-indigo-500">
-									<Sparkles size={18} className={isAiProcessing ? "animate-spin" : ""} />
+
+					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-3">
+						{/* AI Smart Search Bar */}
+						<div className="relative group w-full md:w-auto md:flex-grow">
+							<div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-30 group-hover:opacity-100 focus-within:opacity-100 blur transition duration-500"></div>
+							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl shadow-sm h-full">
+								<div className="pl-4 pr-2 text-indigo-500">
+									<Sparkles size={16} className={isAiProcessing ? "animate-spin" : ""} />
 								</div>
-								<input 
+								<input
 									type="text"
-									placeholder="Ask AI: 'I need a Java Developer in Hyderabad with 5 years experience...'"
-									className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 py-2"
+									placeholder="Ask AI: 'Java dev in Hyderabad...'"
+									className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 py-2.5"
 									value={aiQuery}
 									onChange={(e) => setAiQuery(e.target.value)}
 									onKeyDown={(e) => e.key === 'Enter' && handleAiSearch(e)}
 								/>
-								<button 
+								<button
 									onClick={handleAiSearch}
 									disabled={isAiProcessing || !aiQuery.trim()}
-									className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+									className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-r-xl text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 self-stretch">
 									{isAiProcessing ? 'Thinking...' : 'AI Search'}
 								</button>
 							</div>
 						</div>
-					</div>
 
-					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
 						{/* Filters Row (Scrollable) */}
 						<div className="grid grid-cols-3 gap-2 w-full md:flex md:items-center md:gap-2 md:flex-1 md:overflow-x-auto md:scrollbar-hide">
 							{/* Search Bar */}
