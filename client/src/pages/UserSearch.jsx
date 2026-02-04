@@ -192,10 +192,15 @@ const SearchLoading = () => (
 
 // AI Search Helper Function
 const generateFiltersFromQuery = async (userQuery) => {
-	const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-	const model = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
-	const apiVersion = import.meta.env.VITE_GEMINI_API_VERSION || "v1beta";
-	const modelPath = model.startsWith("models/") ? model : `models/${model}`;
+	const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
+	let model = (import.meta.env.VITE_GEMINI_MODEL || "gemini-1.5-flash").trim();
+	const apiVersion = (import.meta.env.VITE_GEMINI_API_VERSION || "v1beta").trim();
+	
+	// Normalize model name to avoid double 'models/' in path
+	if (model.startsWith("models/")) {
+		model = model.substring(7);
+	}
+	const modelPath = `models/${model}`;
 	
 	if (!apiKey) {
 		toast.error("Please set VITE_GEMINI_API_KEY in your .env file");
