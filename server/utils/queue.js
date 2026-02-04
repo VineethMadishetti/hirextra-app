@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import xlsx from "xlsx";
 import csv from "csv-parser";
+import pdf from "pdf-parse";
+import mammoth from "mammoth";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import readline from "readline";
@@ -209,6 +211,105 @@ const waitForFileInS3 = async (filePath, maxRetries = 30, delayMs = 2000) => {
 		await new Promise((resolve) => setTimeout(resolve, delayMs));
 	}
 	return false;
+};
+
+// ---------------------------------------------------
+// Resume Processing Logic (AI Powered)
+// ---------------------------------------------------
+
+const extractTextFromFile = async (buffer, fileExt) => {
+	try {
+		if (fileExt === 'pdf') {
+			const data = await pdf(buffer);
+			return data.text;
+		} else if (fileExt === 'docx') {
+			const result = await mammoth.extractRawText({ buffer });
+			return result.value;
+		}
+	} catch (error) {
+		logger.error(`Text extraction failed for ${fileExt}:`, error);
+	}
+	return "";
+};
+
+const parseResumeWithAI = async (text) => {
+	const apiKey = process.env.GEMINI_API_KEY;
+	if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+
+	const prompt = `
+		Extract candidate information from the following resume text.
+		Return ONLY a valid JSON object with these keys:
+		fullName, email, phone, location, jobTitle, company, skills (comma separated string), experience (string, e.g. "5 years"), summary, linkedinUrl.
+		
+		Resume Text:
+		${text.substring(0, 8000)} 
+	`;
+	// Truncate text to avoid token limits if necessary
+
+	try {
+		const response = await fetch(
+			`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+			}
+		);
+		const data = await response.json();
+		const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+		if (!resultText) return null;
+		
+		// Clean markdown code blocks if present
+		const jsonStr = resultText.replace(/```json|```/g, "").trim();
+		return JSON.parse(jsonStr);
+	} catch (error) {
+		logger.error("AI Parsing Error:", error);
+		return null;
+	}
+};
+
+export const processResumeJob = async ({ jobId, s3Key }) => {
+	try {
+		const fileExt = s3Key.split('.').pop().toLowerCase();
+		
+		// 1. Download
+		const fileStream = await downloadFromS3(s3Key);
+		const buffer = await streamToBuffer(fileStream);
+
+		// 2. Extract Text
+		const text = await extractTextFromFile(buffer, fileExt);
+		if (!text || text.length < 50) {
+			throw new Error("Could not extract text from file");
+		}
+
+		// 3. AI Parse
+		const candidateData = await parseResumeWithAI(text);
+		if (!candidateData) {
+			throw new Error("AI failed to parse resume");
+		}
+
+		// 4. Clean & Validate
+		candidateData.sourceFile = s3Key;
+		candidateData.uploadJobId = jobId;
+		
+		const validation = cleanAndValidateCandidate(candidateData);
+		
+		if (validation.valid) {
+			await Candidate.create(validation.data);
+			await UploadJob.findByIdAndUpdate(jobId, { $inc: { successRows: 1, totalRows: 1 } });
+		} else {
+			await UploadJob.findByIdAndUpdate(jobId, { 
+				$inc: { failedRows: 1, totalRows: 1 },
+				$push: { failureReasons: { [validation.reason]: 1 } } // Simplified tracking
+			});
+		}
+
+	} catch (error) {
+		logger.error(`Resume processing failed for ${s3Key}:`, error);
+		await UploadJob.findByIdAndUpdate(jobId, { 
+			$inc: { failedRows: 1, totalRows: 1 }
+		});
+	}
 };
 
 // ---------------------------------------------------
@@ -659,6 +760,9 @@ if (connection) {
 				if (job.name === "delete-file") {
 					const { jobId } = job.data;
 					await processDeleteJob({ jobId });
+				} else if (job.name === "resume-import") {
+					// Process a single resume file
+					await processResumeJob(job.data);
 				} else {
 					// The worker now only needs the jobId and resume info.
 					// The processCsvJob function is now self-sufficient and will

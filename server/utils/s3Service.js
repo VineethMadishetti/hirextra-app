@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import logger from './logger.js';
 import { Readable } from 'stream';
@@ -287,4 +287,23 @@ export const generateS3Key = (fileName, userId) => {
   const timestamp = Date.now();
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
   return `uploads/${userId}/${timestamp}_${sanitizedFileName}`;
+};
+
+/**
+ * List files in an S3 folder
+ * @param {string} folderPath - S3 folder path (prefix)
+ * @returns {Promise<Array>} - List of file objects
+ */
+export const listS3Files = async (folderPath) => {
+  try {
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: folderPath,
+    });
+    const response = await s3Client.send(command);
+    return response.Contents || [];
+  } catch (error) {
+    logger.error(`❌ Failed to list files in S3 folder ${folderPath}:`, error);
+    throw new Error(`Failed to list files from S3: ${error.message}`);
+  }
 };
