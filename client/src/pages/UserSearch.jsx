@@ -193,7 +193,7 @@ const SearchLoading = () => (
 const generateFiltersFromQuery = async (userQuery) => {
 	const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
 	let model = (import.meta.env.VITE_GEMINI_MODEL || "gemini-1.5-flash").trim();
-	const apiVersion = (import.meta.env.VITE_GEMINI_API_VERSION || "v1beta").trim();
+	const apiVersion = (import.meta.env.VITE_GEMINI_API_VERSION || "v1").trim();
 	
 	// Normalize model name to avoid double 'models/' in path
 	if (model.startsWith("models/")) {

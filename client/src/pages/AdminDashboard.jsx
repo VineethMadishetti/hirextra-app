@@ -14,6 +14,7 @@ import {
 	Loader,
 	ChevronDown,
 } from "lucide-react";
+import ResumeIcon from "../assets/resume-folder.svg"; // You might need to add this or reuse existing
 import ExistingFilesIcon from "../assets/existing-files.svg";
 import HistoryIcon from "../assets/history.svg";
 import toast from "react-hot-toast";
@@ -150,7 +151,7 @@ const AdminDashboard = () => {
 	const lastRefreshCountRef = useRef(0); // Use ref to avoid stale closure in setInterval
 
 	// S3 File Path Mode
-	const [useS3Path, setUseS3Path] = useState(false);
+	const [importMode, setImportMode] = useState("upload"); // 'upload', 's3-csv', 's3-resume'
 	const [s3FilePath, setS3FilePath] = useState("");
 	const [isLoadingHeaders, setIsLoadingHeaders] = useState(false);
 
@@ -394,6 +395,28 @@ const AdminDashboard = () => {
 		}
 	};
 
+	// Handle Resume Import Trigger
+	const handleResumeImport = async () => {
+		if (!s3FilePath.trim()) {
+			toast.error("Please enter an S3 folder path");
+			return;
+		}
+
+		try {
+			toast.loading("Starting resume import...", { id: "resume-import" });
+			const { data } = await api.post("/candidates/import-resumes", {
+				folderPath: s3FilePath.trim()
+			});
+			toast.success(`Import started! ${data.fileCount} files queued.`, { id: "resume-import" });
+			setS3FilePath("");
+			setActiveTab("history");
+			queryClient.invalidateQueries({ queryKey: ["history"] });
+		} catch (error) {
+			console.error("Resume import error:", error);
+			toast.error(error.response?.data?.message || "Failed to start import", { id: "resume-import" });
+		}
+	};
+
 	// --- SECURITY ACTIONS ---
 	const initiateAction = (type, payload) => {
 		setPendingAction({ type, payload });
@@ -525,7 +548,7 @@ const AdminDashboard = () => {
 											onClick={() => {
 												setUploadData(null);
 												setMapping({});
-												setUseS3Path(false);
+													setImportMode("upload");
 												setS3FilePath("");
 											}}
 											className="px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-800 rounded-xl shadow-md transition-all duration-300 ease-out cursor-pointer">
@@ -573,10 +596,10 @@ const AdminDashboard = () => {
 									<div className="mb-6 flex gap-2 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl">
 										<button
 											onClick={() => {
-												setUseS3Path(false);
+												setImportMode("upload");
 												setS3FilePath("");
 											}}
-											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${!useS3Path
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${importMode === "upload"
 													? "bg-indigo-600 text-white"
 													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
 												}`}>
@@ -584,18 +607,29 @@ const AdminDashboard = () => {
 										</button>
 										<button
 											onClick={() => {
-												setUseS3Path(true);
+												setImportMode("s3-csv");
 												setUploadData(null);
 											}}
-											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${useS3Path
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${importMode === "s3-csv"
 													? "bg-indigo-600 text-white"
 													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
 												}`}>
 											Use Existing S3 File
 										</button>
+										<button
+											onClick={() => {
+												setImportMode("s3-resume");
+												setUploadData(null);
+											}}
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${importMode === "s3-resume"
+													? "bg-indigo-600 text-white"
+													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+												}`}>
+											Import Resumes (S3)
+										</button>
 									</div>
 
-									{useS3Path ? (
+									{importMode === "s3-csv" && (
 										<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
 											<div className="flex flex-col md:flex-row items-center gap-8">
 												{/* Left: Image */}
@@ -658,7 +692,60 @@ const AdminDashboard = () => {
 												</div>
 											</div>
 										</div>
-									) : (
+									)}
+
+									{importMode === "s3-resume" && (
+										<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+											<div className="flex flex-col md:flex-row items-center gap-8">
+												{/* Left: Image */}
+												<div className="w-full md:w-1/3 flex justify-center">
+													<div className="w-32 h-32 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
+														<FileText size={48} className="text-indigo-600 dark:text-indigo-400" />
+													</div>
+												</div>
+
+												{/* Right: Content */}
+												<div className="w-full md:w-2/3 space-y-4">
+													<div>
+														<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+															Bulk Resume Import
+														</h3>
+														<p className="text-sm text-slate-500 dark:text-slate-400">
+															Process a folder of PDF/DOCX resumes from S3 using AI.
+														</p>
+													</div>
+
+													<div className="space-y-2">
+														<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+															S3 Folder Path
+														</label>
+														<input
+															type="text"
+															value={s3FilePath}
+															onChange={(e) => setS3FilePath(e.target.value)}
+															placeholder="resumes/batch-2024/"
+															className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+														/>
+														<p className="text-xs text-slate-500">
+															⚠️ Ensure the folder contains only .pdf or .docx files.
+														</p>
+													</div>
+
+													<button
+														onClick={handleResumeImport}
+														disabled={!s3FilePath.trim()}
+														className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${!s3FilePath.trim()
+																? "bg-indigo-400 cursor-not-allowed"
+																: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+															}`}>
+														Start AI Import
+													</button>
+												</div>
+											</div>
+										</div>
+									)}
+
+									{importMode === "upload" && (
 										/* REGULAR FILE UPLOADER */
 										<FileUploader onUploadComplete={setUploadData} />
 									)}
