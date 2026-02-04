@@ -36,7 +36,6 @@ import {
 	Linkedin,
 	RefreshCw,
 	Sparkles,
-	Bot,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
@@ -211,11 +210,18 @@ const generateFiltersFromQuery = async (userQuery) => {
 		You are a recruitment search assistant. Analyze the following user query and extract search filters.
 		Query: "${userQuery}"
 		
+		Rules:
+		1. Normalize "jobTitle" to singular form (e.g., "Developer" instead of "Developers").
+		2. Extract skills from the query and job title (e.g., "Python Developer" -> skills: "Python").
+		3. Extract years of experience as a number (e.g., "5 years experience" -> experience: 5).
+		4. For "q", remove generic words like "experienced", "needed", and also remove the experience part that is now in its own field.
+
 		Return ONLY a valid JSON object with the following keys:
-		- q: (string) General keywords, names, or specific terms not covered by other filters
-		- jobTitle: (string) Job title if specified
+		- q: (string) General keywords not covered by other filters
+		- jobTitle: (string) Job title (singular)
 		- location: (string) Location or city
 		- skills: (string) Comma-separated skills
+		- experience: (number) Minimum years of experience as a number. Default to 0 if not mentioned.
 		- hasEmail: (boolean) true if email/contact info is requested
 		- hasPhone: (boolean) true if phone number is requested
 		- hasLinkedin: (boolean) true if LinkedIn profile is requested
@@ -309,27 +315,20 @@ const UserSearch = () => {
 	);
 
 	const [filters, setFilters] = useState(() => {
+		const defaultFilters = {
+			location: "",
+			jobTitle: "",
+			skills: "",
+			experience: "",
+			hasEmail: false,
+			hasPhone: false,
+			hasLinkedin: false,
+		};
 		try {
 			const saved = localStorage.getItem("hirextra_filters");
-			return saved
-				? JSON.parse(saved)
-				: {
-						location: "",
-						jobTitle: "",
-						skills: "",
-						hasEmail: false,
-						hasPhone: false,
-						hasLinkedin: false,
-				  };
+			return saved ? { ...defaultFilters, ...JSON.parse(saved) } : defaultFilters;
 		} catch (e) {
-			return {
-				location: "",
-				jobTitle: "",
-				skills: "",
-				hasEmail: false,
-				hasPhone: false,
-				hasLinkedin: false,
-			};
+			return defaultFilters;
 		}
 	});
 
@@ -384,6 +383,7 @@ const UserSearch = () => {
 			locality: debouncedFilters.location,
 			jobTitle: debouncedFilters.jobTitle,
 			skills: debouncedFilters.skills,
+			experience: debouncedFilters.experience,
 			hasEmail: debouncedFilters.hasEmail,
 			hasPhone: debouncedFilters.hasPhone,
 			hasLinkedin: debouncedFilters.hasLinkedin,
@@ -398,6 +398,7 @@ const UserSearch = () => {
 						locality: debouncedFilters.location,
 						jobTitle: debouncedFilters.jobTitle,
 						skills: debouncedFilters.skills,
+						experience: debouncedFilters.experience,
 						hasEmail: debouncedFilters.hasEmail,
 						hasPhone: debouncedFilters.hasPhone,
 						hasLinkedin: debouncedFilters.hasLinkedin,
@@ -459,6 +460,7 @@ const UserSearch = () => {
 					jobTitle: extracted.jobTitle || "",
 					location: extracted.location || "",
 					skills: extracted.skills || "",
+					experience: extracted.experience || "",
 					hasEmail: extracted.hasEmail || false,
 					hasPhone: extracted.hasPhone || false,
 					hasLinkedin: extracted.hasLinkedin || false
@@ -494,6 +496,7 @@ const UserSearch = () => {
 			locality: appliedFilters.location,
 			jobTitle: appliedFilters.jobTitle,
 			skills: appliedFilters.skills,
+			experience: appliedFilters.experience,
 			hasEmail: appliedFilters.hasEmail,
 			hasPhone: appliedFilters.hasPhone,
 			hasLinkedin: appliedFilters.hasLinkedin,
@@ -620,12 +623,13 @@ const UserSearch = () => {
 			location: "",
 			jobTitle: "",
 			skills: "",
+			experience: "",
 			hasEmail: false,
 			hasPhone: false,
 			hasLinkedin: false,
 		});
 		setAppliedSearchInput("");
-		setAppliedFilters({ location: "", jobTitle: "", skills: "", hasEmail: false, hasPhone: false, hasLinkedin: false });
+		setAppliedFilters({ location: "", jobTitle: "", skills: "", experience: "", hasEmail: false, hasPhone: false, hasLinkedin: false });
 		setSelectedIds(new Set());
 		setIsSearchApplied(false);
 	}, []);
@@ -992,6 +996,25 @@ const UserSearch = () => {
 								{filters.skills && (
 									<button
 										onClick={() => handleFilterChange("skills", "")}
+										className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded-full transition-colors">
+										<X size={12} className="md:w-[14px] md:h-[14px]" />
+									</button>
+								)}
+							</div>
+
+							{/* Experience */}
+							<div className="relative col-span-1 min-w-0 md:min-w-[120px]">
+								<input
+									type="number"
+									placeholder="Min Exp (Yrs)"
+									className="w-full px-3 py-1.5 md:py-2 pr-7 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
+									value={filters.experience}
+									onChange={(e) => handleFilterChange("experience", e.target.value)}
+									onKeyDown={handleKeyDown}
+								/>
+								{filters.experience && (
+									<button
+										onClick={() => handleFilterChange("experience", "")}
 										className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded-full transition-colors">
 										<X size={12} className="md:w-[14px] md:h-[14px]" />
 									</button>
