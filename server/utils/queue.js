@@ -266,8 +266,9 @@ const extractTextFromFile = async (buffer, fileExt) => {
 };
 
 const parseResumeWithAI = async (contentPart) => {
-	const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+	let apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 	if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING: API key is not set in environment variables (checked GEMINI_API_KEY and VITE_GEMINI_API_KEY)");
+	apiKey = apiKey.trim(); // Remove potential whitespace from copy-paste
 
 	const systemPrompt = `
 		You are an expert Resume Parser. Analyze the provided document (text or PDF) and extract candidate details into a JSON object.
@@ -422,7 +423,11 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			// Define the update operation based on success or failure
 			const update = success
 				? { $inc: { successRows: 1 } }
-				: { $inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 } };
+				: {
+					$inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 },
+					// Save the specific error message for debugging (only over-writes last error of this type)
+					$set: { [`failureReasonSample.${reason}`]: error.message.substring(0, 500) }
+				};
 
 			// Perform one atomic update and get the new document state
 			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
