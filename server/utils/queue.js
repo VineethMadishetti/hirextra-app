@@ -228,15 +228,26 @@ const waitForFileInS3 = async (filePath, maxRetries = 30, delayMs = 2000) => {
 
 const extractTextFromFile = async (buffer, fileExt) => {
 	try {
-		if (fileExt === 'pdf') {
-			const data = await pdf(buffer);
-			return data.text;
-		} else if (fileExt === 'docx') {
+		if (fileExt === 'docx') {
 			const result = await mammoth.extractRawText({ buffer });
 			return result.value;
 		}
+		if (fileExt === 'pdf') {
+			// Add a timeout for pdf-parse as it can hang on corrupted or large files
+			const parsePromise = pdf(buffer);
+			const timeoutPromise = new Promise((_, reject) => 
+				setTimeout(() => reject(new Error('PDF parsing timed out after 15 seconds')), 15000)
+			);
+			const data = await Promise.race([parsePromise, timeoutPromise]);
+			return data.text;
+		}
+		if (fileExt === 'doc') {
+			logger.warn('Skipping .doc file. Only .docx format is supported for Word documents.');
+			return "";
+		}
 	} catch (error) {
-		logger.error(`Text extraction failed for ${fileExt}:`, error);
+		logger.error(`Text extraction failed for extension '${fileExt}': ${error.message}`);
+		throw error; // Re-throw to be caught by processResumeJob, which will mark the row as failed
 	}
 	return "";
 };
@@ -332,12 +343,20 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		}
 
 	} catch (error) {
-		logger.error(`Resume processing failed for ${s3Key}:`, error);
-		const safeReason = errorReason === "UNKNOWN" ? "PROCESSING_ERROR" : errorReason;
+		// If the error reason is still UNKNOWN, it's likely from the try block itself (e.g., text extraction)
+		if (errorReason === "UNKNOWN") {
+			// Check for specific error messages to provide a better reason
+			if (error.message.includes('PDF parsing') || error.message.includes('mammoth')) {
+				errorReason = 'TEXT_EXTRACTION_FAILED';
+			} else {
+				errorReason = 'PROCESSING_ERROR';
+			}
+		}
+		logger.error(`Resume processing failed for ${s3Key}: [${errorReason}] ${error.message}`);
 		await UploadJob.findByIdAndUpdate(jobId, { 
 			$inc: { 
 				failedRows: 1,
-				[`failureReasons.${safeReason}`]: 1
+				[`failureReasons.${errorReason}`]: 1
 			}
 		});
 	} finally {
