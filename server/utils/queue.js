@@ -266,8 +266,8 @@ const extractTextFromFile = async (buffer, fileExt) => {
 };
 
 const parseResumeWithAI = async (contentPart) => {
-	const apiKey = process.env.GEMINI_API_KEY;
-	if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING: API key is not set in environment variables");
+	const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+	if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING: API key is not set in environment variables (checked GEMINI_API_KEY and VITE_GEMINI_API_KEY)");
 
 	const systemPrompt = `
 		You are an expert Resume Parser. Analyze the provided document (text or PDF) and extract candidate details into a JSON object.
@@ -343,7 +343,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 
 		// DEBUG: Log Environment and File Info
-		const hasKey = !!process.env.GEMINI_API_KEY;
+		const hasKey = !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY);
 		logger.info(`[DEBUG] Processing ${s3Key} (Ext: ${fileExt}). API Key Present: ${hasKey}`);
 
 		// 1. Download
