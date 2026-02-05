@@ -317,13 +317,12 @@ const parseResumeWithAI = async (text) => {
 };
 
 export const processResumeJob = async ({ jobId, s3Key }) => {
-	let errorReason = "UNKNOWN";
 	let success = false;
 	let reason = 'UNKNOWN_ERROR';
 
 	try {
 		const fileExt = s3Key.split('.').pop().toLowerCase();
-		
+
 		// 1. Download
 		const fileStream = await downloadFromS3(s3Key);
 		const buffer = await streamToBuffer(fileStream);
@@ -331,67 +330,38 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		// 2. Extract Text
 		const text = await extractTextFromFile(buffer, fileExt);
 		if (!text || text.length < 50) {
-			errorReason = "TEXT_EXTRACTION_FAILED";
-			throw new Error("Could not extract text from file");
 			throw new Error("TEXT_EXTRACTION_FAILED: Could not extract sufficient text from file.");
 		}
 
 		// 3. AI Parse
 		const candidateData = await parseResumeWithAI(text);
 		if (!candidateData) {
-			errorReason = "AI_PARSE_FAILED";
-			throw new Error("AI failed to parse resume");
 			throw new Error("AI_PARSE_FAILED: The AI model could not understand the resume text.");
 		}
 
 		// 4. Clean & Validate
 		candidateData.sourceFile = s3Key;
 		candidateData.uploadJobId = jobId;
-		
+
 		const validation = cleanAndValidateCandidate(candidateData);
-		
+
 		if (validation.valid) {
 			await Candidate.create(validation.data);
-			// Do NOT increment totalRows, it is set at job creation
-			await UploadJob.findByIdAndUpdate(jobId, { $inc: { successRows: 1 } });
 			success = true;
 		} else {
-			errorReason = validation.reason || "VALIDATION_FAILED";
-			await UploadJob.findByIdAndUpdate(jobId, { 
-				$inc: { 
-					failedRows: 1,
-					[`failureReasons.${errorReason}`]: 1
-				}
-			});
 			reason = validation.reason || 'VALIDATION_FAILED';
 			success = false;
 		}
 
 	} catch (error) {
-		// If the error reason is still UNKNOWN, it's likely from the try block itself (e.g., text extraction)
-		if (errorReason === "UNKNOWN") {
-			// Check for specific error messages to provide a better reason
-			if (error.message.includes('PDF parsing') || error.message.includes('mammoth')) {
-				errorReason = 'TEXT_EXTRACTION_FAILED';
-			} else {
-				errorReason = 'PROCESSING_ERROR';
-			}
-		}
-		logger.error(`Resume processing failed for ${s3Key}: [${errorReason}] ${error.message}`);
-		await UploadJob.findByIdAndUpdate(jobId, { 
-			$inc: { 
-				failedRows: 1,
-				[`failureReasons.${errorReason}`]: 1
-			}
-		});
 		success = false;
-        // Determine reason from error message
-        if (error.message.includes('PDF parsing timed out')) {
-            reason = 'PDF_TIMEOUT';
-        } else if (error.message.includes('TEXT_EXTRACTION_FAILED') || error.message.includes('mammoth')) {
+        // Determine reason from the specific error message we threw
+        if (error.message.startsWith('TEXT_EXTRACTION_FAILED')) {
             reason = 'TEXT_EXTRACTION_FAILED';
-        } else if (error.message.includes('AI_PARSE_FAILED')) {
+        } else if (error.message.startsWith('AI_PARSE_FAILED')) {
             reason = 'AI_PARSE_FAILED';
+        } else if (error.message.includes('PDF parsing timed out')) {
+            reason = 'PDF_TIMEOUT';
         } else {
             reason = 'PROCESSING_ERROR';
         }
@@ -399,12 +369,15 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 	} finally {
 		// This block is the single source of truth for updating job progress.
 		try {
+			// Define the update operation based on success or failure
 			const update = success 
 				? { $inc: { successRows: 1 } }
 				: { $inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 } };
 
+			// Perform one atomic update and get the new document state
 			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
 
+			// Check if the job is complete using the returned document
 			if (updatedJob && (updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)) {
 				const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
 				await UploadJob.findByIdAndUpdate(jobId, { 
@@ -413,7 +386,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 				});
 			}
 		} catch (e) {
-			logger.error(`Failed to update job progress for ${jobId}`, e);
+			logger.error(`Failed to update job progress for ${jobId}:`, e);
 		}
 	}
 };
