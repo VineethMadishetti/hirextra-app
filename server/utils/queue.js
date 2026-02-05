@@ -35,11 +35,17 @@ const getRedisConnection = () => {
 		// This parses the URL and explicitly forces it to use database 0.
 		try {
 			const redisUrl = new URL(process.env.REDIS_URL);
-			if (redisUrl.pathname && redisUrl.pathname !== "/" && redisUrl.pathname !== "/0") {
-				logger.warn(`Redis URL contains a non-zero database (${redisUrl.pathname}). Forcing DB 0 for compatibility.`);
-				redisUrl.pathname = "/0";
-			}
-			return redisUrl.toString();
+			// bullmq/ioredis can be more reliable when passed a connection object
+			// instead of a URL string, especially for TLS (rediss://).
+			const connectionOptions = {
+				host: redisUrl.hostname,
+				port: Number(redisUrl.port) || 6379,
+				password: redisUrl.password,
+				// ioredis uses the 'db' option, not the URL pathname.
+				db: redisUrl.pathname ? Number(redisUrl.pathname.slice(1) || 0) : 0,
+				...(redisUrl.protocol === 'rediss:' ? { tls: {} } : {})
+			};
+			return connectionOptions;
 		} catch (error) {
 			logger.error(`❌ Invalid REDIS_URL: ${process.env.REDIS_URL}. Error: ${error.message}`);
 			return null;
