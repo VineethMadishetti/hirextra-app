@@ -239,7 +239,7 @@ const extractTextFromFile = async (buffer, fileExt) => {
 		if (fileExt === 'pdf') {
 			// Add a timeout for pdf-parse as it can hang on corrupted or large files
 			const parsePromise = pdf(buffer);
-			const timeoutPromise = new Promise((_, reject) => 
+			const timeoutPromise = new Promise((_, reject) =>
 				setTimeout(() => reject(new Error('PDF_TIMEOUT: PDF parsing timed out after 15 seconds')), 15000)
 			);
 			try {
@@ -265,12 +265,12 @@ const extractTextFromFile = async (buffer, fileExt) => {
 	return "";
 };
 
-const parseResumeWithAI = async (text) => {
+const parseResumeWithAI = async (contentPart) => {
 	const apiKey = process.env.GEMINI_API_KEY;
 	if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING: API key is not set in environment variables");
 
-	const prompt = `
-		You are an expert Resume Parser. Analyze the text below and extract candidate details into a JSON object.
+	const systemPrompt = `
+		You are an expert Resume Parser. Analyze the provided document (text or PDF) and extract candidate details into a JSON object.
 
 		Strictly follow this JSON structure:
 		{
@@ -290,19 +290,19 @@ const parseResumeWithAI = async (text) => {
 		1. Return ONLY valid JSON. No Markdown code blocks (\`\`\`json).
 		2. If a value is missing, use an empty string "".
 		3. For "experience", calculate total years if possible, otherwise extract the string.
-		
-		Resume Text:
-		${text.substring(0, 30000)} 
 	`;
-	// Truncate text to avoid token limits if necessary
 
 	try {
+		// Construct payload: System instruction + User Content
 		const response = await fetch(
 			`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+				body: JSON.stringify({
+					system_instruction: { parts: [{ text: systemPrompt }] },
+					contents: [{ parts: [contentPart] }]
+				})
 			}
 		);
 
@@ -314,7 +314,7 @@ const parseResumeWithAI = async (text) => {
 		const data = await response.json();
 		const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 		if (!resultText) throw new Error("GEMINI_EMPTY_RESPONSE: Model returned no content");
-		
+
 		// Clean markdown code blocks if present
 		let jsonStr = resultText.replace(/```json|```/g, "").trim();
 		// Attempt to find JSON object if there's extra text
@@ -323,7 +323,7 @@ const parseResumeWithAI = async (text) => {
 		if (firstBrace !== -1 && lastBrace !== -1) {
 			jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
 		}
-		
+
 		try {
 			return JSON.parse(jsonStr);
 		} catch (parseErr) {
@@ -346,14 +346,32 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		const fileStream = await downloadFromS3(s3Key);
 		const buffer = await streamToBuffer(fileStream);
 
-		// 2. Extract Text
-		const text = await extractTextFromFile(buffer, fileExt);
-		if (!text || text.length < 50) {
-			throw new Error("TEXT_EXTRACTION_FAILED: Could not extract sufficient text from file.");
+
+		// 2. Prepare content for AI (Multimodal or Text)
+		let aiContentPart;
+
+		if (fileExt === 'pdf') {
+			// OPTIMIZATION: Send PDF directly to Gemini (handles scanned docs/images)
+			const base64Data = buffer.toString('base64');
+			aiContentPart = {
+				inline_data: {
+					mime_type: "application/pdf",
+					data: base64Data
+				}
+			};
+		} else {
+			// For DOCX (or others), extract text first
+			const text = await extractTextFromFile(buffer, fileExt);
+			if (!text || text.length < 50) {
+				// If text extraction yielded nothing, it might be an image-only DOCX, which is hard.
+				// But usually Mammoth is good for DOCX.
+				throw new Error("TEXT_EXTRACTION_FAILED: Could not extract sufficient text from file.");
+			}
+			aiContentPart = { text: text };
 		}
 
 		// 3. AI Parse
-		const candidateData = await parseResumeWithAI(text);
+		const candidateData = await parseResumeWithAI(aiContentPart);
 		if (!candidateData) {
 			throw new Error("AI_PARSE_FAILED: The AI model could not understand the resume text.");
 		}
@@ -374,21 +392,21 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 
 	} catch (error) {
 		success = false;
-        // Determine reason from the specific error message we threw
-        if (error.message.startsWith('TEXT_EXTRACTION_FAILED') || error.message.startsWith('DOCX_EXTRACT') || error.message.startsWith('PDF_EXTRACT')) {
-            reason = 'TEXT_EXTRACTION_FAILED';
-        } else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('GEMINI_API_ERROR') || error.message.startsWith('AI_JSON')) {
-            reason = 'AI_PARSE_FAILED';
+		// Determine reason from the specific error message we threw
+		if (error.message.startsWith('TEXT_EXTRACTION_FAILED') || error.message.startsWith('DOCX_EXTRACT') || error.message.startsWith('PDF_EXTRACT')) {
+			reason = 'TEXT_EXTRACTION_FAILED';
+		} else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('GEMINI_API_ERROR') || error.message.startsWith('AI_JSON')) {
+			reason = 'AI_PARSE_FAILED';
 		} else if (error.message.startsWith('GEMINI_API_KEY_MISSING')) {
-            reason = 'CONFIGURATION_ERROR';
-        } else if (error.message.includes('PDF_TIMEOUT')) {
-            reason = 'PDF_TIMEOUT';
+			reason = 'CONFIGURATION_ERROR';
+		} else if (error.message.includes('PDF_TIMEOUT')) {
+			reason = 'PDF_TIMEOUT';
 		} else if (error.message.includes('UNSUPPORTED_FORMAT')) {
-            reason = 'INVALID_FORMAT';
-        } else {
-            reason = 'PROCESSING_ERROR';
-        }
-		
+			reason = 'INVALID_FORMAT';
+		} else {
+			reason = 'PROCESSING_ERROR';
+		}
+
 		// Capture more detail for debugging S3 or DB issues
 		if (error.message.includes('S3') || error.message.includes('access denied') || error.message.includes('NoSuchKey')) {
 			reason = 'S3_DOWNLOAD_ERROR';
@@ -401,7 +419,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		// This block is the single source of truth for updating job progress.
 		try {
 			// Define the update operation based on success or failure
-			const update = success 
+			const update = success
 				? { $inc: { successRows: 1 } }
 				: { $inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 } };
 
@@ -411,7 +429,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			// Check if the job is complete using the returned document
 			if (updatedJob && (updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)) {
 				const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
-				await UploadJob.findByIdAndUpdate(jobId, { 
+				await UploadJob.findByIdAndUpdate(jobId, {
 					status: finalStatus,
 					completedAt: new Date()
 				});
