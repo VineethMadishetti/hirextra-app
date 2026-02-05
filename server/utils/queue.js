@@ -414,6 +414,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			reason = 'DB_CONNECTION_ERROR';
 		}
 
+		// Log the EXACT error message to help user debug API limits/keys
 		logger.error(`Resume processing failed for ${s3Key}: [${reason}] ${error.message}`);
 	} finally {
 		// This block is the single source of truth for updating job progress.
@@ -905,7 +906,7 @@ if (connection) {
 				concurrency: 1, // Process one job at a time
 				limiter: {
 					max: 1,
-					duration: 1000,
+					duration: 5000, // PROCESS 1 FILE EVERY 5 SECONDS (12 per minute) to stay under Gemini Free Tier limits (15 RPM)
 				},
 				removeOnComplete: {
 					age: 24 * 3600, // Keep completed jobs for 24 hours
