@@ -50,8 +50,14 @@ router.put('/:id/restore', protect, adminOnly, undoDeleteCandidate);
 router.post('/:id/resume', protect, adminOnly, resumeUploadJob);
 router.post('/:id/pause', protect, adminOnly, pauseUploadJob);
 
-router.post("/import-resumes", async (req, res) => {
+router.post("/import-resumes", protect, adminOnly, async (req, res) => {
     try {
+        if (!importQueue) {
+            return res.status(503).json({ 
+                message: "Background processing queue is not available. Please check Redis connection." 
+            });
+        }
+
         const { folderPath } = req.body;
         if (!folderPath) {
             return res.status(400).json({ message: "Folder path is required" });
