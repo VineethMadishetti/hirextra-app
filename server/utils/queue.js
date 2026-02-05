@@ -257,12 +257,29 @@ const parseResumeWithAI = async (text) => {
 	if (!apiKey) throw new Error("GEMINI_API_KEY not set");
 
 	const prompt = `
-		Extract candidate information from the following resume text.
-		Return ONLY a valid JSON object with these keys:
-		fullName, email, phone, location, jobTitle, company, skills (comma separated string), experience (string, e.g. "5 years"), summary, linkedinUrl.
+		You are an expert Resume Parser. Analyze the text below and extract candidate details into a JSON object.
+
+		Strictly follow this JSON structure:
+		{
+			"fullName": "Full Name",
+			"email": "Email Address",
+			"phone": "Phone Number",
+			"location": "City, Country",
+			"jobTitle": "Current or Last Job Title",
+			"company": "Current or Last Company",
+			"skills": "Skill1, Skill2, Skill3 (comma separated string)",
+			"experience": "Total years of experience (e.g. '5 Years')",
+			"summary": "Brief professional summary",
+			"linkedinUrl": "LinkedIn Profile URL"
+		}
+
+		Rules:
+		1. Return ONLY valid JSON. No Markdown code blocks (\`\`\`json).
+		2. If a value is missing, use an empty string "".
+		3. For "experience", calculate total years if possible, otherwise extract the string.
 		
 		Resume Text:
-		${text.substring(0, 8000)} 
+		${text.substring(0, 30000)} 
 	`;
 	// Truncate text to avoid token limits if necessary
 
@@ -301,6 +318,9 @@ const parseResumeWithAI = async (text) => {
 
 export const processResumeJob = async ({ jobId, s3Key }) => {
 	let errorReason = "UNKNOWN";
+	let success = false;
+	let reason = 'UNKNOWN_ERROR';
+
 	try {
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 		
@@ -313,6 +333,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		if (!text || text.length < 50) {
 			errorReason = "TEXT_EXTRACTION_FAILED";
 			throw new Error("Could not extract text from file");
+			throw new Error("TEXT_EXTRACTION_FAILED: Could not extract sufficient text from file.");
 		}
 
 		// 3. AI Parse
@@ -320,6 +341,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		if (!candidateData) {
 			errorReason = "AI_PARSE_FAILED";
 			throw new Error("AI failed to parse resume");
+			throw new Error("AI_PARSE_FAILED: The AI model could not understand the resume text.");
 		}
 
 		// 4. Clean & Validate
@@ -332,6 +354,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			await Candidate.create(validation.data);
 			// Do NOT increment totalRows, it is set at job creation
 			await UploadJob.findByIdAndUpdate(jobId, { $inc: { successRows: 1 } });
+			success = true;
 		} else {
 			errorReason = validation.reason || "VALIDATION_FAILED";
 			await UploadJob.findByIdAndUpdate(jobId, { 
@@ -340,6 +363,8 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 					[`failureReasons.${errorReason}`]: 1
 				}
 			});
+			reason = validation.reason || 'VALIDATION_FAILED';
+			success = false;
 		}
 
 	} catch (error) {
@@ -359,12 +384,33 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 				[`failureReasons.${errorReason}`]: 1
 			}
 		});
+		success = false;
+        // Determine reason from error message
+        if (error.message.includes('PDF parsing timed out')) {
+            reason = 'PDF_TIMEOUT';
+        } else if (error.message.includes('TEXT_EXTRACTION_FAILED') || error.message.includes('mammoth')) {
+            reason = 'TEXT_EXTRACTION_FAILED';
+        } else if (error.message.includes('AI_PARSE_FAILED')) {
+            reason = 'AI_PARSE_FAILED';
+        } else {
+            reason = 'PROCESSING_ERROR';
+        }
+		logger.error(`Resume processing failed for ${s3Key}: [${reason}] ${error.message}`);
 	} finally {
 		// Check if job is complete
+		// This block is the single source of truth for updating job progress.
 		try {
 			const job = await UploadJob.findById(jobId);
 			if (job && (job.successRows + job.failedRows >= job.totalRows)) {
 				const finalStatus = job.successRows > 0 ? "COMPLETED" : "FAILED";
+			const update = success 
+				? { $inc: { successRows: 1 } }
+				: { $inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 } };
+
+			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
+
+			if (updatedJob && (updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)) {
+				const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
 				await UploadJob.findByIdAndUpdate(jobId, { 
 					status: finalStatus,
 					completedAt: new Date()
@@ -372,6 +418,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			}
 		} catch (e) {
 			logger.error(`Failed to update job status for ${jobId}`, e);
+			logger.error(`Failed to update job progress for ${jobId}`, e);
 		}
 	}
 };
