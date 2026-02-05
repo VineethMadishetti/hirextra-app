@@ -80,7 +80,7 @@ router.post("/import-resumes", protect, adminOnly, async (req, res) => {
             fileName: folderPath,
             originalName: `Bulk Import: ${folderPath}`,
             status: "PROCESSING",
-            totalRows: 0, // This will be incremented by the worker
+            totalRows: resumeFiles.length,
             successRows: 0,
             failedRows: 0,
             uploadedBy: req.user?._id // Assuming you have auth middleware attached
@@ -95,9 +95,6 @@ router.post("/import-resumes", protect, adminOnly, async (req, res) => {
         );
 
         await Promise.all(jobPromises);
-
-        // Update the job with the final count of files to be processed
-        await UploadJob.findByIdAndUpdate(job._id, { totalRows: resumeFiles.length });
 
         res.status(200).json({
             message: "Resume import started",
