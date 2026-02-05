@@ -397,12 +397,8 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
         }
 		logger.error(`Resume processing failed for ${s3Key}: [${reason}] ${error.message}`);
 	} finally {
-		// Check if job is complete
 		// This block is the single source of truth for updating job progress.
 		try {
-			const job = await UploadJob.findById(jobId);
-			if (job && (job.successRows + job.failedRows >= job.totalRows)) {
-				const finalStatus = job.successRows > 0 ? "COMPLETED" : "FAILED";
 			const update = success 
 				? { $inc: { successRows: 1 } }
 				: { $inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 } };
@@ -417,7 +413,6 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 				});
 			}
 		} catch (e) {
-			logger.error(`Failed to update job status for ${jobId}`, e);
 			logger.error(`Failed to update job progress for ${jobId}`, e);
 		}
 	}
