@@ -264,12 +264,23 @@ const parseResumeWithAI = async (text) => {
 				body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
 			}
 		);
+
+		if (!response.ok) {
+			throw new Error(`Gemini API Error: ${response.status} ${response.statusText}`);
+		}
+
 		const data = await response.json();
 		const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 		if (!resultText) return null;
 		
 		// Clean markdown code blocks if present
-		const jsonStr = resultText.replace(/```json|```/g, "").trim();
+		let jsonStr = resultText.replace(/```json|```/g, "").trim();
+		// Attempt to find JSON object if there's extra text
+		const firstBrace = jsonStr.indexOf('{');
+		const lastBrace = jsonStr.lastIndexOf('}');
+		if (firstBrace !== -1 && lastBrace !== -1) {
+			jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+		}
 		return JSON.parse(jsonStr);
 	} catch (error) {
 		logger.error("AI Parsing Error:", error);
@@ -278,6 +289,7 @@ const parseResumeWithAI = async (text) => {
 };
 
 export const processResumeJob = async ({ jobId, s3Key }) => {
+	let errorReason = "UNKNOWN";
 	try {
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 		
@@ -288,12 +300,14 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		// 2. Extract Text
 		const text = await extractTextFromFile(buffer, fileExt);
 		if (!text || text.length < 50) {
+			errorReason = "TEXT_EXTRACTION_FAILED";
 			throw new Error("Could not extract text from file");
 		}
 
 		// 3. AI Parse
 		const candidateData = await parseResumeWithAI(text);
 		if (!candidateData) {
+			errorReason = "AI_PARSE_FAILED";
 			throw new Error("AI failed to parse resume");
 		}
 
@@ -305,19 +319,41 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		
 		if (validation.valid) {
 			await Candidate.create(validation.data);
-			await UploadJob.findByIdAndUpdate(jobId, { $inc: { successRows: 1, totalRows: 1 } });
+			// Do NOT increment totalRows, it is set at job creation
+			await UploadJob.findByIdAndUpdate(jobId, { $inc: { successRows: 1 } });
 		} else {
+			errorReason = validation.reason || "VALIDATION_FAILED";
 			await UploadJob.findByIdAndUpdate(jobId, { 
-				$inc: { failedRows: 1, totalRows: 1 },
-				$push: { failureReasons: { [validation.reason]: 1 } } // Simplified tracking
+				$inc: { 
+					failedRows: 1,
+					[`failureReasons.${errorReason}`]: 1
+				}
 			});
 		}
 
 	} catch (error) {
 		logger.error(`Resume processing failed for ${s3Key}:`, error);
+		const safeReason = errorReason === "UNKNOWN" ? "PROCESSING_ERROR" : errorReason;
 		await UploadJob.findByIdAndUpdate(jobId, { 
-			$inc: { failedRows: 1, totalRows: 1 }
+			$inc: { 
+				failedRows: 1,
+				[`failureReasons.${safeReason}`]: 1
+			}
 		});
+	} finally {
+		// Check if job is complete
+		try {
+			const job = await UploadJob.findById(jobId);
+			if (job && (job.successRows + job.failedRows >= job.totalRows)) {
+				const finalStatus = job.successRows > 0 ? "COMPLETED" : "FAILED";
+				await UploadJob.findByIdAndUpdate(jobId, { 
+					status: finalStatus,
+					completedAt: new Date()
+				});
+			}
+		} catch (e) {
+			logger.error(`Failed to update job status for ${jobId}`, e);
+		}
 	}
 };
 

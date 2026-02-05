@@ -121,12 +121,21 @@ export const cleanAndValidateCandidate = (data) => {
       }
   }
 
-  // 10. Contact Method Check
+  // 10. Core Information Check
+  const hasName = cleaned.fullName && cleaned.fullName.trim().length > 2;
+
+  if (!hasName) {
+    return { valid: false, reason: 'MISSING_NAME' };
+  }
+
+  // Requirement: Must have at least one contact method (LinkedIn, Email, or Phone)
   const hasEmail = !!cleaned.email;
   const hasPhone = !!cleaned.phone;
   const hasLinkedIn = cleaned.linkedinUrl && cleaned.linkedinUrl.trim().length > 0;
 
-  if (!hasEmail && !hasPhone && !hasLinkedIn) return { valid: false, reason: 'NO_CONTACT_INFO' };
+  if (!hasEmail && !hasPhone && !hasLinkedIn) {
+    return { valid: false, reason: 'NO_CONTACT_INFO' };
+  }
 
   return { valid: true, data: cleaned };
 };
