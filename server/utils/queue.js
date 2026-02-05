@@ -342,6 +342,10 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 	try {
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 
+		// DEBUG: Log Environment and File Info
+		const hasKey = !!process.env.GEMINI_API_KEY;
+		logger.info(`[DEBUG] Processing ${s3Key} (Ext: ${fileExt}). API Key Present: ${hasKey}`);
+
 		// 1. Download
 		const fileStream = await downloadFromS3(s3Key);
 		const buffer = await streamToBuffer(fileStream);
