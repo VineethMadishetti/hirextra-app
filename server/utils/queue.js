@@ -229,32 +229,45 @@ const waitForFileInS3 = async (filePath, maxRetries = 30, delayMs = 2000) => {
 const extractTextFromFile = async (buffer, fileExt) => {
 	try {
 		if (fileExt === 'docx') {
-			const result = await mammoth.extractRawText({ buffer });
-			return result.value;
+			try {
+				const result = await mammoth.extractRawText({ buffer });
+				return result.value;
+			} catch (e) {
+				throw new Error(`DOCX_EXTRACT_ERROR: ${e.message}`);
+			}
 		}
 		if (fileExt === 'pdf') {
 			// Add a timeout for pdf-parse as it can hang on corrupted or large files
 			const parsePromise = pdf(buffer);
 			const timeoutPromise = new Promise((_, reject) => 
-				setTimeout(() => reject(new Error('PDF parsing timed out after 15 seconds')), 15000)
+				setTimeout(() => reject(new Error('PDF_TIMEOUT: PDF parsing timed out after 15 seconds')), 15000)
 			);
-			const data = await Promise.race([parsePromise, timeoutPromise]);
-			return data.text;
+			try {
+				const data = await Promise.race([parsePromise, timeoutPromise]);
+				return data.text;
+			} catch (e) {
+				if (e.message.includes('PDF_TIMEOUT')) throw e;
+				throw new Error(`PDF_EXTRACT_ERROR: ${e.message}`);
+			}
 		}
 		if (fileExt === 'doc') {
 			logger.warn('Skipping .doc file. Only .docx format is supported for Word documents.');
-			return "";
+			throw new Error("UNSUPPORTED_FORMAT: .doc files are not supported, convert to .docx or .pdf");
 		}
 	} catch (error) {
+		// If we already wrapped it, just rethrow
+		if (error.message.includes('_EXTRACT_ERROR') || error.message.includes('UNSUPPORTED_FORMAT') || error.message.includes('PDF_TIMEOUT')) {
+			throw error;
+		}
 		logger.error(`Text extraction failed for extension '${fileExt}': ${error.message}`);
-		throw error; // Re-throw to be caught by processResumeJob, which will mark the row as failed
+		throw new Error(`TEXT_EXTRACTION_FAILED: ${error.message}`);
 	}
 	return "";
 };
 
 const parseResumeWithAI = async (text) => {
 	const apiKey = process.env.GEMINI_API_KEY;
-	if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+	if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING: API key is not set in environment variables");
 
 	const prompt = `
 		You are an expert Resume Parser. Analyze the text below and extract candidate details into a JSON object.
@@ -294,12 +307,13 @@ const parseResumeWithAI = async (text) => {
 		);
 
 		if (!response.ok) {
-			throw new Error(`Gemini API Error: ${response.status} ${response.statusText}`);
+			const errText = await response.text();
+			throw new Error(`GEMINI_API_ERROR: ${response.status} ${response.statusText} - ${errText}`);
 		}
 
 		const data = await response.json();
 		const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-		if (!resultText) return null;
+		if (!resultText) throw new Error("GEMINI_EMPTY_RESPONSE: Model returned no content");
 		
 		// Clean markdown code blocks if present
 		let jsonStr = resultText.replace(/```json|```/g, "").trim();
@@ -309,10 +323,15 @@ const parseResumeWithAI = async (text) => {
 		if (firstBrace !== -1 && lastBrace !== -1) {
 			jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
 		}
-		return JSON.parse(jsonStr);
+		
+		try {
+			return JSON.parse(jsonStr);
+		} catch (parseErr) {
+			throw new Error(`AI_JSON_PARSE_ERROR: Failed to parse AI response as JSON. Content: ${jsonStr.substring(0, 100)}...`);
+		}
 	} catch (error) {
 		logger.error("AI Parsing Error:", error);
-		return null;
+		throw error; // Rethrow so processResumeJob catches the specific error
 	}
 };
 
@@ -356,15 +375,27 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 	} catch (error) {
 		success = false;
         // Determine reason from the specific error message we threw
-        if (error.message.startsWith('TEXT_EXTRACTION_FAILED')) {
+        if (error.message.startsWith('TEXT_EXTRACTION_FAILED') || error.message.startsWith('DOCX_EXTRACT') || error.message.startsWith('PDF_EXTRACT')) {
             reason = 'TEXT_EXTRACTION_FAILED';
-        } else if (error.message.startsWith('AI_PARSE_FAILED')) {
+        } else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('GEMINI_API_ERROR') || error.message.startsWith('AI_JSON')) {
             reason = 'AI_PARSE_FAILED';
-        } else if (error.message.includes('PDF parsing timed out')) {
+		} else if (error.message.startsWith('GEMINI_API_KEY_MISSING')) {
+            reason = 'CONFIGURATION_ERROR';
+        } else if (error.message.includes('PDF_TIMEOUT')) {
             reason = 'PDF_TIMEOUT';
+		} else if (error.message.includes('UNSUPPORTED_FORMAT')) {
+            reason = 'INVALID_FORMAT';
         } else {
             reason = 'PROCESSING_ERROR';
         }
+		
+		// Capture more detail for debugging S3 or DB issues
+		if (error.message.includes('S3') || error.message.includes('access denied') || error.message.includes('NoSuchKey')) {
+			reason = 'S3_DOWNLOAD_ERROR';
+		} else if (error.message.includes('buffering timed out')) {
+			reason = 'DB_CONNECTION_ERROR';
+		}
+
 		logger.error(`Resume processing failed for ${s3Key}: [${reason}] ${error.message}`);
 	} finally {
 		// This block is the single source of truth for updating job progress.
