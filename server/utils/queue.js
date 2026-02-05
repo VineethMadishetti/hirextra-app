@@ -39,7 +39,7 @@ const getRedisConnection = () => {
 				logger.warn(`Redis URL contains a non-zero database (${redisUrl.pathname}). Forcing DB 0 for compatibility.`);
 				redisUrl.pathname = "/0";
 			}
-			return { url: redisUrl.toString() };
+			return redisUrl.toString();
 		} catch (error) {
 			logger.error(`❌ Invalid REDIS_URL: ${process.env.REDIS_URL}. Error: ${error.message}`);
 			return null;
