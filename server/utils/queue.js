@@ -97,8 +97,8 @@ if (connection) {
 // Helper to get file stream (from S3 or local)
 const getFileStream = async (filePath) => {
 	// Check if it's an S3 key (starts with 'uploads/') or local path
-	const isS3Key =
-		filePath.startsWith("uploads/") || !filePath.includes(path.sep);
+	// FIX: Allow S3 keys in subfolders (e.g. "USA/file.csv") by checking if it's NOT an absolute path
+	const isS3Key = !path.isAbsolute(filePath);
 
 	if (isS3Key) {
 		logger.info(`📥 Downloading file from S3: ${filePath}`);

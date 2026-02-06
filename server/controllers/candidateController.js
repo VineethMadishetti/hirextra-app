@@ -105,8 +105,8 @@ export const getFileHeaders = async (req, res) => {
 
 	try {
 		// Check if it's an S3 key (starts with 'uploads/') or local path
-		const isS3Key =
-			filePath.startsWith("uploads/") || !filePath.includes(path.sep);
+		// FIX: Allow S3 keys in subfolders (e.g. "USA/file.csv") by checking if it's NOT an absolute path
+		const isS3Key = !path.isAbsolute(filePath);
 		const isXlsx = filePath.toLowerCase().endsWith(".xlsx");
 
 		if (isS3Key) {
