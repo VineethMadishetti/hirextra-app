@@ -550,16 +550,22 @@ export const searchCandidates = async (req, res) => {
 		// 2. Specific Filters
 		const locFilter = locality || location;
 		if (locFilter) {
-			const safeLoc = locFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			// Optimization: Use "Starts With" (^) to utilize indexes better
-			const locRegex = new RegExp(`^${safeLoc}`, "i");
-			andConditions.push({
-				$or: [
-					{ locality: locRegex },
-					{ location: locRegex },
-					{ country: locRegex },
-				],
-			});
+			// Support multiple locations separated by comma (OR logic)
+			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
+			if (locations.length > 0) {
+				const locConditions = locations.map(loc => {
+					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const locRegex = new RegExp(`^${safeLoc}`, "i");
+					return {
+						$or: [
+							{ locality: locRegex },
+							{ location: locRegex },
+							{ country: locRegex },
+						],
+					};
+				});
+				andConditions.push({ $or: locConditions });
+			}
 		}
 
 		if (andConditions.length > 0) {
@@ -567,9 +573,16 @@ export const searchCandidates = async (req, res) => {
 		}
 
 		if (jobTitle) {
-			const safeJob = jobTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			// Optimization: Use "Starts With" (^) to utilize the jobTitle index
-			query.jobTitle = new RegExp(`^${safeJob}`, "i");
+			// Support multiple job titles separated by comma (OR logic)
+			const titles = jobTitle.split(',').map(t => t.trim()).filter(Boolean);
+			if (titles.length > 0) {
+				const titleConditions = titles.map(title => {
+					const safeJob = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					return { jobTitle: new RegExp(`^${safeJob}`, "i") };
+				});
+				andConditions.push({ $or: titleConditions });
+				if (!query.$and) query.$and = andConditions;
+			}
 		}
 		if (skills) {
 			const safeSkills = skills.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
