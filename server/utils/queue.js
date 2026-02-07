@@ -450,13 +450,13 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 // Core CSV processing logic (shared between worker
 // and direct-processing fallback)
 // ---------------------------------------------------
-export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, initialSuccess: explicitSuccess, initialFailed: explicitFailed, job }) => {
+export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, initialSuccess: explicitSuccess, initialFailed: explicitFailed, job: queueJob }) => {
 	logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
 
 	try {
 		// ✅ SINGLE SOURCE OF TRUTH: Fetch all job parameters from the database.
-		const job = await UploadJob.findById(jobId).lean();
-		if (!job) {
+		const jobDoc = await UploadJob.findById(jobId).lean();
+		if (!jobDoc) {
 			logger.error(`❌ Job ${jobId} not found. Aborting.`);
 			return;
 		}
@@ -465,16 +465,16 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		// If a job is picked up in 'PROCESSING' state, it means it was interrupted.
 		// We derive the starting point from its last saved progress, making the
 		// process resilient to server restarts, crashes, or deployments.
-		const isResuming = (explicitResumeFrom !== undefined) || (job.status === "PROCESSING" && (job.totalRows || 0) > 0);
-		const resumeFrom = explicitResumeFrom !== undefined ? explicitResumeFrom : (isResuming ? job.totalRows : 0);
-		const initialSuccess = explicitSuccess !== undefined ? explicitSuccess : (isResuming ? job.successRows : 0);
-		const initialFailed = explicitFailed !== undefined ? explicitFailed : (isResuming ? job.failedRows : 0);
+		const isResuming = (explicitResumeFrom !== undefined) || (jobDoc.status === "PROCESSING" && (jobDoc.totalRows || 0) > 0);
+		const resumeFrom = explicitResumeFrom !== undefined ? explicitResumeFrom : (isResuming ? jobDoc.totalRows : 0);
+		const initialSuccess = explicitSuccess !== undefined ? explicitSuccess : (isResuming ? jobDoc.successRows : 0);
+		const initialFailed = explicitFailed !== undefined ? explicitFailed : (isResuming ? jobDoc.failedRows : 0);
 
 		if (isResuming) {
 			logger.info(`🔄 Resuming job ${jobId} from row ${resumeFrom}. Initial counts: Success=${initialSuccess}, Failed=${initialFailed}`);
 		}
 
-		const { fileName: filePath, mapping, headers: actualHeaders, originalName } = job;
+		const { fileName: filePath, mapping, headers: actualHeaders, originalName } = jobDoc;
 
 		if (!actualHeaders || actualHeaders.length === 0) {
 			logger.error(`❌ Job ${jobId} is missing stored headers. Cannot process.`);
@@ -559,8 +559,8 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							failureReasons: Object.fromEntries(failureReasonCounts),
 							excessFailureCount: excessFailures,
 						});
-						if (job) {
-							await job.updateProgress({ count: rowCounter, success: successCount, failed: failedCount });
+						if (queueJob) {
+							await queueJob.updateProgress({ count: rowCounter, success: successCount, failed: failedCount });
 						}
 						lastProgressUpdate = now;
 					}
@@ -619,9 +619,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					if (streamRowCounter <= resumeFrom) {
 						// Log progress during the fast-forward to show it's not stuck
 						if (streamRowCounter % 200000 === 0) {
-							if (job) {
+							if (queueJob) {
 								// Keep job active in Redis to prevent stalling during long resumes
-								await job.updateProgress({ count: streamRowCounter, status: 'resuming' });
+								await queueJob.updateProgress({ count: streamRowCounter, status: 'resuming' });
 							}
 							logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
 						}
@@ -777,7 +777,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 						// Final progress update before marking as completed
 						await UploadJob.findByIdAndUpdate(jobId, {
 							status: finalStatus,
-							completedAt: finalStatus === 'COMPLETED' ? new Date() : job.completedAt,
+							completedAt: finalStatus === 'COMPLETED' ? new Date() : jobDoc.completedAt,
 							successRows: successCount,
 							totalRows: rowCounter,
 							failedRows: failedCount,
