@@ -469,13 +469,6 @@ export const resumeUploadJob = async (req, res) => {
 		// This fixes issues where totalRows was incorrectly overwritten or is the target total.
 		let resumeFrom = job.successRows + job.failedRows;
 
-		// 🚑 EMERGENCY FIX for Job 695392741b2a533cca13bfa2 (India.csv)
-		// If this is the specific stuck job, force the correct state
-		if (String(job._id) === "695392741b2a533cca13bfa2" && job.status === "COMPLETED") {
-			console.log("🚑 Applying emergency fix for India.csv job...");
-			resumeFrom = 16636823; // Force resume from the known stop point
-		}
-
 		console.log(`🔄 Resuming job ${id} from row ${resumeFrom}`);
 
 		// Update status to PROCESSING
@@ -492,10 +485,12 @@ export const resumeUploadJob = async (req, res) => {
 			initialSuccess: job.successRows,
 			initialFailed: job.failedRows
 		}).catch(async (err) => {
+			const errorMsg = err.message || String(err) || "Resume failed";
 			console.error(`❌ Resume failed for job ${id}:`, err);
 			await UploadJob.findByIdAndUpdate(id, {
 				status: "FAILED",
-				error: "Resume failed: " + err.message
+				error: "Resume failed: " + err.message,
+				error: "Resume failed: " + errorMsg
 			});
 		});
 
