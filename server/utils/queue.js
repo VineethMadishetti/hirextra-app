@@ -527,6 +527,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		});
 
 		return await new Promise(async (resolve, reject) => {
+			try {
 			// We now use the `actualHeaders` from the job document.
 			logger.info(
 				`✅ Using ${actualHeaders.length} stored headers for processing`,
@@ -840,6 +841,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 					reject(err);
 				});
+			} catch (err) {
+				reject(err);
+			}
 		}).catch(async (err) => {
 			logger.error(`❌ Job ${jobId} failed with error:`, err);
 			logger.error("Error details:", {
