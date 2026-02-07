@@ -384,6 +384,32 @@ export const uploadChunk = async (req, res) => {
 // --- START PROCESSING (Creates History Record) ---
 export const processFile = async (req, res) => {
 	try {
+		// ✅ FIX: Handle Resume Request via this existing route to avoid 404 "Route not found"
+		if (req.body.resumeJobId) {
+			const job = await UploadJob.findById(req.body.resumeJobId);
+			if (!job) return res.status(404).json({ message: "Job not found" });
+
+			// Calculate resume point from actual processed rows
+			const resumeFrom = job.successRows + job.failedRows;
+			console.log(`🔄 Resuming job ${job._id} from row ${resumeFrom} via processFile endpoint`);
+
+			// Update status to PROCESSING
+			await UploadJob.findByIdAndUpdate(job._id, {
+				status: "PROCESSING",
+				error: null
+			});
+
+			// Trigger processing in background
+			processCsvJob({
+				jobId: job._id,
+				resumeFrom: resumeFrom,
+				initialSuccess: job.successRows,
+				initialFailed: job.failedRows
+			}).catch(err => console.error("Resume background error:", err));
+
+			return res.json({ message: "Job resumed successfully", resumeFrom, jobId: job._id });
+		}
+
 		const { filePath, mapping, headers } = req.body;
 
 		if (!filePath) {

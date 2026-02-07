@@ -364,7 +364,8 @@ const AdminDashboard = () => {
 			const toastId = `resume-${jobId}`;
 			toast.loading("Attempting to resume job...", { id: toastId });
 
-			const { data } = await api.post(`/candidates/upload/resume/${jobId}`);
+			// ✅ FIX: Use the existing '/process' route to avoid 404 errors
+			const { data } = await api.post(`/candidates/process`, { resumeJobId: jobId });
 
 			toast.success(`Job resumed from row ${data.resumeFrom.toLocaleString()}.`, { id: toastId });
 			
@@ -926,13 +927,14 @@ const AdminDashboard = () => {
 														{/* Actions */}
 														<div className="flex gap-2">
 															{/* Resume Button */}
-															{(job.status === 'FAILED' || job.status === 'COMPLETED' || job.status === 'PAUSED') && (
+															{/* ✅ FIX: Allow resuming PROCESSING jobs if they are stuck */}
+															{(job.status === 'FAILED' || job.status === 'COMPLETED' || job.status === 'PAUSED' || job.status === 'PROCESSING') && (
 																<button
 																	onClick={() => handleResume(job._id)}
 																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
 																			   hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400
 																			   transition cursor-pointer"
-																	title="Resume Processing">
+																	title="Resume / Force Retry">
 																	<RefreshCw size={16} />
 																</button>
 															)}
