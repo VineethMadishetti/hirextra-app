@@ -555,7 +555,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 						await UploadJob.findByIdAndUpdate(jobId, {
 							successRows: successCount,
 							failedRows: failedCount,
-							totalRows: rowCounter,
+							// totalRows: rowCounter, // ❌ REMOVED: Do not overwrite totalRows with current progress
 							failureReasons: Object.fromEntries(failureReasonCounts),
 							excessFailureCount: excessFailures,
 						});

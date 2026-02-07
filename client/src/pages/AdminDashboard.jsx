@@ -359,6 +359,30 @@ const AdminDashboard = () => {
 		}
 	};
 
+	const handleResume = async (jobId) => {
+		try {
+			const toastId = `resume-${jobId}`;
+			toast.loading("Attempting to resume job...", { id: toastId });
+
+			const { data } = await api.post(`/candidates/upload/resume/${jobId}`);
+
+			toast.success(`Job resumed from row ${data.resumeFrom.toLocaleString()}.`, { id: toastId });
+			
+			// Invalidate history to get the new "PROCESSING" status
+			queryClient.invalidateQueries({ queryKey: ["history"] });
+
+			// Start polling for the resumed job
+			setProcessingJobId(jobId);
+			startProgressPolling(jobId);
+			
+			// Switch to history tab to see progress
+			setActiveTab("history");
+		} catch (error) {
+			console.error("Resume error:", error);
+			toast.error(error.response?.data?.message || "Failed to resume job.", { id: `resume-${jobId}` });
+		}
+	};
+
 	// Load headers from S3 file path
 	const handleLoadS3File = async () => {
 		if (!s3FilePath.trim()) {
@@ -901,19 +925,24 @@ const AdminDashboard = () => {
 
 														{/* Actions */}
 														<div className="flex gap-2">
-															{/* <button
-														onClick={() => handleReprocess(job)}
-														className="p-2 rounded-lg bg-slate-700/40
-                               hover:bg-indigo-500/20 text-indigo-400
-                               transition cursor-pointer">
-														<RefreshCw size={16} />
-													</button> */}
+															{/* Resume Button */}
+															{(job.status === 'FAILED' || job.status === 'COMPLETED' || job.status === 'PAUSED') && (
+																<button
+																	onClick={() => handleResume(job._id)}
+																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
+																			   hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400
+																			   transition cursor-pointer"
+																	title="Resume Processing">
+																	<RefreshCw size={16} />
+																</button>
+															)}
 
 															<button
 																onClick={() => initiateAction("deleteJob", job._id)}
 																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
                                hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400
-                               transition cursor-pointer">
+                               transition cursor-pointer"
+															    title="Delete Job & Data">
 																<Trash2 size={16} />
 															</button>
 														</div>

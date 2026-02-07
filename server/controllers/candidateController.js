@@ -439,7 +439,16 @@ export const resumeUploadJob = async (req, res) => {
 		}
 
 		// Resume from the last recorded totalRows (which acts as the processed count)
-		const resumeFrom = job.totalRows > 0 ? job.totalRows : (job.successRows + job.failedRows);
+		// ✅ FIX: Calculate resume point from actual processed rows (Success + Failed)
+		// This fixes issues where totalRows was incorrectly overwritten or is the target total.
+		let resumeFrom = job.successRows + job.failedRows;
+
+		// 🚑 EMERGENCY FIX for Job 695392741b2a533cca13bfa2 (India.csv)
+		// If this is the specific stuck job, force the correct state
+		if (String(job._id) === "695392741b2a533cca13bfa2" && job.status === "COMPLETED") {
+			console.log("🚑 Applying emergency fix for India.csv job...");
+			resumeFrom = 16636823; // Force resume from the known stop point
+		}
 
 		console.log(`🔄 Resuming job ${id} from row ${resumeFrom}`);
 
@@ -447,7 +456,7 @@ export const resumeUploadJob = async (req, res) => {
 		await UploadJob.findByIdAndUpdate(id, {
 			status: "PROCESSING",
 			error: null,
-			totalRows: resumeFrom
+			// totalRows: resumeFrom // ❌ Don't overwrite totalRows here
 		});
 
 		// Trigger processing
