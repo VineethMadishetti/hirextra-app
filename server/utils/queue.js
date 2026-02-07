@@ -486,14 +486,12 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		}
 
 		// Ensure source file exists in S3 before doing any heavy work
-		const exists = await waitForFileInS3(filePath);
+		// FIX: Don't block on HeadObject check (waitForFileInS3). 
+		// If HeadObject fails (e.g. permissions), we should still try to download (GetObject).
+		// getFileStream will throw a clear error if the file is truly missing.
+		const exists = await waitForFileInS3(filePath, 5, 1000).catch(() => false);
 		if (!exists) {
-			logger.error(`❌ Source file missing in S3 for job ${jobId}: ${filePath}`);
-			await UploadJob.findByIdAndUpdate(jobId, {
-				status: "FAILED",
-				error: "Source file not found in storage. Please re-upload the file.",
-			});
-			return;
+			logger.warn(`⚠️ Source file check (HeadObject) failed for ${filePath}. Proceeding to download attempt...`);
 		}
 
 		// ✅ FIX: Update totalRows to resumeFrom immediately.

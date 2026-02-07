@@ -232,6 +232,7 @@ export const fileExistsInS3 = async (key) => {
     if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
       return false;
     }
+    logger.warn(`⚠️ fileExistsInS3 (HeadObject) failed for ${key}: ${error.message}`);
     throw error;
   }
 };

@@ -430,7 +430,45 @@ export const processFile = async (req, res) => {
 
 // --- RESUME STUCK JOB ---
 export const resumeUploadJob = async (req, res) => {
-	res.status(400).json({ message: "Resume functionality has been disabled for performance." });
+	try {
+		const { id } = req.params;
+		const job = await UploadJob.findById(id);
+
+		if (!job) {
+			return res.status(404).json({ message: "Job not found" });
+		}
+
+		// Resume from the last recorded totalRows (which acts as the processed count)
+		const resumeFrom = job.totalRows > 0 ? job.totalRows : (job.successRows + job.failedRows);
+
+		console.log(`🔄 Resuming job ${id} from row ${resumeFrom}`);
+
+		// Update status to PROCESSING
+		await UploadJob.findByIdAndUpdate(id, {
+			status: "PROCESSING",
+			error: null,
+			totalRows: resumeFrom
+		});
+
+		// Trigger processing
+		processCsvJob({
+			jobId: job._id,
+			resumeFrom: resumeFrom,
+			initialSuccess: job.successRows,
+			initialFailed: job.failedRows
+		}).catch(async (err) => {
+			console.error(`❌ Resume failed for job ${id}:`, err);
+			await UploadJob.findByIdAndUpdate(id, {
+				status: "FAILED",
+				error: "Resume failed: " + err.message
+			});
+		});
+
+		res.json({ message: "Job resumed successfully", resumeFrom });
+	} catch (error) {
+		console.error("Error resuming job:", error);
+		res.status(500).json({ message: error.message });
+	}
 };
 
 // --- PAUSE STUCK JOB ---
