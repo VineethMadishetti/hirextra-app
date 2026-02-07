@@ -450,7 +450,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 // Core CSV processing logic (shared between worker
 // and direct-processing fallback)
 // ---------------------------------------------------
-export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, initialSuccess: explicitSuccess, initialFailed: explicitFailed }) => {
+export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, initialSuccess: explicitSuccess, initialFailed: explicitFailed, job }) => {
 	logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
 
 	try {
@@ -561,6 +561,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							failureReasons: Object.fromEntries(failureReasonCounts),
 							excessFailureCount: excessFailures,
 						});
+						if (job) {
+							await job.updateProgress({ count: rowCounter, success: successCount, failed: failedCount });
+						}
 						lastProgressUpdate = now;
 					}
 				} catch (err) {
@@ -617,8 +620,11 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					streamRowCounter++;
 					if (streamRowCounter <= resumeFrom) {
 						// Log progress during the fast-forward to show it's not stuck
-						if (streamRowCounter % 500000 === 0) {
-							// ✅ FIX: Removed DB update here to prevent overwriting totalRows with a smaller number
+						if (streamRowCounter % 200000 === 0) {
+							if (job) {
+								// Keep job active in Redis to prevent stalling during long resumes
+								await job.updateProgress({ count: streamRowCounter, status: 'resuming' });
+							}
 							logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
 						}
 						return; // Skip this already-processed row
@@ -903,7 +909,7 @@ if (connection) {
 					// determine if it needs to resume based on DB state.
 					// FIX: Pass all job data (including resume params) to processCsvJob
 					const { jobId, resumeFrom, initialSuccess, initialFailed } = job.data;
-					await processCsvJob({ jobId, resumeFrom, initialSuccess, initialFailed });
+					await processCsvJob({ jobId, resumeFrom, initialSuccess, initialFailed, job });
 				}
 			},
 			{
@@ -913,6 +919,7 @@ if (connection) {
 					max: 1,
 					duration: 5000, // PROCESS 1 FILE EVERY 5 SECONDS (12 per minute) to stay under Gemini Free Tier limits (15 RPM)
 				},
+				lockDuration: 60000, // Increase lock duration to 60s to prevent stalling on large files
 				removeOnComplete: {
 					age: 24 * 3600, // Keep completed jobs for 24 hours
 					count: 1000, // Keep max 1000 completed jobs
