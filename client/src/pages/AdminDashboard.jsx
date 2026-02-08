@@ -13,7 +13,6 @@ import {
 	XCircle,
 	Loader,
 	ChevronDown,
-	PauseCircle,
 } from "lucide-react";
 import ResumeIcon from "../assets/resume-folder.svg"; // You might need to add this or reuse existing
 import ExistingFilesIcon from "../assets/existing-files.svg";
@@ -146,6 +145,7 @@ const AdminDashboard = () => {
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [processingProgress, setProcessingProgress] = useState({
 		successRows: 0,
+		failedRows: 0,
 		totalRows: 0,
 	});
 	const pollingIntervalRef = useRef(null);
@@ -253,6 +253,7 @@ const AdminDashboard = () => {
 				setProcessingProgress(prev => ({
 					...prev,
 					successRows: data.successRows || 0,
+					failedRows: data.failedRows || 0,
 					totalRows: data.totalRows || 0,
 				}));
 
@@ -360,44 +361,6 @@ const AdminDashboard = () => {
 		}
 	};
 
-	const handleResume = async (jobId) => {
-		try {
-			const toastId = `resume-${jobId}`;
-			toast.loading("Attempting to resume job...", { id: toastId });
-
-			// ✅ FIX: Use the existing '/process' route to avoid 404 errors
-			const { data } = await api.post(`/candidates/process`, { resumeJobId: jobId });
-
-			toast.success(`Job resumed from row ${data.resumeFrom.toLocaleString()}.`, { id: toastId });
-			
-			// Invalidate history to get the new "PROCESSING" status
-			queryClient.invalidateQueries({ queryKey: ["history"] });
-
-			// Start polling for the resumed job
-			setProcessingJobId(jobId);
-			startProgressPolling(jobId);
-			
-			// Switch to history tab to see progress
-			setActiveTab("history");
-		} catch (error) {
-			console.error("Resume error:", error);
-			toast.error(error.response?.data?.message || "Failed to resume job.", { id: `resume-${jobId}` });
-		}
-	};
-
-	const handlePause = async (jobId) => {
-		try {
-			const toastId = `pause-${jobId}`;
-			toast.loading("Pausing job...", { id: toastId });
-			await api.post(`/candidates/upload/pause/${jobId}`);
-			toast.success("Job paused. It will stop shortly.", { id: toastId });
-			queryClient.invalidateQueries({ queryKey: ["history"] });
-		} catch (error) {
-			console.error("Pause error:", error);
-			toast.error("Failed to pause job.", { id: `pause-${jobId}` });
-		}
-	};
-
 	// Load headers from S3 file path
 	const handleLoadS3File = async () => {
 		if (!s3FilePath.trim()) {
@@ -419,7 +382,6 @@ const AdminDashboard = () => {
 				});
 				toast.success("File headers loaded! Map your columns below.", { id: "s3load" });
 				setS3FilePath("");
-				setUseS3Path(false);
 			} else {
 				toast.error("Could not read headers from file", { id: "s3load" });
 			}
@@ -900,7 +862,12 @@ const AdminDashboard = () => {
 																<div className="flex flex-col items-end w-full">
 																	<div className="flex items-center gap-2 justify-end w-full">
 																		<Loader className="w-3 h-3 animate-spin text-indigo-400" />
-																		<span className="font-semibold">
+																		{processingProgress?.failedRows > 0 && (
+																			<span className="text-xs text-rose-500 font-medium">
+																				{processingProgress.failedRows.toLocaleString()}!
+																			</span>
+																		)}
+																		<span className="font-semibold text-emerald-600">
 																			{(processingProgress?.successRows || 0).toLocaleString()}
 																		</span>
 																		<span className="text-xs text-slate-500 dark:text-slate-400">
@@ -908,12 +875,23 @@ const AdminDashboard = () => {
 																			{(processingProgress?.totalRows || 0).toLocaleString()}
 																		</span>
 																	</div>
-																	<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
+																	<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1 flex overflow-hidden">
 																		<div
-																			className="bg-indigo-500 h-1.5 rounded-full transition-all"
+																			className="bg-emerald-500 h-1.5 transition-all duration-500"
 																			style={{
 																				width: `${(processingProgress?.totalRows || 0) > 0
 																						? ((processingProgress?.successRows || 0) /
+																							(processingProgress?.totalRows || 1)) *
+																						100
+																						: 0
+																					}%`,
+																			}}
+																		/>
+																		<div
+																			className="bg-rose-400 h-1.5 transition-all duration-500"
+																			style={{
+																				width: `${(processingProgress?.totalRows || 0) > 0
+																						? ((processingProgress?.failedRows || 0) /
 																							(processingProgress?.totalRows || 1)) *
 																						100
 																						: 0
@@ -940,31 +918,6 @@ const AdminDashboard = () => {
 
 														{/* Actions */}
 														<div className="flex gap-2">
-															{/* Pause Button */}
-															{job.status === 'PROCESSING' && (
-																<button
-																	onClick={() => handlePause(job._id)}
-																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
-																			   hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-500 dark:text-amber-400
-																			   transition cursor-pointer"
-																	title="Pause Processing">
-																	<PauseCircle size={16} />
-																</button>
-															)}
-
-															{/* Resume Button */}
-															{/* ✅ FIX: Allow resuming PROCESSING jobs if they are stuck */}
-															{(job.status === 'FAILED' || job.status === 'COMPLETED' || job.status === 'PAUSED' || job.status === 'PROCESSING') && (
-																<button
-																	onClick={() => handleResume(job._id)}
-																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
-																			   hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400
-																			   transition cursor-pointer"
-																	title="Resume / Force Retry">
-																	<RefreshCw size={16} />
-																</button>
-															)}
-
 															<button
 																onClick={() => initiateAction("deleteJob", job._id)}
 																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40

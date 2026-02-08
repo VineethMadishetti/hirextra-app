@@ -751,7 +751,6 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 						if (candidates.length >= batchSize && !isPaused) {
 							// PAUSE STREAM: Backpressure handling for large files
 							stream.pause();
-							isPaused = true;
 
 							const batch = [...candidates];
 							candidates = [];
@@ -768,8 +767,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 								logger.error("Error in batch insert:", e);
 							} finally {
 								// RESUME STREAM
-								isPaused = false;
-								stream.resume();
+								if (!isPaused) {
+									stream.resume();
+								}
 							}
 						}
 					} catch (rowError) {
