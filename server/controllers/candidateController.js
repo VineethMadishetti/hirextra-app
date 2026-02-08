@@ -503,7 +503,22 @@ export const resumeUploadJob = async (req, res) => {
 
 // --- PAUSE STUCK JOB ---
 export const pauseUploadJob = async (req, res) => {
-	res.status(400).json({ message: "Pause functionality has been disabled for performance." });
+	try {
+		const { id } = req.params;
+		const job = await UploadJob.findById(id);
+
+		if (!job) {
+			return res.status(404).json({ message: "Job not found" });
+		}
+
+		// Update status to PAUSED. The worker will detect this and stop gracefully.
+		await UploadJob.findByIdAndUpdate(id, { status: "PAUSED" });
+
+		res.json({ message: "Job pause requested. It will stop shortly." });
+	} catch (error) {
+		console.error("Error pausing job:", error);
+		res.status(500).json({ message: error.message });
+	}
 };
 
 // --- GET DELETE HISTORY ---

@@ -548,6 +548,16 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 			const insertBatch = async (batchToInsert) => {
 				if (batchToInsert.length === 0) return;
 				try {
+					// 1. Check for PAUSE signal from DB (every batch ~2000 rows)
+					const currentJob = await UploadJob.findById(jobId).select('status').lean();
+					if (currentJob && currentJob.status === 'PAUSED') {
+						logger.info(`⏸️ Pause signal detected for job ${jobId}`);
+						isPaused = true; // Set flag to stop the loop
+						if (sourceStream) sourceStream.destroy(); // Stop reading file
+						if (fileStream) fileStream.destroy();
+						return; // Exit insert
+					}
+
 					await Candidate.insertMany(batchToInsert, { ordered: false });
 					successCount += batchToInsert.length;
 
@@ -556,7 +566,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 						await UploadJob.findByIdAndUpdate(jobId, {
 							successRows: successCount,
 							failedRows: failedCount,
-							// totalRows: rowCounter, // ❌ REMOVED: Do not overwrite totalRows with current progress
+							totalRows: rowCounter, // ✅ ENABLED: Update totalRows so UI shows progress (e.g. "5.4M / 5.4M")
 							failureReasons: Object.fromEntries(failureReasonCounts),
 							excessFailureCount: excessFailures,
 						});
@@ -614,6 +624,13 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				.pipe(csvParser)
 				.on("data", async (row) => {
 					// --- MANUAL RESUME LOGIC (FAST FORWARD) ---
+					
+					// Safety check: If paused during insertBatch, stop processing immediately
+					if (isPaused) {
+						if (sourceStream && !sourceStream.destroyed) sourceStream.destroy();
+						return;
+					}
+
 					// This is much more performant than `skipLines` for large offsets.
 					// We read every line but do minimal work until we reach the resume point.
 					streamRowCounter++;
@@ -741,6 +758,12 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 							try {
 								await insertBatch(batch);
+								
+								// If paused during insert, ensure we stop the stream here too
+								if (isPaused) {
+									stream.destroy();
+									return;
+								}
 							} catch (e) {
 								logger.error("Error in batch insert:", e);
 							} finally {
@@ -761,6 +784,13 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				})
 				.on("end", async () => {
 					try {
+						// If paused, don't mark as completed
+						if (isPaused) {
+							logger.info(`⏸️ Job ${jobId} paused successfully.`);
+							resolve();
+							return;
+						}
+
 						// Insert remaining candidates
 						if (candidates.length > 0) {
 							await insertBatch(candidates);
@@ -809,6 +839,12 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					}
 				})
 				.on("error", async (err) => {
+					// If we intentionally destroyed the stream due to pause, ignore the error
+					if (isPaused) {
+						resolve();
+						return;
+					}
+
 					// Log error but try to continue if possible
 					logger.error("❌ CSV Stream Error:", err);
 					logger.error("Error details:", {

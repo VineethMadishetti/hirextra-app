@@ -13,6 +13,7 @@ import {
 	XCircle,
 	Loader,
 	ChevronDown,
+	PauseCircle,
 } from "lucide-react";
 import ResumeIcon from "../assets/resume-folder.svg"; // You might need to add this or reuse existing
 import ExistingFilesIcon from "../assets/existing-files.svg";
@@ -381,6 +382,19 @@ const AdminDashboard = () => {
 		} catch (error) {
 			console.error("Resume error:", error);
 			toast.error(error.response?.data?.message || "Failed to resume job.", { id: `resume-${jobId}` });
+		}
+	};
+
+	const handlePause = async (jobId) => {
+		try {
+			const toastId = `pause-${jobId}`;
+			toast.loading("Pausing job...", { id: toastId });
+			await api.post(`/candidates/upload/pause/${jobId}`);
+			toast.success("Job paused. It will stop shortly.", { id: toastId });
+			queryClient.invalidateQueries({ queryKey: ["history"] });
+		} catch (error) {
+			console.error("Pause error:", error);
+			toast.error("Failed to pause job.", { id: `pause-${jobId}` });
 		}
 	};
 
@@ -926,6 +940,18 @@ const AdminDashboard = () => {
 
 														{/* Actions */}
 														<div className="flex gap-2">
+															{/* Pause Button */}
+															{job.status === 'PROCESSING' && (
+																<button
+																	onClick={() => handlePause(job._id)}
+																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
+																			   hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-500 dark:text-amber-400
+																			   transition cursor-pointer"
+																	title="Pause Processing">
+																	<PauseCircle size={16} />
+																</button>
+															)}
+
 															{/* Resume Button */}
 															{/* ✅ FIX: Allow resuming PROCESSING jobs if they are stuck */}
 															{(job.status === 'FAILED' || job.status === 'COMPLETED' || job.status === 'PAUSED' || job.status === 'PROCESSING') && (
