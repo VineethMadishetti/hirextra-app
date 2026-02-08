@@ -619,7 +619,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					streamRowCounter++;
 					if (streamRowCounter <= resumeFrom) {
 						// Log progress during the fast-forward to show it's not stuck
-						if (streamRowCounter % 200000 === 0) {
+						if (streamRowCounter % 100000 === 0) {
 							if (queueJob) {
 								// Keep job active in Redis to prevent stalling during long resumes
 								await queueJob.updateProgress({ count: streamRowCounter, status: 'resuming' });
@@ -921,7 +921,7 @@ if (connection) {
 					max: 1,
 					duration: 5000, // PROCESS 1 FILE EVERY 5 SECONDS (12 per minute) to stay under Gemini Free Tier limits (15 RPM)
 				},
-				lockDuration: 60000, // Increase lock duration to 60s to prevent stalling on large files
+				lockDuration: 300000, // Increase lock duration to 5 mins to prevent stalling on large files
 				removeOnComplete: {
 					age: 24 * 3600, // Keep completed jobs for 24 hours
 					count: 1000, // Keep max 1000 completed jobs

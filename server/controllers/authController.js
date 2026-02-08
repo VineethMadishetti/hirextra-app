@@ -29,7 +29,7 @@ const generateAccessToken = (userId) => {
   return jwt.sign(
     { userId },
     process.env.JWT_SECRET,
-    { expiresIn: '1h' } // Increased to 1 hour for smoother user experience
+    { expiresIn: '30d' } // Increased to 30 days to prevent logout during long processing
   );
 };
 
@@ -98,7 +98,7 @@ export const refreshAccessToken = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 60 * 60 * 1000, // 1 hour
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
     res.json({ message: 'Access token refreshed' });
@@ -134,7 +134,7 @@ export const loginUser = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 60 * 60 * 1000, // 1 hour
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
     res.cookie('refreshToken', refreshToken, {
