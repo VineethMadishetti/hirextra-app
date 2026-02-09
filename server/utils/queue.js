@@ -549,7 +549,12 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				if (batchToInsert.length === 0) return;
 				try {
 					// 1. Check for PAUSE signal from DB (every batch ~2000 rows)
-					const currentJob = await UploadJob.findById(jobId).select('status').lean();
+					// Add timeout to prevent hanging if DB is slow
+					const checkPausePromise = UploadJob.findById(jobId).select('status').lean();
+					const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_CHECK_TIMEOUT')), 5000));
+
+					const currentJob = await Promise.race([checkPausePromise, timeoutPromise]).catch(() => null);
+
 					if (currentJob && currentJob.status === 'PAUSED') {
 						logger.info(`⏸️ Pause signal detected for job ${jobId}`);
 						isPaused = true; // Set flag to stop the loop
@@ -558,7 +563,12 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 						return; // Exit insert
 					}
 
-					await Candidate.insertMany(batchToInsert, { ordered: false });
+					// 2. Insert with Timeout (prevent infinite hang)
+					await Promise.race([
+						Candidate.insertMany(batchToInsert, { ordered: false }),
+						new Promise((_, reject) => setTimeout(() => reject(new Error('DB_INSERT_TIMEOUT')), 60000))
+					]);
+
 					successCount += batchToInsert.length;
 
 					const now = Date.now();
