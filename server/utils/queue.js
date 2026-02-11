@@ -266,7 +266,7 @@ const extractTextFromFile = async (buffer, fileExt) => {
 };
 
 const parseResumeWithAI = async (contentPart) => {
-	let apiKey = process.env.OPENAI_API_KEY;
+	let apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 	if (!apiKey) throw new Error("OPENAI_API_KEY_MISSING: API key is not set");
 	apiKey = apiKey.trim(); // Remove potential whitespace from copy-paste
 
@@ -297,7 +297,7 @@ const parseResumeWithAI = async (contentPart) => {
 			"https://api.openai.com/v1/chat/completions",
 			{
 				method: "POST",
-				headers: { 
+				headers: {
 					"Content-Type": "application/json",
 					"Authorization": `Bearer ${apiKey}`
 				},
@@ -389,7 +389,7 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			reason = 'TEXT_EXTRACTION_FAILED';
 		} else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('OPENAI_API_ERROR') || error.message.startsWith('AI_JSON')) {
 			reason = 'AI_PARSE_FAILED';
-		} else if (error.message.startsWith('OPENAI_API_KEY_MISSING')) {
+		} else if (error.message.startsWith('OPENAI_API_KEY_MISSING') || error.message.startsWith('VITE_OPENAI_API_KEY_MISSING')) {
 			reason = 'CONFIGURATION_ERROR';
 		} else if (error.message.includes('PDF_TIMEOUT')) {
 			reason = 'PDF_TIMEOUT';
@@ -519,365 +519,365 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 		return await new Promise(async (resolve, reject) => {
 			try {
-			// We now use the `actualHeaders` from the job document.
-			logger.info(
-				`✅ Using ${actualHeaders.length} stored headers for processing`,
-			);
-			logger.debug(`📝 First 5 headers:`, actualHeaders.slice(0, 5).join(", "));
-
-			const incrementFailure = (reason) => {
-				failedCount++;
-				if (failureReasonCounts.size < 500) {
-					failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
-				} else if (failureReasonCounts.has(reason)) {
-					failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
-				} else {
-					excessFailures++;
-				}
-			};
-
-			const insertBatch = async (batchToInsert) => {
-				if (batchToInsert.length === 0) return;
-				try {
-					// 1. Check for PAUSE signal from DB (every batch ~2000 rows)
-					// Add timeout to prevent hanging if DB is slow
-					const checkPausePromise = UploadJob.findById(jobId).select('status').lean();
-					const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_CHECK_TIMEOUT')), 5000));
-
-					const currentJob = await Promise.race([checkPausePromise, timeoutPromise]).catch(() => null);
-
-					if (currentJob && currentJob.status === 'PAUSED') {
-						logger.info(`⏸️ Pause signal detected for job ${jobId}`);
-						isPaused = true; // Set flag to stop the loop
-						if (sourceStream) sourceStream.destroy(); // Stop reading file
-						if (fileStream) fileStream.destroy();
-						return; // Exit insert
-					}
-
-					// 2. Insert with Timeout (prevent infinite hang)
-					await Promise.race([
-						Candidate.insertMany(batchToInsert, { ordered: false }),
-						new Promise((_, reject) => setTimeout(() => reject(new Error('DB_INSERT_TIMEOUT')), 60000))
-					]);
-
-					successCount += batchToInsert.length;
-
-					const now = Date.now();
-					if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
-						await UploadJob.findByIdAndUpdate(jobId, {
-							successRows: successCount,
-							failedRows: failedCount,
-							totalRows: rowCounter, // ✅ ENABLED: Update totalRows so UI shows progress (e.g. "5.4M / 5.4M")
-							failureReasons: Object.fromEntries(failureReasonCounts),
-							excessFailureCount: excessFailures,
-						});
-						if (queueJob) {
-							await queueJob.updateProgress({ count: rowCounter, success: successCount, failed: failedCount });
-						}
-						lastProgressUpdate = now;
-					}
-				} catch (err) {
-					// Duplicate key error - count as failed but continue
-					// If ordered: false, err.insertedDocs contains successful ones
-					// We'll approximate failed count for now
-					failedCount += batchToInsert.length;
-					logger.warn(`Batch insert warning: ${err.message}`);
-				}
-			};
-
-			let sourceStream;
-			const fileStream = await getFileStream(filePath);
-
-			if (isXlsx) {
-				const buffer = await streamToBuffer(fileStream);
-				const workbook = xlsx.read(buffer, { type: "buffer" });
-				const sheetName = workbook.SheetNames[0];
-				const worksheet = workbook.Sheets[sheetName];
-				sourceStream = xlsx.stream.to_csv(worksheet);
-			} else {
-				sourceStream = fileStream;
-			}
-
-			// We will handle skipping manually as it's much faster for large files
-			// than using the library's built-in `skipLines`.
-			const csvParser = csv({
-				skipLines: skipLinesCount + 1, // Skip garbage lines + the header row itself
-				headers: false, // ✅ RAW MODE: Get raw arrays to validate column count manually
-				strict: false,
-				skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
-			});
-
-			// Handle CSV parser errors without stopping the stream
-			csvParser.on("error", (csvErr) => {
-				logger.error(
-					`❌ CSV parser error at row ${rowCounter}:`,
-					csvErr.message,
+				// We now use the `actualHeaders` from the job document.
+				logger.info(
+					`✅ Using ${actualHeaders.length} stored headers for processing`,
 				);
-				failedCount++;
-				// Don't throw - let stream continue processing
-			});
+				logger.debug(`📝 First 5 headers:`, actualHeaders.slice(0, 5).join(", "));
 
-			// This counter tracks rows coming directly from the stream
-			let streamRowCounter = 0;
-			let isPaused = false;
-
-			const stream = sourceStream
-				.pipe(csvParser)
-				.on("data", async (row) => {
-					// --- MANUAL RESUME LOGIC (FAST FORWARD) ---
-					
-					// Safety check: If paused during insertBatch, stop processing immediately
-					if (isPaused) {
-						if (sourceStream && !sourceStream.destroyed) sourceStream.destroy();
-						return;
+				const incrementFailure = (reason) => {
+					failedCount++;
+					if (failureReasonCounts.size < 500) {
+						failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
+					} else if (failureReasonCounts.has(reason)) {
+						failureReasonCounts.set(reason, (failureReasonCounts.get(reason) || 0) + 1);
+					} else {
+						excessFailures++;
 					}
+				};
 
-					// This is much more performant than `skipLines` for large offsets.
-					// We read every line but do minimal work until we reach the resume point.
-					streamRowCounter++;
-					if (streamRowCounter <= resumeFrom) {
-						// Log progress during the fast-forward to show it's not stuck
-						if (streamRowCounter % 100000 === 0) {
+				const insertBatch = async (batchToInsert) => {
+					if (batchToInsert.length === 0) return;
+					try {
+						// 1. Check for PAUSE signal from DB (every batch ~2000 rows)
+						// Add timeout to prevent hanging if DB is slow
+						const checkPausePromise = UploadJob.findById(jobId).select('status').lean();
+						const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB_CHECK_TIMEOUT')), 5000));
+
+						const currentJob = await Promise.race([checkPausePromise, timeoutPromise]).catch(() => null);
+
+						if (currentJob && currentJob.status === 'PAUSED') {
+							logger.info(`⏸️ Pause signal detected for job ${jobId}`);
+							isPaused = true; // Set flag to stop the loop
+							if (sourceStream) sourceStream.destroy(); // Stop reading file
+							if (fileStream) fileStream.destroy();
+							return; // Exit insert
+						}
+
+						// 2. Insert with Timeout (prevent infinite hang)
+						await Promise.race([
+							Candidate.insertMany(batchToInsert, { ordered: false }),
+							new Promise((_, reject) => setTimeout(() => reject(new Error('DB_INSERT_TIMEOUT')), 60000))
+						]);
+
+						successCount += batchToInsert.length;
+
+						const now = Date.now();
+						if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
+							await UploadJob.findByIdAndUpdate(jobId, {
+								successRows: successCount,
+								failedRows: failedCount,
+								totalRows: rowCounter, // ✅ ENABLED: Update totalRows so UI shows progress (e.g. "5.4M / 5.4M")
+								failureReasons: Object.fromEntries(failureReasonCounts),
+								excessFailureCount: excessFailures,
+							});
 							if (queueJob) {
-								// Keep job active in Redis to prevent stalling during long resumes
-								await queueJob.updateProgress({ count: streamRowCounter, status: 'resuming' });
+								await queueJob.updateProgress({ count: rowCounter, success: successCount, failed: failedCount });
 							}
-							logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
+							lastProgressUpdate = now;
 						}
-						return; // Skip this already-processed row
+					} catch (err) {
+						// Duplicate key error - count as failed but continue
+						// If ordered: false, err.insertedDocs contains successful ones
+						// We'll approximate failed count for now
+						failedCount += batchToInsert.length;
+						logger.warn(`Batch insert warning: ${err.message}`);
 					}
-					// --- END MANUAL RESUME LOGIC ---
+				};
 
-					// --- SAFETY CHECK: STOP IF PAUSED OR JOB DELETED ---
-					if (isPaused) return;
+				let sourceStream;
+				const fileStream = await getFileStream(filePath);
 
-					try {
-						rowCounter++; // This will now continue from resumeFrom + 1
+				if (isXlsx) {
+					const buffer = await streamToBuffer(fileStream);
+					const workbook = xlsx.read(buffer, { type: "buffer" });
+					const sheetName = workbook.SheetNames[0];
+					const worksheet = workbook.Sheets[sheetName];
+					sourceStream = xlsx.stream.to_csv(worksheet);
+				} else {
+					sourceStream = fileStream;
+				}
 
-						// Convert raw row to array (csv-parser with headers:false emits arrays)
-						const rowValues = Object.values(row);
+				// We will handle skipping manually as it's much faster for large files
+				// than using the library's built-in `skipLines`.
+				const csvParser = csv({
+					skipLines: skipLinesCount + 1, // Skip garbage lines + the header row itself
+					headers: false, // ✅ RAW MODE: Get raw arrays to validate column count manually
+					strict: false,
+					skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
+				});
 
-						// --- MANUAL STRICT VALIDATION ---
-						// Check if row has the correct number of columns to prevent data shifting.
-						// FIX: Relaxed strict equality. CSVs often have trailing empty columns or missing trailing commas.
-						// We only warn if the mismatch is significant, but we attempt to process anyway.
-						if (rowValues.length !== actualHeaders.length) {
-							// Just log a warning for debugging, but DO NOT SKIP the row.
-							// getVal() handles out-of-bounds access safely.
-							if (failedCount < 5) {
-								logger.warn(`⚠️ Row ${rowCounter} column mismatch: Expected ${actualHeaders.length}, got ${rowValues.length}. Processing anyway.`);
-							}
-						}
+				// Handle CSV parser errors without stopping the stream
+				csvParser.on("error", (csvErr) => {
+					logger.error(
+						`❌ CSV parser error at row ${rowCounter}:`,
+						csvErr.message,
+					);
+					failedCount++;
+					// Don't throw - let stream continue processing
+				});
 
-						// --- DEBUGGING FIRST ROW ---
-						if (rowCounter === resumeFrom + 1) {
-							logger.info("🔍 Processing first row...");
-							logger.debug("Row values detected:", rowValues.slice(0, 5));
-						}
+				// This counter tracks rows coming directly from the stream
+				let streamRowCounter = 0;
+				let isPaused = false;
 
-						const getVal = (targetHeader) => {
-							if (!targetHeader) return "";
+				const stream = sourceStream
+					.pipe(csvParser)
+					.on("data", async (row) => {
+						// --- MANUAL RESUME LOGIC (FAST FORWARD) ---
 
-							// O(1) Lookup instead of O(N) search
-							let idx = headerIndexMap.get(targetHeader);
-							if (idx === undefined) {
-								idx = headerIndexMap.get(targetHeader.toLowerCase().trim());
-							}
-
-							if (idx === undefined) return "";
-
-							const value = rowValues[idx];
-							return value === null || value === undefined ? "" : String(value).trim();
-						};
-
-						// --- SMART NAME RESOLUTION ---
-						// Handles cases where name is split into First/Last columns
-						// and prevents "John Doe John Doe" duplication if mapped incorrectly.
-						let finalFullName = getVal(mapping.fullName);
-						const fName = getVal(mapping.firstName);
-						const lName = getVal(mapping.lastName);
-
-						if (fName || lName) {
-							if (!finalFullName) {
-								finalFullName = [fName, lName].filter(Boolean).join(" ");
-							} else {
-								// Heuristic: If "Full Name" is mapped but equals "First Name", append "Last Name"
-								const normFull = finalFullName.trim().toLowerCase();
-								const normFirst = fName ? fName.trim().toLowerCase() : "";
-								const normLast = lName ? lName.trim().toLowerCase() : "";
-
-								if (normFirst && normFull === normFirst && lName) {
-									finalFullName = `${finalFullName} ${lName}`;
-								} else if (normLast && normFull === normLast && fName) {
-									finalFullName = `${fName} ${finalFullName}`;
-								}
-							}
-						}
-
-						const candidateData = {
-							fullName: finalFullName,
-							email: getVal(mapping.email),
-							phone: getVal(mapping.phone),
-							company: getVal(mapping.company),
-							industry: getVal(mapping.industry),
-							jobTitle: getVal(mapping.jobTitle),
-							skills: getVal(mapping.skills),
-							experience: getVal(mapping.experience),
-							country: getVal(mapping.country),
-							locality: getVal(mapping.locality),
-							location: getVal(mapping.location),
-							linkedinUrl: getVal(mapping.linkedinUrl),
-							githubUrl: getVal(mapping.githubUrl),
-							birthYear: getVal(mapping.birthYear),
-							summary: getVal(mapping.summary),
-
-							sourceFile: filePath,
-							uploadJobId: jobId,
-							isDeleted: false,
-						};
-
-						// Validate and Clean Data (ETL)
-						const validationResult = cleanAndValidateCandidate(candidateData);
-
-						if (validationResult.valid) {
-							candidates.push(validationResult.data);
-						} else {
-							if (failedCount < 5) {
-								logger.warn(`⚠️ Row rejected (${validationResult.reason}): Email=${candidateData.email}, Phone=${candidateData.phone}`);
-							}
-							incrementFailure(validationResult.reason || 'INVALID_DATA');
-						}
-
-						// Process batch when it reaches batchSize
-						if (candidates.length >= batchSize && !isPaused) {
-							// PAUSE STREAM: Backpressure handling for large files
-							stream.pause();
-
-							const batch = [...candidates];
-							candidates = [];
-
-							try {
-								await insertBatch(batch);
-								
-								// If paused during insert, ensure we stop the stream here too
-								if (isPaused) {
-									stream.destroy();
-									return;
-								}
-							} catch (e) {
-								logger.error("Error in batch insert:", e);
-							} finally {
-								// RESUME STREAM
-								if (!isPaused) {
-									stream.resume();
-								}
-							}
-						}
-					} catch (rowError) {
-						// Don't let individual row errors stop the entire stream
-						logger.error(
-							`❌ Error processing row ${rowCounter}:`,
-							rowError.message,
-						);
-						failedCount++;
-						// Continue processing next row
-					}
-				})
-				.on("end", async () => {
-					try {
-						// If paused, don't mark as completed
+						// Safety check: If paused during insertBatch, stop processing immediately
 						if (isPaused) {
-							logger.info(`⏸️ Job ${jobId} paused successfully.`);
+							if (sourceStream && !sourceStream.destroyed) sourceStream.destroy();
+							return;
+						}
+
+						// This is much more performant than `skipLines` for large offsets.
+						// We read every line but do minimal work until we reach the resume point.
+						streamRowCounter++;
+						if (streamRowCounter <= resumeFrom) {
+							// Log progress during the fast-forward to show it's not stuck
+							if (streamRowCounter % 100000 === 0) {
+								if (queueJob) {
+									// Keep job active in Redis to prevent stalling during long resumes
+									await queueJob.updateProgress({ count: streamRowCounter, status: 'resuming' });
+								}
+								logger.info(`Fast-forwarding... at row ${streamRowCounter.toLocaleString()}`);
+							}
+							return; // Skip this already-processed row
+						}
+						// --- END MANUAL RESUME LOGIC ---
+
+						// --- SAFETY CHECK: STOP IF PAUSED OR JOB DELETED ---
+						if (isPaused) return;
+
+						try {
+							rowCounter++; // This will now continue from resumeFrom + 1
+
+							// Convert raw row to array (csv-parser with headers:false emits arrays)
+							const rowValues = Object.values(row);
+
+							// --- MANUAL STRICT VALIDATION ---
+							// Check if row has the correct number of columns to prevent data shifting.
+							// FIX: Relaxed strict equality. CSVs often have trailing empty columns or missing trailing commas.
+							// We only warn if the mismatch is significant, but we attempt to process anyway.
+							if (rowValues.length !== actualHeaders.length) {
+								// Just log a warning for debugging, but DO NOT SKIP the row.
+								// getVal() handles out-of-bounds access safely.
+								if (failedCount < 5) {
+									logger.warn(`⚠️ Row ${rowCounter} column mismatch: Expected ${actualHeaders.length}, got ${rowValues.length}. Processing anyway.`);
+								}
+							}
+
+							// --- DEBUGGING FIRST ROW ---
+							if (rowCounter === resumeFrom + 1) {
+								logger.info("🔍 Processing first row...");
+								logger.debug("Row values detected:", rowValues.slice(0, 5));
+							}
+
+							const getVal = (targetHeader) => {
+								if (!targetHeader) return "";
+
+								// O(1) Lookup instead of O(N) search
+								let idx = headerIndexMap.get(targetHeader);
+								if (idx === undefined) {
+									idx = headerIndexMap.get(targetHeader.toLowerCase().trim());
+								}
+
+								if (idx === undefined) return "";
+
+								const value = rowValues[idx];
+								return value === null || value === undefined ? "" : String(value).trim();
+							};
+
+							// --- SMART NAME RESOLUTION ---
+							// Handles cases where name is split into First/Last columns
+							// and prevents "John Doe John Doe" duplication if mapped incorrectly.
+							let finalFullName = getVal(mapping.fullName);
+							const fName = getVal(mapping.firstName);
+							const lName = getVal(mapping.lastName);
+
+							if (fName || lName) {
+								if (!finalFullName) {
+									finalFullName = [fName, lName].filter(Boolean).join(" ");
+								} else {
+									// Heuristic: If "Full Name" is mapped but equals "First Name", append "Last Name"
+									const normFull = finalFullName.trim().toLowerCase();
+									const normFirst = fName ? fName.trim().toLowerCase() : "";
+									const normLast = lName ? lName.trim().toLowerCase() : "";
+
+									if (normFirst && normFull === normFirst && lName) {
+										finalFullName = `${finalFullName} ${lName}`;
+									} else if (normLast && normFull === normLast && fName) {
+										finalFullName = `${fName} ${finalFullName}`;
+									}
+								}
+							}
+
+							const candidateData = {
+								fullName: finalFullName,
+								email: getVal(mapping.email),
+								phone: getVal(mapping.phone),
+								company: getVal(mapping.company),
+								industry: getVal(mapping.industry),
+								jobTitle: getVal(mapping.jobTitle),
+								skills: getVal(mapping.skills),
+								experience: getVal(mapping.experience),
+								country: getVal(mapping.country),
+								locality: getVal(mapping.locality),
+								location: getVal(mapping.location),
+								linkedinUrl: getVal(mapping.linkedinUrl),
+								githubUrl: getVal(mapping.githubUrl),
+								birthYear: getVal(mapping.birthYear),
+								summary: getVal(mapping.summary),
+
+								sourceFile: filePath,
+								uploadJobId: jobId,
+								isDeleted: false,
+							};
+
+							// Validate and Clean Data (ETL)
+							const validationResult = cleanAndValidateCandidate(candidateData);
+
+							if (validationResult.valid) {
+								candidates.push(validationResult.data);
+							} else {
+								if (failedCount < 5) {
+									logger.warn(`⚠️ Row rejected (${validationResult.reason}): Email=${candidateData.email}, Phone=${candidateData.phone}`);
+								}
+								incrementFailure(validationResult.reason || 'INVALID_DATA');
+							}
+
+							// Process batch when it reaches batchSize
+							if (candidates.length >= batchSize && !isPaused) {
+								// PAUSE STREAM: Backpressure handling for large files
+								stream.pause();
+
+								const batch = [...candidates];
+								candidates = [];
+
+								try {
+									await insertBatch(batch);
+
+									// If paused during insert, ensure we stop the stream here too
+									if (isPaused) {
+										stream.destroy();
+										return;
+									}
+								} catch (e) {
+									logger.error("Error in batch insert:", e);
+								} finally {
+									// RESUME STREAM
+									if (!isPaused) {
+										stream.resume();
+									}
+								}
+							}
+						} catch (rowError) {
+							// Don't let individual row errors stop the entire stream
+							logger.error(
+								`❌ Error processing row ${rowCounter}:`,
+								rowError.message,
+							);
+							failedCount++;
+							// Continue processing next row
+						}
+					})
+					.on("end", async () => {
+						try {
+							// If paused, don't mark as completed
+							if (isPaused) {
+								logger.info(`⏸️ Job ${jobId} paused successfully.`);
+								resolve();
+								return;
+							}
+
+							// Insert remaining candidates
+							if (candidates.length > 0) {
+								await insertBatch(candidates);
+							}
+
+							// Clean up stream
+							if (fileStream) {
+								fileStream.destroy();
+							}
+
+							// Fetch the LATEST job status before finalizing
+							const finalJobState = await UploadJob.findById(jobId).lean().select("status");
+							const finalStatus = finalJobState?.status === 'PAUSED' ? 'PAUSED' : 'COMPLETED';
+
+							// Final progress update before marking as completed
+							await UploadJob.findByIdAndUpdate(jobId, {
+								status: finalStatus,
+								completedAt: finalStatus === 'COMPLETED' ? new Date() : jobDoc.completedAt,
+								successRows: successCount,
+								totalRows: rowCounter,
+								failedRows: failedCount,
+								failureReasons: Object.fromEntries(failureReasonCounts),
+								excessFailureCount: excessFailures,
+							});
+
+							if (finalStatus === 'COMPLETED') {
+								logger.info(
+									`✅ Job ${jobId} Completed. Total Rows: ${rowCounter.toLocaleString()}, Success: ${successCount.toLocaleString()}, Failed: ${failedCount.toLocaleString()}`,
+								);
+							} else {
+								logger.info(`⏸️ Job ${jobId} Paused. Progress saved.`);
+							}
+							resolve();
+						} catch (err) {
+							logger.error(`❌ Error in end handler for job ${jobId}:`, err);
+							await UploadJob.findByIdAndUpdate(jobId, {
+								status: "FAILED",
+								error: err.message,
+								successRows: successCount,
+								totalRows: rowCounter,
+								failedRows: failedCount,
+								failureReasons: Object.fromEntries(failureReasonCounts),
+								excessFailureCount: excessFailures,
+							});
+							reject(err);
+						}
+					})
+					.on("error", async (err) => {
+						// If we intentionally destroyed the stream due to pause, ignore the error
+						if (isPaused) {
 							resolve();
 							return;
 						}
 
-						// Insert remaining candidates
-						if (candidates.length > 0) {
-							await insertBatch(candidates);
-						}
+						// Log error but try to continue if possible
+						logger.error("❌ CSV Stream Error:", err);
+						logger.error("Error details:", {
+							message: err.message,
+							stack: err.stack,
+							filePath,
+							jobId,
+							rowsProcessed: rowCounter,
+							successCount,
+							failedCount,
+						});
+
+						// Update job with current progress before marking as failed
+						await UploadJob.findByIdAndUpdate(jobId, {
+							status: "FAILED",
+							error: `Stream error: ${err.message}. Processed ${rowCounter} rows, inserted ${successCount}`,
+							successRows: successCount,
+							totalRows: rowCounter,
+							failedRows: failedCount,
+							failureReasons: Object.fromEntries(failureReasonCounts),
+							excessFailureCount: excessFailures,
+						}).catch((updateErr) => {
+							logger.error("Error updating job status:", updateErr);
+						});
 
 						// Clean up stream
 						if (fileStream) {
 							fileStream.destroy();
 						}
 
-						// Fetch the LATEST job status before finalizing
-						const finalJobState = await UploadJob.findById(jobId).lean().select("status");
-						const finalStatus = finalJobState?.status === 'PAUSED' ? 'PAUSED' : 'COMPLETED';
-
-						// Final progress update before marking as completed
-						await UploadJob.findByIdAndUpdate(jobId, {
-							status: finalStatus,
-							completedAt: finalStatus === 'COMPLETED' ? new Date() : jobDoc.completedAt,
-							successRows: successCount,
-							totalRows: rowCounter,
-							failedRows: failedCount,
-							failureReasons: Object.fromEntries(failureReasonCounts),
-							excessFailureCount: excessFailures,
-						});
-
-						if (finalStatus === 'COMPLETED') {
-							logger.info(
-								`✅ Job ${jobId} Completed. Total Rows: ${rowCounter.toLocaleString()}, Success: ${successCount.toLocaleString()}, Failed: ${failedCount.toLocaleString()}`,
-							);
-						} else {
-							logger.info(`⏸️ Job ${jobId} Paused. Progress saved.`);
-						}
-						resolve();
-					} catch (err) {
-						logger.error(`❌ Error in end handler for job ${jobId}:`, err);
-						await UploadJob.findByIdAndUpdate(jobId, {
-							status: "FAILED",
-							error: err.message,
-							successRows: successCount,
-							totalRows: rowCounter,
-							failedRows: failedCount,
-							failureReasons: Object.fromEntries(failureReasonCounts),
-							excessFailureCount: excessFailures,
-						});
 						reject(err);
-					}
-				})
-				.on("error", async (err) => {
-					// If we intentionally destroyed the stream due to pause, ignore the error
-					if (isPaused) {
-						resolve();
-						return;
-					}
-
-					// Log error but try to continue if possible
-					logger.error("❌ CSV Stream Error:", err);
-					logger.error("Error details:", {
-						message: err.message,
-						stack: err.stack,
-						filePath,
-						jobId,
-						rowsProcessed: rowCounter,
-						successCount,
-						failedCount,
 					});
-
-					// Update job with current progress before marking as failed
-					await UploadJob.findByIdAndUpdate(jobId, {
-						status: "FAILED",
-						error: `Stream error: ${err.message}. Processed ${rowCounter} rows, inserted ${successCount}`,
-						successRows: successCount,
-						totalRows: rowCounter,
-						failedRows: failedCount,
-						failureReasons: Object.fromEntries(failureReasonCounts),
-						excessFailureCount: excessFailures,
-					}).catch((updateErr) => {
-						logger.error("Error updating job status:", updateErr);
-					});
-
-					// Clean up stream
-					if (fileStream) {
-						fileStream.destroy();
-					}
-
-					reject(err);
-				});
 			} catch (err) {
 				reject(err);
 			}

@@ -390,9 +390,9 @@ export const importResumes = async (req, res) => {
 
 		// 1. List files from S3 (handles pagination internally now)
 		const files = await listS3Files(folderPath);
-		
+
 		// Filter for valid resume extensions
-		const resumeFiles = files.filter(f => 
+		const resumeFiles = files.filter(f =>
 			f.Key && (f.Key.toLowerCase().endsWith('.pdf') || f.Key.toLowerCase().endsWith('.docx'))
 		);
 
@@ -418,13 +418,13 @@ export const importResumes = async (req, res) => {
 			name: "resume-import",
 			data: { jobId: job._id, s3Key: file.Key }
 		}));
-		
+
 		await importQueue.addBulk(jobsData);
 
-		res.json({ 
-			message: "Import started", 
-			jobId: job._id, 
-			fileCount: resumeFiles.length 
+		res.json({
+			message: "Import started",
+			jobId: job._id,
+			fileCount: resumeFiles.length
 		});
 	} catch (error) {
 		console.error("Import Error:", error);
@@ -686,16 +686,21 @@ export const searchCandidates = async (req, res) => {
 		if (locFilter) {
 			// Support multiple locations separated by comma (OR logic)
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
+
 			if (locations.length > 0) {
-				const locConditions = [];
-				locations.forEach(loc => {
-					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					const locRegex = new RegExp(`^${safeLoc}`, "i");
-					locConditions.push({ locality: locRegex });
-					locConditions.push({ location: locRegex });
-					locConditions.push({ country: locRegex });
+				// Optimization: Combine all location keywords into a SINGLE regex
+				// "Hyderabad, India" -> /(Hyderabad|India)/i
+				// This reduces database query clauses from 3*N to just 3.
+				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
+
+				andConditions.push({
+					$or: [
+						{ locality: combinedRegex },
+						{ location: combinedRegex },
+						{ country: combinedRegex }
+					]
 				});
-				andConditions.push({ $or: locConditions });
 			}
 		}
 
@@ -1285,7 +1290,7 @@ export const analyzeSearchQuery = async (req, res) => {
 		const { query } = req.body;
 		if (!query) return res.status(400).json({ message: "Query is required" });
 
-		const apiKey = process.env.VITE_OPENAI_API_KEY;
+		const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 		if (!apiKey) return res.status(500).json({ message: "OpenAI API key not configured" });
 
 		const systemPrompt = `
@@ -1334,7 +1339,7 @@ export const analyzeSearchQuery = async (req, res) => {
 
 		const data = await response.json();
 		const content = data.choices?.[0]?.message?.content;
-		
+
 		const filters = JSON.parse(content || "{}");
 		res.json(filters);
 	} catch (error) {
