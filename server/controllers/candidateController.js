@@ -688,19 +688,17 @@ export const searchCandidates = async (req, res) => {
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// Optimization: Combine all location keywords into a SINGLE regex
-				// "Hyderabad, India" -> /(Hyderabad|India)/i
-				// This reduces database query clauses from 3*N to just 3.
-				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
-
-				andConditions.push({
-					$or: [
-						{ locality: combinedRegex },
-						{ location: combinedRegex },
-						{ country: combinedRegex }
-					]
+				// Create a separate regex condition for each location term.
+				// This avoids a complex regex with '|' which can be slow and prevent index usage.
+				const locConditions = [];
+				locations.forEach(loc => {
+					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const locRegex = new RegExp(safeLoc, "i");
+					locConditions.push({ locality: locRegex });
+					locConditions.push({ location: locRegex });
+					locConditions.push({ country: locRegex });
 				});
+				andConditions.push({ $or: locConditions });
 			}
 		}
 
