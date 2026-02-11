@@ -653,8 +653,11 @@ export const searchCandidates = async (req, res) => {
 		const andConditions = [];
 
 		// 1. Keyword Search (Regex replacement for Text Search)
-		if (q && q.trim()) {
-			const safeQ = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		let searchQ = q;
+		if (Array.isArray(searchQ)) searchQ = searchQ.join(' ');
+
+		if (searchQ && searchQ.trim()) {
+			const safeQ = searchQ.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 			// Performance Optimization: Detect specific formats to avoid scanning all fields
 			const isEmail = safeQ.includes('@');
@@ -682,8 +685,10 @@ export const searchCandidates = async (req, res) => {
 		}
 
 		// 2. Specific Filters
-		const locFilter = locality || location;
+		let locFilter = locality || location;
 		if (locFilter) {
+			if (Array.isArray(locFilter)) locFilter = locFilter.join(',');
+
 			// Support multiple locations separated by comma (OR logic)
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
@@ -706,8 +711,11 @@ export const searchCandidates = async (req, res) => {
 		}
 
 		if (jobTitle) {
+			let titleStr = jobTitle;
+			if (Array.isArray(titleStr)) titleStr = titleStr.join(',');
+
 			// Support multiple job titles separated by comma (OR logic)
-			const titles = jobTitle.split(',').map(t => t.trim()).filter(Boolean);
+			const titles = titleStr.split(',').map(t => t.trim()).filter(Boolean);
 			if (titles.length > 0) {
 				const titleConditions = titles.map(title => {
 					const safeJob = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -718,7 +726,10 @@ export const searchCandidates = async (req, res) => {
 		}
 		
 		if (skills) {
-			const safeSkills = skills.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			let skillsStr = skills;
+			if (Array.isArray(skillsStr)) skillsStr = skillsStr.join(',');
+
+			const safeSkills = skillsStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 			andConditions.push({ skills: new RegExp(safeSkills, "i") });
 		}
 
