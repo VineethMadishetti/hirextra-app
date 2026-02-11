@@ -695,18 +695,20 @@ export const searchCandidates = async (req, res) => {
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// FIX: Use combined regex for performance (single scan per field)
-				// Matches "Pune" OR "Mumbai" anywhere in the string.
-				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
-
-				andConditions.push({
-					$or: [
-						{ locality: combinedRegex },
-						{ location: combinedRegex },
-						{ country: combinedRegex }
-					]
+				// FIX: The previous substring search was causing database timeouts (500 errors).
+				// This is changed to a prefix search (`^`), which is much faster and can
+				// use database indexes, preventing timeouts. This aligns with the behavior
+				// of the working "Job Title" filter.
+				const locConditions = locations.flatMap(loc => {
+					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const locRegex = new RegExp(`^${safeLoc}`, "i");
+					return [
+						{ locality: locRegex },
+						{ location: locRegex },
+						{ country: locRegex },
+					];
 				});
+				andConditions.push({ $or: locConditions });
 			}
 		}
 
@@ -731,8 +733,18 @@ export const searchCandidates = async (req, res) => {
 			if (typeof skillsStr !== 'string' && !Array.isArray(skillsStr)) skillsStr = String(skillsStr);
 			if (Array.isArray(skillsStr)) skillsStr = skillsStr.join(',');
 
-			const safeSkills = skillsStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			andConditions.push({ skills: new RegExp(safeSkills, "i") });
+			const skillList = skillsStr.split(',').map(s => s.trim()).filter(Boolean);
+
+			if (skillList.length > 0) {
+				// FIX: Handle multiple skills with an OR condition.
+				// The previous logic searched for the literal string "skill1, skill2".
+				// This correctly searches for documents containing "skill1" OR "skill2".
+				const skillConditions = skillList.map(skill => {
+					const safeSkill = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					return { skills: new RegExp(safeSkill, "i") };
+				});
+				andConditions.push({ $or: skillConditions });
+			}
 		}
 
 		// 3. Toggles
