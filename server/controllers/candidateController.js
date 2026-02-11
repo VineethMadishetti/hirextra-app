@@ -705,10 +705,6 @@ export const searchCandidates = async (req, res) => {
 			}
 		}
 
-		if (andConditions.length > 0) {
-			query.$and = andConditions;
-		}
-
 		if (jobTitle) {
 			// Support multiple job titles separated by comma (OR logic)
 			const titles = jobTitle.split(',').map(t => t.trim()).filter(Boolean);
@@ -718,22 +714,49 @@ export const searchCandidates = async (req, res) => {
 					return { jobTitle: new RegExp(`^${safeJob}`, "i") };
 				});
 				andConditions.push({ $or: titleConditions });
-				if (!query.$and) query.$and = andConditions;
 			}
 		}
+		
 		if (skills) {
 			const safeSkills = skills.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			query.skills = new RegExp(safeSkills, "i");
+			andConditions.push({ skills: new RegExp(safeSkills, "i") });
 		}
 
 		// 3. Toggles
-		if (hasEmail === "true") query.email = { $exists: true, $ne: "" };
-		if (hasPhone === "true") query.phone = { $exists: true, $ne: "" };
-		if (hasLinkedin === "true") query.linkedinUrl = { $exists: true, $ne: "" };
+		if (hasEmail === "true") {
+			andConditions.push({ email: { $exists: true, $ne: "" } });
+		}
+		if (hasPhone === "true") {
+			andConditions.push({ phone: { $exists: true, $ne: "" } });
+		}
+		if (hasLinkedin === "true") {
+			andConditions.push({ linkedinUrl: { $exists: true, $ne: "" } });
+		}
+
+		// Add all conditions to $and if any exist
+		if (andConditions.length > 0) {
+			query.$and = andConditions;
+		}
 
 		// Optimized: Use lean() for faster queries and parallel execution
 		let candidates;
 		let totalCount = 0;
+
+		// OPTIMIZATION: Seek Pagination vs Offset Pagination
+		// Merge pagination conditions into main query instead of using .where() which can conflict
+		if (lastCreatedAt && lastId) {
+			// Fast: Use index to "seek" to the next page
+			// Add pagination condition to $and to ensure it works with other filters
+			if (!query.$and) {
+				query.$and = [];
+			}
+			query.$and.push({
+				$or: [
+					{ createdAt: { $lt: new Date(lastCreatedAt) } },
+					{ createdAt: new Date(lastCreatedAt), _id: { $lt: lastId } }
+				]
+			});
+		}
 
 		let findQuery = Candidate.find(query)
 			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt score")
@@ -741,17 +764,8 @@ export const searchCandidates = async (req, res) => {
 			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
 			.maxTimeMS(60000); // Increased timeout to 60s
 
-		// OPTIMIZATION: Seek Pagination vs Offset Pagination
-		if (lastCreatedAt && lastId) {
-			// Fast: Use index to "seek" to the next page
-			findQuery = findQuery.where({
-				$or: [
-					{ createdAt: { $lt: new Date(lastCreatedAt) } },
-					{ createdAt: new Date(lastCreatedAt), _id: { $lt: lastId } }
-				]
-			});
-		} else {
-			// Slow (Legacy): Use skip()
+		// Use skip() for offset pagination (when not using seek pagination)
+		if (!lastCreatedAt || !lastId) {
 			findQuery = findQuery.skip(skip);
 		}
 
