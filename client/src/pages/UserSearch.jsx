@@ -189,85 +189,6 @@ const SearchLoading = () => (
 	</div>
 );
 
-// AI Search Helper Function
-const generateFiltersFromQuery = async (userQuery) => {
-	const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
-	let model = (import.meta.env.VITE_GEMINI_MODEL || "gemini-1.5-flash").trim();
-	const apiVersion = (import.meta.env.VITE_GEMINI_API_VERSION || "v1").trim();
-	
-	// Normalize model name to avoid double 'models/' in path
-	if (model.startsWith("models/")) {
-		model = model.substring(7);
-	}
-	const modelPath = `models/${model}`;
-	
-	if (!apiKey) {
-		toast.error("Please set VITE_GEMINI_API_KEY in your .env file");
-		return null;
-	}
-
-	const prompt = `
-		You are a recruitment search assistant. Analyze the following user query and extract search filters.
-		Query: "${userQuery}"
-		
-		Rules:
-		1. Normalize "jobTitle" to singular form (e.g., "Developer" instead of "Developers").
-		2. Extract skills from the query and job title (e.g., "Python Developer" -> skills: "Python").
-		3. Extract years of experience as a number (e.g., "5 years experience" -> experience: 5).
-		4. For "q", remove generic words like "experienced", "needed", and also remove the experience part that is now in its own field.
-
-		Return ONLY a valid JSON object with the following keys:
-		- q: (string) General keywords not covered by other filters
-		- jobTitle: (string) Job title (singular)
-		- location: (string) Location or city
-		- skills: (string) Comma-separated skills
-		- experience: (number) Minimum years of experience as a number. Default to 0 if not mentioned.
-		- hasEmail: (boolean) true if email/contact info is requested
-		- hasPhone: (boolean) true if phone number is requested
-		- hasLinkedin: (boolean) true if LinkedIn profile is requested
-		
-		If a field is not mentioned, use empty string or false.
-	`;
-
-	try {
-		const response = await fetch(
-			`https://generativelanguage.googleapis.com/${apiVersion}/${modelPath}:generateContent?key=${apiKey}`,
-			{
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-			},
-		);
-
-		if (!response.ok) {
-			const errorData = await response.json().catch(() => ({ message: response.statusText }));
-			console.error("AI API Error:", response.status, errorData);
-			if (response.status === 404) {
-				fetch(
-					`https://generativelanguage.googleapis.com/${apiVersion}/models?key=${apiKey}`,
-				)
-					.then((r) => r.json())
-					.then((models) => console.log("Gemini models:", models))
-					.catch((err) => console.warn("ListModels failed:", err));
-			}
-			throw new Error(`API request failed: ${errorData.error?.message || response.statusText}`);
-		}
-
-		const data = await response.json();
-		const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-		if (!text) {
-			console.warn("AI response did not contain text.", data);
-			return { error: "Could not understand query." };
-		}
-
-		return JSON.parse(text.replace(/```json|```/g, "").trim());
-	} catch (error) {
-		console.error("AI Processing Error:", error);
-		return { error: error.message || "An unknown error occurred." };
-	}
-};
-
 const UserSearch = () => {
 	const { user } = useContext(AuthContext);
 	const queryClient = useQueryClient();
@@ -451,9 +372,9 @@ const UserSearch = () => {
 		const toastId = toast.loading("AI is analyzing your requirements...");
 
 		try {
-			const extracted = await generateFiltersFromQuery(aiQuery);
+			const { data: extracted } = await api.post("/candidates/analyze-search", { query: aiQuery });
 			
-			if (extracted && !extracted.error) {
+			if (extracted) {
 				setSearchInput(extracted.q || "");
 				setFilters(prev => ({
 					...prev,
@@ -472,12 +393,10 @@ const UserSearch = () => {
 				setSelectedIds(new Set());
 				setIsSearchApplied(true);
 				toast.success("Filters applied!", { id: toastId });
-			} else {
-				const errorMessage = extracted?.error || "AI Search failed";
-				toast.error(errorMessage, { id: toastId });
 			}
 		} catch (err) {
-			toast.error(err.message || "AI Search failed", { id: toastId });
+			const errorMessage = err.response?.data?.message || err.message || "AI Search failed";
+			toast.error(errorMessage, { id: toastId });
 		} finally {
 			setIsAiProcessing(false);
 		}

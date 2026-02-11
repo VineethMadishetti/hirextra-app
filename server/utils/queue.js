@@ -266,12 +266,14 @@ const extractTextFromFile = async (buffer, fileExt) => {
 };
 
 const parseResumeWithAI = async (contentPart) => {
-	let apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-	if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING: API key is not set in environment variables (checked GEMINI_API_KEY and VITE_GEMINI_API_KEY)");
+	let apiKey = process.env.OPENAI_API_KEY;
+	if (!apiKey) throw new Error("OPENAI_API_KEY_MISSING: API key is not set");
 	apiKey = apiKey.trim(); // Remove potential whitespace from copy-paste
 
+	const resumeText = contentPart.text || "";
+
 	const systemPrompt = `
-		You are an expert Resume Parser. Analyze the provided document (text or PDF) and extract candidate details into a JSON object.
+		You are an expert Resume Parser. Extract candidate details into a JSON object.
 
 		Strictly follow this JSON structure:
 		{
@@ -286,49 +288,44 @@ const parseResumeWithAI = async (contentPart) => {
 			"summary": "Brief professional summary",
 			"linkedinUrl": "LinkedIn Profile URL"
 		}
-
-		Rules:
-		1. Return ONLY valid JSON. No Markdown code blocks (\`\`\`json).
-		2. If a value is missing, use an empty string "".
-		3. For "experience", calculate total years if possible, otherwise extract the string.
+		Return ONLY valid JSON.
 	`;
 
 	try {
 		// Construct payload: System instruction + User Content
 		const response = await fetch(
-			`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+			"https://api.openai.com/v1/chat/completions",
 			{
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: { 
+					"Content-Type": "application/json",
+					"Authorization": `Bearer ${apiKey}`
+				},
 				body: JSON.stringify({
-					system_instruction: { parts: [{ text: systemPrompt }] },
-					contents: [{ parts: [contentPart] }]
+					model: "gpt-4o-mini",
+					messages: [
+						{ role: "system", content: systemPrompt },
+						{ role: "user", content: resumeText }
+					],
+					response_format: { type: "json_object" },
+					temperature: 0.1
 				})
 			}
 		);
 
 		if (!response.ok) {
 			const errText = await response.text();
-			throw new Error(`GEMINI_API_ERROR: ${response.status} ${response.statusText} - ${errText}`);
+			throw new Error(`OPENAI_API_ERROR: ${response.status} - ${errText}`);
 		}
 
 		const data = await response.json();
-		const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-		if (!resultText) throw new Error("GEMINI_EMPTY_RESPONSE: Model returned no content");
-
-		// Clean markdown code blocks if present
-		let jsonStr = resultText.replace(/```json|```/g, "").trim();
-		// Attempt to find JSON object if there's extra text
-		const firstBrace = jsonStr.indexOf('{');
-		const lastBrace = jsonStr.lastIndexOf('}');
-		if (firstBrace !== -1 && lastBrace !== -1) {
-			jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
-		}
+		const content = data.choices?.[0]?.message?.content;
+		if (!content) throw new Error("OPENAI_EMPTY_RESPONSE");
 
 		try {
-			return JSON.parse(jsonStr);
+			return JSON.parse(content);
 		} catch (parseErr) {
-			throw new Error(`AI_JSON_PARSE_ERROR: Failed to parse AI response as JSON. Content: ${jsonStr.substring(0, 100)}...`);
+			throw new Error(`AI_JSON_PARSE_ERROR: Failed to parse AI response as JSON.`);
 		}
 	} catch (error) {
 		logger.error("AI Parsing Error:", error);
@@ -352,14 +349,8 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		let aiContentPart;
 
 		if (fileExt === 'pdf') {
-			// OPTIMIZATION: Send PDF directly to Gemini (handles scanned docs/images)
-			const base64Data = buffer.toString('base64');
-			aiContentPart = {
-				inline_data: {
-					mime_type: "application/pdf",
-					data: base64Data
-				}
-			};
+			const text = await extractTextFromFile(buffer, 'pdf');
+			aiContentPart = { text: text };
 		} else {
 			// For DOCX (or others), extract text first
 			const text = await extractTextFromFile(buffer, fileExt);
@@ -396,9 +387,9 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		// Determine reason from the specific error message we threw
 		if (error.message.startsWith('TEXT_EXTRACTION_FAILED') || error.message.startsWith('DOCX_EXTRACT') || error.message.startsWith('PDF_EXTRACT')) {
 			reason = 'TEXT_EXTRACTION_FAILED';
-		} else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('GEMINI_API_ERROR') || error.message.startsWith('AI_JSON')) {
+		} else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('OPENAI_API_ERROR') || error.message.startsWith('AI_JSON')) {
 			reason = 'AI_PARSE_FAILED';
-		} else if (error.message.startsWith('GEMINI_API_KEY_MISSING')) {
+		} else if (error.message.startsWith('OPENAI_API_KEY_MISSING')) {
 			reason = 'CONFIGURATION_ERROR';
 		} else if (error.message.includes('PDF_TIMEOUT')) {
 			reason = 'PDF_TIMEOUT';
@@ -962,11 +953,7 @@ if (connection) {
 			},
 			{
 				connection,
-				concurrency: 1, // Process one job at a time
-				limiter: {
-					max: 1,
-					duration: 5000, // PROCESS 1 FILE EVERY 5 SECONDS (12 per minute) to stay under Gemini Free Tier limits (15 RPM)
-				},
+				concurrency: 50,
 				lockDuration: 300000, // Increase lock duration to 5 mins to prevent stalling on large files
 				removeOnComplete: {
 					age: 24 * 3600, // Keep completed jobs for 24 hours

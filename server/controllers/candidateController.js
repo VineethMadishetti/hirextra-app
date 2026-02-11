@@ -1,4 +1,4 @@
-import { processCsvJob } from "../utils/queue.js";
+import importQueue, { processCsvJob } from "../utils/queue.js";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
@@ -26,6 +26,7 @@ import {
 	uploadToS3,
 	generateS3Key,
 	downloadFromS3,
+	listS3Files,
 } from "../utils/s3Service.js";
 
 // --- HELPER: Robust CSV Line Parser (ETL) ---
@@ -379,6 +380,56 @@ export const uploadChunk = async (req, res) => {
 		filePath: s3Key,
 		headers,
 	});
+};
+
+// --- BULK RESUME IMPORT (S3 Folder) ---
+export const importResumes = async (req, res) => {
+	try {
+		const { folderPath } = req.body;
+		if (!folderPath) return res.status(400).json({ message: "Folder path is required" });
+
+		// 1. List files from S3 (handles pagination internally now)
+		const files = await listS3Files(folderPath);
+		
+		// Filter for valid resume extensions
+		const resumeFiles = files.filter(f => 
+			f.Key && (f.Key.toLowerCase().endsWith('.pdf') || f.Key.toLowerCase().endsWith('.docx'))
+		);
+
+		if (resumeFiles.length === 0) {
+			return res.status(404).json({ message: "No PDF or DOCX files found in that folder." });
+		}
+
+		// 2. Create Master Job
+		const job = await UploadJob.create({
+			fileName: folderPath,
+			originalName: `Bulk Import: ${path.basename(folderPath)}`,
+			uploadedBy: req.user._id,
+			status: "PROCESSING",
+			totalRows: resumeFiles.length,
+			successRows: 0,
+			failedRows: 0,
+			headers: ["Resume Import"],
+			mapping: {},
+		});
+
+		// 3. Add to Queue (Batch add)
+		const jobsData = resumeFiles.map(file => ({
+			name: "resume-import",
+			data: { jobId: job._id, s3Key: file.Key }
+		}));
+		
+		await importQueue.addBulk(jobsData);
+
+		res.json({ 
+			message: "Import started", 
+			jobId: job._id, 
+			fileCount: resumeFiles.length 
+		});
+	} catch (error) {
+		console.error("Import Error:", error);
+		res.status(500).json({ message: error.message });
+	}
 };
 
 // --- START PROCESSING (Creates History Record) ---
@@ -1228,5 +1279,69 @@ export const downloadProfile = async (req, res) => {
 	} catch (error) {
 		console.error(error);
 		res.status(500).json({ message: "Error generating resume" });
+	}
+};
+
+// --- AI SEARCH QUERY ANALYSIS ---
+export const analyzeSearchQuery = async (req, res) => {
+	try {
+		const { query } = req.body;
+		if (!query) return res.status(400).json({ message: "Query is required" });
+
+		const apiKey = process.env.OPENAI_API_KEY;
+		if (!apiKey) return res.status(500).json({ message: "OpenAI API key not configured" });
+
+		const systemPrompt = `
+			You are a recruitment search assistant. Analyze the following user query and extract search filters.
+			
+			Rules:
+			1. Normalize "jobTitle" to singular form (e.g., "Developer" instead of "Developers").
+			2. Extract skills from the query and job title (e.g., "Python Developer" -> skills: "Python").
+			3. Extract years of experience as a number (e.g., "5 years experience" -> experience: 5).
+			4. For "q", remove generic words like "experienced", "needed", and also remove the experience part that is now in its own field.
+
+			Return ONLY a valid JSON object with the following keys:
+			- q: (string) General keywords not covered by other filters
+			- jobTitle: (string) Job title (singular)
+			- location: (string) Location or city
+			- skills: (string) Comma-separated skills
+			- experience: (number) Minimum years of experience as a number. Default to 0 if not mentioned.
+			- hasEmail: (boolean) true if email/contact info is requested
+			- hasPhone: (boolean) true if phone number is requested
+			- hasLinkedin: (boolean) true if LinkedIn profile is requested
+			
+			If a field is not mentioned, use empty string or false.
+		`;
+
+		const response = await fetch("https://api.openai.com/v1/chat/completions", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Authorization": `Bearer ${apiKey}`
+			},
+			body: JSON.stringify({
+				model: "gpt-4o-mini",
+				messages: [
+					{ role: "system", content: systemPrompt },
+					{ role: "user", content: query }
+				],
+				response_format: { type: "json_object" },
+				temperature: 0.1
+			})
+		});
+
+		if (!response.ok) {
+			const errText = await response.text();
+			throw new Error(`OpenAI API Error: ${response.status} - ${errText}`);
+		}
+
+		const data = await response.json();
+		const content = data.choices?.[0]?.message?.content;
+		
+		const filters = JSON.parse(content || "{}");
+		res.json(filters);
+	} catch (error) {
+		console.error("AI Search Error:", error);
+		res.status(500).json({ message: error.message || "Failed to analyze search query" });
 	}
 };

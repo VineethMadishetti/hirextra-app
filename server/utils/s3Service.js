@@ -297,12 +297,21 @@ export const generateS3Key = (fileName, userId) => {
  */
 export const listS3Files = async (folderPath) => {
   try {
-    const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: folderPath,
-    });
-    const response = await s3Client.send(command);
-    return response.Contents || [];
+    let files = [];
+    let continuationToken = undefined;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: folderPath,
+        ContinuationToken: continuationToken,
+      });
+      const response = await s3Client.send(command);
+      if (response.Contents) files.push(...response.Contents);
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    return files;
   } catch (error) {
     logger.error(`❌ Failed to list files in S3 folder ${folderPath}:`, error);
     throw new Error(`Failed to list files from S3: ${error.message}`);
