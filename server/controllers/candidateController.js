@@ -695,17 +695,18 @@ export const searchCandidates = async (req, res) => {
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// FIX: Use prefix search (^) to prevent timeouts (500 errors).
-				// Searching 3 fields with "contains" regex was too slow.
-				const locConditions = [];
-				locations.forEach(loc => {
-					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					const locRegex = new RegExp(`^${safeLoc}`, "i");
-					locConditions.push({ locality: locRegex });
-					locConditions.push({ location: locRegex });
-					locConditions.push({ country: locRegex });
+				// FIX: Use combined regex for performance (single scan per field)
+				// Matches "Pune" OR "Mumbai" anywhere in the string.
+				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
+
+				andConditions.push({
+					$or: [
+						{ locality: combinedRegex },
+						{ location: combinedRegex },
+						{ country: combinedRegex }
+					]
 				});
-				andConditions.push({ $or: locConditions });
 			}
 		}
 
