@@ -678,8 +678,7 @@ export const searchCandidates = async (req, res) => {
 						{ skills: regex },
 						{ company: regex },
 						{ location: regex },
-						{ locality: regex },
-						{ summary: regex }
+						{ locality: regex }
 					]
 				});
 			}
@@ -695,20 +694,20 @@ export const searchCandidates = async (req, res) => {
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// FIX: The previous substring search was causing database timeouts (500 errors).
-				// This is changed to a prefix search (`^`), which is much faster and can
-				// use database indexes, preventing timeouts. This aligns with the behavior
-				// of the working "Job Title" filter.
-				const locConditions = locations.flatMap(loc => {
-					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					const locRegex = new RegExp(`^${safeLoc}`, "i");
-					return [
-						{ locality: locRegex },
-						{ location: locRegex },
-						{ country: locRegex },
-					];
+				// FIX: Optimized Location Search (Contains + Combined Regex)
+				// 1. Use "contains" logic (no `^`) to correctly find "Maharashtra, Pune" when searching "Pune".
+				// 2. Combine all terms into ONE regex `/(Pune|Mumbai)/i` applied to each field.
+				//    This creates only 3 database conditions instead of 3 * N, preventing timeouts on large data.
+				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
+
+				andConditions.push({
+					$or: [
+						{ locality: combinedRegex },
+						{ location: combinedRegex },
+						{ country: combinedRegex },
+					],
 				});
-				andConditions.push({ $or: locConditions });
 			}
 		}
 
