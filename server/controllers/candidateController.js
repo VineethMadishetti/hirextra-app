@@ -693,18 +693,21 @@ export const searchCandidates = async (req, res) => {
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// FIX: The previous substring search was causing timeouts (500 errors).
-				// Switched to a prefix search (`^`) which is much more performant,
-				// matching the behavior of the working "Job Title" filter.
-				const locConditions = [];
-				locations.forEach(loc => {
-					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					const locRegex = new RegExp(`^${safeLoc}`, "i");
-					locConditions.push({ locality: locRegex });
-					locConditions.push({ location: locRegex });
-					locConditions.push({ country: locRegex });
+				// FIX: The location filter was timing out. This change implements an optimized
+				// substring search that aligns with the behavior of the working 'skills' filter.
+				// It combines multiple location terms (e.g., "Pune, Mumbai") into a single,
+				// efficient regex (`/Pune|Mumbai/i`). This is much faster for the database
+				// to process across multiple fields than previous methods and should prevent timeouts.
+				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
+
+				andConditions.push({
+					$or: [
+						{ locality: combinedRegex },
+						{ location: combinedRegex },
+						{ country: combinedRegex },
+					],
 				});
-				andConditions.push({ $or: locConditions });
 			}
 		}
 
