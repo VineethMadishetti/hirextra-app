@@ -74,7 +74,7 @@ candidateSchema.index({ company: 1 }, { partialFilterExpression: { isDeleted: fa
 candidateSchema.index({ jobTitle: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 6. Filter: Location (General)
-candidateSchema.index({ location: 1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index({ location: 1, createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 7. Filter: Skills
 // This is a Multikey index. It allows efficient filtering where "skills" contains "Java".
@@ -85,7 +85,8 @@ candidateSchema.index({ skills: 1 }, { partialFilterExpression: { isDeleted: fal
 candidateSchema.index({ fullName: 1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 9. Filter: Hierarchical Location (Country/Locality)
-candidateSchema.index({ locality: 1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index({ locality: 1, createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index({ country: 1, createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 10. Filter: User/Admin Created By (As requested)
 // Ensure your schema has a 'createdBy' field for this to work.

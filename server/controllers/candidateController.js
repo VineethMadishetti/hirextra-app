@@ -687,16 +687,13 @@ export const searchCandidates = async (req, res) => {
 			// Support multiple locations separated by comma (OR logic)
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 			if (locations.length > 0) {
-				const locConditions = locations.map(loc => {
+				const locConditions = [];
+				locations.forEach(loc => {
 					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 					const locRegex = new RegExp(`^${safeLoc}`, "i");
-					return {
-						$or: [
-							{ locality: locRegex },
-							{ location: locRegex },
-							{ country: locRegex },
-						],
-					};
+					locConditions.push({ locality: locRegex });
+					locConditions.push({ location: locRegex });
+					locConditions.push({ country: locRegex });
 				});
 				andConditions.push({ $or: locConditions });
 			}
@@ -1288,7 +1285,7 @@ export const analyzeSearchQuery = async (req, res) => {
 		const { query } = req.body;
 		if (!query) return res.status(400).json({ message: "Query is required" });
 
-		const apiKey = process.env.OPENAI_API_KEY;
+		const apiKey = process.env.VITE_OPENAI_API_KEY;
 		if (!apiKey) return res.status(500).json({ message: "OpenAI API key not configured" });
 
 		const systemPrompt = `
