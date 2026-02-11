@@ -654,6 +654,7 @@ export const searchCandidates = async (req, res) => {
 
 		// 1. Keyword Search (Regex replacement for Text Search)
 		let searchQ = q;
+		if (searchQ && typeof searchQ !== 'string' && !Array.isArray(searchQ)) searchQ = String(searchQ);
 		if (Array.isArray(searchQ)) searchQ = searchQ.join(' ');
 
 		if (searchQ && searchQ.trim()) {
@@ -687,32 +688,30 @@ export const searchCandidates = async (req, res) => {
 		// 2. Specific Filters
 		let locFilter = locality || location;
 		if (locFilter) {
+			if (typeof locFilter !== 'string' && !Array.isArray(locFilter)) locFilter = String(locFilter);
 			if (Array.isArray(locFilter)) locFilter = locFilter.join(',');
 
 			// Support multiple locations separated by comma (OR logic)
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// FIX: The location filter was timing out. This change implements an optimized
-				// substring search that aligns with the behavior of the working 'skills' filter.
-				// It combines multiple location terms (e.g., "Pune, Mumbai") into a single,
-				// efficient regex (`/Pune|Mumbai/i`). This is much faster for the database
-				// to process across multiple fields than previous methods and should prevent timeouts.
-				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
-
-				andConditions.push({
-					$or: [
-						{ locality: combinedRegex },
-						{ location: combinedRegex },
-						{ country: combinedRegex },
-					],
+				// FIX: Use prefix search (^) to prevent timeouts (500 errors).
+				// Searching 3 fields with "contains" regex was too slow.
+				const locConditions = [];
+				locations.forEach(loc => {
+					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const locRegex = new RegExp(`^${safeLoc}`, "i");
+					locConditions.push({ locality: locRegex });
+					locConditions.push({ location: locRegex });
+					locConditions.push({ country: locRegex });
 				});
+				andConditions.push({ $or: locConditions });
 			}
 		}
 
 		if (jobTitle) {
 			let titleStr = jobTitle;
+			if (typeof titleStr !== 'string' && !Array.isArray(titleStr)) titleStr = String(titleStr);
 			if (Array.isArray(titleStr)) titleStr = titleStr.join(',');
 
 			// Support multiple job titles separated by comma (OR logic)
@@ -728,6 +727,7 @@ export const searchCandidates = async (req, res) => {
 		
 		if (skills) {
 			let skillsStr = skills;
+			if (typeof skillsStr !== 'string' && !Array.isArray(skillsStr)) skillsStr = String(skillsStr);
 			if (Array.isArray(skillsStr)) skillsStr = skillsStr.join(',');
 
 			const safeSkills = skillsStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
