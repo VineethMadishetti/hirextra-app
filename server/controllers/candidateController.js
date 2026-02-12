@@ -688,6 +688,10 @@ export const searchCandidates = async (req, res) => {
 
             return normalized;
         };
+        const toTitleCaseLocation = (value) =>
+            String(value)
+                .toLowerCase()
+                .replace(/\b[a-z]/g, (m) => m.toUpperCase());
 
         // 1. Keyword Search
         let searchQ = q;
@@ -723,9 +727,17 @@ export const searchCandidates = async (req, res) => {
         try {
             const locationTerms = parseLocationTerms(locality, location);
             if (locationTerms.length > 0) {
-                const escapedLocationTerms = locationTerms.map((term) =>
-                    term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                );
+                const locationVariantSet = new Set();
+                for (const term of locationTerms) {
+                    locationVariantSet.add(term);
+                    locationVariantSet.add(term.toLowerCase());
+                    locationVariantSet.add(term.toUpperCase());
+                    locationVariantSet.add(toTitleCaseLocation(term));
+                }
+
+                const escapedLocationTerms = Array.from(locationVariantSet)
+                    .filter(Boolean)
+                    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
                 const locationPattern = `^(?:${escapedLocationTerms.join("|")})(?:\\b|\\s|,|$)`;
                 const hasLocalityInput = parseCsvFilter(locality, 1).length > 0;
                 const primaryLocationField = hasLocalityInput ? "locality" : "location";
@@ -734,7 +746,7 @@ export const searchCandidates = async (req, res) => {
                     : "location_1_createdAt_-1";
 
                 andConditions.push({
-                    [primaryLocationField]: { $regex: locationPattern, $options: 'i' }
+                    [primaryLocationField]: { $regex: locationPattern }
                 });
             }
         } catch (error) {
