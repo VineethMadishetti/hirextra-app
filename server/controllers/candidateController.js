@@ -657,6 +657,7 @@ export const searchCandidates = async (req, res) => {
 
         let query = { isDeleted: false };
         const andConditions = [];
+        let locationHintIndex = null;
         const parseCsvFilter = (value, maxItems = 20) => {
             if (value === undefined || value === null) return [];
 
@@ -728,6 +729,9 @@ export const searchCandidates = async (req, res) => {
                 const locationPattern = `^(?:${escapedLocationTerms.join("|")})(?:\\b|\\s|,|$)`;
                 const hasLocalityInput = parseCsvFilter(locality, 1).length > 0;
                 const primaryLocationField = hasLocalityInput ? "locality" : "location";
+                locationHintIndex = hasLocalityInput
+                    ? "locality_1_createdAt_-1"
+                    : "location_1_createdAt_-1";
 
                 andConditions.push({
                     [primaryLocationField]: { $regex: locationPattern, $options: 'i' }
@@ -806,13 +810,19 @@ export const searchCandidates = async (req, res) => {
 
         try {
             // Use simple pagination - more reliable with complex queries
-            candidates = await Candidate.find(query)
+            let findQuery = Candidate.find(query)
                 .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt score")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNum + 1)
                 .lean()
                 .maxTimeMS(60000); // Increased to 60s to prevent timeouts
+
+            if (locationHintIndex) {
+                findQuery = findQuery.hint(locationHintIndex);
+            }
+
+            candidates = await findQuery;
 
             hasMore = candidates.length > limitNum;
             if (hasMore) {
