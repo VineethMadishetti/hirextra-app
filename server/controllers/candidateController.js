@@ -703,22 +703,18 @@ export const searchCandidates = async (req, res) => {
                     const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
                     
                     if (locations.length > 0) {
-                        // Create regex pattern for all locations
-                        const escapedLocations = locations.map(loc => 
-                            loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                        );
-                        
-                        // SIMPLE APPROACH: Use regex on a combined location field
-                        // This is more performant than multiple $or conditions
-                        const locationPattern = escapedLocations.join('|');
-                        
-                        andConditions.push({
-                            $or: [
-                                { locality: { $regex: locationPattern, $options: 'i' } },
-                                { location: { $regex: locationPattern, $options: 'i' } },
-                                { country: { $regex: locationPattern, $options: 'i' } }
-                            ]
+                        const locConditions = locations.map(loc => {
+                            const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const locRegex = new RegExp(`^${safeLoc}`, "i");
+                            return {
+                                $or: [
+                                    { locality: locRegex },
+                                    { location: locRegex },
+                                    { country: locRegex },
+                                ],
+                            };
                         });
+                        andConditions.push({ $or: locConditions });
                     }
                 }
             }
@@ -801,7 +797,7 @@ export const searchCandidates = async (req, res) => {
                 .skip(skip)
                 .limit(limitNum + 1)
                 .lean()
-                .maxTimeMS(30000); // 30 second timeout
+                .maxTimeMS(60000); // Increased to 60s to prevent timeouts
 
             hasMore = candidates.length > limitNum;
             if (hasMore) {
@@ -818,30 +814,7 @@ export const searchCandidates = async (req, res) => {
 
         } catch (dbError) {
             console.error("Database query error:", dbError);
-            
-            // Fallback: Try with even simpler query
-            console.log("Attempting fallback query without complex regex...");
-            
-            // Remove regex conditions and try exact match fallback
-            const fallbackQuery = { isDeleted: false };
-            
-            // Only use simple exact matches for fallback
-            if (locality || location) {
-                const locValue = String(locality || location).split(',')[0].trim();
-                fallbackQuery.$or = [
-                    { locality: { $regex: locValue, $options: 'i' } },
-                    { location: { $regex: locValue, $options: 'i' } }
-                ];
-            }
-            
-            candidates = await Candidate.find(fallbackQuery)
-                .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country")
-                .sort({ createdAt: -1 })
-                .limit(limitNum)
-                .lean();
-                
-            hasMore = false;
-            totalCount = candidates.length;
+            throw dbError; // Throw error instead of returning wrong data (fallback)
         }
 
         res.json({

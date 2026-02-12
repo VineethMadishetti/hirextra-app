@@ -40,7 +40,7 @@ import {
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
 
-const PAGE_SIZE = 50; // Increased to reduce frequency of loading states
+const PAGE_SIZE = 100; // Increased to load more data at once
 
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
