@@ -625,203 +625,239 @@ export const getJobStatus = async (req, res) => {
 
 // --- SEARCH (Updated for Soft Delete) ---
 export const searchCandidates = async (req, res) => {
-	try {
-		res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-		res.setHeader("Pragma", "no-cache");
-		res.setHeader("Expires", "0");
-		res.setHeader("Surrogate-Control", "no-store");
-		const {
-			q,
-			locality,
-			location,
-			jobTitle,
-			skills,
-			hasEmail,
-			hasPhone,
-			hasLinkedin,
-			page = 1,
-			limit = 20,
-			lastCreatedAt, // For Seek Pagination (Speed Optimization)
-			lastId         // For Seek Pagination (Speed Optimization)
-		} = req.query;
-
-		const limitNum = Math.min(Number(limit) || 20, 100); // Max 100 per page
-		const pageNum = Math.max(1, Number(page) || 1);
-		const skip = (pageNum - 1) * limitNum;
-
-		let query = { isDeleted: false }; // Hide soft deleted items
-		const andConditions = [];
-
-		// 1. Keyword Search (Regex replacement for Text Search)
-		let searchQ = q;
-		if (searchQ && typeof searchQ !== 'string' && !Array.isArray(searchQ)) searchQ = String(searchQ);
-		if (Array.isArray(searchQ)) searchQ = searchQ.join(' ');
-
-		if (searchQ && searchQ.trim()) {
-			const safeQ = searchQ.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-			// Performance Optimization: Detect specific formats to avoid scanning all fields
-			const isEmail = safeQ.includes('@');
-			const isPhone = /^[0-9+\-\s()]+$/.test(safeQ) && safeQ.replace(/\D/g, '').length > 5;
-
-			if (isEmail) {
-				andConditions.push({ email: new RegExp(`^${safeQ}`, "i") }); // Start-of-string optimization
-			} else if (isPhone) {
-				andConditions.push({ phone: new RegExp(safeQ.replace(/\s+/g, ''), "i") });
-			} else {
-				// Use Regex $or instead of $text for better compatibility and substring search
-				const regex = new RegExp(safeQ, "i");
-				andConditions.push({
-					$or: [
-						{ fullName: regex },
-						{ jobTitle: regex },
-						{ skills: regex },
-						{ company: regex },
-						{ location: regex },
-						{ locality: regex }
-					]
-				});
-			}
-		}
-
-		// 2. Specific Filters - SIMPLIFIED VERSION
-let locFilter = locality || location;
-if (locFilter) {
     try {
-        // Convert to string and handle array
-        if (Array.isArray(locFilter)) locFilter = locFilter.join(',');
-        locFilter = String(locFilter).trim();
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        res.setHeader("Surrogate-Control", "no-store");
         
-        if (locFilter) {
-            // Simple case-insensitive regex without complex OR logic for multiple locations
-            const safeLoc = locFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const locationRegex = new RegExp(safeLoc.split(',').map(l => l.trim()).filter(Boolean).join('|'), 'i');
-            
-            andConditions.push({
-                $or: [
-                    { locality: { $regex: locationRegex } },
-                    { location: { $regex: locationRegex } },
-                    { country: { $regex: locationRegex } }
-                ]
-            });
+        const {
+            q,
+            locality,
+            location,
+            jobTitle,
+            skills,
+            hasEmail,
+            hasPhone,
+            hasLinkedin,
+            page = 1,
+            limit = 20,
+            lastCreatedAt,
+            lastId
+        } = req.query;
+
+        const limitNum = Math.min(Number(limit) || 20, 100);
+        const pageNum = Math.max(1, Number(page) || 1);
+        const skip = (pageNum - 1) * limitNum;
+
+        let query = { isDeleted: false };
+        const andConditions = [];
+
+        // 1. Keyword Search
+        let searchQ = q;
+        if (searchQ && typeof searchQ !== 'string' && !Array.isArray(searchQ)) searchQ = String(searchQ);
+        if (Array.isArray(searchQ)) searchQ = searchQ.join(' ');
+
+        if (searchQ && searchQ.trim()) {
+            const safeQ = searchQ.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            const isEmail = safeQ.includes('@');
+            const isPhone = /^[0-9+\-\s()]+$/.test(safeQ) && safeQ.replace(/\D/g, '').length > 5;
+
+            if (isEmail) {
+                andConditions.push({ email: new RegExp(`^${safeQ}`, "i") });
+            } else if (isPhone) {
+                andConditions.push({ phone: new RegExp(safeQ.replace(/\s+/g, ''), "i") });
+            } else {
+                const regex = new RegExp(safeQ, "i");
+                andConditions.push({
+                    $or: [
+                        { fullName: regex },
+                        { jobTitle: regex },
+                        { skills: regex },
+                        { company: regex },
+                        { location: regex },
+                        { locality: regex }
+                    ]
+                });
+            }
         }
-    } catch (error) {
-        console.error("Location filter error:", error);
-        // If location filter fails, continue without it
+
+        // 2. LOCATION FILTER - FIXED VERSION
+        try {
+            let locFilter = locality || location;
+            if (locFilter) {
+                // Handle array or string
+                if (Array.isArray(locFilter)) {
+                    locFilter = locFilter.join(',');
+                }
+                locFilter = String(locFilter).trim();
+                
+                if (locFilter) {
+                    // Split by comma and clean
+                    const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
+                    
+                    if (locations.length > 0) {
+                        // Create regex pattern for all locations
+                        const escapedLocations = locations.map(loc => 
+                            loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        );
+                        
+                        // SIMPLE APPROACH: Use regex on a combined location field
+                        // This is more performant than multiple $or conditions
+                        const locationPattern = escapedLocations.join('|');
+                        
+                        andConditions.push({
+                            $or: [
+                                { locality: { $regex: locationPattern, $options: 'i' } },
+                                { location: { $regex: locationPattern, $options: 'i' } },
+                                { country: { $regex: locationPattern, $options: 'i' } }
+                            ]
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Location filter error:", error);
+            // Continue without location filter
+        }
+
+        // 3. JOB TITLE FILTER
+        try {
+            if (jobTitle) {
+                let titleStr = jobTitle;
+                if (Array.isArray(titleStr)) titleStr = titleStr.join(',');
+                titleStr = String(titleStr).trim();
+                
+                if (titleStr) {
+                    const titles = titleStr.split(',').map(t => t.trim()).filter(Boolean);
+                    if (titles.length > 0) {
+                        const escapedTitles = titles.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                        const titlePattern = escapedTitles.join('|');
+                        andConditions.push({ 
+                            jobTitle: { $regex: titlePattern, $options: 'i' } 
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Job title filter error:", error);
+        }
+
+        // 4. SKILLS FILTER
+        try {
+            if (skills) {
+                let skillsStr = skills;
+                if (Array.isArray(skillsStr)) skillsStr = skillsStr.join(',');
+                skillsStr = String(skillsStr).trim();
+                
+                if (skillsStr) {
+                    const skillList = skillsStr.split(',').map(s => s.trim()).filter(Boolean);
+                    if (skillList.length > 0) {
+                        const escapedSkills = skillList.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                        const skillPattern = escapedSkills.join('|');
+                        andConditions.push({ 
+                            skills: { $regex: skillPattern, $options: 'i' } 
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Skills filter error:", error);
+        }
+
+        // 5. Toggles
+        if (hasEmail === "true") {
+            andConditions.push({ email: { $exists: true, $ne: "" } });
+        }
+        if (hasPhone === "true") {
+            andConditions.push({ phone: { $exists: true, $ne: "" } });
+        }
+        if (hasLinkedin === "true") {
+            andConditions.push({ linkedinUrl: { $exists: true, $ne: "" } });
+        }
+
+        // Add all conditions to $and if any exist
+        if (andConditions.length > 0) {
+            query.$and = andConditions;
+        }
+
+        // FIX: Don't use seek pagination with complex regex queries
+        // Use simple skip/limit pagination for reliability
+        let candidates;
+        let totalCount = 0;
+        let hasMore = false;
+
+        try {
+            // Use simple pagination - more reliable with complex queries
+            candidates = await Candidate.find(query)
+                .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt score")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum + 1)
+                .lean()
+                .maxTimeMS(30000); // 30 second timeout
+
+            hasMore = candidates.length > limitNum;
+            if (hasMore) {
+                candidates.pop();
+            }
+
+            // Only count if we need to (first page or when totalCount is needed)
+            if (skip === 0 && !hasMore) {
+                totalCount = candidates.length;
+            } else {
+                // Approximate count - you can also use estimatedDocumentCount() for better performance
+                totalCount = -1; // Indicates unknown total
+            }
+
+        } catch (dbError) {
+            console.error("Database query error:", dbError);
+            
+            // Fallback: Try with even simpler query
+            console.log("Attempting fallback query without complex regex...");
+            
+            // Remove regex conditions and try exact match fallback
+            const fallbackQuery = { isDeleted: false };
+            
+            // Only use simple exact matches for fallback
+            if (locality || location) {
+                const locValue = String(locality || location).split(',')[0].trim();
+                fallbackQuery.$or = [
+                    { locality: { $regex: locValue, $options: 'i' } },
+                    { location: { $regex: locValue, $options: 'i' } }
+                ];
+            }
+            
+            candidates = await Candidate.find(fallbackQuery)
+                .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country")
+                .sort({ createdAt: -1 })
+                .limit(limitNum)
+                .lean();
+                
+            hasMore = false;
+            totalCount = candidates.length;
+        }
+
+        res.json({
+            candidates,
+            hasMore,
+            totalPages: 0,
+            currentPage: pageNum,
+            totalCount,
+        });
+        
+    } catch (err) {
+        console.error("Search Error:", err);
+        console.error("Error stack:", err.stack);
+        
+        // Send a proper error response
+        res.status(500).json({ 
+            message: "Search failed", 
+            error: err.message,
+            details: "Please try simplifying your search criteria"
+        });
     }
-}
-
-		if (jobTitle) {
-			let titleStr = jobTitle;
-			if (typeof titleStr !== 'string' && !Array.isArray(titleStr)) titleStr = String(titleStr);
-			if (Array.isArray(titleStr)) titleStr = titleStr.join(',');
-
-			// Support multiple job titles separated by comma (OR logic)
-			const titles = titleStr.split(',').map(t => t.trim()).filter(Boolean);
-			if (titles.length > 0) {
-				const titleConditions = titles.map(title => {
-					const safeJob = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					return { jobTitle: new RegExp(`^${safeJob}`, "i") }; // Starts with logic
-				});
-				andConditions.push({ $or: titleConditions });
-			}
-		}
-		
-		if (skills) {
-			let skillsStr = skills;
-			if (typeof skillsStr !== 'string' && !Array.isArray(skillsStr)) skillsStr = String(skillsStr);
-			if (Array.isArray(skillsStr)) skillsStr = skillsStr.join(',');
-
-			const skillList = skillsStr.split(',').map(s => s.trim()).filter(Boolean);
-
-			if (skillList.length > 0) {
-				// FIX: Handle multiple skills with an OR condition.
-				// The previous logic searched for the literal string "skill1, skill2".
-				// This correctly searches for documents containing "skill1" OR "skill2".
-				const skillConditions = skillList.map(skill => {
-					const safeSkill = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					return { skills: new RegExp(safeSkill, "i") };
-				});
-				andConditions.push({ $or: skillConditions });
-			}
-		}
-
-		// 3. Toggles
-		if (hasEmail === "true") {
-			andConditions.push({ email: { $exists: true, $ne: "" } });
-		}
-		if (hasPhone === "true") {
-			andConditions.push({ phone: { $exists: true, $ne: "" } });
-		}
-		if (hasLinkedin === "true") {
-			andConditions.push({ linkedinUrl: { $exists: true, $ne: "" } });
-		}
-
-		// Add all conditions to $and if any exist
-		if (andConditions.length > 0) {
-			query.$and = andConditions;
-		}
-
-		// Optimized: Use lean() for faster queries and parallel execution
-		let candidates;
-		let totalCount = 0;
-
-		// OPTIMIZATION: Seek Pagination vs Offset Pagination
-		// Merge pagination conditions into main query instead of using .where() which can conflict
-		if (lastCreatedAt && lastId) {
-			// Fast: Use index to "seek" to the next page
-			// Add pagination condition to $and to ensure it works with other filters
-			if (!query.$and) {
-				query.$and = [];
-			}
-			query.$and.push({
-				$or: [
-					{ createdAt: { $lt: new Date(lastCreatedAt) } },
-					{ createdAt: new Date(lastCreatedAt), _id: { $lt: lastId } }
-				]
-			});
-		}
-
-		let findQuery = Candidate.find(query)
-			.select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt score")
-			.sort({ createdAt: -1 })
-			.lean() // Use lean() for faster queries (returns plain JS objects, not Mongoose docs)
-			.maxTimeMS(60000); // Increased timeout to 60s
-
-		// Use skip() for offset pagination (when not using seek pagination)
-		if (!lastCreatedAt || !lastId) {
-			findQuery = findQuery.skip(skip);
-		}
-
-		// PERFORMANCE FIX: Fetch limit + 1 to check for next page without counting all docs
-		findQuery = findQuery.limit(limitNum + 1);
-
-		candidates = await findQuery.exec();
-
-		const hasMore = candidates.length > limitNum;
-		if (hasMore) {
-			candidates.pop(); // Remove the extra item used for check
-		}
-
-		// If we have fewer items than limit, we know the exact total (skip + current).
-		// If we have more, we return -1 (unknown total) to avoid slow counting.
-		if (!hasMore) {
-			totalCount = skip + candidates.length;
-		} else {
-			totalCount = -1;
-		}
-
-		res.json({
-			candidates,
-			hasMore,
-			totalPages: 0, // Deprecated in favor of hasMore
-			currentPage: pageNum,
-			totalCount,
-		});
-	} catch (err) {
-		console.error("Search Error:", err); // Log error to terminal
-		res.status(500).json({ message: "Search failed on server" });
-	}
 };
 
 // --- EXPORT SELECTED CANDIDATES TO CSV ---
