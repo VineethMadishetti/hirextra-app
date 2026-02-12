@@ -684,42 +684,30 @@ export const searchCandidates = async (req, res) => {
 			}
 		}
 
-		// 2. Specific Filters
+		// 2. Specific Filters - SIMPLIFIED VERSION
 let locFilter = locality || location;
 if (locFilter) {
     try {
-        if (typeof locFilter !== 'string' && !Array.isArray(locFilter)) locFilter = String(locFilter);
+        // Convert to string and handle array
         if (Array.isArray(locFilter)) locFilter = locFilter.join(',');
-
-        // Support multiple locations separated by comma (OR logic)
-        const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
-
-        if (locations.length > 0) {
-            const locConditions = locations.map(loc => {
-                // FIX: Escape regex special characters properly
-                const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                
-                // FIX: Use $regex operator with options instead of RegExp constructor for better error handling
-                return {
-                    $or: [
-                        { locality: { $regex: safeLoc, $options: 'i' } },
-                        { location: { $regex: safeLoc, $options: 'i' } },
-                        { country: { $regex: safeLoc, $options: 'i' } }
-                    ]
-                };
-            });
+        locFilter = String(locFilter).trim();
+        
+        if (locFilter) {
+            // Simple case-insensitive regex without complex OR logic for multiple locations
+            const safeLoc = locFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const locationRegex = new RegExp(safeLoc.split(',').map(l => l.trim()).filter(Boolean).join('|'), 'i');
             
-            // FIX: Properly structure the $and/$or conditions
-            if (locConditions.length === 1) {
-                andConditions.push(locConditions[0]);
-            } else {
-                andConditions.push({ $or: locConditions });
-            }
+            andConditions.push({
+                $or: [
+                    { locality: { $regex: locationRegex } },
+                    { location: { $regex: locationRegex } },
+                    { country: { $regex: locationRegex } }
+                ]
+            });
         }
     } catch (error) {
         console.error("Location filter error:", error);
-        // Don't fail the entire search, just skip location filter
-        // Continue without location filter
+        // If location filter fails, continue without it
     }
 }
 
