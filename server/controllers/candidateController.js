@@ -646,7 +646,10 @@ export const searchCandidates = async (req, res) => {
             lastId
         } = req.query;
 
-        const limitNum = Math.min(Number(limit) || 20, 100);
+        // Allow larger limits (up to 5000) to support "View All"
+        let limitNum = (limit === 'all') ? 5000 : (Number(limit) || 20);
+        if (limitNum > 5000) limitNum = 5000;
+
         const pageNum = Math.max(1, Number(page) || 1);
         const skip = (pageNum - 1) * limitNum;
 
