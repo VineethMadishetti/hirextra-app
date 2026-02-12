@@ -329,7 +329,6 @@ const UserSearch = () => {
 		queryKey: ["candidates", {
 			q: debouncedSearchInput,
 			locality: debouncedLocationForApi,
-			location: debouncedLocationForApi,
 			jobTitle: debouncedFilters.jobTitle,
 			skills: debouncedFilters.skills,
 			minExperience: debouncedFilters.experience,
@@ -345,7 +344,6 @@ const UserSearch = () => {
 					Object.entries({
 						q: debouncedSearchInput,
 						locality: debouncedLocationForApi,
-						location: debouncedLocationForApi,
 						jobTitle: debouncedFilters.jobTitle,
 						skills: debouncedFilters.skills,
 						minExperience: debouncedFilters.experience,
@@ -446,7 +444,6 @@ const UserSearch = () => {
 		() => ({
 			q: appliedSearchInput,
 			locality: appliedLocationForApi,
-			location: appliedLocationForApi,
 			jobTitle: appliedFilters.jobTitle,
 			skills: appliedFilters.skills,
 			minExperience: appliedFilters.experience,

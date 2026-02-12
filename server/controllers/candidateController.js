@@ -668,10 +668,9 @@ export const searchCandidates = async (req, res) => {
                 .slice(0, maxItems);
         };
         const parseLocationTerms = (localityValue, locationValue) => {
-            const merged = [
-                ...parseCsvFilter(localityValue, 30),
-                ...parseCsvFilter(locationValue, 30),
-            ];
+            const localityTerms = parseCsvFilter(localityValue, 30);
+            const locationTerms = parseCsvFilter(locationValue, 30);
+            const merged = localityTerms.length > 0 ? localityTerms : locationTerms;
 
             const dedup = new Set();
             const normalized = [];
@@ -727,13 +726,11 @@ export const searchCandidates = async (req, res) => {
                     term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                 );
                 const locationPattern = `^(?:${escapedLocationTerms.join("|")})(?:\\b|\\s|,|$)`;
+                const hasLocalityInput = parseCsvFilter(locality, 1).length > 0;
+                const primaryLocationField = hasLocalityInput ? "locality" : "location";
 
                 andConditions.push({
-                    $or: [
-                        { locality: { $regex: locationPattern, $options: 'i' } },
-                        { location: { $regex: locationPattern, $options: 'i' } },
-                        { country: { $regex: locationPattern, $options: 'i' } },
-                    ]
+                    [primaryLocationField]: { $regex: locationPattern, $options: 'i' }
                 });
             }
         } catch (error) {
