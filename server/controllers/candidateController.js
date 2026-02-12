@@ -667,6 +667,27 @@ export const searchCandidates = async (req, res) => {
                 .filter(Boolean)
                 .slice(0, maxItems);
         };
+        const parseLocationTerms = (localityValue, locationValue) => {
+            const merged = [
+                ...parseCsvFilter(localityValue, 30),
+                ...parseCsvFilter(locationValue, 30),
+            ];
+
+            const dedup = new Set();
+            const normalized = [];
+
+            for (const rawTerm of merged) {
+                const term = String(rawTerm).trim().slice(0, 64);
+                if (term.length < 2) continue; // Avoid 1-char broad scans like "P"
+
+                const key = term.toLowerCase();
+                if (dedup.has(key)) continue;
+                dedup.add(key);
+                normalized.push(term);
+            }
+
+            return normalized;
+        };
 
         // 1. Keyword Search
         let searchQ = q;
@@ -700,18 +721,18 @@ export const searchCandidates = async (req, res) => {
 
         // 2. LOCATION FILTER
         try {
-            const locationTerms = parseCsvFilter(locality || location);
+            const locationTerms = parseLocationTerms(locality, location);
             if (locationTerms.length > 0) {
-                const locationRegexes = locationTerms.map((term) => {
-                    const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    return new RegExp(`^${safeTerm}(?:\\b|\\s|,|$)`, "i");
-                });
+                const escapedLocationTerms = locationTerms.map((term) =>
+                    term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                );
+                const locationPattern = `^(?:${escapedLocationTerms.join("|")})(?:\\b|\\s|,|$)`;
 
                 andConditions.push({
                     $or: [
-                        { locality: { $in: locationRegexes } },
-                        { location: { $in: locationRegexes } },
-                        { country: { $in: locationRegexes } },
+                        { locality: { $regex: locationPattern, $options: 'i' } },
+                        { location: { $regex: locationPattern, $options: 'i' } },
+                        { country: { $regex: locationPattern, $options: 'i' } },
                     ]
                 });
             }

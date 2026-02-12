@@ -68,6 +68,29 @@ const formatLocation = (locality, location) => {
 	return unique.join(", ");
 };
 
+const normalizeLocationFilterForApi = (value) => {
+	if (!value) return "";
+
+	const terms = String(value)
+		.split(",")
+		.map((t) => t.trim())
+		.filter(Boolean)
+		.filter((t) => t.length >= 2)
+		.slice(0, 30);
+
+	const unique = [];
+	const seen = new Set();
+	for (const term of terms) {
+		const key = term.toLowerCase();
+		if (!seen.has(key)) {
+			seen.add(key);
+			unique.push(term);
+		}
+	}
+
+	return unique.join(",");
+};
+
 // Debounce hook
 const useDebounce = (value, delay) => {
 	const [debouncedValue, setDebouncedValue] = useState(value);
@@ -295,14 +318,18 @@ const UserSearch = () => {
 	// Satisfies: "filtering should happen backend right from typing... but display after entering search"
 	const debouncedSearchInput = useDebounce(searchInput, 500);
 	const debouncedFilters = useDebounce(filters, 500);
+	const debouncedLocationForApi = useMemo(
+		() => normalizeLocationFilterForApi(debouncedFilters.location),
+		[debouncedFilters.location],
+	);
 
 	// Background query to pre-fetch data while typing
 	// This handles cancellation automatically unlike the previous useEffect approach
 	useInfiniteQuery({
 		queryKey: ["candidates", {
 			q: debouncedSearchInput,
-			locality: debouncedFilters.location,
-			location: debouncedFilters.location,
+			locality: debouncedLocationForApi,
+			location: debouncedLocationForApi,
 			jobTitle: debouncedFilters.jobTitle,
 			skills: debouncedFilters.skills,
 			minExperience: debouncedFilters.experience,
@@ -317,8 +344,8 @@ const UserSearch = () => {
 				...Object.fromEntries(
 					Object.entries({
 						q: debouncedSearchInput,
-						locality: debouncedFilters.location,
-						location: debouncedFilters.location,
+						locality: debouncedLocationForApi,
+						location: debouncedLocationForApi,
 						jobTitle: debouncedFilters.jobTitle,
 						skills: debouncedFilters.skills,
 						minExperience: debouncedFilters.experience,
@@ -410,12 +437,16 @@ const UserSearch = () => {
 			handleTriggerSearch();
 		}
 	};
+	const appliedLocationForApi = useMemo(
+		() => normalizeLocationFilterForApi(appliedFilters.location),
+		[appliedFilters.location],
+	);
 
 	const queryFilters = useMemo(
 		() => ({
 			q: appliedSearchInput,
-			locality: appliedFilters.location,
-			location: appliedFilters.location,
+			locality: appliedLocationForApi,
+			location: appliedLocationForApi,
 			jobTitle: appliedFilters.jobTitle,
 			skills: appliedFilters.skills,
 			minExperience: appliedFilters.experience,
@@ -423,7 +454,7 @@ const UserSearch = () => {
 			hasPhone: appliedFilters.hasPhone,
 			hasLinkedin: appliedFilters.hasLinkedin,
 		}),
-		[appliedSearchInput, appliedFilters],
+		[appliedSearchInput, appliedFilters, appliedLocationForApi],
 	);
 
 	const queryKey = useMemo(() => ["candidates", queryFilters], [queryFilters]);
