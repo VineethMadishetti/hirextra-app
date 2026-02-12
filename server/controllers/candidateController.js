@@ -696,7 +696,7 @@ export const searchCandidates = async (req, res) => {
 			if (locations.length > 0) {
 				const locConditions = locations.map(loc => {
 					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					const locRegex = new RegExp(`^${safeLoc}`, "i");
+					const locRegex = new RegExp(`^${safeLoc}`, "i"); // Starts with logic
 					return {
 						$or: [
 							{ locality: locRegex },
@@ -719,7 +719,7 @@ export const searchCandidates = async (req, res) => {
 			if (titles.length > 0) {
 				const titleConditions = titles.map(title => {
 					const safeJob = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-					return { jobTitle: new RegExp(`^${safeJob}`, "i") };
+					return { jobTitle: new RegExp(`^${safeJob}`, "i") }; // Starts with logic
 				});
 				andConditions.push({ $or: titleConditions });
 			}
