@@ -302,6 +302,7 @@ const UserSearch = () => {
 		queryKey: ["candidates", {
 			q: debouncedSearchInput,
 			locality: debouncedFilters.location,
+			location: debouncedFilters.location,
 			jobTitle: debouncedFilters.jobTitle,
 			skills: debouncedFilters.skills,
 			minExperience: debouncedFilters.experience,
@@ -317,6 +318,7 @@ const UserSearch = () => {
 					Object.entries({
 						q: debouncedSearchInput,
 						locality: debouncedFilters.location,
+						location: debouncedFilters.location,
 						jobTitle: debouncedFilters.jobTitle,
 						skills: debouncedFilters.skills,
 						minExperience: debouncedFilters.experience,
@@ -413,6 +415,7 @@ const UserSearch = () => {
 		() => ({
 			q: appliedSearchInput,
 			locality: appliedFilters.location,
+			location: appliedFilters.location,
 			jobTitle: appliedFilters.jobTitle,
 			skills: appliedFilters.skills,
 			minExperience: appliedFilters.experience,
@@ -887,7 +890,7 @@ const UserSearch = () => {
 							{/* Location */}
 							<div className="relative col-span-1 min-w-0 md:min-w-[140px]">
 								<input
-									placeholder="Location"
+									placeholder="Location (comma separated)"
 									className="w-full px-3 py-1.5 md:py-2 pr-7 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl text-xs md:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none transition-all h-9 md:h-auto shadow-sm"
 									value={filters.location}
 									onChange={(e) => handleFilterChange("location", e.target.value)}

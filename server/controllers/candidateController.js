@@ -657,6 +657,16 @@ export const searchCandidates = async (req, res) => {
 
         let query = { isDeleted: false };
         const andConditions = [];
+        const parseCsvFilter = (value, maxItems = 20) => {
+            if (value === undefined || value === null) return [];
+
+            const raw = Array.isArray(value) ? value.join(",") : String(value);
+            return raw
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, maxItems);
+        };
 
         // 1. Keyword Search
         let searchQ = q;
@@ -688,35 +698,22 @@ export const searchCandidates = async (req, res) => {
             }
         }
 
-        // 2. LOCATION FILTER - FIXED VERSION
+        // 2. LOCATION FILTER
         try {
-            let locFilter = locality || location;
-            if (locFilter) {
-                // Handle array or string
-                if (Array.isArray(locFilter)) {
-                    locFilter = locFilter.join(',');
-                }
-                locFilter = String(locFilter).trim();
-                
-                if (locFilter) {
-                    // Split by comma and clean
-                    const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
-                    
-                    if (locations.length > 0) {
-                        const locConditions = locations.map(loc => {
-                            const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                            const locRegex = new RegExp(`^${safeLoc}`, "i");
-                            return {
-                                $or: [
-                                    { locality: locRegex },
-                                    { location: locRegex },
-                                    { country: locRegex },
-                                ],
-                            };
-                        });
-                        andConditions.push({ $or: locConditions });
-                    }
-                }
+            const locationTerms = parseCsvFilter(locality || location);
+            if (locationTerms.length > 0) {
+                const locationRegexes = locationTerms.map((term) => {
+                    const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    return new RegExp(`^${safeTerm}(?:\\b|\\s|,|$)`, "i");
+                });
+
+                andConditions.push({
+                    $or: [
+                        { locality: { $in: locationRegexes } },
+                        { location: { $in: locationRegexes } },
+                        { country: { $in: locationRegexes } },
+                    ]
+                });
             }
         } catch (error) {
             console.error("Location filter error:", error);
