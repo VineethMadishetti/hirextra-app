@@ -647,7 +647,9 @@ export const searchCandidates = async (req, res) => {
         } = req.query;
 
         // Allow larger limits (up to 5000) to support "View All"
-        let limitNum = (limit === 'all') ? 5000 : (Number(limit) || 20);
+        // Handle case-insensitive 'all' and trim whitespace
+        const limitStr = String(limit).toLowerCase().trim();
+        let limitNum = (limitStr === 'all') ? 5000 : (Number(limit) || 20);
         if (limitNum > 5000) limitNum = 5000;
 
         const pageNum = Math.max(1, Number(page) || 1);
