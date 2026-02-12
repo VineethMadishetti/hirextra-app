@@ -727,27 +727,38 @@ export const searchCandidates = async (req, res) => {
         try {
             const locationTerms = parseLocationTerms(locality, location);
             if (locationTerms.length > 0) {
-                const locationVariantSet = new Set();
-                for (const term of locationTerms) {
-                    locationVariantSet.add(term);
-                    locationVariantSet.add(term.toLowerCase());
-                    locationVariantSet.add(term.toUpperCase());
-                    locationVariantSet.add(toTitleCaseLocation(term));
-                }
-
-                const escapedLocationTerms = Array.from(locationVariantSet)
-                    .filter(Boolean)
-                    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-                const locationPattern = `^(?:${escapedLocationTerms.join("|")})(?:\\b|\\s|,|$)`;
                 const hasLocalityInput = parseCsvFilter(locality, 1).length > 0;
                 const primaryLocationField = hasLocalityInput ? "locality" : "location";
                 locationHintIndex = hasLocalityInput
                     ? "locality_1_createdAt_-1"
                     : "location_1_createdAt_-1";
+                const prefixClauses = [];
+                const seenPrefixes = new Set();
 
-                andConditions.push({
-                    [primaryLocationField]: { $regex: locationPattern }
-                });
+                for (const term of locationTerms) {
+                    const variants = [
+                        term,
+                        term.toLowerCase(),
+                        term.toUpperCase(),
+                        toTitleCaseLocation(term),
+                    ];
+
+                    for (const variant of variants) {
+                        const cleanVariant = String(variant).trim();
+                        if (!cleanVariant || seenPrefixes.has(cleanVariant)) continue;
+                        seenPrefixes.add(cleanVariant);
+                        const safeVariant = cleanVariant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        prefixClauses.push({
+                            [primaryLocationField]: { $regex: `^${safeVariant}` }
+                        });
+                    }
+                }
+
+                if (prefixClauses.length === 1) {
+                    andConditions.push(prefixClauses[0]);
+                } else if (prefixClauses.length > 1) {
+                    andConditions.push({ $or: prefixClauses });
+                }
             }
         } catch (error) {
             console.error("Location filter error:", error);
