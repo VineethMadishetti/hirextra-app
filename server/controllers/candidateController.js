@@ -694,20 +694,18 @@ export const searchCandidates = async (req, res) => {
 			const locations = locFilter.split(',').map(l => l.trim()).filter(Boolean);
 
 			if (locations.length > 0) {
-				// FIX: Optimized Location Search (Contains + Combined Regex)
-				// 1. Use "contains" logic (no `^`) to correctly find "Maharashtra, Pune" when searching "Pune".
-				// 2. Combine all terms into ONE regex `/(Pune|Mumbai)/i` applied to each field.
-				//    This creates only 3 database conditions instead of 3 * N, preventing timeouts on large data.
-				const safeLocs = locations.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-				const combinedRegex = new RegExp(safeLocs.join('|'), "i");
-
-				andConditions.push({
-					$or: [
-						{ locality: combinedRegex },
-						{ location: combinedRegex },
-						{ country: combinedRegex },
-					],
+				const locConditions = locations.map(loc => {
+					const safeLoc = loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const locRegex = new RegExp(`^${safeLoc}`, "i");
+					return {
+						$or: [
+							{ locality: locRegex },
+							{ location: locRegex },
+							{ country: locRegex },
+						],
+					};
 				});
+				andConditions.push({ $or: locConditions });
 			}
 		}
 
