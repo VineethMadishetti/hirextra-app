@@ -1,7 +1,10 @@
 // Data cleaning and validation utilities
-export const cleanAndValidateCandidate = (data) => {
+export const cleanAndValidateCandidate = (data, options = {}) => {
   if (!data) return { valid: false, reason: 'EMPTY_DATA' };
   const cleaned = { ...data };
+  const requireName = options.requireName !== false;
+  const requireContact = options.requireContact !== false;
+  const fallbackName = options.fallbackName ? String(options.fallbackName).trim() : '';
 
   // Helper: Capitalize first letter of each word (Title Case)
   const toTitleCase = (str) => {
@@ -16,10 +19,10 @@ export const cleanAndValidateCandidate = (data) => {
     // Normalize spaces (max space gaps)
     cleaned.fullName = cleaned.fullName.replace(/\s+/g, ' ').trim();
     
-    // Max 3 words (Strict Requirement)
+    // Keep names reasonably compact while avoiding aggressive truncation
     const words = cleaned.fullName.split(' ');
-    if (words.length > 3) {
-        cleaned.fullName = words.slice(0, 3).join(' ');
+    if (words.length > 6) {
+        cleaned.fullName = words.slice(0, 6).join(' ');
     }
     
     // Capitalize
@@ -34,8 +37,8 @@ export const cleanAndValidateCandidate = (data) => {
 
   // 3. Company Name: Capitalize
   if (cleaned.company) {
-    // Strict: Only alphabets allowed
-    cleaned.company = cleaned.company.replace(/[^a-zA-Z\s]/g, '');
+    // Keep common company characters (&, ., -, digits) to avoid data loss
+    cleaned.company = cleaned.company.replace(/[^a-zA-Z0-9\s&.\-]/g, '');
     cleaned.company = cleaned.company.replace(/\s+/g, ' ').trim();
     cleaned.company = toTitleCase(cleaned.company);
   }
@@ -86,11 +89,11 @@ export const cleanAndValidateCandidate = (data) => {
 
   // 7. Location: Only alphabets, comma, fullstop
   if (cleaned.location) {
-    cleaned.location = cleaned.location.replace(/[^a-zA-Z\s,.]/g, '').replace(/\s+/g, ' ').trim();
+    cleaned.location = cleaned.location.replace(/[^a-zA-Z\s,.\-]/g, '').replace(/\s+/g, ' ').trim();
   }
   // Apply same to locality/country
-  if (cleaned.locality) cleaned.locality = cleaned.locality.replace(/[^a-zA-Z\s,.]/g, '').trim();
-  if (cleaned.country) cleaned.country = cleaned.country.replace(/[^a-zA-Z\s,.]/g, '').trim();
+  if (cleaned.locality) cleaned.locality = cleaned.locality.replace(/[^a-zA-Z\s,.\-]/g, '').trim();
+  if (cleaned.country) cleaned.country = cleaned.country.replace(/[^a-zA-Z\s,.\-]/g, '').trim();
 
   // 8. Skills: Remove emails, fix formatting
   if (cleaned.skills) {
@@ -125,7 +128,10 @@ export const cleanAndValidateCandidate = (data) => {
   const hasName = cleaned.fullName && cleaned.fullName.trim().length > 2;
 
   if (!hasName) {
-    return { valid: false, reason: 'MISSING_NAME' };
+    if (requireName) {
+      return { valid: false, reason: 'MISSING_NAME' };
+    }
+    cleaned.fullName = fallbackName || 'Unknown Candidate';
   }
 
   // Requirement: Must have at least one contact method (LinkedIn, Email, or Phone)
@@ -133,7 +139,7 @@ export const cleanAndValidateCandidate = (data) => {
   const hasPhone = !!cleaned.phone;
   const hasLinkedIn = cleaned.linkedinUrl && cleaned.linkedinUrl.trim().length > 0;
 
-  if (!hasEmail && !hasPhone && !hasLinkedIn) {
+  if (requireContact && !hasEmail && !hasPhone && !hasLinkedIn) {
     return { valid: false, reason: 'NO_CONTACT_INFO' };
   }
 

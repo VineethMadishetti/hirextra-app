@@ -28,6 +28,9 @@ const candidateSchema = new mongoose.Schema(
     linkedinUrl: String,
     githubUrl: String,
     summary: String,
+    parsedResume: { type: mongoose.Schema.Types.Mixed },
+    parseStatus: { type: String, enum: ['PARSED', 'PARTIAL', 'FAILED'], default: 'PARSED' },
+    parseWarnings: [String],
 
     // -------------------------
     // Upload & lifecycle
@@ -59,6 +62,7 @@ const candidateSchema = new mongoose.Schema(
 // 1. Core Operational Index (Required for your queue.js delete job)
 // Optimized: Simple index for hard deletes (doesn't care about isDeleted status)
 candidateSchema.index({ uploadJobId: 1 });
+candidateSchema.index({ sourceFile: 1, isDeleted: 1 });
 
 // 2. Date & Sorting (Files created at time/date)
 // Optimized: Partial Index (Only indexes active candidates)

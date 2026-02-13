@@ -317,3 +317,34 @@ export const listS3Files = async (folderPath) => {
     throw new Error(`Failed to list files from S3: ${error.message}`);
   }
 };
+
+/**
+ * Async generator to iterate S3 files page-by-page (memory efficient for very large folders)
+ * @param {string} folderPath - S3 folder prefix
+ * @param {number} pageSize - Max keys per page (1..1000 for S3 ListObjectsV2)
+ * @returns {AsyncGenerator<Array>} - Yields arrays of S3 objects
+ */
+export async function* listS3FilesByPage(folderPath, pageSize = 1000) {
+  try {
+    const maxKeys = Math.min(1000, Math.max(1, Number(pageSize) || 1000));
+    let continuationToken = undefined;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: folderPath,
+        ContinuationToken: continuationToken,
+        MaxKeys: maxKeys,
+      });
+
+      const response = await s3Client.send(command);
+      const page = Array.isArray(response.Contents) ? response.Contents : [];
+      yield page;
+
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+  } catch (error) {
+    logger.error(`❌ Failed to page-list files in S3 folder ${folderPath}:`, error);
+    throw new Error(`Failed to list files from S3: ${error.message}`);
+  }
+}

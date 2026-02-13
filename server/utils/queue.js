@@ -265,77 +265,452 @@ const extractTextFromFile = async (buffer, fileExt) => {
 	return "";
 };
 
-const parseResumeWithAI = async (contentPart) => {
-	let apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-	if (!apiKey) throw new Error("OPENAI_API_KEY_MISSING: API key is not set");
-	apiKey = apiKey.trim(); // Remove potential whitespace from copy-paste
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const resumeParseConcurrency = Math.max(
+	1,
+	Number(process.env.RESUME_PARSE_CONCURRENCY || process.env.RESUME_AI_CONCURRENCY || 4),
+);
+const runWithResumeParseLimit = (() => {
+	let active = 0;
+	const waitQueue = [];
 
-	const resumeText = contentPart.text || "";
-
-	const systemPrompt = `
-		You are an expert Resume Parser. Extract candidate details into a JSON object.
-
-		Strictly follow this JSON structure:
-		{
-			"fullName": "Full Name",
-			"email": "Email Address",
-			"phone": "Phone Number",
-			"location": "City, Country",
-			"jobTitle": "Current or Last Job Title",
-			"company": "Current or Last Company",
-			"skills": "Skill1, Skill2, Skill3 (comma separated string)",
-			"experience": "Total years of experience (e.g. '5 Years')",
-			"summary": "Brief professional summary",
-			"linkedinUrl": "LinkedIn Profile URL"
-		}
-		Return ONLY valid JSON.
-	`;
-
-	try {
-		// Construct payload: System instruction + User Content
-		const response = await fetch(
-			"https://api.openai.com/v1/chat/completions",
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"Authorization": `Bearer ${apiKey}`
-				},
-				body: JSON.stringify({
-					model: "gpt-4o-mini",
-					messages: [
-						{ role: "system", content: systemPrompt },
-						{ role: "user", content: resumeText }
-					],
-					response_format: { type: "json_object" },
-					temperature: 0.1
-				})
+	const acquire = () =>
+		new Promise((resolve) => {
+			if (active < resumeParseConcurrency) {
+				active += 1;
+				resolve();
+				return;
 			}
-		);
+			waitQueue.push(resolve);
+		});
 
-		if (!response.ok) {
-			const errText = await response.text();
-			throw new Error(`OPENAI_API_ERROR: ${response.status} - ${errText}`);
+	const release = () => {
+		if (waitQueue.length > 0) {
+			const next = waitQueue.shift();
+			next();
+			return;
 		}
+		active = Math.max(0, active - 1);
+	};
 
-		const data = await response.json();
-		const content = data.choices?.[0]?.message?.content;
-		if (!content) throw new Error("OPENAI_EMPTY_RESPONSE");
-
+	return async (taskFn) => {
+		await acquire();
 		try {
-			return JSON.parse(content);
-		} catch (parseErr) {
-			throw new Error(`AI_JSON_PARSE_ERROR: Failed to parse AI response as JSON.`);
+			return await taskFn();
+		} finally {
+			release();
 		}
-	} catch (error) {
-		logger.error("AI Parsing Error:", error);
-		throw error; // Rethrow so processResumeJob catches the specific error
+	};
+})();
+
+const normalizeResumeText = (text) =>
+	String(text || "")
+		.replace(/\u0000/g, "")
+		.replace(/\r/g, "\n")
+		.replace(/[ \t]+/g, " ")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+
+const fileNameToCandidateName = (s3Key) => {
+	const base = path.basename(String(s3Key || ""), path.extname(String(s3Key || "")));
+	const normalized = base
+		.replace(/[_\-]+/g, " ")
+		.replace(/[^a-zA-Z\s]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+	if (!normalized) return "Unknown Candidate";
+	return normalized
+		.toLowerCase()
+		.replace(/\b[a-z]/g, (m) => m.toUpperCase())
+		.slice(0, 80);
+};
+
+const splitLocation = (location) => {
+	const raw = String(location || "").trim();
+	if (!raw) return { locality: "", country: "" };
+	const parts = raw
+		.split(",")
+		.map((p) => p.trim())
+		.filter(Boolean);
+	if (parts.length === 0) return { locality: "", country: "" };
+	if (parts.length === 1) return { locality: parts[0], country: "" };
+	return { locality: parts[0], country: parts[parts.length - 1] };
+};
+
+const normalizeSkills = (skills) => {
+	const list = Array.isArray(skills)
+		? skills
+		: String(skills || "")
+			.split(/[;,]/g)
+			.map((s) => s.trim());
+	const unique = [];
+	const seen = new Set();
+	for (const skill of list) {
+		if (!skill) continue;
+		const key = skill.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		unique.push(skill);
 	}
+	return unique.join(", ");
+};
+
+const extractFallbackFields = (resumeText, s3Key) => {
+	const text = normalizeResumeText(resumeText);
+	const lines = text
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean);
+
+	const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+	const linkedinMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[^\s)]+/i);
+	const phoneCandidates = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) || [];
+	const phone = phoneCandidates
+		.map((p) => p.replace(/[^\d+]/g, ""))
+		.find((p) => p.length >= 7 && p.length <= 15) || "";
+
+	let fullName = "";
+	for (const line of lines.slice(0, 8)) {
+		const clean = line.replace(/[^a-zA-Z\s.'-]/g, "").replace(/\s+/g, " ").trim();
+		if (!clean) continue;
+		const words = clean.split(" ").filter(Boolean);
+		if (words.length >= 2 && words.length <= 6) {
+			const hasLikelyNoise = /(resume|curriculum|vitae|profile|email|phone|linkedin|address)/i.test(clean);
+			if (!hasLikelyNoise) {
+				fullName = clean;
+				break;
+			}
+		}
+	}
+	if (!fullName) fullName = fileNameToCandidateName(s3Key);
+
+	let location = "";
+	const locationLine = lines.find((line) => /\b(location|address|city)\b/i.test(line));
+	if (locationLine) {
+		const candidate = locationLine.split(":").slice(1).join(":").trim() || locationLine;
+		location = candidate.slice(0, 120);
+	} else {
+		const cityCountryLike = lines.find((line) => /^[A-Za-z .'-]+,\s*[A-Za-z .'-]+$/.test(line));
+		if (cityCountryLike) location = cityCountryLike.slice(0, 120);
+	}
+
+	let experience = "";
+	const expMatch = text.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs?)/i);
+	if (expMatch) experience = `${expMatch[1]} Years`;
+
+	const summary = lines.slice(0, 10).join(" ").slice(0, 700);
+
+	return {
+		fullName,
+		email: emailMatch ? emailMatch[0] : "",
+		phone,
+		linkedinUrl: linkedinMatch ? linkedinMatch[0] : "",
+		location,
+		experience,
+		summary,
+	};
+};
+
+const getValueAtPath = (obj, pathStr) => {
+	if (!obj || !pathStr) return undefined;
+	const parts = String(pathStr).split(".");
+	let cur = obj;
+	for (const part of parts) {
+		if (cur === null || cur === undefined) return undefined;
+		if (/^\d+$/.test(part)) {
+			const idx = Number(part);
+			cur = Array.isArray(cur) ? cur[idx] : undefined;
+		} else {
+			cur = cur[part];
+		}
+	}
+	return cur;
+};
+
+const pickFirstValue = (obj, paths = []) => {
+	for (const p of paths) {
+		const v = getValueAtPath(obj, p);
+		if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+	}
+	return "";
+};
+
+const toStringArray = (value) => {
+	if (!value) return [];
+	if (Array.isArray(value)) return value;
+	return [value];
+};
+
+const extractRChilliStructuredData = (payload, fallbackData = {}) => {
+	const root = payload || {};
+	const data = pickFirstValue(root, [
+		"ResumeParserData",
+		"resumeParserData",
+		"Data",
+		"data",
+	]) || root;
+
+	const warnings = [];
+
+	const emailList = toStringArray(pickFirstValue(data, ["Email", "EmailAddresses", "Contact.Email"]));
+	const firstEmail = emailList
+		.map((entry) => (typeof entry === "string" ? entry : (entry?.EmailAddress || entry?.Email || "")))
+		.find(Boolean) || "";
+
+	const phoneList = toStringArray(pickFirstValue(data, ["PhoneNumber", "PhoneNumbers", "Contact.Phone"]));
+	const firstPhone = phoneList
+		.map((entry) => (typeof entry === "string" ? entry : (entry?.Number || entry?.PhoneNumber || "")))
+		.find(Boolean) || "";
+
+	const websiteList = toStringArray(pickFirstValue(data, ["WebSite", "Websites", "SocialProfiles"]));
+	const linkedin = websiteList
+		.map((entry) => {
+			if (typeof entry === "string") return entry;
+			return entry?.Url || entry?.URL || entry?.Link || "";
+		})
+		.find((url) => /linkedin\.com/i.test(String(url))) || "";
+
+	const locality = pickFirstValue(data, [
+		"Location.0.City",
+		"Address.City",
+		"PersonalInformation.City",
+		"City",
+	]);
+	const country = pickFirstValue(data, [
+		"Location.0.Country",
+		"Address.Country",
+		"PersonalInformation.Country",
+		"Country",
+	]);
+	const locationValue = pickFirstValue(data, [
+		"Location.0.FormattedLocation",
+		"Location.0.Location",
+		"Location",
+		"Address.CompleteAddress",
+	]);
+	const location = (typeof locationValue === "string" ? locationValue : "").trim() || [locality, country].filter(Boolean).join(", ");
+
+	const firstExperienceTitle = pickFirstValue(data, [
+		"Experience.0.JobProfile.Title",
+		"Experience.0.JobTitle",
+		"WorkHistory.0.JobProfile.Title",
+		"WorkHistory.0.JobTitle",
+	]);
+	const firstExperienceCompany = pickFirstValue(data, [
+		"Experience.0.JobProfile.CompanyName",
+		"Experience.0.CompanyName",
+		"WorkHistory.0.JobProfile.CompanyName",
+		"WorkHistory.0.CompanyName",
+	]);
+
+	const rawSkills = pickFirstValue(data, ["SkillKeywords", "Skills", "SkillSet", "TechnicalSkills"]) || fallbackData.skills || "";
+	const normalizedSkillInput = Array.isArray(rawSkills)
+		? rawSkills.map((s) => (typeof s === "string" ? s : (s?.Skill || s?.SkillName || s?.Name || "")))
+		: rawSkills;
+	const skills = normalizeSkills(normalizedSkillInput);
+
+	const totalExpYears = pickFirstValue(data, [
+		"TotalExperienceInYear",
+		"TotalExperience.Years",
+		"Summary.TotalExperienceInYears",
+	]);
+	const experience = totalExpYears
+		? `${String(totalExpYears).replace(/[^\d.]/g, "")} Years`
+		: (fallbackData.experience || "");
+
+	const fullName = pickFirstValue(data, [
+		"Name.FullName",
+		"Name.FormattedName",
+		"CandidateName",
+		"FullName",
+	]) || fallbackData.fullName;
+
+	const summary = pickFirstValue(data, [
+		"Summary",
+		"ProfessionalSummary",
+		"ExecutiveSummary",
+	]) || fallbackData.summary || "";
+
+	const industry = pickFirstValue(data, [
+		"Industry",
+		"CurrentIndustry",
+		"Experience.0.JobProfile.Industry",
+	]);
+
+	if (!fullName) warnings.push("MISSING_NAME");
+	if (!firstEmail && !firstPhone && !linkedin) warnings.push("MISSING_CONTACT");
+	if (!skills) warnings.push("MISSING_SKILLS");
+	if (!firstExperienceTitle) warnings.push("MISSING_JOB_TITLE");
+	if (!location && !locality) warnings.push("MISSING_LOCATION");
+
+	return {
+		parsedData: {
+			fullName,
+			email: firstEmail || "",
+			phone: firstPhone || "",
+			linkedinUrl: linkedin || "",
+			location: location || "",
+			locality: locality || "",
+			country: country || "",
+			jobTitle: firstExperienceTitle || "",
+			company: firstExperienceCompany || "",
+			skills,
+			experience,
+			summary: String(summary || "").slice(0, 5000),
+			industry: industry || "",
+		},
+		parseWarnings: warnings,
+		rawPayload: root,
+	};
+};
+
+const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {}) => {
+	const endpoint = (
+		process.env.RCHILLI_ENDPOINT ||
+		"https://rest.rchilli.com/RChilliParser/Rchilli/parseResumeBinary"
+	).trim();
+	const userKey = (process.env.RCHILLI_USER_KEY || "").trim();
+	const version = (process.env.RCHILLI_VERSION || "8.0.0").trim();
+	const subUserId = (process.env.RCHILLI_SUB_USER_ID || process.env.RCHILLI_SUB_USERID || "").trim();
+
+	if (!userKey) throw new Error("RCHILLI_CONFIG_MISSING: RCHILLI_USER_KEY is not configured");
+
+	let extraFields = {};
+	if (process.env.RCHILLI_EXTRA_FIELDS) {
+		try {
+			extraFields = JSON.parse(process.env.RCHILLI_EXTRA_FIELDS);
+		} catch {
+			throw new Error("RCHILLI_CONFIG_MISSING: RCHILLI_EXTRA_FIELDS must be valid JSON");
+		}
+	}
+
+	return runWithResumeParseLimit(async () => {
+		const maxAttempts = 4;
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				const form = new FormData();
+				const fileName = path.basename(String(s3Key || `resume.${fileExt || "pdf"}`));
+				form.append("file", new Blob([buffer]), fileName);
+				form.append("filename", fileName);
+				form.append("fileName", fileName);
+				form.append("userkey", userKey);
+				form.append("version", version);
+				if (subUserId) {
+					form.append("subuserid", subUserId);
+					form.append("subUserId", subUserId);
+				}
+				for (const [key, value] of Object.entries(extraFields || {})) {
+					if (value !== undefined && value !== null) {
+						form.append(key, String(value));
+					}
+				}
+
+				const response = await fetch(endpoint, {
+					method: "POST",
+					body: form,
+				});
+
+				if (!response.ok) {
+					const errText = await response.text();
+					const retriable = response.status === 429 || response.status >= 500;
+					if (retriable && attempt < maxAttempts) {
+						await sleep(1000 * attempt * attempt);
+						continue;
+					}
+					throw new Error(`RCHILLI_API_ERROR: ${response.status} - ${errText}`);
+				}
+
+				let payload;
+				try {
+					payload = await response.json();
+				} catch {
+					throw new Error("RCHILLI_INVALID_RESPONSE: non-JSON response");
+				}
+
+				const statusText = String(pickFirstValue(payload, [
+					"status",
+					"Status",
+					"StatusCode",
+					"Code",
+					"code",
+					"ResumeParserData.Status",
+					"ResumeParserData.StatusCode",
+				])).toLowerCase();
+				const hasErrorFlag = Boolean(
+					pickFirstValue(payload, ["isError", "error", "HasError", "hasError"]),
+				);
+				if (hasErrorFlag || statusText === "error" || statusText === "failed") {
+					const msg = pickFirstValue(payload, [
+						"Message",
+						"message",
+						"ErrorMessage",
+						"ResumeParserData.ErrorMessage",
+					]) || "RChilli parsing failed";
+					throw new Error(`RCHILLI_PARSE_FAILED: ${msg}`);
+				}
+
+				const mapped = extractRChilliStructuredData(payload, fallbackData);
+				return {
+					parsedData: mapped.parsedData,
+					parseWarnings: mapped.parseWarnings,
+					rawPayload: mapped.rawPayload,
+				};
+			} catch (error) {
+				const retriable = /RCHILLI_API_ERROR:\s*(429|5\d\d)/.test(String(error.message || ""));
+				if (retriable && attempt < maxAttempts) {
+					await sleep(1000 * attempt * attempt);
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw new Error("RCHILLI_PARSE_FAILED: exhausted retry attempts");
+	});
+};
+
+const mergeResumeData = ({ parsedData, fallbackData, s3Key, jobId, parseStatus, parseWarnings, rawParsedResume }) => {
+	const parsed = parsedData || {};
+	const fallback = fallbackData || {};
+	const bestLocation = parsed.location || fallback.location || "";
+	const split = splitLocation(bestLocation);
+
+	return {
+		fullName: parsed.fullName || fallback.fullName || fileNameToCandidateName(s3Key),
+		email: parsed.email || fallback.email || "",
+		phone: parsed.phone || fallback.phone || "",
+		location: bestLocation,
+		locality: parsed.locality || split.locality || "",
+		country: parsed.country || split.country || "",
+		jobTitle: parsed.jobTitle || "",
+		company: parsed.company || "",
+		skills: normalizeSkills(parsed.skills || fallback.skills || ""),
+		experience: parsed.experience || fallback.experience || "",
+		summary: parsed.summary || fallback.summary || "",
+		linkedinUrl: parsed.linkedinUrl || fallback.linkedinUrl || "",
+		industry: parsed.industry || "",
+		sourceFile: s3Key,
+		uploadJobId: jobId,
+		isDeleted: false,
+		parseStatus: parseStatus || "PARSED",
+		parseWarnings: Array.isArray(parseWarnings) ? parseWarnings.filter(Boolean).slice(0, 10) : [],
+		parsedResume: {
+			version: "resume-parser-v3-rchilli",
+			provider: "RCHILLI",
+			processedAt: new Date().toISOString(),
+			raw: rawParsedResume || null,
+			heuristic: fallbackData || null,
+			textPreview: normalizeResumeText(fallback.summary || "").slice(0, 1000)
+		}
+	};
 };
 
 export const processResumeJob = async ({ jobId, s3Key }) => {
 	let success = false;
 	let reason = 'UNKNOWN_ERROR';
+	let errorMessage = "";
+	let extractedText = "";
+	let fallbackData = {};
+	let insertedPartial = false;
 
 	try {
 		const fileExt = s3Key.split('.').pop().toLowerCase();
@@ -345,51 +720,56 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 		const buffer = await streamToBuffer(fileStream);
 
 
-		// 2. Prepare content for AI (Multimodal or Text)
-		let aiContentPart;
+		// 2. Text extraction is best-effort fallback (RChilli parses binary directly)
+		try {
+			extractedText = await extractTextFromFile(buffer, fileExt);
+		} catch (extractErr) {
+			logger.warn(`Fallback text extraction failed for ${s3Key}: ${extractErr.message}`);
+			extractedText = "";
+		}
+		fallbackData = extractFallbackFields(extractedText, s3Key);
 
-		if (fileExt === 'pdf') {
-			const text = await extractTextFromFile(buffer, 'pdf');
-			aiContentPart = { text: text };
-		} else {
-			// For DOCX (or others), extract text first
-			const text = await extractTextFromFile(buffer, fileExt);
-			if (!text || text.length < 50) {
-				// If text extraction yielded nothing, it might be an image-only DOCX, which is hard.
-				// But usually Mammoth is good for DOCX.
-				throw new Error("TEXT_EXTRACTION_FAILED: Could not extract sufficient text from file.");
-			}
-			aiContentPart = { text: text };
+		// 3. RChilli Parse
+		const rchilliResult = await parseResumeWithRChilli(buffer, s3Key, fileExt, fallbackData);
+		if (!rchilliResult?.parsedData) {
+			throw new Error("RCHILLI_PARSE_FAILED: RChilli did not return parsed data.");
 		}
 
-		// 3. AI Parse
-		const candidateData = await parseResumeWithAI(aiContentPart);
-		if (!candidateData) {
-			throw new Error("AI_PARSE_FAILED: The AI model could not understand the resume text.");
+		const mergedCandidate = mergeResumeData({
+			parsedData: rchilliResult.parsedData,
+			fallbackData,
+			s3Key,
+			jobId,
+			parseStatus: "PARSED",
+			parseWarnings: rchilliResult.parseWarnings || [],
+			rawParsedResume: rchilliResult.rawPayload || null,
+		});
+
+		const validation = cleanAndValidateCandidate(mergedCandidate, {
+			requireName: false,
+			requireContact: false,
+			fallbackName: fileNameToCandidateName(s3Key)
+		});
+		if (!validation.valid) {
+			throw new Error(`VALIDATION_FAILED: ${validation.reason || "unknown validation error"}`);
 		}
 
-		// 4. Clean & Validate
-		candidateData.sourceFile = s3Key;
-		candidateData.uploadJobId = jobId;
-
-		const validation = cleanAndValidateCandidate(candidateData);
-
-		if (validation.valid) {
-			await Candidate.create(validation.data);
-			success = true;
-		} else {
-			reason = validation.reason || 'VALIDATION_FAILED';
-			success = false;
-		}
+		await Candidate.findOneAndUpdate(
+			{ sourceFile: s3Key, isDeleted: false },
+			{ $set: validation.data },
+			{ upsert: true, new: true, setDefaultsOnInsert: true }
+		);
+		success = true;
 
 	} catch (error) {
 		success = false;
+		errorMessage = error?.message || String(error);
 		// Determine reason from the specific error message we threw
 		if (error.message.startsWith('TEXT_EXTRACTION_FAILED') || error.message.startsWith('DOCX_EXTRACT') || error.message.startsWith('PDF_EXTRACT')) {
 			reason = 'TEXT_EXTRACTION_FAILED';
-		} else if (error.message.startsWith('AI_PARSE_FAILED') || error.message.startsWith('OPENAI_API_ERROR') || error.message.startsWith('AI_JSON')) {
-			reason = 'AI_PARSE_FAILED';
-		} else if (error.message.startsWith('OPENAI_API_KEY_MISSING') || error.message.startsWith('VITE_OPENAI_API_KEY_MISSING')) {
+		} else if (error.message.startsWith('RCHILLI_PARSE_FAILED') || error.message.startsWith('RCHILLI_API_ERROR') || error.message.startsWith('RCHILLI_INVALID_RESPONSE')) {
+			reason = 'RCHILLI_PARSE_FAILED';
+		} else if (error.message.startsWith('RCHILLI_CONFIG_MISSING')) {
 			reason = 'CONFIGURATION_ERROR';
 		} else if (error.message.includes('PDF_TIMEOUT')) {
 			reason = 'PDF_TIMEOUT';
@@ -408,6 +788,44 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 
 		// Log the EXACT error message to help user debug API limits/keys
 		logger.error(`Resume processing failed for ${s3Key}: [${reason}] ${error.message}`);
+
+		// Best-effort partial insert so resume is not silently dropped.
+		try {
+			if (!fallbackData || Object.keys(fallbackData).length === 0) {
+				fallbackData = extractFallbackFields(extractedText || "", s3Key);
+			}
+			const partialCandidate = mergeResumeData({
+				parsedData: {},
+				fallbackData,
+				s3Key,
+				jobId,
+				parseStatus: "PARTIAL",
+				parseWarnings: [reason, errorMessage],
+				rawParsedResume: null,
+			});
+
+			if (!partialCandidate.summary) {
+				partialCandidate.summary = `Partial parse. Reason: ${reason}.`;
+			}
+
+			const fallbackValidation = cleanAndValidateCandidate(partialCandidate, {
+				requireName: false,
+				requireContact: false,
+				fallbackName: fileNameToCandidateName(s3Key)
+			});
+
+			if (fallbackValidation.valid) {
+				await Candidate.findOneAndUpdate(
+					{ sourceFile: s3Key, isDeleted: false },
+					{ $set: fallbackValidation.data },
+					{ upsert: true, new: true, setDefaultsOnInsert: true }
+				);
+				insertedPartial = true;
+				success = true;
+			}
+		} catch (partialErr) {
+			logger.error(`Partial insert failed for ${s3Key}: ${partialErr.message}`);
+		}
 	} finally {
 		// This block is the single source of truth for updating job progress.
 		try {
@@ -417,8 +835,15 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 				: {
 					$inc: { failedRows: 1, [`failureReasons.${reason}`]: 1 },
 					// Save the specific error message for debugging (only over-writes last error of this type)
-					$set: { [`failureReasonSample.${reason}`]: error.message.substring(0, 500) }
+					$set: { [`failureReasonSample.${reason}`]: String(errorMessage || "").substring(0, 500) }
 				};
+
+			if (insertedPartial) {
+				update.$set = {
+					...(update.$set || {}),
+					[`failureReasonSample.${reason}`]: `Stored as PARTIAL record. ${String(errorMessage || "").substring(0, 400)}`
+				};
+			}
 
 			// Perform one atomic update and get the new document state
 			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
@@ -929,6 +1354,7 @@ export const processDeleteJob = async ({ jobId }) => {
 // Worker setup (csv-import)
 // ---------------------------------------------------
 let worker;
+const workerConcurrency = Number(process.env.QUEUE_WORKER_CONCURRENCY || 20);
 
 // Only start worker if we have a valid Redis connection
 if (connection) {
@@ -953,7 +1379,7 @@ if (connection) {
 			},
 			{
 				connection,
-				concurrency: 50,
+				concurrency: workerConcurrency,
 				lockDuration: 300000, // Increase lock duration to 5 mins to prevent stalling on large files
 				removeOnComplete: {
 					age: 24 * 3600, // Keep completed jobs for 24 hours

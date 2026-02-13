@@ -26,7 +26,7 @@ import {
 	uploadToS3,
 	generateS3Key,
 	downloadFromS3,
-	listS3Files,
+	listS3FilesByPage,
 } from "../utils/s3Service.js";
 
 // --- HELPER: Robust CSV Line Parser (ETL) ---
@@ -384,50 +384,136 @@ export const uploadChunk = async (req, res) => {
 
 // --- BULK RESUME IMPORT (S3 Folder) ---
 export const importResumes = async (req, res) => {
+	let createdJobId = null;
 	try {
 		const { folderPath } = req.body;
 		if (!folderPath) return res.status(400).json({ message: "Folder path is required" });
-
-		// 1. List files from S3 (handles pagination internally now)
-		const files = await listS3Files(folderPath);
-
-		// Filter for valid resume extensions
-		const resumeFiles = files.filter(f =>
-			f.Key && (f.Key.toLowerCase().endsWith('.pdf') || f.Key.toLowerCase().endsWith('.docx'))
-		);
-
-		if (resumeFiles.length === 0) {
-			return res.status(404).json({ message: "No PDF or DOCX files found in that folder." });
+		if (!importQueue) {
+			return res.status(503).json({
+				message: "Resume import queue is not available. Configure REDIS_URL and restart worker."
+			});
 		}
+
+		const normalizedFolderPath = String(folderPath).trim().replace(/^\/+/, "");
+		if (!normalizedFolderPath) {
+			return res.status(400).json({ message: "Folder path is required" });
+		}
+
+		// Keep trailing slash behavior predictable for prefix filtering
+		const s3Prefix = normalizedFolderPath.endsWith("/")
+			? normalizedFolderPath
+			: `${normalizedFolderPath}/`;
 
 		// 2. Create Master Job
 		const job = await UploadJob.create({
-			fileName: folderPath,
-			originalName: `Bulk Import: ${path.basename(folderPath)}`,
+			fileName: s3Prefix,
+			originalName: `Bulk Import: ${path.basename(normalizedFolderPath)}`,
 			uploadedBy: req.user._id,
 			status: "PROCESSING",
-			totalRows: resumeFiles.length,
+			totalRows: 0,
 			successRows: 0,
 			failedRows: 0,
 			headers: ["Resume Import"],
 			mapping: {},
 		});
+		createdJobId = job._id;
 
-		// 3. Add to Queue (Batch add)
-		const jobsData = resumeFiles.map(file => ({
-			name: "resume-import",
-			data: { jobId: job._id, s3Key: file.Key }
-		}));
+		// 3. Read S3 page-by-page, enqueue in chunks, and skip already-imported source files
+		const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
+		const enqueueBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_ENQUEUE_BATCH || 1000));
+		let discoveredCount = 0;
+		let queuedCount = 0;
+		let skippedExistingCount = 0;
+		let sawAnyResumeFile = false;
 
-		await importQueue.addBulk(jobsData);
+		for await (const filesPage of listS3FilesByPage(s3Prefix, s3ListPageSize)) {
+			const resumeFilesPage = filesPage.filter((f) =>
+				f?.Key &&
+				(
+					f.Key.toLowerCase().endsWith(".pdf") ||
+					f.Key.toLowerCase().endsWith(".docx") ||
+					f.Key.toLowerCase().endsWith(".doc")
+				)
+			);
+
+			if (resumeFilesPage.length === 0) continue;
+			sawAnyResumeFile = true;
+			discoveredCount += resumeFilesPage.length;
+
+			for (let i = 0; i < resumeFilesPage.length; i += enqueueBatchSize) {
+				const chunk = resumeFilesPage.slice(i, i + enqueueBatchSize).filter((f) => f?.Key);
+				if (chunk.length === 0) continue;
+
+				const chunkKeys = chunk.map((f) => f.Key);
+				const existingRows = await Candidate.find({
+					sourceFile: { $in: chunkKeys },
+					isDeleted: false,
+				})
+					.select("sourceFile -_id")
+					.lean();
+
+				const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
+				const filesToQueue = chunk.filter((f) => !existingKeys.has(f.Key));
+				skippedExistingCount += chunk.length - filesToQueue.length;
+
+				if (filesToQueue.length === 0) continue;
+
+				const jobsData = filesToQueue.map((file) => ({
+					name: "resume-import",
+					data: { jobId: job._id, s3Key: file.Key },
+					opts: {
+						attempts: 5,
+						backoff: { type: "exponential", delay: 3000 },
+						removeOnComplete: { age: 24 * 3600, count: 2000 },
+						removeOnFail: { age: 7 * 24 * 3600, count: 5000 },
+					},
+				}));
+
+				await importQueue.addBulk(jobsData);
+				queuedCount += jobsData.length;
+			}
+		}
+
+		if (!sawAnyResumeFile) {
+			await UploadJob.findByIdAndUpdate(job._id, {
+				status: "FAILED",
+				error: "No PDF, DOCX, or DOC files found in that folder.",
+			});
+			return res.status(404).json({ message: "No PDF, DOCX, or DOC files found in that folder." });
+		}
+
+		if (queuedCount === 0) {
+			await UploadJob.findByIdAndUpdate(job._id, {
+				status: "COMPLETED",
+				totalRows: 0,
+				completedAt: new Date(),
+			});
+			return res.json({
+				message: "No new resumes to import. All files are already present.",
+				jobId: job._id,
+				fileCount: discoveredCount,
+				queuedCount: 0,
+				skippedExistingCount
+			});
+		}
+
+		await UploadJob.findByIdAndUpdate(job._id, { totalRows: queuedCount });
 
 		res.json({
 			message: "Import started",
 			jobId: job._id,
-			fileCount: resumeFiles.length
+			fileCount: discoveredCount,
+			queuedCount,
+			skippedExistingCount
 		});
 	} catch (error) {
 		console.error("Import Error:", error);
+		if (createdJobId) {
+			await UploadJob.findByIdAndUpdate(createdJobId, {
+				status: "FAILED",
+				error: String(error.message || error).slice(0, 1000),
+			}).catch(() => {});
+		}
 		res.status(500).json({ message: error.message });
 	}
 };
@@ -834,7 +920,7 @@ export const searchCandidates = async (req, res) => {
         try {
             // Use simple pagination - more reliable with complex queries
             let findQuery = Candidate.find(query)
-                .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary createdAt score")
+                .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt score")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNum + 1)
