@@ -602,7 +602,7 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 				? ["json"]
 				: requestMode === "multipart"
 					? ["multipart"]
-					: ["json", "multipart"];
+					: ["multipart", "json"];
 
 		const callRChilli = async ({ strategy, fileName, baseFields }) => {
 			let response;
