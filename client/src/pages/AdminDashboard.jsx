@@ -4,7 +4,7 @@ import api from "../api/axios";
 import FileUploader from "../components/FileUploader";
 import {
 	FileText,
-	cloudUpload,
+	CloudUpload,
 	Trash2,
 	RefreshCw,
 	ShieldAlert,
@@ -155,6 +155,7 @@ const AdminDashboard = () => {
 	const [importMode, setImportMode] = useState("upload"); // 'upload', 's3-csv', 's3-resume'
 	const [s3FilePath, setS3FilePath] = useState("");
 	const [isLoadingHeaders, setIsLoadingHeaders] = useState(false);
+	const [isStartingResumeImport, setIsStartingResumeImport] = useState(false);
 
 	// Password Modal State
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -398,23 +399,30 @@ const AdminDashboard = () => {
 
 	// Handle Resume Import Trigger
 	const handleResumeImport = async () => {
-		if (!s3FilePath.trim()) {
+		const normalizedFolderPath = s3FilePath.trim().replace(/^\/+/, "");
+		if (!normalizedFolderPath) {
 			toast.error("Please enter an S3 folder path");
 			return;
 		}
 
 		try {
+			setIsStartingResumeImport(true);
 			toast.loading("Starting resume import...", { id: "resume-import" });
 			const { data } = await api.post("/candidates/import-resumes", {
-				folderPath: s3FilePath.trim()
+				folderPath: normalizedFolderPath
 			});
-			toast.success(`Import started! ${data.fileCount} files queued.`, { id: "resume-import" });
+			toast.success(
+				`Import started. ${data.queuedCount ?? data.fileCount ?? 0} files queued${data.skippedExistingCount ? `, ${data.skippedExistingCount} skipped` : ""}.`,
+				{ id: "resume-import" },
+			);
 			setS3FilePath("");
 			setActiveTab("history");
 			queryClient.invalidateQueries({ queryKey: ["history"] });
 		} catch (error) {
 			console.error("Resume import error:", error);
 			toast.error(error.response?.data?.message || "Failed to start import", { id: "resume-import" });
+		} finally {
+			setIsStartingResumeImport(false);
 		}
 	};
 
@@ -695,16 +703,17 @@ const AdminDashboard = () => {
 										</div>
 									)}
 
-									{importMode === "s3-resume" && (
-										<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-											<div className="flex flex-col md:flex-row items-center gap-8">
+										{importMode === "s3-resume" && (
+											<div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
+												<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_52%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(129,140,248,0.16),transparent_55%)]" />
+												<div className="relative flex flex-col md:flex-row items-center gap-8">
 												{/* Left: Image */}
 												<div className="w-full md:w-1/3 flex justify-center">
-													<img
-														src={ResumeIcon}
-														alt="Process existing file"
-														className="w-48 md:w-full max-w-xs dark:invert-[.85]"
-													/>
+														<img
+															src={ResumeIcon}
+															alt="Bulk resume import"
+															className="w-48 md:w-full max-w-xs dark:invert-[.85] drop-shadow-sm"
+														/>
 												</div>
 
 												{/* Right: Content */}
@@ -713,36 +722,53 @@ const AdminDashboard = () => {
 														<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
 															Bulk Resume Import
 														</h3>
-														<p className="text-sm text-slate-500 dark:text-slate-400">
-															Process a folder of PDF/DOCX resumes from S3 using AI.
-														</p>
-													</div>
+															<p className="text-sm text-slate-500 dark:text-slate-400">
+																Process an S3 folder of PDF, DOCX, and DOC resumes with background queue processing.
+															</p>
+															<div className="mt-2 flex flex-wrap gap-2">
+																<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">Batch Import</span>
+																<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">Queue + Retry</span>
+																<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">RChilli Parsing</span>
+															</div>
+														</div>
 
 													<div className="space-y-2">
 														<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
 															S3 Folder Path
 														</label>
-														<input
-															type="text"
-															value={s3FilePath}
-															onChange={(e) => setS3FilePath(e.target.value)}
-															placeholder="resumes/batch-2024/"
-															className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
-														/>
+															<input
+																type="text"
+																value={s3FilePath}
+																onChange={(e) => setS3FilePath(e.target.value)}
+																placeholder="Resumes/"
+																className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+																onKeyDown={(e) => {
+																	if (e.key === "Enter" && !isStartingResumeImport && s3FilePath.trim()) {
+																		handleResumeImport();
+																	}
+																}}
+															/>
 														<p className="text-xs text-slate-500">
-															⚠️ Ensure the folder contains only .pdf or .docx files.
+															Use folder prefix only, for example `Resumes/` or `Resumes/Batch-1/`.
 														</p>
 													</div>
 
-													<button
-														onClick={handleResumeImport}
-														disabled={!s3FilePath.trim()}
-														className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${!s3FilePath.trim()
-																? "bg-indigo-400 cursor-not-allowed"
-																: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-															}`}>
-														Start AI Import
-													</button>
+														<button
+															onClick={handleResumeImport}
+															disabled={!s3FilePath.trim() || isStartingResumeImport}
+															className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${!s3FilePath.trim() || isStartingResumeImport
+																	? "bg-indigo-400 cursor-not-allowed"
+																	: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+																}`}>
+															{isStartingResumeImport ? (
+																<span className="flex items-center justify-center gap-2">
+																	<RefreshCw className="w-4 h-4 animate-spin" />
+																	Queueing Import...
+																</span>
+															) : (
+																"Start Resume Import"
+															)}
+														</button>
 												</div>
 											</div>
 										</div>
@@ -763,11 +789,11 @@ const AdminDashboard = () => {
 							<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 								{/* Header */}
 								<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-									<div>
-										<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-											<cloudUpload className="w-5 h-5 text-blue-600" />
-											Upload History
-										</h3>
+										<div>
+											<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+												<CloudUpload className="w-5 h-5 text-blue-600 inline-block mr-2" />
+												Upload History
+											</h3>
 										<p className="text-sm text-slate-400 mt-1">
 											View and manage processed files
 										</p>
@@ -1068,3 +1094,5 @@ const AdminDashboard = () => {
 	);
 };
 export default AdminDashboard;
+
+

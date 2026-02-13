@@ -39,7 +39,27 @@ function App() {
 			<AuthProvider>
 				<ThemeProvider>
 					<UploadProvider>
-						<Toaster position="top-right" reverseOrder={false} />
+						<Toaster
+							position="top-right"
+							reverseOrder={false}
+							gutter={12}
+							containerStyle={{ top: 24, right: 20 }}
+							toastOptions={{
+								className: "hx-toast",
+								duration: 3500,
+								success: {
+									className: "hx-toast hx-toast-success",
+									iconTheme: { primary: "#059669", secondary: "#ecfdf5" },
+								},
+								error: {
+									className: "hx-toast hx-toast-error",
+									iconTheme: { primary: "#dc2626", secondary: "#fef2f2" },
+								},
+								loading: {
+									className: "hx-toast hx-toast-loading",
+								},
+							}}
+						/>
 						<BrowserRouter>
 							<Routes>
 								<Route path="/" element={<Navigate to="/login" replace />} />
