@@ -386,7 +386,7 @@ export const uploadChunk = async (req, res) => {
 export const importResumes = async (req, res) => {
 	let createdJobId = null;
 	try {
-		const { folderPath } = req.body;
+		const { folderPath, skipExisting = false } = req.body || {};
 		if (!folderPath) return res.status(400).json({ message: "Folder path is required" });
 		if (!importQueue) {
 			return res.status(503).json({
@@ -444,17 +444,20 @@ export const importResumes = async (req, res) => {
 				const chunk = resumeFilesPage.slice(i, i + enqueueBatchSize).filter((f) => f?.Key);
 				if (chunk.length === 0) continue;
 
-				const chunkKeys = chunk.map((f) => f.Key);
-				const existingRows = await Candidate.find({
-					sourceFile: { $in: chunkKeys },
-					isDeleted: false,
-				})
-					.select("sourceFile -_id")
-					.lean();
+				let filesToQueue = chunk;
+				if (skipExisting) {
+					const chunkKeys = chunk.map((f) => f.Key);
+					const existingRows = await Candidate.find({
+						sourceFile: { $in: chunkKeys },
+						isDeleted: false,
+					})
+						.select("sourceFile -_id")
+						.lean();
 
-				const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
-				const filesToQueue = chunk.filter((f) => !existingKeys.has(f.Key));
-				skippedExistingCount += chunk.length - filesToQueue.length;
+					const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
+					filesToQueue = chunk.filter((f) => !existingKeys.has(f.Key));
+					skippedExistingCount += chunk.length - filesToQueue.length;
+				}
 
 				if (filesToQueue.length === 0) continue;
 
@@ -469,8 +472,11 @@ export const importResumes = async (req, res) => {
 					},
 				}));
 
+				// Prevent race with workers by increasing totalRows before jobs start completing.
+				const nextQueuedCount = queuedCount + jobsData.length;
+				await UploadJob.findByIdAndUpdate(job._id, { totalRows: nextQueuedCount });
 				await importQueue.addBulk(jobsData);
-				queuedCount += jobsData.length;
+				queuedCount = nextQueuedCount;
 			}
 		}
 
@@ -493,18 +499,18 @@ export const importResumes = async (req, res) => {
 				jobId: job._id,
 				fileCount: discoveredCount,
 				queuedCount: 0,
-				skippedExistingCount
+				skippedExistingCount,
+				skipExisting: !!skipExisting,
 			});
 		}
-
-		await UploadJob.findByIdAndUpdate(job._id, { totalRows: queuedCount });
 
 		res.json({
 			message: "Import started",
 			jobId: job._id,
 			fileCount: discoveredCount,
 			queuedCount,
-			skippedExistingCount
+			skippedExistingCount,
+			skipExisting: !!skipExisting,
 		});
 	} catch (error) {
 		console.error("Import Error:", error);

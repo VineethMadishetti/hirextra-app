@@ -472,19 +472,23 @@ const extractRChilliStructuredData = (payload, fallbackData = {}) => {
 
 	const locality = pickFirstValue(data, [
 		"Location.0.City",
+		"Address.0.City",
 		"Address.City",
 		"PersonalInformation.City",
 		"City",
 	]);
 	const country = pickFirstValue(data, [
 		"Location.0.Country",
+		"Address.0.Country",
 		"Address.Country",
+		"ResumeCountry.Country",
 		"PersonalInformation.Country",
 		"Country",
 	]);
 	const locationValue = pickFirstValue(data, [
 		"Location.0.FormattedLocation",
 		"Location.0.Location",
+		"Address.0.FormattedAddress",
 		"Location",
 		"Address.CompleteAddress",
 	]);
@@ -492,15 +496,19 @@ const extractRChilliStructuredData = (payload, fallbackData = {}) => {
 
 	const firstExperienceTitle = pickFirstValue(data, [
 		"Experience.0.JobProfile.Title",
+		"SegregatedExperience.0.JobProfile.Title",
 		"Experience.0.JobTitle",
 		"WorkHistory.0.JobProfile.Title",
 		"WorkHistory.0.JobTitle",
+		"JobProfile",
 	]);
 	const firstExperienceCompany = pickFirstValue(data, [
 		"Experience.0.JobProfile.CompanyName",
+		"SegregatedExperience.0.Employer.EmployerName",
 		"Experience.0.CompanyName",
 		"WorkHistory.0.JobProfile.CompanyName",
 		"WorkHistory.0.CompanyName",
+		"CurrentEmployer",
 	]);
 
 	const rawSkills = pickFirstValue(data, ["SkillKeywords", "Skills", "SkillSet", "TechnicalSkills"]) || fallbackData.skills || "";
@@ -510,6 +518,7 @@ const extractRChilliStructuredData = (payload, fallbackData = {}) => {
 	const skills = normalizeSkills(normalizedSkillInput);
 
 	const totalExpYears = pickFirstValue(data, [
+		"WorkedPeriod.TotalExperienceInYear",
 		"TotalExperienceInYear",
 		"TotalExperience.Years",
 		"Summary.TotalExperienceInYears",
@@ -532,6 +541,7 @@ const extractRChilliStructuredData = (payload, fallbackData = {}) => {
 	]) || fallbackData.summary || "";
 
 	const industry = pickFirstValue(data, [
+		"Category",
 		"Industry",
 		"CurrentIndustry",
 		"Experience.0.JobProfile.Industry",
@@ -572,6 +582,7 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 	const userKey = (process.env.RCHILLI_USER_KEY || "").trim();
 	const version = (process.env.RCHILLI_VERSION || "8.0.0").trim();
 	const subUserId = (process.env.RCHILLI_SUB_USER_ID || process.env.RCHILLI_SUB_USERID || "").trim();
+	const requestMode = (process.env.RCHILLI_REQUEST_MODE || "auto").trim().toLowerCase();
 
 	if (!userKey) throw new Error("RCHILLI_CONFIG_MISSING: RCHILLI_USER_KEY is not configured");
 
@@ -586,48 +597,91 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 
 	return runWithResumeParseLimit(async () => {
 		const maxAttempts = 4;
-		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			try {
+		const strategies =
+			requestMode === "json"
+				? ["json"]
+				: requestMode === "multipart"
+					? ["multipart"]
+					: ["json", "multipart"];
+
+		const callRChilli = async ({ strategy, fileName, baseFields }) => {
+			let response;
+			if (strategy === "multipart") {
 				const form = new FormData();
-				const fileName = path.basename(String(s3Key || `resume.${fileExt || "pdf"}`));
 				form.append("file", new Blob([buffer]), fileName);
 				form.append("filename", fileName);
-				form.append("fileName", fileName);
-				form.append("userkey", userKey);
-				form.append("version", version);
-				if (subUserId) {
-					form.append("subuserid", subUserId);
-					form.append("subUserId", subUserId);
+				form.append("userkey", baseFields.userkey);
+				form.append("version", baseFields.version);
+				if (baseFields.subuserid) {
+					form.append("subuserid", baseFields.subuserid);
+					form.append("subUserId", baseFields.subuserid);
 				}
-				for (const [key, value] of Object.entries(extraFields || {})) {
-					if (value !== undefined && value !== null) {
-						form.append(key, String(value));
-					}
+				for (const [k, v] of Object.entries(extraFields || {})) {
+					if (v !== undefined && v !== null) form.append(k, String(v));
 				}
-
-				const response = await fetch(endpoint, {
+				response = await fetch(endpoint, {
 					method: "POST",
+					headers: { Accept: "application/json" },
 					body: form,
 				});
+			} else {
+				const requestPayload = { ...baseFields, ...(extraFields || {}) };
+				response = await fetch(endpoint, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Accept: "application/json",
+					},
+					body: JSON.stringify(requestPayload),
+				});
+			}
 
-				if (!response.ok) {
-					const errText = await response.text();
-					const retriable = response.status === 429 || response.status >= 500;
-					if (retriable && attempt < maxAttempts) {
-						await sleep(1000 * attempt * attempt);
-						continue;
+			const rawBody = await response.text();
+			let responseJson = null;
+			try {
+				responseJson = rawBody ? JSON.parse(rawBody) : null;
+			} catch {
+				responseJson = null;
+			}
+
+			if (!response.ok) {
+				throw new Error(`RCHILLI_API_ERROR: ${response.status} - ${String(rawBody || "").slice(0, 1500)}`);
+			}
+
+			if (!responseJson || typeof responseJson !== "object") {
+				throw new Error(`RCHILLI_INVALID_RESPONSE: non-JSON response (${strategy})`);
+			}
+
+			return responseJson;
+		};
+
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				const fileName = path.basename(String(s3Key || `resume.${fileExt || "pdf"}`));
+				const baseFields = {
+					filedata: buffer.toString("base64"),
+					filename: fileName,
+					userkey: userKey,
+					version,
+					...(subUserId ? { subuserid: subUserId } : {}),
+				};
+				let responseJson;
+				let lastError = null;
+				for (const strategy of strategies) {
+					try {
+						responseJson = await callRChilli({ strategy, fileName, baseFields });
+						break;
+					} catch (strategyErr) {
+						lastError = strategyErr;
+						const retriable = /RCHILLI_API_ERROR:\s*(429|5\d\d)/.test(String(strategyErr.message || ""));
+						if (retriable) throw strategyErr;
 					}
-					throw new Error(`RCHILLI_API_ERROR: ${response.status} - ${errText}`);
+				}
+				if (!responseJson) {
+					throw lastError || new Error("RCHILLI_PARSE_FAILED: no response from parser");
 				}
 
-				let payload;
-				try {
-					payload = await response.json();
-				} catch {
-					throw new Error("RCHILLI_INVALID_RESPONSE: non-JSON response");
-				}
-
-				const statusText = String(pickFirstValue(payload, [
+				const statusText = String(pickFirstValue(responseJson, [
 					"status",
 					"Status",
 					"StatusCode",
@@ -637,10 +691,10 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 					"ResumeParserData.StatusCode",
 				])).toLowerCase();
 				const hasErrorFlag = Boolean(
-					pickFirstValue(payload, ["isError", "error", "HasError", "hasError"]),
+					pickFirstValue(responseJson, ["isError", "error", "HasError", "hasError"]),
 				);
 				if (hasErrorFlag || statusText === "error" || statusText === "failed") {
-					const msg = pickFirstValue(payload, [
+					const msg = pickFirstValue(responseJson, [
 						"Message",
 						"message",
 						"ErrorMessage",
@@ -649,7 +703,7 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 					throw new Error(`RCHILLI_PARSE_FAILED: ${msg}`);
 				}
 
-				const mapped = extractRChilliStructuredData(payload, fallbackData);
+				const mapped = extractRChilliStructuredData(responseJson, fallbackData);
 				return {
 					parsedData: mapped.parsedData,
 					parseWarnings: mapped.parseWarnings,
@@ -801,7 +855,10 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 				jobId,
 				parseStatus: "PARTIAL",
 				parseWarnings: [reason, errorMessage],
-				rawParsedResume: null,
+				rawParsedResume: {
+					reason,
+					error: String(errorMessage || "").slice(0, 2000),
+				},
 			});
 
 			if (!partialCandidate.summary) {
@@ -849,7 +906,8 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
 
 			// Check if the job is complete using the returned document
-			if (updatedJob && (updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)) {
+			// totalRows can briefly be 0 while enqueueing; avoid marking complete in that window.
+			if (updatedJob && updatedJob.totalRows > 0 && (updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)) {
 				const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
 				await UploadJob.findByIdAndUpdate(jobId, {
 					status: finalStatus,
