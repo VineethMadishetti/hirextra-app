@@ -14,6 +14,8 @@ import {
 	Paragraph,
 	TextRun,
 	AlignmentType,
+	Header,
+	ImageRun,
 	BorderStyle,
 } from "docx";
 import xlsx from "xlsx";
@@ -1172,39 +1174,112 @@ export const downloadProfile = async (req, res) => {
 			return res.status(404).json({ message: "Candidate not found" });
 		}
 
-		const clean = (v) =>
+		const cleanInline = (v) =>
 			v
 				? String(v)
+					.replace(/\t/g, " ")
 					.replace(/[\r\n]+/g, " ")
+					.replace(/\s+/g, " ")
 					.trim()
 				: "";
 		const toArray = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 		const parserData = candidate?.parsedResume?.raw?.ResumeParserData || {};
 
-		const emailList = [
-			clean(candidate.email),
-			...toArray(parserData.Email).map((e) => clean(e?.EmailAddress || e?.Email || "")),
-		].filter(Boolean);
-		const uniqueEmails = [...new Set(emailList.map((e) => e.toLowerCase()))];
+		const normalizeMultiline = (v) =>
+			String(v || "")
+				.replace(/\r\n/g, "\n")
+				.replace(/\r/g, "\n")
+				.replace(/\u0000/g, "")
+				.split("\n")
+				.map((line) => line.replace(/\t/g, " ").replace(/\s+/g, " ").trim())
+				.filter(Boolean);
 
-		const phoneList = [
-			clean(candidate.phone),
-			...toArray(parserData.PhoneNumber).map((p) => clean(p?.FormattedNumber || p?.Number || "")),
-		].filter(Boolean);
-		const uniquePhones = [...new Set(phoneList)];
+		const dedupeBy = (arr, keyFn) => {
+			const map = new Map();
+			for (const item of arr) {
+				const key = keyFn(item);
+				if (!key || map.has(key)) continue;
+				map.set(key, item);
+			}
+			return [...map.values()];
+		};
 
-		const websiteList = toArray(parserData.WebSite)
-			.map((w) => clean(w?.Url || w?.URL || ""))
-			.filter(Boolean);
+		const parseRchilliDate = (value) => {
+			const v = cleanInline(value);
+			const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+			if (!m) return 0;
+			const day = Number(m[1]);
+			const month = Number(m[2]) - 1;
+			const year = Number(m[3]);
+			const ts = new Date(year, month, day).getTime();
+			return Number.isFinite(ts) ? ts : 0;
+		};
 
-		const skillList = clean(candidate.skills)
+		const normalizePhone = (value) => cleanInline(value).replace(/[^\d+]/g, "");
+
+		const rawWebsites = toArray(parserData.WebSite)
+			.map((w) => ({
+				type: cleanInline(w?.Type),
+				url: cleanInline(w?.Url || w?.URL),
+			}))
+			.filter((w) => w.url);
+
+		const uniqueEmails = dedupeBy(
+			[
+				{ value: cleanInline(candidate.email) },
+				...toArray(parserData.Email).map((e) => ({ value: cleanInline(e?.EmailAddress || e?.Email) })),
+			].filter((x) => x.value),
+			(x) => x.value.toLowerCase(),
+		).map((x) => x.value);
+
+		const uniquePhones = dedupeBy(
+			[
+				{ value: cleanInline(candidate.phone) },
+				...toArray(parserData.PhoneNumber).map((p) => ({ value: cleanInline(p?.FormattedNumber || p?.Number) })),
+			].filter((x) => x.value),
+			(x) => normalizePhone(x.value),
+		).map((x) => x.value);
+
+		const linkedinLinks = dedupeBy(
+			[
+				{ url: cleanInline(candidate.linkedinUrl) },
+				...rawWebsites
+					.filter((w) => /linkedin/i.test(w.url) || /linkedin/i.test(w.type))
+					.map((w) => ({ url: w.url })),
+			].filter((x) => x.url),
+			(x) => x.url.toLowerCase(),
+		).map((x) => x.url);
+
+		const otherWebsites = dedupeBy(
+			rawWebsites.filter((w) => !/linkedin/i.test(w.url) && !/linkedin/i.test(w.type)),
+			(w) => w.url.toLowerCase(),
+		).map((w) => w.url);
+
+		const candidateSkills = cleanInline(candidate.skills)
 			.split(",")
 			.map((s) => s.trim())
-			.map((s) => s.replace(/\b\w/g, (c) => c.toUpperCase()))
 			.filter(Boolean);
-		const segregatedSkills = toArray(parserData.SegregatedSkill).filter(
-			(s) => clean(s?.Skill || s?.FormattedName),
-		);
+
+		const segregatedSkills = toArray(parserData.SegregatedSkill)
+			.map((s) => ({
+				name: cleanInline(s?.FormattedName || s?.Skill),
+				lastUsed: cleanInline(s?.LastUsed),
+				lastUsedTs: parseRchilliDate(s?.LastUsed),
+				expMonths: Number(s?.ExperienceInMonths || 0),
+			}))
+			.filter((s) => s.name);
+
+		const orderedSkills =
+			segregatedSkills.length > 0
+				? dedupeBy(
+					segregatedSkills.sort((a, b) => {
+						if (b.lastUsedTs !== a.lastUsedTs) return b.lastUsedTs - a.lastUsedTs;
+						if (b.expMonths !== a.expMonths) return b.expMonths - a.expMonths;
+						return a.name.localeCompare(b.name);
+					}),
+					(s) => s.name.toLowerCase(),
+				  ).map((s) => s.name)
+				: dedupeBy(candidateSkills.map((s) => ({ name: s })), (s) => s.name.toLowerCase()).map((s) => s.name);
 
 		const addresses = toArray(parserData.Address);
 		const qualifications = toArray(parserData.SegregatedQualification);
@@ -1213,12 +1288,33 @@ export const downloadProfile = async (req, res) => {
 		const achievements = toArray(parserData.SegregatedAchievement);
 		const publications = toArray(parserData.SegregatedPublication);
 
+		const projectEntries = [];
+		for (const exp of experiences) {
+			const expEmployer = cleanInline(exp?.Employer?.EmployerName);
+			const expRole = cleanInline(exp?.JobProfile?.Title || exp?.JobProfile?.FormattedName);
+			const expPeriod = cleanInline(exp?.FormattedJobPeriod || exp?.JobPeriod);
+			for (const p of toArray(exp?.Projects)) {
+				const projectName = cleanInline(p?.ProjectName);
+				const usedSkills = cleanInline(p?.UsedSkills);
+				const teamSize = cleanInline(p?.TeamSize);
+				if (!projectName && !usedSkills && !teamSize) continue;
+				projectEntries.push({
+					projectName: projectName || "Project",
+					usedSkills,
+					teamSize,
+					employer: expEmployer,
+					role: expRole,
+					period: expPeriod,
+				});
+			}
+		}
+
 		const children = [];
 		const addSectionHeader = (text) => {
 			children.push(new Paragraph({ text, style: "SectionHeader" }));
 		};
 		const addLine = (text, opts = {}) => {
-			const t = clean(text);
+			const t = cleanInline(text);
 			if (!t) return;
 			children.push(
 				new Paragraph({
@@ -1229,7 +1325,7 @@ export const downloadProfile = async (req, res) => {
 			);
 		};
 		const addBullet = (text, indent = 360) => {
-			const t = clean(text);
+			const t = cleanInline(text);
 			if (!t) return;
 			children.push(
 				new Paragraph({
@@ -1240,8 +1336,19 @@ export const downloadProfile = async (req, res) => {
 				}),
 			);
 		};
+		const addMultiline = (text, { indent = 360, bullets = false } = {}) => {
+			for (const line of normalizeMultiline(text)) {
+				const isBulletLike = /^[\u2022\-*]/.test(line);
+				const normalizedLine = line.replace(/^[\u2022\-*\s]+/, "").trim();
+				if (bullets || isBulletLike) {
+					addBullet(normalizedLine, indent);
+				} else {
+					addLine(normalizedLine, { indent });
+				}
+			}
+		};
 		const addKeyValue = (label, value, indent = 360) => {
-			const v = clean(value);
+			const v = cleanInline(value);
 			if (!v) return;
 			children.push(
 				new Paragraph({
@@ -1256,12 +1363,12 @@ export const downloadProfile = async (req, res) => {
 		};
 
 		const headerName =
-			clean(parserData?.Name?.FormattedName) ||
-			clean(parserData?.Name?.FullName) ||
-			clean(candidate.fullName).toUpperCase();
-		const headerJob = clean(parserData.JobProfile) || clean(candidate.jobTitle);
+			cleanInline(parserData?.Name?.FormattedName) ||
+			cleanInline(parserData?.Name?.FullName) ||
+			cleanInline(candidate.fullName).toUpperCase();
+		const headerJob = cleanInline(parserData.JobProfile) || cleanInline(candidate.jobTitle);
 		const headerLocation =
-			clean(addresses[0]?.FormattedAddress) ||
+			cleanInline(addresses[0]?.FormattedAddress) ||
 			formatLocationText(candidate.locality, candidate.location, candidate.country);
 
 		children.push(
@@ -1283,16 +1390,17 @@ export const downloadProfile = async (req, res) => {
 			children.push(
 				new Paragraph({
 					alignment: AlignmentType.CENTER,
-					spacing: { after: 200 },
+					spacing: { after: 180 },
 					children: [new TextRun({ text: headerJob, font: "Tahoma", size: 28 })],
 				}),
 			);
 		}
 
 		addLine(headerLocation);
-		addLine([...uniqueEmails, ...uniquePhones].join(" | "));
-		if (candidate.linkedinUrl) addLine(candidate.linkedinUrl);
-		if (websiteList.length > 0) addLine(websiteList.slice(0, 4).join(" | "));
+		if (uniqueEmails.length > 0) addLine(uniqueEmails.join(" | "));
+		if (uniquePhones.length > 0) addLine(uniquePhones.join(" | "));
+		if (linkedinLinks.length > 0) addLine(linkedinLinks[0]);
+		if (otherWebsites.length > 0) addLine(otherWebsites.slice(0, 3).join(" | "));
 
 		children.push(
 			new Paragraph({
@@ -1304,27 +1412,107 @@ export const downloadProfile = async (req, res) => {
 		);
 
 		addSectionHeader("PROFILE OVERVIEW");
-		addKeyValue("Industry", clean(candidate.industry) || clean(parserData.Category));
-		addKeyValue("Sub Category", clean(parserData.SubCategory));
-		addKeyValue("Total Experience", clean(candidate.experience) || clean(parserData?.WorkedPeriod?.TotalExperienceInYear ? `${parserData.WorkedPeriod.TotalExperienceInYear} Years` : ""));
-		addKeyValue("Current Employer", clean(parserData.CurrentEmployer) || clean(candidate.company));
-		addKeyValue("Resume Language", clean(parserData?.ResumeLanguage?.Language));
+		addKeyValue("Industry", cleanInline(candidate.industry) || cleanInline(parserData.Category));
+		addKeyValue("Sub Category", cleanInline(parserData.SubCategory));
+		addKeyValue(
+			"Total Experience",
+			cleanInline(candidate.experience) ||
+				(cleanInline(parserData?.WorkedPeriod?.TotalExperienceInYear)
+					? `${cleanInline(parserData.WorkedPeriod.TotalExperienceInYear)} Years`
+					: ""),
+		);
+		addKeyValue("Current Employer", cleanInline(parserData.CurrentEmployer) || cleanInline(candidate.company));
 
-		if (clean(candidate.summary) || clean(parserData.Summary) || clean(parserData.ExecutiveSummary)) {
+		if (
+			cleanInline(candidate.summary) ||
+			cleanInline(parserData.Summary) ||
+			cleanInline(parserData.ExecutiveSummary)
+		) {
 			addSectionHeader("PROFESSIONAL SUMMARY");
-			addLine(clean(candidate.summary) || clean(parserData.Summary), { indent: 360 });
-			if (clean(parserData.ExecutiveSummary)) addLine(clean(parserData.ExecutiveSummary), { indent: 360 });
-			if (clean(parserData.ManagementSummary)) addLine(clean(parserData.ManagementSummary), { indent: 360 });
+			addMultiline(cleanInline(candidate.summary) || parserData.Summary, { indent: 360 });
+			if (cleanInline(parserData.ExecutiveSummary)) addMultiline(parserData.ExecutiveSummary, { indent: 360 });
+			if (cleanInline(parserData.ManagementSummary)) addMultiline(parserData.ManagementSummary, { indent: 360 });
 		}
 
-		if (qualifications.length > 0 || clean(parserData.Qualification)) {
+		if (orderedSkills.length > 0) {
+			addSectionHeader("SKILLS");
+			for (const skillName of orderedSkills) addBullet(skillName);
+		}
+
+		if (experiences.length > 0 || cleanInline(parserData.Experience) || cleanInline(candidate.jobTitle) || cleanInline(candidate.company)) {
+			addSectionHeader("WORK EXPERIENCE");
+			if (experiences.length > 0) {
+				for (const exp of experiences) {
+					const role = cleanInline(exp?.JobProfile?.Title || exp?.JobProfile?.FormattedName || candidate.jobTitle);
+					const employer = cleanInline(exp?.Employer?.EmployerName || candidate.company);
+					const period = cleanInline(exp?.FormattedJobPeriod || exp?.JobPeriod);
+					const location = cleanInline(
+						[
+							exp?.Location?.City,
+							exp?.Location?.State,
+							exp?.Location?.Country,
+						]
+							.filter(Boolean)
+							.join(", "),
+					);
+					if (role || employer) {
+						children.push(
+							new Paragraph({
+								indent: { left: 360 },
+								spacing: { after: 40 },
+								children: [
+									new TextRun({ text: role || "Role", bold: true }),
+									...(employer ? [new TextRun({ text: ` | ${employer}` })] : []),
+								],
+							}),
+						);
+					}
+					addKeyValue("Period", period, 720);
+					addKeyValue("Location", location, 720);
+
+					if (cleanInline(exp?.JobDescription)) {
+						addMultiline(exp.JobDescription, { indent: 720, bullets: true });
+					}
+				}
+			} else {
+				if (cleanInline(candidate.jobTitle) || cleanInline(candidate.company)) {
+					addBullet([cleanInline(candidate.jobTitle), cleanInline(candidate.company)].filter(Boolean).join(" | "));
+					addKeyValue("Experience", cleanInline(candidate.experience), 720);
+				}
+				if (cleanInline(parserData.Experience)) {
+					addMultiline(parserData.Experience, { indent: 720, bullets: true });
+				}
+			}
+		}
+
+		if (projectEntries.length > 0) {
+			addSectionHeader("PROJECTS");
+			for (const project of projectEntries) {
+				children.push(
+					new Paragraph({
+						indent: { left: 360 },
+						spacing: { after: 40 },
+						children: [new TextRun({ text: project.projectName, bold: true })],
+					}),
+				);
+				addKeyValue("Organization", project.employer, 720);
+				addKeyValue("Role", project.role, 720);
+				addKeyValue("Period", project.period, 720);
+				addKeyValue("Skills", project.usedSkills, 720);
+				addKeyValue("Team Size", project.teamSize, 720);
+			}
+		}
+
+		if (qualifications.length > 0 || cleanInline(parserData.Qualification)) {
 			addSectionHeader("EDUCATION");
 			if (qualifications.length > 0) {
 				for (const edu of qualifications) {
-					const degree = clean(edu?.Degree?.DegreeName || edu?.Degree?.NormalizeDegree);
-					const inst = clean(edu?.Institution?.Name);
-					const period = clean(edu?.FormattedDegreePeriod || [edu?.StartDate, edu?.EndDate].filter(Boolean).join(" - "));
-					const location = clean(
+					const degree = cleanInline(edu?.Degree?.DegreeName || edu?.Degree?.NormalizeDegree);
+					const inst = cleanInline(edu?.Institution?.Name);
+					const period = cleanInline(
+						edu?.FormattedDegreePeriod || [edu?.StartDate, edu?.EndDate].filter(Boolean).join(" - "),
+					);
+					const location = cleanInline(
 						[
 							edu?.Institution?.Location?.City,
 							edu?.Institution?.Location?.State,
@@ -1341,123 +1529,56 @@ export const downloadProfile = async (req, res) => {
 					}
 				}
 			} else {
-				addLine(parserData.Qualification, { indent: 360 });
+				addMultiline(parserData.Qualification, { indent: 360 });
 			}
 		}
 
-		if (segregatedSkills.length > 0 || skillList.length > 0) {
-			addSectionHeader("SKILLS");
-			if (segregatedSkills.length > 0) {
-				for (const skill of segregatedSkills) {
-					const label = clean(skill?.FormattedName || skill?.Skill);
-					if (!label) continue;
-					const detailParts = [
-						skill?.ExperienceInMonths ? `${skill.ExperienceInMonths} months` : "",
-						clean(skill?.LastUsed) ? `Last used: ${clean(skill.LastUsed)}` : "",
-						clean(skill?.Evidence) ? `Evidence: ${clean(skill.Evidence)}` : "",
-					].filter(Boolean);
-					addBullet(detailParts.length ? `${label} (${detailParts.join(" | ")})` : label);
-				}
-			} else {
-				for (const s of skillList) addBullet(s);
-			}
-		}
-
-		if (experiences.length > 0 || clean(parserData.Experience)) {
-			addSectionHeader("WORK EXPERIENCE");
-			if (experiences.length > 0) {
-				for (const exp of experiences) {
-					const role = clean(exp?.JobProfile?.Title || exp?.JobProfile?.FormattedName || candidate.jobTitle);
-					const employer = clean(exp?.Employer?.EmployerName || candidate.company);
-					const period = clean(exp?.FormattedJobPeriod || exp?.JobPeriod);
-					const location = clean(
-						[
-							exp?.Location?.City,
-							exp?.Location?.State,
-							exp?.Location?.Country,
-						]
-							.filter(Boolean)
-							.join(", "),
-					);
-
-					addBullet([role, employer].filter(Boolean).join(" | "));
-					addKeyValue("Period", period, 720);
-					addKeyValue("Location", location, 720);
-					addKeyValue("Current Employer", exp?.IsCurrentEmployer === "true" ? "Yes" : "No", 720);
-
-					const desc = clean(exp?.JobDescription);
-					if (desc) {
-						addKeyValue("Description", desc, 720);
-					}
-
-					const projects = toArray(exp?.Projects).filter(
-						(p) => clean(p?.ProjectName) || clean(p?.UsedSkills) || clean(p?.TeamSize),
-					);
-					if (projects.length > 0) {
-						addKeyValue("Projects", "", 720);
-						for (const p of projects) {
-							const pname = clean(p?.ProjectName) || "Project";
-							const pskills = clean(p?.UsedSkills);
-							const pteam = clean(p?.TeamSize);
-							addBullet(
-								[pname, pskills ? `Skills: ${pskills}` : "", pteam ? `Team: ${pteam}` : ""]
-									.filter(Boolean)
-									.join(" | "),
-								900,
-							);
-						}
-					}
-				}
-			} else {
-				addLine(parserData.Experience, { indent: 360 });
-			}
-		}
-
-		if (certifications.length > 0 || clean(parserData.Certification)) {
+		if (certifications.length > 0 || cleanInline(parserData.Certification)) {
 			addSectionHeader("CERTIFICATIONS");
-			if (certifications.length > 0) {
-				for (const cert of certifications) {
-					addBullet(
-						[
-							clean(cert?.Certification),
-							clean(cert?.Issuer),
-							clean(cert?.Date),
-						]
-							.filter(Boolean)
-							.join(" | "),
-					);
-				}
+			for (const cert of certifications) {
+				addBullet(
+					[
+						cleanInline(cert?.Certification),
+						cleanInline(cert?.Issuer),
+						cleanInline(cert?.Date),
+					]
+						.filter(Boolean)
+						.join(" | "),
+				);
 			}
-			if (clean(parserData.Certification)) addLine(parserData.Certification, { indent: 360 });
+			if (cleanInline(parserData.Certification)) addMultiline(parserData.Certification, { indent: 360 });
 		}
 
-		if (achievements.length > 0 || clean(parserData.Achievements)) {
+		if (achievements.length > 0 || cleanInline(parserData.Achievements)) {
 			addSectionHeader("ACHIEVEMENTS");
 			for (const ach of achievements) {
-				addBullet(clean(ach?.Achievement || ach?.Description || JSON.stringify(ach)));
+				addBullet(cleanInline(ach?.Achievement || ach?.Description || JSON.stringify(ach)));
 			}
-			if (clean(parserData.Achievements)) addLine(parserData.Achievements, { indent: 360 });
+			if (cleanInline(parserData.Achievements)) addMultiline(parserData.Achievements, { indent: 360 });
 		}
 
-		if (publications.length > 0 || clean(parserData.Publication)) {
+		if (publications.length > 0 || cleanInline(parserData.Publication)) {
 			addSectionHeader("PUBLICATIONS");
 			for (const pub of publications) {
-				addBullet(clean(pub?.Title || pub?.Publication || pub?.Description || JSON.stringify(pub)));
+				addBullet(cleanInline(pub?.Title || pub?.Publication || pub?.Description || JSON.stringify(pub)));
 			}
-			if (clean(parserData.Publication)) addLine(parserData.Publication, { indent: 360 });
+			if (cleanInline(parserData.Publication)) addMultiline(parserData.Publication, { indent: 360 });
 		}
 
-		if (clean(parserData.DetailResume)) {
-			addSectionHeader("DETAILED RESUME EXTRACT");
-			addLine(parserData.DetailResume, { indent: 360 });
+		const faviconCandidates = [
+			path.join(process.cwd(), "client", "public", "favicon.svg"),
+			path.join(process.cwd(), "client", "public", "favicon-96x96.png"),
+		];
+		let faviconImage = null;
+		for (const p of faviconCandidates) {
+			if (!fs.existsSync(p)) continue;
+			const ext = path.extname(p).toLowerCase();
+			faviconImage = {
+				data: fs.readFileSync(p),
+				type: ext === ".svg" ? "svg" : ext === ".png" ? "png" : undefined,
+			};
+			break;
 		}
-
-		addSectionHeader("PARSER METADATA");
-		addKeyValue("Parsing Date", clean(parserData.ParsingDate));
-		addKeyValue("Resume File Name", clean(parserData.ResumeFileName) || clean(candidate.sourceFile));
-		addKeyValue("Parser Version", clean(parserData?.ApiInfo?.BuildVersion));
-		addKeyValue("Credits Left", clean(parserData?.ApiInfo?.CreditLeft));
-		addKeyValue("Account Expiry", clean(parserData?.ApiInfo?.AccountExpiryDate));
 
 		const doc = new Document({
 			styles: {
@@ -1494,41 +1615,60 @@ export const downloadProfile = async (req, res) => {
 				],
 			},
 
-				sections: [
-					{
-						properties: {
-							page: {
+			sections: [
+				{
+					properties: {
+						page: {
 							margin: {
 								top: 720,
 								bottom: 720,
 								left: 720,
 								right: 720,
-								},
 							},
 						},
-						children: [
-							...children,
-							new Paragraph({
-								alignment: AlignmentType.CENTER,
-								spacing: { before: 360 },
+					},
+					headers: faviconImage
+						? {
+							default: new Header({
 								children: [
-									new TextRun({
-										text: "Profile generated by PeopleFinder",
-										font: "Arial",
-										size: 18,
-										color: "666666",
-										italics: true,
+									new Paragraph({
+										alignment: AlignmentType.RIGHT,
+										spacing: { after: 60 },
+										children: [
+											new ImageRun({
+												data: faviconImage.data,
+												type: faviconImage.type,
+												transformation: { width: 16, height: 16 },
+											}),
+										],
 									}),
 								],
 							}),
-						],
-					},
-				],
-			});
+						  }
+						: undefined,
+					children: [
+						...children,
+						new Paragraph({
+							alignment: AlignmentType.CENTER,
+							spacing: { before: 360 },
+							children: [
+								new TextRun({
+									text: "Profile Generated by PeopleFinder",
+									font: "Arial",
+									size: 18,
+									color: "666666",
+									italics: true,
+								}),
+							],
+						}),
+					],
+				},
+			],
+		});
 
 		const buffer = await Packer.toBuffer(doc);
 
-		const firstName = (clean(candidate.fullName) || "Candidate").split(" ")[0];
+		const firstName = (cleanInline(candidate.fullName) || "Candidate").split(" ")[0];
 		const today = new Date();
 		const day = String(today.getDate()).padStart(2, "0");
 		const month = String(today.getMonth() + 1).padStart(2, "0");
