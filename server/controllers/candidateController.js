@@ -16,6 +16,11 @@ import {
 	AlignmentType,
 	Header,
 	ImageRun,
+	ExternalHyperlink,
+	Table,
+	TableRow,
+	TableCell,
+	WidthType,
 	BorderStyle,
 } from "docx";
 import xlsx from "xlsx";
@@ -1216,6 +1221,13 @@ export const downloadProfile = async (req, res) => {
 		};
 
 		const normalizePhone = (value) => cleanInline(value).replace(/[^\d+]/g, "");
+		const normalizeUrlForDedup = (value) =>
+			cleanInline(value)
+				.toLowerCase()
+				.replace(/^https?:\/\//, "")
+				.replace(/^www\./, "")
+				.replace(/[?#].*$/, "")
+				.replace(/\/+$/, "");
 
 		const rawWebsites = toArray(parserData.WebSite)
 			.map((w) => ({
@@ -1247,12 +1259,12 @@ export const downloadProfile = async (req, res) => {
 					.filter((w) => /linkedin/i.test(w.url) || /linkedin/i.test(w.type))
 					.map((w) => ({ url: w.url })),
 			].filter((x) => x.url),
-			(x) => x.url.toLowerCase(),
+			(x) => normalizeUrlForDedup(x.url),
 		).map((x) => x.url);
 
 		const otherWebsites = dedupeBy(
 			rawWebsites.filter((w) => !/linkedin/i.test(w.url) && !/linkedin/i.test(w.type)),
-			(w) => w.url.toLowerCase(),
+			(w) => normalizeUrlForDedup(w.url),
 		).map((w) => w.url);
 
 		const candidateSkills = cleanInline(candidate.skills)
@@ -1361,6 +1373,48 @@ export const downloadProfile = async (req, res) => {
 				}),
 			);
 		};
+		const addLinkLine = (label, text, href, indent = 0) => {
+			const t = cleanInline(text);
+			const h = cleanInline(href);
+			if (!t || !h) return;
+			children.push(
+				new Paragraph({
+					indent: indent ? { left: indent } : undefined,
+					spacing: { after: 60 },
+					children: [
+						...(label ? [new TextRun({ text: `${label}: `, bold: true })] : []),
+						new ExternalHyperlink({
+							link: h,
+							children: [new TextRun({ text: t, style: "Hyperlink" })],
+						}),
+					],
+				}),
+			);
+		};
+		const addExperienceBullets = (text, indent = 720) => {
+			for (const line of normalizeMultiline(text)) {
+				const normalized = line.replace(/^[\u2022\-*\s]+/, "").trim();
+				if (!normalized) continue;
+				const colonIdx = normalized.indexOf(":");
+				if (colonIdx > 1 && colonIdx <= 50) {
+					const lead = normalized.slice(0, colonIdx).trim();
+					const tail = normalized.slice(colonIdx + 1).trim();
+					children.push(
+						new Paragraph({
+							bullet: { level: 0 },
+							indent: { left: indent },
+							spacing: { after: 40 },
+							children: [
+								new TextRun({ text: `${lead}: `, bold: true }),
+								new TextRun({ text: tail }),
+							],
+						}),
+					);
+					continue;
+				}
+				addBullet(normalized, indent);
+			}
+		};
 
 		const headerName =
 			cleanInline(parserData?.Name?.FormattedName) ||
@@ -1397,10 +1451,28 @@ export const downloadProfile = async (req, res) => {
 		}
 
 		addLine(headerLocation);
-		if (uniqueEmails.length > 0) addLine(uniqueEmails.join(" | "));
-		if (uniquePhones.length > 0) addLine(uniquePhones.join(" | "));
-		if (linkedinLinks.length > 0) addLine(linkedinLinks[0]);
-		if (otherWebsites.length > 0) addLine(otherWebsites.slice(0, 3).join(" | "));
+		if (uniqueEmails.length > 0) {
+			for (const email of uniqueEmails.slice(0, 2)) {
+				addLinkLine("Email", email, `mailto:${email}`);
+			}
+		}
+		if (uniquePhones.length > 0) {
+			for (const phone of uniquePhones.slice(0, 2)) {
+				addLinkLine("Phone", phone, `tel:${normalizePhone(phone)}`);
+			}
+		}
+		if (linkedinLinks.length > 0) {
+			const lnk = linkedinLinks[0].startsWith("http")
+				? linkedinLinks[0]
+				: `https://${linkedinLinks[0]}`;
+			addLinkLine("LinkedIn", linkedinLinks[0], lnk);
+		}
+		if (otherWebsites.length > 0) {
+			for (const site of otherWebsites.slice(0, 3)) {
+				const href = site.startsWith("http") ? site : `https://${site}`;
+				addLinkLine("Website", site, href);
+			}
+		}
 
 		children.push(
 			new Paragraph({
@@ -1411,32 +1483,46 @@ export const downloadProfile = async (req, res) => {
 			}),
 		);
 
-		addSectionHeader("PROFILE OVERVIEW");
-		addKeyValue("Industry", cleanInline(candidate.industry) || cleanInline(parserData.Category));
-		addKeyValue("Sub Category", cleanInline(parserData.SubCategory));
-		addKeyValue(
-			"Total Experience",
-			cleanInline(candidate.experience) ||
-				(cleanInline(parserData?.WorkedPeriod?.TotalExperienceInYear)
-					? `${cleanInline(parserData.WorkedPeriod.TotalExperienceInYear)} Years`
-					: ""),
-		);
-		addKeyValue("Current Employer", cleanInline(parserData.CurrentEmployer) || cleanInline(candidate.company));
-
-		if (
-			cleanInline(candidate.summary) ||
-			cleanInline(parserData.Summary) ||
-			cleanInline(parserData.ExecutiveSummary)
-		) {
-			addSectionHeader("PROFESSIONAL SUMMARY");
-			addMultiline(cleanInline(candidate.summary) || parserData.Summary, { indent: 360 });
-			if (cleanInline(parserData.ExecutiveSummary)) addMultiline(parserData.ExecutiveSummary, { indent: 360 });
-			if (cleanInline(parserData.ManagementSummary)) addMultiline(parserData.ManagementSummary, { indent: 360 });
-		}
-
 		if (orderedSkills.length > 0) {
 			addSectionHeader("SKILLS");
-			for (const skillName of orderedSkills) addBullet(skillName);
+			const splitAt = Math.ceil(orderedSkills.length / 2);
+			const leftCol = orderedSkills.slice(0, splitAt);
+			const rightCol = orderedSkills.slice(splitAt);
+			children.push(
+				new Table({
+					indent: { size: 360, type: WidthType.DXA },
+					width: { size: 100, type: WidthType.PERCENTAGE },
+					borders: {
+						top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+						bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+						left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+						right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+						insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+						insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+					},
+					rows: [
+						new TableRow({
+							children: [leftCol, rightCol].map(
+								(col) =>
+									new TableCell({
+										width: { size: 50, type: WidthType.PERCENTAGE },
+										children:
+											col.length > 0
+												? col.map(
+														(skill) =>
+															new Paragraph({
+																bullet: { level: 0 },
+																spacing: { after: 40 },
+																children: [new TextRun({ text: skill })],
+															}),
+												  )
+												: [new Paragraph({ text: "" })],
+									}),
+							),
+						}),
+					],
+				}),
+			);
 		}
 
 		if (experiences.length > 0 || cleanInline(parserData.Experience) || cleanInline(candidate.jobTitle) || cleanInline(candidate.company)) {
@@ -1467,23 +1553,23 @@ export const downloadProfile = async (req, res) => {
 							}),
 						);
 					}
-					addKeyValue("Period", period, 720);
-					addKeyValue("Location", location, 720);
+						addKeyValue("Period", period, 720);
+						addKeyValue("Location", location, 720);
 
-					if (cleanInline(exp?.JobDescription)) {
-						addMultiline(exp.JobDescription, { indent: 720, bullets: true });
+						if (cleanInline(exp?.JobDescription)) {
+							addExperienceBullets(exp.JobDescription, 720);
+						}
 					}
-				}
-			} else {
+				} else {
 				if (cleanInline(candidate.jobTitle) || cleanInline(candidate.company)) {
 					addBullet([cleanInline(candidate.jobTitle), cleanInline(candidate.company)].filter(Boolean).join(" | "));
 					addKeyValue("Experience", cleanInline(candidate.experience), 720);
-				}
-				if (cleanInline(parserData.Experience)) {
-					addMultiline(parserData.Experience, { indent: 720, bullets: true });
+					}
+					if (cleanInline(parserData.Experience)) {
+						addExperienceBullets(parserData.Experience, 720);
+					}
 				}
 			}
-		}
 
 		if (projectEntries.length > 0) {
 			addSectionHeader("PROJECTS");
@@ -1565,9 +1651,32 @@ export const downloadProfile = async (req, res) => {
 			if (cleanInline(parserData.Publication)) addMultiline(parserData.Publication, { indent: 360 });
 		}
 
+		const profileOverview = cleanInline(parserData.Summary) || cleanInline(candidate.summary);
+		const summarySections = [
+			{ label: "Executive Summary", value: cleanInline(parserData.ExecutiveSummary) },
+			{ label: "Management Summary", value: cleanInline(parserData.ManagementSummary) },
+		].filter((entry) => entry.value);
+
+		if (profileOverview) {
+			addSectionHeader("PROFILE OVERVIEW");
+			addMultiline(profileOverview, { indent: 360 });
+		}
+		if (summarySections.length > 0) {
+			addSectionHeader("ADDITIONAL SUMMARY");
+			for (const section of summarySections) {
+				children.push(
+					new Paragraph({
+						indent: { left: 360 },
+						spacing: { after: 60 },
+						children: [new TextRun({ text: `${section.label}: `, bold: true }), new TextRun({ text: section.value })],
+					}),
+				);
+			}
+		}
+
 		const faviconCandidates = [
-			path.join(process.cwd(), "client", "public", "favicon.svg"),
 			path.join(process.cwd(), "client", "public", "favicon-96x96.png"),
+			path.join(process.cwd(), "client", "public", "favicon.svg"),
 		];
 		let faviconImage = null;
 		for (const p of faviconCandidates) {
@@ -1579,6 +1688,23 @@ export const downloadProfile = async (req, res) => {
 			};
 			break;
 		}
+		const headerWithLogo = faviconImage
+			? new Header({
+					children: [
+						new Paragraph({
+							alignment: AlignmentType.RIGHT,
+							spacing: { after: 60 },
+							children: [
+								new ImageRun({
+									data: faviconImage.data,
+									type: faviconImage.type,
+									transformation: { width: 16, height: 16 },
+								}),
+							],
+						}),
+					],
+			  })
+			: undefined;
 
 		const doc = new Document({
 			styles: {
@@ -1627,23 +1753,11 @@ export const downloadProfile = async (req, res) => {
 							},
 						},
 					},
-					headers: faviconImage
+					headers: headerWithLogo
 						? {
-							default: new Header({
-								children: [
-									new Paragraph({
-										alignment: AlignmentType.RIGHT,
-										spacing: { after: 60 },
-										children: [
-											new ImageRun({
-												data: faviconImage.data,
-												type: faviconImage.type,
-												transformation: { width: 16, height: 16 },
-											}),
-										],
-									}),
-								],
-							}),
+							default: headerWithLogo,
+							first: headerWithLogo,
+							even: headerWithLogo,
 						  }
 						: undefined,
 					children: [
