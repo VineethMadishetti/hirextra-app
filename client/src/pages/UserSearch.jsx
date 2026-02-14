@@ -1612,7 +1612,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 			className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
 			onClick={onClose}>
 			<div // Main modal container
-				className="w-full max-w-lg lg:max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
+				className="w-full max-w-xl lg:max-w-6xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
 				onClick={(e) => e.stopPropagation()}>
 				{/* Header */}
 				<div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 md:p-8 relative">
@@ -1763,9 +1763,38 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 									)}
 								</div>
 							</div>
+
+							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 shadow-sm">
+								<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
+									<span className="bg-blue-100 dark:bg-blue-900/30 p-1.5 rounded-lg">
+										<Award className="text-blue-600 dark:text-blue-500" size={16} />
+									</span>
+									Education
+								</h3>
+								{educationItems.length > 0 ? (
+									<div className="space-y-3">
+										{educationItems.map((edu, idx) => (
+											<div key={`${edu.degree}-${idx}`} className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+												<p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+													{edu.degree || "Qualification"}
+												</p>
+												{edu.institution && (
+													<p className="text-slate-700 dark:text-slate-300 text-xs mt-1">{edu.institution}</p>
+												)}
+												<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+													{edu.period && <span>{edu.period}</span>}
+													{edu.location && <span>{edu.location}</span>}
+												</div>
+											</div>
+										))}
+									</div>
+								) : (
+									<p className="text-slate-400 italic text-sm">No education data available</p>
+								)}
+							</div>
 						</div>
 
-						{/* Right Column - Skills & Education */}
+						{/* Right Column - Skills */}
 						<div className="lg:col-span-2 space-y-6">
 							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 shadow-sm">
 								<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3">
@@ -1791,35 +1820,6 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 									</div>
 								) : (
 									<p className="text-slate-400 italic">No skills listed</p>
-								)}
-							</div>
-
-							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 shadow-sm">
-								<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3">
-									<span className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
-										<Award className="text-blue-600 dark:text-blue-500" size={24} />
-									</span>
-									Education
-								</h3>
-								{educationItems.length > 0 ? (
-									<div className="space-y-4">
-										{educationItems.map((edu, idx) => (
-											<div key={`${edu.degree}-${idx}`} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-												<p className="font-semibold text-slate-900 dark:text-slate-100">
-													{edu.degree || "Qualification"}
-												</p>
-												{edu.institution && (
-													<p className="text-slate-700 dark:text-slate-300 text-sm mt-1">{edu.institution}</p>
-												)}
-												<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-													{edu.period && <span>{edu.period}</span>}
-													{edu.location && <span>{edu.location}</span>}
-												</div>
-											</div>
-										))}
-									</div>
-								) : (
-									<p className="text-slate-400 italic">No education data available</p>
 								)}
 							</div>
 

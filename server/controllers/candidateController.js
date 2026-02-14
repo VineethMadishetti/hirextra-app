@@ -1417,7 +1417,7 @@ export const downloadProfile = async (req, res) => {
 					indent: { left: indent },
 					spacing: { after: 40 },
 					children: [
-						new TextRun({ text: `${label}: `, bold: true }),
+						new TextRun({ text: `${label}: ` }),
 						new TextRun({ text: v }),
 					],
 				}),
@@ -1445,23 +1445,6 @@ export const downloadProfile = async (req, res) => {
 			for (const line of normalizeMultiline(text)) {
 				const normalized = line.replace(/^[\u2022\-*\s]+/, "").trim();
 				if (!normalized) continue;
-				const colonIdx = normalized.indexOf(":");
-				if (colonIdx > 1 && colonIdx <= 50) {
-					const lead = normalized.slice(0, colonIdx).trim();
-					const tail = normalized.slice(colonIdx + 1).trim();
-					children.push(
-						new Paragraph({
-							bullet: { level: 0 },
-							indent: { left: indent },
-							spacing: { after: 40 },
-							children: [
-								new TextRun({ text: `${lead}: `, bold: true }),
-								new TextRun({ text: tail }),
-							],
-						}),
-					);
-					continue;
-				}
 				addBullet(normalized, indent);
 			}
 		};
@@ -1500,13 +1483,12 @@ export const downloadProfile = async (req, res) => {
 			);
 		}
 
-		addLine(headerLocation);
 		if (overallConfidence) {
 			children.push(
 				new Paragraph({
 					spacing: { after: 60 },
 					children: [
-						new TextRun({ text: "Confidence Score: ", bold: true }),
+						new TextRun({ text: "Confidence Score: " }),
 						new TextRun({ text: `${overallConfidence}/10` }),
 					],
 				}),
@@ -1521,6 +1503,17 @@ export const downloadProfile = async (req, res) => {
 			for (const phone of uniquePhones.slice(0, 2)) {
 				addLinkLine("Phone", phone, `tel:${normalizePhone(phone)}`);
 			}
+		}
+		if (headerLocation) {
+			children.push(
+				new Paragraph({
+					spacing: { after: 60 },
+					children: [
+						new TextRun({ text: "Location: ", bold: true }),
+						new TextRun({ text: headerLocation }),
+					],
+				}),
+			);
 		}
 		if (linkedinLinks.length > 0) {
 			const lnk = linkedinLinks[0].startsWith("http")
@@ -1557,9 +1550,11 @@ export const downloadProfile = async (req, res) => {
 
 		if (orderedSkills.length > 0) {
 			addSectionHeader("SKILLS");
-			const splitAt = Math.ceil(orderedSkills.length / 2);
-			const leftCol = orderedSkills.slice(0, splitAt);
-			const rightCol = orderedSkills.slice(splitAt);
+			const splitAtOne = Math.ceil(orderedSkills.length / 3);
+			const splitAtTwo = Math.ceil((orderedSkills.length * 2) / 3);
+			const firstCol = orderedSkills.slice(0, splitAtOne);
+			const secondCol = orderedSkills.slice(splitAtOne, splitAtTwo);
+			const thirdCol = orderedSkills.slice(splitAtTwo);
 			children.push(
 				new Table({
 					indent: { size: 360, type: WidthType.DXA },
@@ -1574,10 +1569,10 @@ export const downloadProfile = async (req, res) => {
 					},
 					rows: [
 						new TableRow({
-							children: [leftCol, rightCol].map(
+							children: [firstCol, secondCol, thirdCol].map(
 								(col) =>
 									new TableCell({
-										width: { size: 50, type: WidthType.PERCENTAGE },
+										width: { size: 33, type: WidthType.PERCENTAGE },
 										children:
 											col.length > 0
 												? col.map(
@@ -1617,7 +1612,7 @@ export const downloadProfile = async (req, res) => {
 						children.push(
 							new Paragraph({
 								indent: { left: 360 },
-								spacing: { after: 40 },
+								spacing: { before: 120, after: 80 },
 								children: [
 									new TextRun({ text: role || "Role", bold: true }),
 									...(employer ? [new TextRun({ text: ` | ${employer}` })] : []),
@@ -1650,7 +1645,7 @@ export const downloadProfile = async (req, res) => {
 					new Paragraph({
 						indent: { left: 360 },
 						spacing: { after: 40 },
-						children: [new TextRun({ text: project.projectName, bold: true })],
+						children: [new TextRun({ text: project.projectName })],
 					}),
 				);
 				addKeyValue("Organization", project.employer, 720);
@@ -1730,13 +1725,16 @@ export const downloadProfile = async (req, res) => {
 					new Paragraph({
 						indent: { left: 360 },
 						spacing: { after: 60 },
-						children: [new TextRun({ text: `${section.label}: `, bold: true }), new TextRun({ text: section.value })],
+						children: [new TextRun({ text: `${section.label}: ` }), new TextRun({ text: section.value })],
 					}),
 				);
 			}
 		}
 
 		const faviconCandidates = [
+			path.join(process.cwd(), "server", "uploads", "favicon-96x96.png"),
+			path.join(process.cwd(), "server", "uploads", "favicon.png"),
+			path.join(process.cwd(), "server", "uploads", "favicon.svg"),
 			path.join(process.cwd(), "server", "public", "favicon-96x96.png"),
 			path.join(process.cwd(), "server", "public", "favicon.png"),
 			path.join(process.cwd(), "server", "public", "favicon.svg"),
@@ -1766,7 +1764,7 @@ export const downloadProfile = async (req, res) => {
 								new ImageRun({
 									data: faviconImage.data,
 									type: faviconImage.type,
-									transformation: { width: 16, height: 16 },
+									transformation: { width: 24, height: 24 },
 								}),
 							],
 						}),
@@ -1839,7 +1837,7 @@ export const downloadProfile = async (req, res) => {
 											new ImageRun({
 												data: faviconImage.data,
 												type: faviconImage.type,
-												transformation: { width: 16, height: 16 },
+												transformation: { width: 24, height: 24 },
 											}),
 										],
 									}),
