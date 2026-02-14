@@ -1323,7 +1323,16 @@ export const downloadProfile = async (req, res) => {
 
 		const children = [];
 		const addSectionHeader = (text) => {
-			children.push(new Paragraph({ text, style: "SectionHeader" }));
+			children.push(
+				new Paragraph({
+					text,
+					style: "SectionHeader",
+					border: {
+						bottom: { color: "D1D5DB", space: 1, style: BorderStyle.SINGLE, size: 6 },
+					},
+					spacing: { before: 240, after: 120 },
+				}),
+			);
 		};
 		const addLine = (text, opts = {}) => {
 			const t = cleanInline(text);
@@ -1482,6 +1491,17 @@ export const downloadProfile = async (req, res) => {
 				},
 			}),
 		);
+
+		const profileOverview = cleanInline(parserData.Summary) || cleanInline(candidate.summary);
+		const summarySections = [
+			{ label: "Executive Summary", value: cleanInline(parserData.ExecutiveSummary) },
+			{ label: "Management Summary", value: cleanInline(parserData.ManagementSummary) },
+		].filter((entry) => entry.value);
+
+		if (profileOverview) {
+			addSectionHeader("PROFILE OVERVIEW");
+			addMultiline(profileOverview, { indent: 360 });
+		}
 
 		if (orderedSkills.length > 0) {
 			addSectionHeader("SKILLS");
@@ -1651,16 +1671,6 @@ export const downloadProfile = async (req, res) => {
 			if (cleanInline(parserData.Publication)) addMultiline(parserData.Publication, { indent: 360 });
 		}
 
-		const profileOverview = cleanInline(parserData.Summary) || cleanInline(candidate.summary);
-		const summarySections = [
-			{ label: "Executive Summary", value: cleanInline(parserData.ExecutiveSummary) },
-			{ label: "Management Summary", value: cleanInline(parserData.ManagementSummary) },
-		].filter((entry) => entry.value);
-
-		if (profileOverview) {
-			addSectionHeader("PROFILE OVERVIEW");
-			addMultiline(profileOverview, { indent: 360 });
-		}
 		if (summarySections.length > 0) {
 			addSectionHeader("ADDITIONAL SUMMARY");
 			for (const section of summarySections) {
@@ -1675,8 +1685,8 @@ export const downloadProfile = async (req, res) => {
 		}
 
 		const faviconCandidates = [
-			path.join(process.cwd(), "client", "public", "favicon-96x96.png"),
 			path.join(process.cwd(), "client", "public", "favicon.svg"),
+			path.join(process.cwd(), "client", "public", "favicon-96x96.png"),
 		];
 		let faviconImage = null;
 		for (const p of faviconCandidates) {
@@ -1762,6 +1772,21 @@ export const downloadProfile = async (req, res) => {
 						: undefined,
 					children: [
 						...children,
+						...(faviconImage
+							? [
+									new Paragraph({
+										alignment: AlignmentType.RIGHT,
+										spacing: { before: 260, after: 40 },
+										children: [
+											new ImageRun({
+												data: faviconImage.data,
+												type: faviconImage.type,
+												transformation: { width: 16, height: 16 },
+											}),
+										],
+									}),
+							  ]
+							: []),
 						new Paragraph({
 							alignment: AlignmentType.CENTER,
 							spacing: { before: 360 },
