@@ -715,9 +715,17 @@ const UserSearch = () => {
 		setSelectedIds(new Set());
 	}, []);
 
-	const handleQuickView = useCallback((candidate, e) => {
+	const handleQuickView = useCallback(async (candidate, e) => {
 		e?.stopPropagation();
-		setSelectedProfile(candidate);
+		setSelectedProfile({ ...candidate, _loadingDetails: true });
+		try {
+			const { data } = await api.get(`/candidates/${candidate._id}`);
+			setSelectedProfile(data);
+		} catch (error) {
+			console.error("Quick view load failed:", error);
+			toast.error("Could not load full profile details");
+			setSelectedProfile(candidate);
+		}
 	}, []);
 
 	const handleExport = useCallback(async () => {
@@ -1520,130 +1528,210 @@ const CandidateRow = React.memo(
 	},
 );
 
-// Professional Personal Card Design Modal
-const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
-	<div
-		className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
-		onClick={onClose}>
-		<div // Main modal container
-			className="w-full max-w-lg lg:max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
-			onClick={(e) => e.stopPropagation()}>
-			{/* Header */}
-			<div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 md:p-8 relative">
-				<div className="flex justify-between items-start">
-					<div>
-						<h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
-							{profile.fullName}
-						</h1>
-						<div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 text-slate-600 dark:text-slate-300 font-medium text-sm md:text-base">
-							{profile.jobTitle && (
-								<div className="flex items-center gap-2">
-									<Briefcase size={18} className="text-slate-500 dark:text-slate-200" />
-									<span>{profile.jobTitle}</span>
-								</div>
-							)}
-							{profile.company && (
-								<div className="flex items-center gap-2">
-									<Building size={18} className="text-slate-500 dark:text-slate-200" />
-									<span>{profile.company}</span>
-								</div>
-							)}
-							{profile.experience && (
-								<div className="flex items-center gap-2">
-									<Calendar size={18} className="text-slate-500 dark:text-slate-200" />
-									<span>Expereince: {profile.experience}</span>
-								</div>
-							)}
-						</div>
-					</div>
-					<button
-						onClick={onClose}
-						className="text-slate-400 dark:hover:text-white p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors absolute top-6 right-6">
-						<X size={24} />
-					</button>
-				</div>
-			</div>
+const parseRchilliDate = (value) => {
+	const input = String(value || "").trim();
+	const match = input.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+	if (!match) return 0;
+	const day = Number(match[1]);
+	const month = Number(match[2]) - 1;
+	const year = Number(match[3]);
+	const ts = new Date(year, month, day).getTime();
+	return Number.isFinite(ts) ? ts : 0;
+};
 
-			{/* Body */}
-			<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
-				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
-					{/* Left Column - Contact Info */}
-					<div className="lg:col-span-1 space-y-6">
-						{/* Contact Card */}
-						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-5 shadow-sm">
-							<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
-								{/* <span className="bg-blue-100 p-2 rounded-lg">
-									<Mail className="text-blue-600" size={20} />
-								</span> */}
-								Contact Information
-							</h3>
-							<div className="space-y-3">
-								{profile.email && (
-									<div className="flex items-start gap-3">
-										<Mail
-											className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
-											size={18}
-										/>
-										<div>
-											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Email
-											</p>
-											<a
-												href={`mailto:${profile.email}`}
-												className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 break-all font-medium">
-												{profile.email}
-											</a>
-										</div>
+const getProfileSkillItems = (profile) => {
+	const parserData = profile?.parsedResume?.raw?.ResumeParserData || {};
+	const segregated = Array.isArray(parserData.SegregatedSkill)
+		? parserData.SegregatedSkill
+		: [];
+
+	if (segregated.length > 0) {
+		const seen = new Set();
+		return segregated
+			.map((item) => {
+				const name = (item?.FormattedName || item?.Skill || "").trim();
+				if (!name) return null;
+				return {
+					name,
+					lastUsed: String(item?.LastUsed || "").trim(),
+					experienceInMonths: Number(item?.ExperienceInMonths || 0),
+					lastUsedTs: parseRchilliDate(item?.LastUsed),
+				};
+			})
+			.filter(Boolean)
+			.sort((a, b) => {
+				if (b.lastUsedTs !== a.lastUsedTs) return b.lastUsedTs - a.lastUsedTs;
+				if (b.experienceInMonths !== a.experienceInMonths) return b.experienceInMonths - a.experienceInMonths;
+				return a.name.localeCompare(b.name);
+			})
+			.filter((item) => {
+				const key = item.name.toLowerCase();
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			});
+	}
+
+	return (profile?.skills || "")
+		.split(",")
+		.map((skill) => skill.trim())
+		.filter(Boolean)
+		.map((name) => ({ name, lastUsed: "", experienceInMonths: 0, lastUsedTs: 0 }));
+};
+
+const getEducationItems = (profile) => {
+	const parserData = profile?.parsedResume?.raw?.ResumeParserData || {};
+	const items = Array.isArray(parserData.SegregatedQualification)
+		? parserData.SegregatedQualification
+		: [];
+
+	return items
+		.map((edu) => ({
+			degree: (edu?.Degree?.DegreeName || edu?.Degree?.NormalizeDegree || "").trim(),
+			institution: (edu?.Institution?.Name || "").trim(),
+			period: (edu?.FormattedDegreePeriod || [edu?.StartDate, edu?.EndDate].filter(Boolean).join(" - ")).trim(),
+			location: [edu?.Institution?.Location?.City, edu?.Institution?.Location?.State, edu?.Institution?.Location?.Country]
+				.filter(Boolean)
+				.join(", "),
+		}))
+		.filter((edu) => edu.degree || edu.institution || edu.period || edu.location);
+};
+
+// Professional Personal Card Design Modal
+const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
+	const parserData = profile?.parsedResume?.raw?.ResumeParserData || {};
+	const skillItems = getProfileSkillItems(profile);
+	const educationItems = getEducationItems(profile);
+	const confidenceScore =
+		Number(parserData?.Name?.ConfidenceScore) > 0
+			? Number(parserData?.Name?.ConfidenceScore)
+			: null;
+
+	return (
+		<div
+			className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
+			onClick={onClose}>
+			<div // Main modal container
+				className="w-full max-w-lg lg:max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
+				onClick={(e) => e.stopPropagation()}>
+				{/* Header */}
+				<div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 md:p-8 relative">
+					<div className="flex justify-between items-start">
+						<div>
+							<h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+								{profile.fullName}
+							</h1>
+							<div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 text-slate-600 dark:text-slate-300 font-medium text-sm md:text-base">
+								{profile.jobTitle && (
+									<div className="flex items-center gap-2">
+										<Briefcase size={18} className="text-slate-500 dark:text-slate-200" />
+										<span>{profile.jobTitle}</span>
 									</div>
 								)}
-								{profile.phone && (
-									<div className="flex items-start gap-3">
-										<Phone
-											className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
-											size={18}
-										/>
-										<div>
-											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Phone
-											</p>
-											<a
-												href={`tel:${profile.phone}`}
-												className="text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
-												{profile.phone}
-											</a>
-										</div>
+								{profile.company && (
+									<div className="flex items-center gap-2">
+										<Building size={18} className="text-slate-500 dark:text-slate-200" />
+										<span>{profile.company}</span>
 									</div>
 								)}
-								{(profile.locality || profile.location) && (
-									<div className="flex items-start gap-3">
-										<MapPin
-											className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
-											size={18}
-										/>
-										<div>
-											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Location
-											</p>
-											<p className="text-slate-700 dark:text-slate-300 font-medium">
-												{formatLocation(profile.locality, profile.location)}
-											</p>
-										</div>
+								{profile.experience && (
+									<div className="flex items-center gap-2">
+										<Calendar size={18} className="text-slate-500 dark:text-slate-200" />
+										<span>Experience: {profile.experience}</span>
 									</div>
 								)}
 							</div>
+							{profile._loadingDetails && (
+								<div className="mt-3 inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400">
+									<Loader className="animate-spin" size={16} />
+									Loading full parsed profile...
+								</div>
+							)}
 						</div>
+						<button
+							onClick={onClose}
+							className="text-slate-400 dark:hover:text-white p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors absolute top-6 right-6">
+							<X size={24} />
+						</button>
+					</div>
+				</div>
 
-						{/* Experience & Industry */}
-						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-4 shadow-sm">
-							<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
-								<span className="bg-indigo-100 dark:bg-indigo-900/50 p-1.5 rounded-lg">
-									<Award className="text-indigo-600 dark:text-indigo-500" size={16} />
-								</span>
-								Professional Details
-							</h3>
-							<div className="space-y-3">
-								{profile.experience && (
-									<div className="flex items-start gap-3">
+				{/* Body */}
+				<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
+					<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
+						{/* Left Column - Contact Info */}
+						<div className="lg:col-span-1 space-y-6">
+							{/* Contact Card */}
+							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-5 shadow-sm">
+								<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
+									Contact Information
+								</h3>
+								<div className="space-y-3">
+									{profile.email && (
+										<div className="flex items-start gap-3">
+											<Mail
+												className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
+												size={18}
+											/>
+											<div>
+												<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
+													Email
+												</p>
+												<a
+													href={`mailto:${profile.email}`}
+													className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 break-all font-medium">
+													{profile.email}
+												</a>
+											</div>
+										</div>
+									)}
+									{profile.phone && (
+										<div className="flex items-start gap-3">
+											<Phone
+												className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
+												size={18}
+											/>
+											<div>
+												<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
+													Phone
+												</p>
+												<a
+													href={`tel:${profile.phone}`}
+													className="text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
+													{profile.phone}
+												</a>
+											</div>
+										</div>
+									)}
+									{(profile.locality || profile.location) && (
+										<div className="flex items-start gap-3">
+											<MapPin
+												className="text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0"
+												size={18}
+											/>
+											<div>
+												<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
+													Location
+												</p>
+												<p className="text-slate-700 dark:text-slate-300 font-medium">
+													{formatLocation(profile.locality, profile.location)}
+												</p>
+											</div>
+										</div>
+									)}
+								</div>
+							</div>
+
+							{/* Experience & Industry */}
+							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-4 shadow-sm">
+								<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
+									<span className="bg-indigo-100 dark:bg-indigo-900/50 p-1.5 rounded-lg">
+										<Award className="text-indigo-600 dark:text-indigo-500" size={16} />
+									</span>
+									Professional Details
+								</h3>
+								<div className="space-y-3">
+									{profile.experience && (
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
 												Experience
@@ -1652,40 +1740,52 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 												{profile.experience}
 											</p>
 										</div>
-									</div>
-								)}
-								{profile.industry && (
-									<div>
-										<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-											Industry
-										</p>
-										<p className="text-slate-700 dark:text-slate-300 font-medium capitalize">
-											{profile.industry.toLowerCase()}
-										</p>
-									</div>
-								)}
-							
+									)}
+									{profile.industry && (
+										<div>
+											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
+												Industry
+											</p>
+											<p className="text-slate-700 dark:text-slate-300 font-medium capitalize">
+												{profile.industry.toLowerCase()}
+											</p>
+										</div>
+									)}
+									{confidenceScore && (
+										<div>
+											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
+												Confidence Score
+											</p>
+											<p className="text-slate-700 dark:text-slate-300 font-medium">
+												{confidenceScore}/10
+											</p>
+										</div>
+									)}
+								</div>
 							</div>
 						</div>
-					</div>
 
-					{/* Right Column - Skills */}
-					<div className="lg:col-span-2">
-						<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 h-full flex flex-col shadow-sm">
-							<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3 flex-shrink-0">
-								<span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl">
-									<Award className="text-emerald-600 dark:text-emerald-500" size={24} />
-								</span>
-								Skills & Expertise
-							</h3>
-							<div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
-								{profile.skills ? (
+						{/* Right Column - Skills & Education */}
+						<div className="lg:col-span-2 space-y-6">
+							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 shadow-sm">
+								<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3">
+									<span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl">
+										<Award className="text-emerald-600 dark:text-emerald-500" size={24} />
+									</span>
+									Skills & Expertise
+								</h3>
+								{skillItems.length > 0 ? (
 									<div className="flex flex-wrap gap-2">
-										{profile.skills.split(",").map((skill, i) => (
+										{skillItems.map((skill, i) => (
 											<span
-												key={i}
+												key={`${skill.name}-${i}`}
+												title={
+													skill.lastUsed
+														? `Last used: ${skill.lastUsed}${skill.experienceInMonths ? ` | Experience: ${skill.experienceInMonths} months` : ""}`
+														: "Last used: Not available"
+												}
 												className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-white dark:hover:bg-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-400 transition-all duration-200 cursor-default">
-												{skill.trim().replace(/\b\w/g, (l) => l.toUpperCase())}
+												{skill.name.replace(/\b\w/g, (l) => l.toUpperCase())}
 											</span>
 										))}
 									</div>
@@ -1694,8 +1794,36 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 								)}
 							</div>
 
-							{/* Download Button */}
-							<div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 shadow-sm">
+								<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3">
+									<span className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
+										<Award className="text-blue-600 dark:text-blue-500" size={24} />
+									</span>
+									Education
+								</h3>
+								{educationItems.length > 0 ? (
+									<div className="space-y-4">
+										{educationItems.map((edu, idx) => (
+											<div key={`${edu.degree}-${idx}`} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+												<p className="font-semibold text-slate-900 dark:text-slate-100">
+													{edu.degree || "Qualification"}
+												</p>
+												{edu.institution && (
+													<p className="text-slate-700 dark:text-slate-300 text-sm mt-1">{edu.institution}</p>
+												)}
+												<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+													{edu.period && <span>{edu.period}</span>}
+													{edu.location && <span>{edu.location}</span>}
+												</div>
+											</div>
+										))}
+									</div>
+								) : (
+									<p className="text-slate-400 italic">No education data available</p>
+								)}
+							</div>
+
+							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 shadow-sm">
 								<button
 									onClick={(e) => {
 										e.stopPropagation();
@@ -1712,7 +1840,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => (
 				</div>
 			</div>
 		</div>
-	</div>
-));
+	);
+});
 
 export default UserSearch;

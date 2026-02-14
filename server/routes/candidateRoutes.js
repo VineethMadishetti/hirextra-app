@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import {
   uploadChunk, processFile, searchCandidates, getUploadHistory, getJobStatus, downloadProfile,
+  getCandidateById,
   deleteUploadJob,
   deleteCandidate,
   getFileHeaders,
@@ -40,6 +41,7 @@ router.get('/search', protect, searchCandidates); // All authenticated users can
 router.post('/export', protect, exportCandidates); // Export selected candidates
 router.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() })); // Health check
 router.get('/:id/download', protect, downloadProfile); // Download profile
+router.get('/:id', protect, getCandidateById); // Candidate details for view modal
 router.delete('/job/:id', protect, adminOnly, deleteUploadJob); // Delete File Data
 // router.delete('/:id', protect, adminOnly, deleteCandidate);     // Delete Single Row
 router.post('/headers', protect, adminOnly, getFileHeaders);    // Get headers to re-map

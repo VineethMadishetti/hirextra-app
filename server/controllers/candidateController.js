@@ -980,6 +980,32 @@ export const searchCandidates = async (req, res) => {
     }
 };
 
+// --- GET SINGLE CANDIDATE (DETAIL VIEW) ---
+export const getCandidateById = async (req, res) => {
+	try {
+		const candidate = await Candidate.findOne({
+			_id: req.params.id,
+			isDeleted: false,
+		})
+			.select(
+				"fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt sourceFile parsedResume",
+			)
+			.lean();
+
+		if (!candidate) {
+			return res.status(404).json({ message: "Candidate not found" });
+		}
+
+		return res.json(candidate);
+	} catch (error) {
+		if (error?.name === "CastError") {
+			return res.status(400).json({ message: "Invalid candidate id" });
+		}
+		console.error("Get Candidate Error:", error);
+		return res.status(500).json({ message: "Failed to fetch candidate details" });
+	}
+};
+
 // --- EXPORT SELECTED CANDIDATES TO CSV ---
 export const exportCandidates = async (req, res) => {
 	try {
@@ -1221,6 +1247,11 @@ export const downloadProfile = async (req, res) => {
 		};
 
 		const normalizePhone = (value) => cleanInline(value).replace(/[^\d+]/g, "");
+		const normalizeConfidence = (value) => {
+			const n = Number(value);
+			if (!Number.isFinite(n) || n <= 0) return null;
+			return Math.max(0, Math.min(10, n));
+		};
 		const normalizeUrlForDedup = (value) =>
 			cleanInline(value)
 				.toLowerCase()
@@ -1299,6 +1330,16 @@ export const downloadProfile = async (req, res) => {
 		const certifications = toArray(parserData.SegregatedCertification);
 		const achievements = toArray(parserData.SegregatedAchievement);
 		const publications = toArray(parserData.SegregatedPublication);
+		const confidenceScores = [
+			normalizeConfidence(parserData?.Name?.ConfidenceScore),
+			normalizeConfidence(toArray(parserData?.Email)[0]?.ConfidenceScore),
+			normalizeConfidence(toArray(parserData?.PhoneNumber)[0]?.ConfidenceScore),
+			normalizeConfidence(toArray(parserData?.SegregatedExperience)[0]?.JobProfile?.ConfidenceScore),
+		].filter((v) => v !== null);
+		const overallConfidence =
+			confidenceScores.length > 0
+				? (confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length).toFixed(1)
+				: null;
 
 		const projectEntries = [];
 		for (const exp of experiences) {
@@ -1460,6 +1501,17 @@ export const downloadProfile = async (req, res) => {
 		}
 
 		addLine(headerLocation);
+		if (overallConfidence) {
+			children.push(
+				new Paragraph({
+					spacing: { after: 60 },
+					children: [
+						new TextRun({ text: "Confidence Score: ", bold: true }),
+						new TextRun({ text: `${overallConfidence}/10` }),
+					],
+				}),
+			);
+		}
 		if (uniqueEmails.length > 0) {
 			for (const email of uniqueEmails.slice(0, 2)) {
 				addLinkLine("Email", email, `mailto:${email}`);
@@ -1685,8 +1737,14 @@ export const downloadProfile = async (req, res) => {
 		}
 
 		const faviconCandidates = [
-			path.join(process.cwd(), "client", "public", "favicon.svg"),
+			path.join(process.cwd(), "server", "public", "favicon-96x96.png"),
+			path.join(process.cwd(), "server", "public", "favicon.png"),
+			path.join(process.cwd(), "server", "public", "favicon.svg"),
+			path.join(process.cwd(), "public", "favicon-96x96.png"),
+			path.join(process.cwd(), "public", "favicon.png"),
+			path.join(process.cwd(), "public", "favicon.svg"),
 			path.join(process.cwd(), "client", "public", "favicon-96x96.png"),
+			path.join(process.cwd(), "client", "public", "favicon.svg"),
 		];
 		let faviconImage = null;
 		for (const p of faviconCandidates) {
