@@ -14,11 +14,6 @@ import {
 	Paragraph,
 	TextRun,
 	AlignmentType,
-	HeadingLevel,
-	Table,
-	TableRow,
-	TableCell,
-	WidthType,
 	BorderStyle,
 } from "docx";
 import xlsx from "xlsx";
@@ -1183,16 +1178,286 @@ export const downloadProfile = async (req, res) => {
 					.replace(/[\r\n]+/g, " ")
 					.trim()
 				: "";
+		const toArray = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+		const parserData = candidate?.parsedResume?.raw?.ResumeParserData || {};
 
-		// Prepare skills for 2-column layout
+		const emailList = [
+			clean(candidate.email),
+			...toArray(parserData.Email).map((e) => clean(e?.EmailAddress || e?.Email || "")),
+		].filter(Boolean);
+		const uniqueEmails = [...new Set(emailList.map((e) => e.toLowerCase()))];
+
+		const phoneList = [
+			clean(candidate.phone),
+			...toArray(parserData.PhoneNumber).map((p) => clean(p?.FormattedNumber || p?.Number || "")),
+		].filter(Boolean);
+		const uniquePhones = [...new Set(phoneList)];
+
+		const websiteList = toArray(parserData.WebSite)
+			.map((w) => clean(w?.Url || w?.URL || ""))
+			.filter(Boolean);
+
 		const skillList = clean(candidate.skills)
 			.split(",")
 			.map((s) => s.trim())
 			.map((s) => s.replace(/\b\w/g, (c) => c.toUpperCase()))
 			.filter(Boolean);
-		const col1 = skillList.filter((_, i) => i % 3 === 0);
-		const col2 = skillList.filter((_, i) => i % 3 === 1);
-		const col3 = skillList.filter((_, i) => i % 3 === 2);
+		const segregatedSkills = toArray(parserData.SegregatedSkill).filter(
+			(s) => clean(s?.Skill || s?.FormattedName),
+		);
+
+		const addresses = toArray(parserData.Address);
+		const qualifications = toArray(parserData.SegregatedQualification);
+		const experiences = toArray(parserData.SegregatedExperience);
+		const certifications = toArray(parserData.SegregatedCertification);
+		const achievements = toArray(parserData.SegregatedAchievement);
+		const publications = toArray(parserData.SegregatedPublication);
+
+		const children = [];
+		const addSectionHeader = (text) => {
+			children.push(new Paragraph({ text, style: "SectionHeader" }));
+		};
+		const addLine = (text, opts = {}) => {
+			const t = clean(text);
+			if (!t) return;
+			children.push(
+				new Paragraph({
+					text: t,
+					indent: opts.indent ? { left: opts.indent } : undefined,
+					spacing: opts.spacing || { after: 60 },
+				}),
+			);
+		};
+		const addBullet = (text, indent = 360) => {
+			const t = clean(text);
+			if (!t) return;
+			children.push(
+				new Paragraph({
+					text: t,
+					bullet: { level: 0 },
+					indent: { left: indent },
+					spacing: { after: 40 },
+				}),
+			);
+		};
+		const addKeyValue = (label, value, indent = 360) => {
+			const v = clean(value);
+			if (!v) return;
+			children.push(
+				new Paragraph({
+					indent: { left: indent },
+					spacing: { after: 40 },
+					children: [
+						new TextRun({ text: `${label}: `, bold: true }),
+						new TextRun({ text: v }),
+					],
+				}),
+			);
+		};
+
+		const headerName =
+			clean(parserData?.Name?.FormattedName) ||
+			clean(parserData?.Name?.FullName) ||
+			clean(candidate.fullName).toUpperCase();
+		const headerJob = clean(parserData.JobProfile) || clean(candidate.jobTitle);
+		const headerLocation =
+			clean(addresses[0]?.FormattedAddress) ||
+			formatLocationText(candidate.locality, candidate.location, candidate.country);
+
+		children.push(
+			new Paragraph({
+				alignment: AlignmentType.CENTER,
+				spacing: { after: 0 },
+				children: [
+					new TextRun({
+						text: headerName || "CANDIDATE PROFILE",
+						font: "Tahoma",
+						bold: true,
+						size: 36,
+					}),
+				],
+			}),
+		);
+
+		if (headerJob) {
+			children.push(
+				new Paragraph({
+					alignment: AlignmentType.CENTER,
+					spacing: { after: 200 },
+					children: [new TextRun({ text: headerJob, font: "Tahoma", size: 28 })],
+				}),
+			);
+		}
+
+		addLine(headerLocation);
+		addLine([...uniqueEmails, ...uniquePhones].join(" | "));
+		if (candidate.linkedinUrl) addLine(candidate.linkedinUrl);
+		if (websiteList.length > 0) addLine(websiteList.slice(0, 4).join(" | "));
+
+		children.push(
+			new Paragraph({
+				spacing: { after: 220 },
+				border: {
+					bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 },
+				},
+			}),
+		);
+
+		addSectionHeader("PROFILE OVERVIEW");
+		addKeyValue("Industry", clean(candidate.industry) || clean(parserData.Category));
+		addKeyValue("Sub Category", clean(parserData.SubCategory));
+		addKeyValue("Total Experience", clean(candidate.experience) || clean(parserData?.WorkedPeriod?.TotalExperienceInYear ? `${parserData.WorkedPeriod.TotalExperienceInYear} Years` : ""));
+		addKeyValue("Current Employer", clean(parserData.CurrentEmployer) || clean(candidate.company));
+		addKeyValue("Resume Language", clean(parserData?.ResumeLanguage?.Language));
+
+		if (clean(candidate.summary) || clean(parserData.Summary) || clean(parserData.ExecutiveSummary)) {
+			addSectionHeader("PROFESSIONAL SUMMARY");
+			addLine(clean(candidate.summary) || clean(parserData.Summary), { indent: 360 });
+			if (clean(parserData.ExecutiveSummary)) addLine(clean(parserData.ExecutiveSummary), { indent: 360 });
+			if (clean(parserData.ManagementSummary)) addLine(clean(parserData.ManagementSummary), { indent: 360 });
+		}
+
+		if (qualifications.length > 0 || clean(parserData.Qualification)) {
+			addSectionHeader("EDUCATION");
+			if (qualifications.length > 0) {
+				for (const edu of qualifications) {
+					const degree = clean(edu?.Degree?.DegreeName || edu?.Degree?.NormalizeDegree);
+					const inst = clean(edu?.Institution?.Name);
+					const period = clean(edu?.FormattedDegreePeriod || [edu?.StartDate, edu?.EndDate].filter(Boolean).join(" - "));
+					const location = clean(
+						[
+							edu?.Institution?.Location?.City,
+							edu?.Institution?.Location?.State,
+							edu?.Institution?.Location?.Country,
+						]
+							.filter(Boolean)
+							.join(", "),
+					);
+					addBullet([degree, inst].filter(Boolean).join(" | "));
+					addKeyValue("Period", period, 720);
+					addKeyValue("Location", location, 720);
+					if (edu?.Degree?.Specialization?.length) {
+						addKeyValue("Specialization", edu.Degree.Specialization.join(", "), 720);
+					}
+				}
+			} else {
+				addLine(parserData.Qualification, { indent: 360 });
+			}
+		}
+
+		if (segregatedSkills.length > 0 || skillList.length > 0) {
+			addSectionHeader("SKILLS");
+			if (segregatedSkills.length > 0) {
+				for (const skill of segregatedSkills) {
+					const label = clean(skill?.FormattedName || skill?.Skill);
+					if (!label) continue;
+					const detailParts = [
+						skill?.ExperienceInMonths ? `${skill.ExperienceInMonths} months` : "",
+						clean(skill?.LastUsed) ? `Last used: ${clean(skill.LastUsed)}` : "",
+						clean(skill?.Evidence) ? `Evidence: ${clean(skill.Evidence)}` : "",
+					].filter(Boolean);
+					addBullet(detailParts.length ? `${label} (${detailParts.join(" | ")})` : label);
+				}
+			} else {
+				for (const s of skillList) addBullet(s);
+			}
+		}
+
+		if (experiences.length > 0 || clean(parserData.Experience)) {
+			addSectionHeader("WORK EXPERIENCE");
+			if (experiences.length > 0) {
+				for (const exp of experiences) {
+					const role = clean(exp?.JobProfile?.Title || exp?.JobProfile?.FormattedName || candidate.jobTitle);
+					const employer = clean(exp?.Employer?.EmployerName || candidate.company);
+					const period = clean(exp?.FormattedJobPeriod || exp?.JobPeriod);
+					const location = clean(
+						[
+							exp?.Location?.City,
+							exp?.Location?.State,
+							exp?.Location?.Country,
+						]
+							.filter(Boolean)
+							.join(", "),
+					);
+
+					addBullet([role, employer].filter(Boolean).join(" | "));
+					addKeyValue("Period", period, 720);
+					addKeyValue("Location", location, 720);
+					addKeyValue("Current Employer", exp?.IsCurrentEmployer === "true" ? "Yes" : "No", 720);
+
+					const desc = clean(exp?.JobDescription);
+					if (desc) {
+						addKeyValue("Description", desc, 720);
+					}
+
+					const projects = toArray(exp?.Projects).filter(
+						(p) => clean(p?.ProjectName) || clean(p?.UsedSkills) || clean(p?.TeamSize),
+					);
+					if (projects.length > 0) {
+						addKeyValue("Projects", "", 720);
+						for (const p of projects) {
+							const pname = clean(p?.ProjectName) || "Project";
+							const pskills = clean(p?.UsedSkills);
+							const pteam = clean(p?.TeamSize);
+							addBullet(
+								[pname, pskills ? `Skills: ${pskills}` : "", pteam ? `Team: ${pteam}` : ""]
+									.filter(Boolean)
+									.join(" | "),
+								900,
+							);
+						}
+					}
+				}
+			} else {
+				addLine(parserData.Experience, { indent: 360 });
+			}
+		}
+
+		if (certifications.length > 0 || clean(parserData.Certification)) {
+			addSectionHeader("CERTIFICATIONS");
+			if (certifications.length > 0) {
+				for (const cert of certifications) {
+					addBullet(
+						[
+							clean(cert?.Certification),
+							clean(cert?.Issuer),
+							clean(cert?.Date),
+						]
+							.filter(Boolean)
+							.join(" | "),
+					);
+				}
+			}
+			if (clean(parserData.Certification)) addLine(parserData.Certification, { indent: 360 });
+		}
+
+		if (achievements.length > 0 || clean(parserData.Achievements)) {
+			addSectionHeader("ACHIEVEMENTS");
+			for (const ach of achievements) {
+				addBullet(clean(ach?.Achievement || ach?.Description || JSON.stringify(ach)));
+			}
+			if (clean(parserData.Achievements)) addLine(parserData.Achievements, { indent: 360 });
+		}
+
+		if (publications.length > 0 || clean(parserData.Publication)) {
+			addSectionHeader("PUBLICATIONS");
+			for (const pub of publications) {
+				addBullet(clean(pub?.Title || pub?.Publication || pub?.Description || JSON.stringify(pub)));
+			}
+			if (clean(parserData.Publication)) addLine(parserData.Publication, { indent: 360 });
+		}
+
+		if (clean(parserData.DetailResume)) {
+			addSectionHeader("DETAILED RESUME EXTRACT");
+			addLine(parserData.DetailResume, { indent: 360 });
+		}
+
+		addSectionHeader("PARSER METADATA");
+		addKeyValue("Parsing Date", clean(parserData.ParsingDate));
+		addKeyValue("Resume File Name", clean(parserData.ResumeFileName) || clean(candidate.sourceFile));
+		addKeyValue("Parser Version", clean(parserData?.ApiInfo?.BuildVersion));
+		addKeyValue("Credits Left", clean(parserData?.ApiInfo?.CreditLeft));
+		addKeyValue("Account Expiry", clean(parserData?.ApiInfo?.AccountExpiryDate));
 
 		const doc = new Document({
 			styles: {
@@ -1229,223 +1494,37 @@ export const downloadProfile = async (req, res) => {
 				],
 			},
 
-			sections: [
-				{
-					properties: {
-						page: {
+				sections: [
+					{
+						properties: {
+							page: {
 							margin: {
 								top: 720,
 								bottom: 720,
 								left: 720,
 								right: 720,
-							},
-						},
-					},
-					children: [
-						// ===== NAME =====
-						new Paragraph({
-							alignment: AlignmentType.CENTER,
-							spacing: { after: 0 },
-							children: [
-								new TextRun({
-									text: clean(candidate.fullName).toUpperCase(),
-									font: "Tahoma",
-									bold: true,
-									size: 36, // 18pt
-								}),
-							],
-						}),
-
-						// ===== JOB TITLE (NO PARAGRAPH SPACE ABOVE, LINE GAP BELOW) =====
-						new Paragraph({
-							alignment: AlignmentType.CENTER,
-							spacing: { after: 240 },
-							children: [
-								new TextRun({
-									text: clean(candidate.jobTitle),
-									font: "Tahoma",
-									size: 28, // 14pt
-								}),
-							],
-						}),
-
-						// ===== LOCATION =====
-						new Paragraph({
-							text: formatLocationText(
-								candidate.locality,
-								candidate.location,
-								candidate.country,
-							),
-							alignment: AlignmentType.LEFT,
-							spacing: { after: 0 },
-						}),
-
-						// ===== EMAIL | MOBILE =====
-						new Paragraph({
-							alignment: AlignmentType.LEFT,
-							spacing: { after: 0 },
-							children: [
-								new TextRun({
-									text: [clean(candidate.email), clean(candidate.phone)]
-										.filter(Boolean)
-										.join(" | "),
-									font: "Calibri",
-									size: 24,
-								}),
-							],
-						}),
-
-						// ===== LINKEDIN =====
-						new Paragraph({
-							alignment: AlignmentType.LEFT,
-							spacing: { after: 300 },
-							border: {
-								bottom: {
-									color: "auto",
-									space: 1,
-									style: BorderStyle.SINGLE,
-									size: 6,
 								},
 							},
-							children: [
-								new TextRun({
-									text: candidate.linkedinUrl
-										? clean(candidate.linkedinUrl)
-										: "",
-									font: "Calibri",
-									size: 24,
-								}),
-							],
-						}),
-
-						// ===== PROFESSIONAL SUMMARY =====
-						...(candidate.summary
-							? [
-								new Paragraph({
-									text: "PROFESSIONAL SUMMARY:",
-									style: "SectionHeader",
-								}),
-								new Paragraph({
-									text: clean(candidate.summary),
-									indent: { left: 400 },
-								}),
-							]
-							: []),
-
-						// ===== SKILLS =====
-						...(candidate.skills
-							? [
-								new Paragraph({
-									text: "SKILLS:",
-									style: "SectionHeader",
-								}),
-
-								new Table({
-									indent: { size: 400, type: WidthType.DXA },
-									width: { size: 100, type: WidthType.PERCENTAGE },
-									borders: {
-										top: { style: BorderStyle.NONE, size: 0, color: "auto" },
-										bottom: {
-											style: BorderStyle.NONE,
-											size: 0,
-											color: "auto",
-										},
-										left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-										right: {
-											style: BorderStyle.NONE,
-											size: 0,
-											color: "auto",
-										},
-										insideHorizontal: {
-											style: BorderStyle.NONE,
-											size: 0,
-											color: "auto",
-										},
-										insideVertical: {
-											style: BorderStyle.NONE,
-											size: 0,
-											color: "auto",
-										},
-									},
-									rows: [
-										new TableRow({
-											children: [col1, col2, col3].map(
-												(column) =>
-													new TableCell({
-														width: { size: 33, type: WidthType.PERCENTAGE },
-														children: column.map(
-															(skill) =>
-																new Paragraph({
-																	children: [
-																		new TextRun({
-																			text: skill,
-																			font: "Calibri",
-																			size: 24, // 12pt
-																		}),
-																	],
-																	bullet: { level: 0 },
-																}),
-														),
-													}),
-											),
-										}),
-									],
-								}),
-							]
-							: []),
-
-						// ===== WORK EXPERIENCE =====
-						...(candidate.jobTitle || candidate.company
-							? [
-								new Paragraph({
-									text: "WORK EXPERIENCE:",
-									style: "SectionHeader",
-								}),
-								new Paragraph({
-									children: [
-										new TextRun({
-											text: clean(candidate.jobTitle),
-											bold: true,
-										}),
-									],
-									spacing: { after: 40 },
-									indent: { left: 400 },
-								}),
-								new Paragraph({
-									text: clean(candidate.company),
-									spacing: { after: 0 },
-									indent: { left: 400 },
-								}),
-
-								...(candidate.experience
-									? [
-										new Paragraph({
-											text: `Experience: ${clean(candidate.experience)}`,
-											indent: { left: 400 },
-										}),
-									]
-									: []),
-							]
-							: []),
-
-						// ===== FOOTER =====
-						new Paragraph({
-							alignment: AlignmentType.CENTER,
-							spacing: { before: 360 },
-							children: [
-								new TextRun({
-									text: "Profile generated by PeopleFinder",
-									font: "Arial",
-									size: 18, // 9pt
-									color: "666666",
-									italics: true,
-								}),
-							],
-						}),
-					],
-				},
-			],
-		});
+						},
+						children: [
+							...children,
+							new Paragraph({
+								alignment: AlignmentType.CENTER,
+								spacing: { before: 360 },
+								children: [
+									new TextRun({
+										text: "Profile generated by PeopleFinder",
+										font: "Arial",
+										size: 18,
+										color: "666666",
+										italics: true,
+									}),
+								],
+							}),
+						],
+					},
+				],
+			});
 
 		const buffer = await Packer.toBuffer(doc);
 
