@@ -8,6 +8,7 @@ import csv from "csv-parser";
 import path from "path";
 import os from "os";
 import readline from "readline";
+import { fileURLToPath } from "url";
 import {
 	Document,
 	Packer,
@@ -30,6 +31,9 @@ import {
 	downloadFromS3,
 	listS3FilesByPage,
 } from "../utils/s3Service.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // --- HELPER: Robust CSV Line Parser (ETL) ---
 // Handles quoted fields correctly (e.g. "Manager, Sales" is one column)
@@ -1732,17 +1736,20 @@ export const downloadProfile = async (req, res) => {
 		}
 
 		const faviconCandidates = [
-			path.join(process.cwd(), "server", "uploads", "favicon-96x96.png"),
-			path.join(process.cwd(), "server", "uploads", "favicon.png"),
-			path.join(process.cwd(), "server", "uploads", "favicon.svg"),
-			path.join(process.cwd(), "server", "public", "favicon-96x96.png"),
-			path.join(process.cwd(), "server", "public", "favicon.png"),
-			path.join(process.cwd(), "server", "public", "favicon.svg"),
+			// Most reliable for DOCX rendering (Word): raster images first
+			path.resolve(__dirname, "..", "public", "favicon-96x96.png"),
+			path.resolve(__dirname, "..", "public", "favicon.png"),
+			path.resolve(__dirname, "..", "public", "favicon.jpg"),
+			path.resolve(__dirname, "..", "public", "favicon.jpeg"),
+			// Runtime cwd fallbacks
 			path.join(process.cwd(), "public", "favicon-96x96.png"),
 			path.join(process.cwd(), "public", "favicon.png"),
+			path.join(process.cwd(), "server", "public", "favicon-96x96.png"),
+			path.join(process.cwd(), "server", "public", "favicon.png"),
+			// SVG only as last fallback
+			path.resolve(__dirname, "..", "public", "favicon.svg"),
 			path.join(process.cwd(), "public", "favicon.svg"),
-			path.join(process.cwd(), "client", "public", "favicon-96x96.png"),
-			path.join(process.cwd(), "client", "public", "favicon.svg"),
+			path.join(process.cwd(), "server", "public", "favicon.svg"),
 		];
 		let faviconImage = null;
 		for (const p of faviconCandidates) {
@@ -1750,27 +1757,31 @@ export const downloadProfile = async (req, res) => {
 			const ext = path.extname(p).toLowerCase();
 			faviconImage = {
 				data: fs.readFileSync(p),
-				type: ext === ".svg" ? "svg" : ext === ".png" ? "png" : undefined,
+				type:
+					ext === ".png"
+						? "png"
+						: ext === ".jpg" || ext === ".jpeg"
+							? "jpg"
+							: ext === ".svg"
+								? "svg"
+								: undefined,
 			};
 			break;
 		}
-		const headerWithLogo = faviconImage
-			? new Header({
-					children: [
-						new Paragraph({
-							alignment: AlignmentType.RIGHT,
-							spacing: { after: 60 },
-							children: [
-								new ImageRun({
-									data: faviconImage.data,
-									type: faviconImage.type,
-									transformation: { width: 24, height: 24 },
-								}),
-							],
-						}),
-					],
-			  })
-			: undefined;
+		const buildLogoParagraph = () =>
+			new Paragraph({
+				alignment: AlignmentType.RIGHT,
+				spacing: { after: 60 },
+				children: faviconImage
+					? [
+							new ImageRun({
+								data: faviconImage.data,
+								type: faviconImage.type,
+								transformation: { width: 24, height: 24 },
+							}),
+					  ]
+					: [],
+			});
 
 		const doc = new Document({
 			styles: {
@@ -1819,11 +1830,11 @@ export const downloadProfile = async (req, res) => {
 							},
 						},
 					},
-					headers: headerWithLogo
+					headers: faviconImage
 						? {
-							default: headerWithLogo,
-							first: headerWithLogo,
-							even: headerWithLogo,
+							default: new Header({ children: [buildLogoParagraph()] }),
+							first: new Header({ children: [buildLogoParagraph()] }),
+							even: new Header({ children: [buildLogoParagraph()] }),
 						  }
 						: undefined,
 					children: [
