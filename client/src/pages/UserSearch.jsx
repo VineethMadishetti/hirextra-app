@@ -1602,10 +1602,20 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 	const parserData = profile?.parsedResume?.raw?.ResumeParserData || {};
 	const skillItems = getProfileSkillItems(profile);
 	const educationItems = getEducationItems(profile);
+	const workedPeriod = parserData?.WorkedPeriod || {};
 	const confidenceScore =
 		Number(parserData?.Name?.ConfidenceScore) > 0
 			? Number(parserData?.Name?.ConfidenceScore)
 			: null;
+	const profileMetrics = [
+		{ label: "Total Experience", value: workedPeriod?.TotalExperienceInYear ? `${workedPeriod.TotalExperienceInYear} years` : "" },
+		{ label: "Total Experience (Months)", value: workedPeriod?.TotalExperienceInMonths ? `${workedPeriod.TotalExperienceInMonths} months` : "" },
+		{ label: "Experience Range", value: workedPeriod?.TotalExperienceRange || "" },
+		{ label: "Average Stay", value: parserData?.AverageStay ? `${parserData.AverageStay} months` : "" },
+		{ label: "Longest Stay", value: parserData?.LongestStay ? `${parserData.LongestStay} months` : "" },
+		{ label: "Current Employer", value: parserData?.CurrentEmployer || profile?.company || "" },
+		{ label: "Current Role", value: parserData?.JobProfile || profile?.jobTitle || "" },
+	].filter((item) => item.value);
 
 	return (
 		<div
@@ -1658,7 +1668,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 
 				{/* Body */}
 				<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
-					<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0">
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-0">
 						{/* Left Column - Contact Info */}
 						<div className="lg:col-span-1 space-y-6">
 							{/* Contact Card */}
@@ -1722,7 +1732,10 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 								</div>
 							</div>
 
-							{/* Experience & Industry */}
+						</div>
+
+						{/* Right Column - Professional Details, Education, Skills */}
+						<div className="lg:col-span-1 space-y-6">
 							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-4 shadow-sm">
 								<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
 									<span className="bg-indigo-100 dark:bg-indigo-900/50 p-1.5 rounded-lg">
@@ -1730,17 +1743,17 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 									</span>
 									Professional Details
 								</h3>
-								<div className="space-y-3">
-									{profile.experience && (
-										<div>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+									{profileMetrics.map((item) => (
+										<div key={item.label}>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Experience
+												{item.label}
 											</p>
 											<p className="text-slate-700 dark:text-slate-300 font-medium">
-												{profile.experience}
+												{item.value}
 											</p>
 										</div>
-									)}
+									))}
 									{profile.industry && (
 										<div>
 											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
@@ -1792,10 +1805,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 									<p className="text-slate-400 italic text-sm">No education data available</p>
 								)}
 							</div>
-						</div>
 
-						{/* Right Column - Skills */}
-						<div className="lg:col-span-2 space-y-6">
 							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 shadow-sm">
 								<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3">
 									<span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl">

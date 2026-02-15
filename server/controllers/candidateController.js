@@ -1251,11 +1251,6 @@ export const downloadProfile = async (req, res) => {
 		};
 
 		const normalizePhone = (value) => cleanInline(value).replace(/[^\d+]/g, "");
-		const normalizeConfidence = (value) => {
-			const n = Number(value);
-			if (!Number.isFinite(n) || n <= 0) return null;
-			return Math.max(0, Math.min(10, n));
-		};
 		const normalizeUrlForDedup = (value) =>
 			cleanInline(value)
 				.toLowerCase()
@@ -1334,17 +1329,6 @@ export const downloadProfile = async (req, res) => {
 		const certifications = toArray(parserData.SegregatedCertification);
 		const achievements = toArray(parserData.SegregatedAchievement);
 		const publications = toArray(parserData.SegregatedPublication);
-		const confidenceScores = [
-			normalizeConfidence(parserData?.Name?.ConfidenceScore),
-			normalizeConfidence(toArray(parserData?.Email)[0]?.ConfidenceScore),
-			normalizeConfidence(toArray(parserData?.PhoneNumber)[0]?.ConfidenceScore),
-			normalizeConfidence(toArray(parserData?.SegregatedExperience)[0]?.JobProfile?.ConfidenceScore),
-		].filter((v) => v !== null);
-		const overallConfidence =
-			confidenceScores.length > 0
-				? (confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length).toFixed(1)
-				: null;
-
 		const projectEntries = [];
 		for (const exp of experiences) {
 			const expEmployer = cleanInline(exp?.Employer?.EmployerName);
@@ -1402,11 +1386,11 @@ export const downloadProfile = async (req, res) => {
 				}),
 			);
 		};
-		const addMultiline = (text, { indent = 360, bullets = false } = {}) => {
+		const addMultiline = (text, { indent = 360, bullets = false, autoDetectBullets = true } = {}) => {
 			for (const line of normalizeMultiline(text)) {
 				const isBulletLike = /^[\u2022\-*]/.test(line);
 				const normalizedLine = line.replace(/^[\u2022\-*\s]+/, "").trim();
-				if (bullets || isBulletLike) {
+				if (bullets || (autoDetectBullets && isBulletLike)) {
 					addBullet(normalizedLine, indent);
 				} else {
 					addLine(normalizedLine, { indent });
@@ -1487,17 +1471,6 @@ export const downloadProfile = async (req, res) => {
 			);
 		}
 
-		if (overallConfidence) {
-			children.push(
-				new Paragraph({
-					spacing: { after: 60 },
-					children: [
-						new TextRun({ text: "Confidence Score: " }),
-						new TextRun({ text: `${overallConfidence}/10` }),
-					],
-				}),
-			);
-		}
 		if (uniqueEmails.length > 0) {
 			for (const email of uniqueEmails.slice(0, 2)) {
 				addLinkLine("Email", email, `mailto:${email}`);
@@ -1549,7 +1522,7 @@ export const downloadProfile = async (req, res) => {
 
 		if (profileOverview) {
 			addSectionHeader("PROFILE OVERVIEW");
-			addMultiline(profileOverview, { indent: 360 });
+			addMultiline(profileOverview, { indent: 360, autoDetectBullets: false });
 		}
 
 		if (orderedSkills.length > 0) {
