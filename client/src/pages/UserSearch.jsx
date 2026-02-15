@@ -1603,13 +1603,9 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 	const skillItems = getProfileSkillItems(profile);
 	const educationItems = getEducationItems(profile);
 	const workedPeriod = parserData?.WorkedPeriod || {};
-	const confidenceScore =
-		Number(parserData?.Name?.ConfidenceScore) > 0
-			? Number(parserData?.Name?.ConfidenceScore)
-			: null;
 	const profileMetrics = [
 		{ label: "Total Experience", value: workedPeriod?.TotalExperienceInYear ? `${workedPeriod.TotalExperienceInYear} years` : "" },
-		{ label: "Total Experience (Months)", value: workedPeriod?.TotalExperienceInMonths ? `${workedPeriod.TotalExperienceInMonths} months` : "" },
+		// { label: "Total Experience (Months)", value: workedPeriod?.TotalExperienceInMonths ? `${workedPeriod.TotalExperienceInMonths} months` : "" },
 		{ label: "Experience Range", value: workedPeriod?.TotalExperienceRange || "" },
 		{ label: "Average Stay", value: parserData?.AverageStay ? `${parserData.AverageStay} months` : "" },
 		{ label: "Longest Stay", value: parserData?.LongestStay ? `${parserData.LongestStay} months` : "" },
@@ -1732,10 +1728,6 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 								</div>
 							</div>
 
-						</div>
-
-						{/* Right Column - Professional Details, Education, Skills */}
-						<div className="lg:col-span-1 space-y-6">
 							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 space-y-4 shadow-sm">
 								<h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-4">
 									<span className="bg-indigo-100 dark:bg-indigo-900/50 p-1.5 rounded-lg">
@@ -1761,16 +1753,6 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 											</p>
 											<p className="text-slate-700 dark:text-slate-300 font-medium capitalize">
 												{profile.industry.toLowerCase()}
-											</p>
-										</div>
-									)}
-									{confidenceScore && (
-										<div>
-											<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-0.5">
-												Confidence Score
-											</p>
-											<p className="text-slate-700 dark:text-slate-300 font-medium">
-												{confidenceScore}/10
 											</p>
 										</div>
 									)}
@@ -1806,6 +1788,10 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 								)}
 							</div>
 
+						</div>
+
+						{/* Right Column - Skills */}
+						<div className="lg:col-span-1 space-y-6">
 							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-8 shadow-sm">
 								<h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 md:mb-6 flex items-center gap-3">
 									<span className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl">
@@ -1831,19 +1817,18 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 								) : (
 									<p className="text-slate-400 italic">No skills listed</p>
 								)}
-							</div>
-
-							<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-6 shadow-sm">
-								<button
-									onClick={(e) => {
-										e.stopPropagation();
-										onDownload(profile._id, e);
-									}}
-									className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-3 md:py-4 rounded-xl font-bold shadow-lg shadow-slate-200 dark:shadow-indigo-900/20 hover:shadow-xl hover:shadow-slate-300 dark:hover:shadow-indigo-900/30 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
-									<Download size={20} />
-									Download Full Profile
-									<ExternalLink size={18} />
-								</button>
+								<div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											onDownload(profile._id, e);
+										}}
+										className="w-full bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white py-3 md:py-4 rounded-xl font-bold shadow-lg shadow-slate-200 dark:shadow-indigo-900/20 hover:shadow-xl hover:shadow-slate-300 dark:hover:shadow-indigo-900/30 transition-all flex items-center justify-center gap-3 transform active:scale-[0.99]">
+										<Download size={20} />
+										Download Full Profile
+										<ExternalLink size={18} />
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>

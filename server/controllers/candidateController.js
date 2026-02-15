@@ -17,7 +17,6 @@ import {
 	AlignmentType,
 	Header,
 	ImageRun,
-	ExternalHyperlink,
 	Table,
 	TableRow,
 	TableCell,
@@ -1324,6 +1323,7 @@ export const downloadProfile = async (req, res) => {
 				: dedupeBy(candidateSkills.map((s) => ({ name: s })), (s) => s.name.toLowerCase()).map((s) => s.name);
 
 		const addresses = toArray(parserData.Address);
+		const workedPeriod = parserData?.WorkedPeriod || {};
 		const qualifications = toArray(parserData.SegregatedQualification);
 		const experiences = toArray(parserData.SegregatedExperience);
 		const certifications = toArray(parserData.SegregatedCertification);
@@ -1411,24 +1411,6 @@ export const downloadProfile = async (req, res) => {
 				}),
 			);
 		};
-		const addLinkLine = (label, text, href, indent = 0) => {
-			const t = cleanInline(text);
-			const h = cleanInline(href);
-			if (!t || !h) return;
-			children.push(
-				new Paragraph({
-					indent: indent ? { left: indent } : undefined,
-					spacing: { after: 60 },
-					children: [
-						...(label ? [new TextRun({ text: `${label}: `, bold: true })] : []),
-						new ExternalHyperlink({
-							link: h,
-							children: [new TextRun({ text: t, style: "Hyperlink" })],
-						}),
-					],
-				}),
-			);
-		};
 		const addExperienceBullets = (text, indent = 720) => {
 			for (const line of normalizeMultiline(text)) {
 				const normalized = line.replace(/^[\u2022\-*\s]+/, "").trim();
@@ -1471,39 +1453,91 @@ export const downloadProfile = async (req, res) => {
 			);
 		}
 
-		if (uniqueEmails.length > 0) {
-			for (const email of uniqueEmails.slice(0, 2)) {
-				addLinkLine("Email", email, `mailto:${email}`);
-			}
-		}
-		if (uniquePhones.length > 0) {
-			for (const phone of uniquePhones.slice(0, 2)) {
-				addLinkLine("Phone", phone, `tel:${normalizePhone(phone)}`);
-			}
-		}
-		if (headerLocation) {
-			children.push(
-				new Paragraph({
-					spacing: { after: 60 },
-					children: [
-						new TextRun({ text: "Location: ", bold: true }),
-						new TextRun({ text: headerLocation }),
-					],
-				}),
-			);
-		}
-		if (linkedinLinks.length > 0) {
-			const lnk = linkedinLinks[0].startsWith("http")
-				? linkedinLinks[0]
-				: `https://${linkedinLinks[0]}`;
-			addLinkLine("LinkedIn", linkedinLinks[0], lnk);
-		}
-		if (otherWebsites.length > 0) {
-			for (const site of otherWebsites.slice(0, 3)) {
-				const href = site.startsWith("http") ? site : `https://${site}`;
-				addLinkLine("Website", site, href);
-			}
-		}
+		const contactDetails = [
+			{ label: "Email", value: uniqueEmails[0] || "" },
+			{ label: "Phone", value: uniquePhones[0] || "" },
+			{ label: "Location", value: headerLocation || "" },
+			{ label: "LinkedIn", value: linkedinLinks[0] || "" },
+			{ label: "Website", value: otherWebsites[0] || "" },
+		].filter((item) => item.value);
+
+		const professionalMetrics = [
+			{
+				label: "Total Experience",
+				value: cleanInline(workedPeriod?.TotalExperienceInYear)
+					? `${cleanInline(workedPeriod.TotalExperienceInYear)} years`
+					: cleanInline(candidate.experience),
+			},
+			{ label: "Experience Range", value: cleanInline(workedPeriod?.TotalExperienceRange) },
+			{
+				label: "Average Stay",
+				value: cleanInline(parserData?.AverageStay)
+					? `${cleanInline(parserData.AverageStay)} months`
+					: "",
+			},
+			{
+				label: "Longest Stay",
+				value: cleanInline(parserData?.LongestStay)
+					? `${cleanInline(parserData.LongestStay)} months`
+					: "",
+			},
+			{ label: "Current Employer", value: cleanInline(parserData?.CurrentEmployer || candidate.company) },
+			{ label: "Current Role", value: cleanInline(parserData?.JobProfile || candidate.jobTitle) },
+			{ label: "Industry", value: cleanInline(candidate.industry || parserData?.Category) },
+		].filter((item) => item.value);
+
+		children.push(
+			new Table({
+				indent: { size: 120, type: WidthType.DXA },
+				width: { size: 100, type: WidthType.PERCENTAGE },
+				borders: {
+					top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+					bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+					left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+					right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+					insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+					insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+				},
+				rows: [
+					new TableRow({
+						children: [
+							new TableCell({
+								width: { size: 50, type: WidthType.PERCENTAGE },
+								children: [
+									new Paragraph({
+										spacing: { after: 80 },
+										children: [new TextRun({ text: "CONTACT INFORMATION", bold: true })],
+									}),
+									...contactDetails.map(
+										(item) =>
+											new Paragraph({
+												spacing: { after: 40 },
+												children: [new TextRun({ text: `${item.label}: ${item.value}` })],
+											}),
+									),
+								],
+							}),
+							new TableCell({
+								width: { size: 50, type: WidthType.PERCENTAGE },
+								children: [
+									new Paragraph({
+										spacing: { after: 80 },
+										children: [new TextRun({ text: "PROFESSIONAL DETAILS", bold: true })],
+									}),
+									...professionalMetrics.map(
+										(item) =>
+											new Paragraph({
+												spacing: { after: 40 },
+												children: [new TextRun({ text: `${item.label}: ${item.value}` })],
+											}),
+									),
+								],
+							}),
+						],
+					}),
+				],
+			}),
+		);
 
 		children.push(
 			new Paragraph({
