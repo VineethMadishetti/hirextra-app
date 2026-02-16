@@ -1815,49 +1815,88 @@ export const downloadProfile = async (req, res) => {
 			}
 		}
 
-		const faviconCandidates = [
-			// Most reliable for DOCX rendering (Word): raster images first
+		const logoNameFromEnv = cleanInline(process.env.RESUME_LOGO_FILE);
+		const logoCandidates = [
+			// Explicit override first
+			logoNameFromEnv ? path.resolve(__dirname, "..", "public", logoNameFromEnv) : "",
+			logoNameFromEnv ? path.join(process.cwd(), "server", "public", logoNameFromEnv) : "",
+			logoNameFromEnv ? path.join(process.cwd(), "public", logoNameFromEnv) : "",
+			// Preferred company branding names
+			path.resolve(__dirname, "..", "public", "company-logo.png"),
+			path.resolve(__dirname, "..", "public", "company-logo.jpg"),
+			path.resolve(__dirname, "..", "public", "company-logo.jpeg"),
+			path.resolve(__dirname, "..", "public", "logo.png"),
+			path.resolve(__dirname, "..", "public", "logo.jpg"),
+			path.resolve(__dirname, "..", "public", "logo.jpeg"),
+			// Existing favicon fallbacks
 			path.resolve(__dirname, "..", "public", "favicon-96x96.png"),
 			path.resolve(__dirname, "..", "public", "favicon.png"),
 			path.resolve(__dirname, "..", "public", "favicon.jpg"),
 			path.resolve(__dirname, "..", "public", "favicon.jpeg"),
 			// Runtime cwd fallbacks
-			path.join(process.cwd(), "public", "favicon-96x96.png"),
-			path.join(process.cwd(), "public", "favicon.png"),
+			path.join(process.cwd(), "server", "public", "company-logo.png"),
+			path.join(process.cwd(), "server", "public", "logo.png"),
 			path.join(process.cwd(), "server", "public", "favicon-96x96.png"),
 			path.join(process.cwd(), "server", "public", "favicon.png"),
-			// SVG only as last fallback
+			path.join(process.cwd(), "public", "company-logo.png"),
+			path.join(process.cwd(), "public", "logo.png"),
+			path.join(process.cwd(), "public", "favicon-96x96.png"),
+			path.join(process.cwd(), "public", "favicon.png"),
+			// SVG fallback at the end
+			path.resolve(__dirname, "..", "public", "company-logo.svg"),
+			path.resolve(__dirname, "..", "public", "logo.svg"),
 			path.resolve(__dirname, "..", "public", "favicon.svg"),
-			path.join(process.cwd(), "public", "favicon.svg"),
+			path.join(process.cwd(), "server", "public", "company-logo.svg"),
+			path.join(process.cwd(), "server", "public", "logo.svg"),
 			path.join(process.cwd(), "server", "public", "favicon.svg"),
-		];
-		let faviconImage = null;
-		for (const p of faviconCandidates) {
+			path.join(process.cwd(), "public", "company-logo.svg"),
+			path.join(process.cwd(), "public", "logo.svg"),
+			path.join(process.cwd(), "public", "favicon.svg"),
+		].filter(Boolean);
+		let logoImage = null;
+		for (const p of logoCandidates) {
 			if (!fs.existsSync(p)) continue;
 			const ext = path.extname(p).toLowerCase();
-			faviconImage = {
+			const type =
+				ext === ".png"
+					? "png"
+					: ext === ".jpg" || ext === ".jpeg"
+						? "jpg"
+						: ext === ".svg"
+							? "svg"
+							: undefined;
+			if (!type) continue;
+			logoImage = {
 				data: fs.readFileSync(p),
-				type:
-					ext === ".png"
-						? "png"
-						: ext === ".jpg" || ext === ".jpeg"
-							? "jpg"
-							: ext === ".svg"
-								? "svg"
-								: undefined,
+				type,
 			};
 			break;
+		}
+		if (logoImage) {
+			children.unshift(
+				new Paragraph({
+					alignment: AlignmentType.RIGHT,
+					spacing: { after: 120 },
+					children: [
+						new ImageRun({
+							data: logoImage.data,
+							type: logoImage.type,
+							transformation: { width: 56, height: 56 },
+						}),
+					],
+				}),
+			);
 		}
 		const buildLogoParagraph = () =>
 			new Paragraph({
 				alignment: AlignmentType.RIGHT,
 				spacing: { after: 60 },
-				children: faviconImage
+				children: logoImage
 					? [
 							new ImageRun({
-								data: faviconImage.data,
-								type: faviconImage.type,
-								transformation: { width: 24, height: 24 },
+								data: logoImage.data,
+								type: logoImage.type,
+								transformation: { width: 32, height: 32 },
 							}),
 					  ]
 					: [],
@@ -1910,7 +1949,7 @@ export const downloadProfile = async (req, res) => {
 							},
 						},
 					},
-					headers: faviconImage
+					headers: logoImage
 						? {
 							default: new Header({ children: [buildLogoParagraph()] }),
 							first: new Header({ children: [buildLogoParagraph()] }),
@@ -1919,16 +1958,16 @@ export const downloadProfile = async (req, res) => {
 						: undefined,
 					children: [
 						...children,
-						...(faviconImage
+						...(logoImage
 							? [
 									new Paragraph({
 										alignment: AlignmentType.RIGHT,
 										spacing: { before: 260, after: 40 },
 										children: [
 											new ImageRun({
-												data: faviconImage.data,
-												type: faviconImage.type,
-												transformation: { width: 24, height: 24 },
+												data: logoImage.data,
+												type: logoImage.type,
+												transformation: { width: 32, height: 32 },
 											}),
 										],
 									}),
