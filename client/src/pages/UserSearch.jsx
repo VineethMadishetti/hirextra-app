@@ -1662,7 +1662,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 
 				{/* Body */}
 				<div className="p-4 md:p-8 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950/50 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
-					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-0">
+					<div className="grid grid-cols-1 gap-8 min-h-0 lg:[grid-template-columns:30%_70%]">
 						{/* Left Column - Contact Info */}
 						<div className="lg:col-span-1 space-y-6">
 							{/* Contact Card */}

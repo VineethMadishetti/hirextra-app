@@ -1449,8 +1449,41 @@ export const downloadProfile = async (req, res) => {
 
 			pushCurrent();
 
+			const splitByLabelColon = (input) => {
+				const normalized = input.replace(/\s+:\s+/g, ": ").replace(/\s+/g, " ").trim();
+				const labelRegex = /\b([A-Za-z][A-Za-z0-9/&()\-]*(?:\s+[A-Za-z][A-Za-z0-9/&()\-]*){0,3}):\s*/g;
+				const starts = [];
+				let match;
+
+				while ((match = labelRegex.exec(normalized)) !== null) {
+					const label = String(match[1] || "").toLowerCase();
+					if (label === "http" || label === "https") continue;
+					starts.push(match.index);
+				}
+
+				if (starts.length === 0) return [normalized];
+
+				const segments = [];
+				let startIdx = 0;
+
+				for (const idx of starts) {
+					if (idx === 0) continue;
+					const part = normalized.slice(startIdx, idx).trim();
+					if (part) segments.push(part);
+					startIdx = idx;
+				}
+
+				const tail = normalized.slice(startIdx).trim();
+				if (tail) segments.push(tail);
+				return segments.length > 0 ? segments : [normalized];
+			};
+
 			for (const item of merged) {
-				addBullet(item, indent);
+				for (const part of splitByLabelColon(item)) {
+					const cleaned = part.trim();
+					if (cleaned.length <= 2) continue;
+					addBullet(cleaned, indent);
+				}
 			}
 		};
 
