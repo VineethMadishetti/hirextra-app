@@ -1397,15 +1397,16 @@ export const downloadProfile = async (req, res) => {
 				}
 			}
 		};
-		const addKeyValue = (label, value, indent = 360) => {
+		const addKeyValue = (label, value, indent = 360, options = {}) => {
 			const v = cleanInline(value);
 			if (!v) return;
+			const { labelBold = false } = options;
 			children.push(
 				new Paragraph({
 					indent: { left: indent },
 					spacing: { after: 40 },
 					children: [
-						new TextRun({ text: `${label}: ` }),
+						new TextRun({ text: `${label}: `, bold: labelBold }),
 						new TextRun({ text: v }),
 					],
 				}),
@@ -1631,8 +1632,8 @@ export const downloadProfile = async (req, res) => {
 							}),
 						);
 					}
-						addKeyValue("Period", period, 720);
-						addKeyValue("Location", location, 720);
+						addKeyValue("Period", period, 720, { labelBold: true });
+						addKeyValue("Location", location, 720, { labelBold: true });
 
 						if (cleanInline(exp?.JobDescription)) {
 							addExperienceBullets(exp.JobDescription, 720);
@@ -1686,10 +1687,10 @@ export const downloadProfile = async (req, res) => {
 							.join(", "),
 					);
 					addBullet([degree, inst].filter(Boolean).join(" | "));
-					addKeyValue("Period", period, 720);
-					addKeyValue("Location", location, 720);
+					addKeyValue("Period", period, 720, { labelBold: true });
+					addKeyValue("Location", location, 720, { labelBold: true });
 					if (edu?.Degree?.Specialization?.length) {
-						addKeyValue("Specialization", edu.Degree.Specialization.join(", "), 720);
+						addKeyValue("Specialization", edu.Degree.Specialization.join(", "), 720, { labelBold: true });
 					}
 				}
 			} else {
