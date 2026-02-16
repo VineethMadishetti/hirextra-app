@@ -1,4 +1,4 @@
-import importQueue, { processCsvJob } from "../utils/queue.js";
+import importQueue, { processCsvJob, processResumeJob } from "../utils/queue.js";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
@@ -388,16 +388,139 @@ export const uploadChunk = async (req, res) => {
 };
 
 // --- BULK RESUME IMPORT (S3 Folder) ---
+const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = false }) => {
+	const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
+	const scanBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_SCAN_BATCH || 1000));
+	const directConcurrency = Math.max(
+		1,
+		Number(
+			process.env.RESUME_IMPORT_DIRECT_CONCURRENCY ||
+			process.env.RESUME_PARSE_CONCURRENCY ||
+			4,
+		),
+	);
+
+	let discoveredCount = 0;
+	let queuedCount = 0;
+	let skippedExistingCount = 0;
+	let sawAnyResumeFile = false;
+
+	const running = new Set();
+	const schedule = async (s3Key) => {
+		const task = (async () => {
+			try {
+				await processResumeJob({ jobId, s3Key, skipAutoFinalize: true });
+			} catch (error) {
+				console.error(`Direct resume processing failed for ${s3Key}:`, error?.message || error);
+			}
+		})().finally(() => running.delete(task));
+
+		running.add(task);
+		if (running.size >= directConcurrency) {
+			await Promise.race(running);
+		}
+	};
+
+	for await (const filesPage of listS3FilesByPage(s3Prefix, s3ListPageSize)) {
+		const resumeFilesPage = filesPage.filter((f) =>
+			f?.Key &&
+			(
+				f.Key.toLowerCase().endsWith(".pdf") ||
+				f.Key.toLowerCase().endsWith(".docx") ||
+				f.Key.toLowerCase().endsWith(".doc")
+			),
+		);
+
+		if (resumeFilesPage.length === 0) continue;
+		sawAnyResumeFile = true;
+		discoveredCount += resumeFilesPage.length;
+
+		for (let i = 0; i < resumeFilesPage.length; i += scanBatchSize) {
+			const chunk = resumeFilesPage.slice(i, i + scanBatchSize).filter((f) => f?.Key);
+			if (chunk.length === 0) continue;
+
+			let filesToProcess = chunk;
+			if (skipExisting) {
+				const chunkKeys = chunk.map((f) => f.Key);
+				const existingRows = await Candidate.find({
+					sourceFile: { $in: chunkKeys },
+					isDeleted: false,
+				})
+					.select("sourceFile -_id")
+					.lean();
+
+				const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
+				filesToProcess = chunk.filter((f) => !existingKeys.has(f.Key));
+				skippedExistingCount += chunk.length - filesToProcess.length;
+			}
+
+			if (filesToProcess.length === 0) continue;
+
+			queuedCount += filesToProcess.length;
+			await UploadJob.findByIdAndUpdate(jobId, { totalRows: queuedCount, status: "PROCESSING" });
+
+			for (const file of filesToProcess) {
+				await schedule(file.Key);
+			}
+		}
+	}
+
+	await Promise.allSettled([...running]);
+
+	if (!sawAnyResumeFile) {
+		await UploadJob.findByIdAndUpdate(jobId, {
+			status: "FAILED",
+			error: "No PDF, DOCX, or DOC files found in that folder.",
+		});
+		return {
+			fileCount: 0,
+			queuedCount: 0,
+			skippedExistingCount: 0,
+			status: "FAILED",
+		};
+	}
+
+	if (queuedCount === 0) {
+		await UploadJob.findByIdAndUpdate(jobId, {
+			status: "COMPLETED",
+			totalRows: 0,
+			successRows: 0,
+			failedRows: 0,
+			completedAt: new Date(),
+		});
+		return {
+			fileCount: discoveredCount,
+			queuedCount: 0,
+			skippedExistingCount,
+			status: "COMPLETED",
+		};
+	}
+
+	const updatedJob = await UploadJob.findById(jobId).select("successRows failedRows").lean();
+	const finalStatus = (updatedJob?.successRows || 0) > 0 ? "COMPLETED" : "FAILED";
+
+	await UploadJob.findByIdAndUpdate(jobId, {
+		status: finalStatus,
+		completedAt: new Date(),
+	});
+
+	return {
+		fileCount: discoveredCount,
+		queuedCount,
+		skippedExistingCount,
+		status: finalStatus,
+	};
+};
+
 export const importResumes = async (req, res) => {
 	let createdJobId = null;
 	try {
 		const { folderPath, skipExisting = false } = req.body || {};
 		if (!folderPath) return res.status(400).json({ message: "Folder path is required" });
-		if (!importQueue) {
-			return res.status(503).json({
-				message: "Resume import queue is not available. Configure REDIS_URL and restart worker."
-			});
-		}
+		// Default to direct mode for resume imports to avoid Redis request caps on bulk folders.
+		// Set RESUME_IMPORT_USE_QUEUE=true only when you explicitly want BullMQ queueing.
+		const queueEnabledByEnv = String(process.env.RESUME_IMPORT_USE_QUEUE || "false").toLowerCase() === "true";
+		const useQueueMode = queueEnabledByEnv && !!importQueue;
 
 		const normalizedFolderPath = String(folderPath).trim().replace(/^\/+/, "");
 		if (!normalizedFolderPath) {
@@ -423,98 +546,125 @@ export const importResumes = async (req, res) => {
 		});
 		createdJobId = job._id;
 
-		// 3. Read S3 page-by-page, enqueue in chunks, and skip already-imported source files
-		const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
-		const enqueueBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_ENQUEUE_BATCH || 1000));
-		let discoveredCount = 0;
-		let queuedCount = 0;
-		let skippedExistingCount = 0;
-		let sawAnyResumeFile = false;
+		// Queue mode (BullMQ + Redis)
+		if (useQueueMode) {
+			const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
+			const enqueueBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_ENQUEUE_BATCH || 1000));
+			let discoveredCount = 0;
+			let queuedCount = 0;
+			let skippedExistingCount = 0;
+			let sawAnyResumeFile = false;
 
-		for await (const filesPage of listS3FilesByPage(s3Prefix, s3ListPageSize)) {
-			const resumeFilesPage = filesPage.filter((f) =>
-				f?.Key &&
-				(
-					f.Key.toLowerCase().endsWith(".pdf") ||
-					f.Key.toLowerCase().endsWith(".docx") ||
-					f.Key.toLowerCase().endsWith(".doc")
-				)
-			);
+			for await (const filesPage of listS3FilesByPage(s3Prefix, s3ListPageSize)) {
+				const resumeFilesPage = filesPage.filter((f) =>
+					f?.Key &&
+					(
+						f.Key.toLowerCase().endsWith(".pdf") ||
+						f.Key.toLowerCase().endsWith(".docx") ||
+						f.Key.toLowerCase().endsWith(".doc")
+					),
+				);
 
-			if (resumeFilesPage.length === 0) continue;
-			sawAnyResumeFile = true;
-			discoveredCount += resumeFilesPage.length;
+				if (resumeFilesPage.length === 0) continue;
+				sawAnyResumeFile = true;
+				discoveredCount += resumeFilesPage.length;
 
-			for (let i = 0; i < resumeFilesPage.length; i += enqueueBatchSize) {
-				const chunk = resumeFilesPage.slice(i, i + enqueueBatchSize).filter((f) => f?.Key);
-				if (chunk.length === 0) continue;
+				for (let i = 0; i < resumeFilesPage.length; i += enqueueBatchSize) {
+					const chunk = resumeFilesPage.slice(i, i + enqueueBatchSize).filter((f) => f?.Key);
+					if (chunk.length === 0) continue;
 
-				let filesToQueue = chunk;
-				if (skipExisting) {
-					const chunkKeys = chunk.map((f) => f.Key);
-					const existingRows = await Candidate.find({
-						sourceFile: { $in: chunkKeys },
-						isDeleted: false,
-					})
-						.select("sourceFile -_id")
-						.lean();
+					let filesToQueue = chunk;
+					if (skipExisting) {
+						const chunkKeys = chunk.map((f) => f.Key);
+						const existingRows = await Candidate.find({
+							sourceFile: { $in: chunkKeys },
+							isDeleted: false,
+						})
+							.select("sourceFile -_id")
+							.lean();
 
-					const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
-					filesToQueue = chunk.filter((f) => !existingKeys.has(f.Key));
-					skippedExistingCount += chunk.length - filesToQueue.length;
+						const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
+						filesToQueue = chunk.filter((f) => !existingKeys.has(f.Key));
+						skippedExistingCount += chunk.length - filesToQueue.length;
+					}
+
+					if (filesToQueue.length === 0) continue;
+
+					const jobsData = filesToQueue.map((file) => ({
+						name: "resume-import",
+						data: { jobId: job._id, s3Key: file.Key },
+						opts: {
+							attempts: 5,
+							backoff: { type: "exponential", delay: 3000 },
+							removeOnComplete: { age: 24 * 3600, count: 2000 },
+							removeOnFail: { age: 7 * 24 * 3600, count: 5000 },
+						},
+					}));
+
+					const nextQueuedCount = queuedCount + jobsData.length;
+					await UploadJob.findByIdAndUpdate(job._id, { totalRows: nextQueuedCount });
+					await importQueue.addBulk(jobsData);
+					queuedCount = nextQueuedCount;
 				}
-
-				if (filesToQueue.length === 0) continue;
-
-				const jobsData = filesToQueue.map((file) => ({
-					name: "resume-import",
-					data: { jobId: job._id, s3Key: file.Key },
-					opts: {
-						attempts: 5,
-						backoff: { type: "exponential", delay: 3000 },
-						removeOnComplete: { age: 24 * 3600, count: 2000 },
-						removeOnFail: { age: 7 * 24 * 3600, count: 5000 },
-					},
-				}));
-
-				// Prevent race with workers by increasing totalRows before jobs start completing.
-				const nextQueuedCount = queuedCount + jobsData.length;
-				await UploadJob.findByIdAndUpdate(job._id, { totalRows: nextQueuedCount });
-				await importQueue.addBulk(jobsData);
-				queuedCount = nextQueuedCount;
 			}
-		}
 
-		if (!sawAnyResumeFile) {
-			await UploadJob.findByIdAndUpdate(job._id, {
-				status: "FAILED",
-				error: "No PDF, DOCX, or DOC files found in that folder.",
-			});
-			return res.status(404).json({ message: "No PDF, DOCX, or DOC files found in that folder." });
-		}
+			if (!sawAnyResumeFile) {
+				await UploadJob.findByIdAndUpdate(job._id, {
+					status: "FAILED",
+					error: "No PDF, DOCX, or DOC files found in that folder.",
+				});
+				return res.status(404).json({ message: "No PDF, DOCX, or DOC files found in that folder." });
+			}
 
-		if (queuedCount === 0) {
-			await UploadJob.findByIdAndUpdate(job._id, {
-				status: "COMPLETED",
-				totalRows: 0,
-				completedAt: new Date(),
-			});
+			if (queuedCount === 0) {
+				await UploadJob.findByIdAndUpdate(job._id, {
+					status: "COMPLETED",
+					totalRows: 0,
+					completedAt: new Date(),
+				});
+				return res.json({
+					message: "No new resumes to import. All files are already present.",
+					mode: "queue",
+					jobId: job._id,
+					fileCount: discoveredCount,
+					queuedCount: 0,
+					skippedExistingCount,
+					skipExisting: !!skipExisting,
+				});
+			}
+
 			return res.json({
-				message: "No new resumes to import. All files are already present.",
+				message: "Import started",
+				mode: "queue",
 				jobId: job._id,
 				fileCount: discoveredCount,
-				queuedCount: 0,
+				queuedCount,
 				skippedExistingCount,
 				skipExisting: !!skipExisting,
 			});
 		}
 
-		res.json({
+		// Direct mode (no Redis queue traffic)
+		setImmediate(async () => {
+			try {
+				await runDirectResumeImport({
+					jobId: job._id,
+					s3Prefix,
+					skipExisting: !!skipExisting,
+				});
+			} catch (error) {
+				console.error("Direct resume import failed:", error);
+				await UploadJob.findByIdAndUpdate(job._id, {
+					status: "FAILED",
+					error: String(error?.message || error).slice(0, 1000),
+				}).catch(() => {});
+			}
+		});
+
+		return res.json({
 			message: "Import started",
+			mode: "direct",
 			jobId: job._id,
-			fileCount: discoveredCount,
-			queuedCount,
-			skippedExistingCount,
 			skipExisting: !!skipExisting,
 		});
 	} catch (error) {
@@ -1816,7 +1966,14 @@ export const downloadProfile = async (req, res) => {
 		}
 
 		const logoNameFromEnv = cleanInline(process.env.RESUME_LOGO_FILE);
+		const logoPathFromEnv = cleanInline(process.env.RESUME_LOGO_PATH);
 		const logoCandidates = [
+			// Absolute/relative explicit path override
+			logoPathFromEnv
+				? (path.isAbsolute(logoPathFromEnv)
+					? logoPathFromEnv
+					: path.resolve(__dirname, "..", logoPathFromEnv))
+				: "",
 			// Explicit override first
 			logoNameFromEnv ? path.resolve(__dirname, "..", "public", logoNameFromEnv) : "",
 			logoNameFromEnv ? path.join(process.cwd(), "server", "public", logoNameFromEnv) : "",
@@ -1854,6 +2011,7 @@ export const downloadProfile = async (req, res) => {
 			path.join(process.cwd(), "public", "favicon.svg"),
 		].filter(Boolean);
 		let logoImage = null;
+		let logoSourcePath = "";
 		for (const p of logoCandidates) {
 			if (!fs.existsSync(p)) continue;
 			const ext = path.extname(p).toLowerCase();
@@ -1870,22 +2028,26 @@ export const downloadProfile = async (req, res) => {
 				data: fs.readFileSync(p),
 				type,
 			};
+			logoSourcePath = p;
 			break;
 		}
 		if (logoImage) {
+			console.log(`[RESUME_LOGO] Using logo: ${logoSourcePath}`);
 			children.unshift(
 				new Paragraph({
 					alignment: AlignmentType.RIGHT,
 					spacing: { after: 120 },
 					children: [
-						new ImageRun({
-							data: logoImage.data,
-							type: logoImage.type,
-							transformation: { width: 56, height: 56 },
-						}),
+							new ImageRun({
+								data: logoImage.data,
+								type: logoImage.type,
+								transformation: { width: 72, height: 72 },
+							}),
 					],
 				}),
 			);
+		} else {
+			console.warn("[RESUME_LOGO] No logo file found. Checked common public paths and env overrides.");
 		}
 		const buildLogoParagraph = () =>
 			new Paragraph({
