@@ -1413,10 +1413,44 @@ export const downloadProfile = async (req, res) => {
 			);
 		};
 		const addExperienceBullets = (text, indent = 720) => {
-			for (const line of normalizeMultiline(text)) {
+			const lines = normalizeMultiline(text);
+			const merged = [];
+			let current = "";
+
+			const pushCurrent = () => {
+				const cleaned = current.replace(/\s+/g, " ").trim();
+				if (cleaned) merged.push(cleaned);
+				current = "";
+			};
+
+			for (const line of lines) {
+				const hadMarker = /^[\u2022\-*]/.test(line);
 				const normalized = line.replace(/^[\u2022\-*\s]+/, "").trim();
 				if (!normalized) continue;
-				addBullet(normalized, indent);
+
+				const shortFragment = normalized.length <= 35;
+				const lowerStart = /^[a-z]/.test(normalized);
+				const connectorStart = /^(and|or|with|to|by|for|in|on|of|as|at)\b/i.test(normalized);
+				const currentLooksComplete = /[.!?:;]$/.test(current) || current.length > 120;
+
+				if (!current) {
+					current = normalized;
+					continue;
+				}
+
+				if (hadMarker && !shortFragment && !lowerStart && !connectorStart && currentLooksComplete) {
+					pushCurrent();
+					current = normalized;
+					continue;
+				}
+
+				current = `${current} ${normalized}`.replace(/\s+/g, " ").trim();
+			}
+
+			pushCurrent();
+
+			for (const item of merged) {
+				addBullet(item, indent);
 			}
 		};
 
@@ -1469,7 +1503,6 @@ export const downloadProfile = async (req, res) => {
 					? `${cleanInline(workedPeriod.TotalExperienceInYear)} years`
 					: cleanInline(candidate.experience),
 			},
-			{ label: "Experience Range", value: cleanInline(workedPeriod?.TotalExperienceRange) },
 			{
 				label: "Average Stay",
 				value: cleanInline(parserData?.AverageStay)
@@ -1513,7 +1546,10 @@ export const downloadProfile = async (req, res) => {
 										(item) =>
 											new Paragraph({
 												spacing: { after: 40 },
-												children: [new TextRun({ text: `${item.label}: ${item.value}` })],
+												children: [
+													new TextRun({ text: `${item.label}: `, bold: true }),
+													new TextRun({ text: item.value }),
+												],
 											}),
 									),
 								],
@@ -1529,7 +1565,10 @@ export const downloadProfile = async (req, res) => {
 										(item) =>
 											new Paragraph({
 												spacing: { after: 40 },
-												children: [new TextRun({ text: `${item.label}: ${item.value}` })],
+												children: [
+													new TextRun({ text: `${item.label}: `, bold: true }),
+													new TextRun({ text: item.value }),
+												],
 											}),
 									),
 								],
