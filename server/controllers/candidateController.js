@@ -1547,6 +1547,42 @@ export const downloadProfile = async (req, res) => {
 				}
 			}
 		};
+		const formatProfileOverviewLines = (text) => {
+			const compact = cleanInline(text);
+			if (!compact) return [];
+
+			const withEntryBreaks = compact.replace(
+				/\s+([A-Z][A-Za-z0-9&'()./+_-]{1,70}\s+[A-Za-z0-9-]+\.(?:com|net|org|io|ai|dev|app|in|co|edu|gov|vercel\.app|netlify\.app)\s*-\s*)/g,
+				"\n$1",
+			);
+
+			const splitLines = withEntryBreaks
+				.split(/\n+/)
+				.flatMap((chunk) =>
+					String(chunk || "")
+						.split(/(?<=[.!?])\s+(?=[A-Z])/)
+						.map((part) => part.trim()),
+				)
+				.map((line) => line.replace(/^[\u2022\-*\s]+/, "").replace(/\s+/g, " ").trim())
+				.filter(Boolean);
+
+			const merged = [];
+			for (const line of splitLines) {
+				if (
+					merged.length > 0 &&
+					line.length <= 24 &&
+					!/[.!?]$/.test(merged[merged.length - 1])
+				) {
+					merged[merged.length - 1] = `${merged[merged.length - 1]} ${line}`
+						.replace(/\s+/g, " ")
+						.trim();
+					continue;
+				}
+				merged.push(line);
+			}
+
+			return merged.length > 0 ? merged : [compact];
+		};
 		const addKeyValue = (label, value, indent = 360, options = {}) => {
 			const v = cleanInline(value);
 			if (!v) return;
@@ -1779,7 +1815,10 @@ export const downloadProfile = async (req, res) => {
 
 		if (profileOverview) {
 			addSectionHeader("PROFILE OVERVIEW");
-			addMultiline(profileOverview, { indent: 360, autoDetectBullets: false });
+			const overviewLines = formatProfileOverviewLines(profileOverview);
+			for (const line of overviewLines) {
+				addLine(line, { indent: 360, spacing: { after: 80 } });
+			}
 		}
 
 		if (orderedSkills.length > 0) {
