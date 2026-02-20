@@ -7,6 +7,7 @@ import { useTheme } from "../context/ThemeContext";
 import {
 	LayoutDashboard,
 	Search,
+	Sparkles,
 	LogOut,
 	User,
 	Users,
@@ -137,6 +138,18 @@ const Dashboard = () => {
 								<Search size={16} />
 								Search People
 							</button>
+
+							<button
+								onClick={() => setCurrentView("enrich")}
+								className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
+            ${
+							currentView === "enrich"
+								? "bg-white dark:bg-slate-900 text-blue-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700"
+								: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+						}`}>
+								<Sparkles size={16} />
+								Enrich
+							</button>
 						</div>
 					)}
 				</div>
@@ -245,6 +258,15 @@ const Dashboard = () => {
 >
     Search
 </button>
+					<button
+						onClick={() => setCurrentView("enrich")}
+						className={`flex-1 py-3 text-sm font-medium text-center transition-all duration-75 active:translate-y-1 ${
+							currentView === "enrich"
+								? "text-indigo-600 border-b-2 border-indigo-600"
+								: "text-gray-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 shadow-[0_4px_0_0_rgba(0,0,0,0.1)] hover:shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:translate-y-[2px] active:shadow-none"
+						}`}>
+						Enrich
+					</button>
 				</div>
 			)}
 
@@ -261,6 +283,8 @@ const Dashboard = () => {
 						<AdminDashboard />
 					) : currentView === "users" ? (
 						<UserManagement />
+					) : currentView === "enrich" ? (
+						<UserSearch />
 					) : (
 						<UserSearch />
 					)}
