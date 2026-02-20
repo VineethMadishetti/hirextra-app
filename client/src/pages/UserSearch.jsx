@@ -11,7 +11,6 @@ import {
 	useInfiniteQuery,
 	useMutation,
 	useQueryClient,
-	keepPreviousData,
 } from "@tanstack/react-query";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
@@ -503,7 +502,6 @@ const UserSearch = () => {
 		refetchOnWindowFocus: false,
 		refetchOnReconnect: false,
 		refetchInterval: false, // Disabled aggressive polling to prevent unnecessary load and 401s
-		placeholderData: keepPreviousData,
 	});
 
 	// Simplified scroll loading logic
