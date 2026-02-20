@@ -905,6 +905,8 @@ export const searchCandidates = async (req, res) => {
         let query = { isDeleted: false };
         const andConditions = [];
         let locationHintIndex = null;
+        let useTextSearch = false;
+        let keywordRegexFallbackClause = null;
         const parseCsvFilter = (value, maxItems = 20) => {
             if (value === undefined || value === null) return [];
 
@@ -956,8 +958,12 @@ export const searchCandidates = async (req, res) => {
             } else if (isPhone) {
                 andConditions.push({ phone: new RegExp(safeQ.replace(/\s+/g, ''), "i") });
             } else {
+                const textSearch = searchQ
+                    .replace(/[^a-zA-Z0-9\s]/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
                 const regex = new RegExp(safeQ, "i");
-                andConditions.push({
+                keywordRegexFallbackClause = {
                     $or: [
                         { fullName: regex },
                         { jobTitle: regex },
@@ -966,7 +972,14 @@ export const searchCandidates = async (req, res) => {
                         { location: regex },
                         { locality: regex }
                     ]
-                });
+                };
+
+                if (textSearch.length >= 2) {
+                    andConditions.push({ $text: { $search: textSearch } });
+                    useTextSearch = true;
+                } else {
+                    andConditions.push(keywordRegexFallbackClause);
+                }
             }
         }
 
@@ -1079,20 +1092,52 @@ export const searchCandidates = async (req, res) => {
         let hasMore = false;
 
         try {
-            // Use simple pagination - more reliable with complex queries
-            let findQuery = Candidate.find(query)
-                .select("fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt score")
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limitNum + 1)
-                .lean()
-                .maxTimeMS(60000); // Increased to 60s to prevent timeouts
+            const baseSelect =
+                "fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt score";
+            const buildFindQuery = ({ withHint = true, customQuery = query } = {}) => {
+                let findQuery = Candidate.find(customQuery)
+                    .select(baseSelect)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limitNum + 1)
+                    .lean()
+                    .maxTimeMS(20000);
 
-            if (locationHintIndex) {
-                findQuery = findQuery.hint(locationHintIndex);
+                if (withHint && locationHintIndex) {
+                    findQuery = findQuery.hint(locationHintIndex);
+                }
+                return findQuery;
+            };
+
+            try {
+                candidates = await buildFindQuery({ withHint: true });
+            } catch (dbError) {
+                const msg = String(dbError?.message || "");
+                const hintError =
+                    !!locationHintIndex &&
+                    /hint|failed to use index hint|bad hint/i.test(msg);
+                const textIndexMissing =
+                    useTextSearch &&
+                    /text index|required for \$text|index not found for text query/i.test(msg);
+
+                if (!hintError && !textIndexMissing) {
+                    throw dbError;
+                }
+
+                let fallbackQuery = query;
+                if (textIndexMissing && keywordRegexFallbackClause) {
+                    const andWithoutText = (query.$and || []).filter((c) => !(c && c.$text));
+                    fallbackQuery = {
+                        ...query,
+                        $and: [...andWithoutText, keywordRegexFallbackClause],
+                    };
+                }
+
+                candidates = await buildFindQuery({
+                    withHint: false,
+                    customQuery: fallbackQuery,
+                });
             }
-
-            candidates = await findQuery;
 
             hasMore = candidates.length > limitNum;
             if (hasMore) {

@@ -40,7 +40,7 @@ import {
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
 
-const PAGE_SIZE = 100; // Increased to load more data at once
+const PAGE_SIZE = 50; // Smaller page size to return first results faster
 
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
@@ -365,7 +365,8 @@ const UserSearch = () => {
 			return undefined;
 		},
 		initialPageParam: 1,
-		enabled: !!(debouncedSearchInput || Object.values(debouncedFilters).some(v => v && v !== false && v !== "")),
+		// Disabled to prevent duplicate backend traffic while typing.
+		enabled: false,
 		staleTime: 60 * 1000,
 		notifyOnChangeProps: [], // Prevent re-renders from this background fetch
 	});
@@ -499,10 +500,10 @@ const UserSearch = () => {
 		enabled: isSearchApplied,
 		staleTime: 60 * 1000, // Increased to 60s to prevent UI flickering/unnecessary fetches
 		gcTime: 5 * 60 * 1000, // Reduced GC time to free up memory faster
-		refetchOnWindowFocus: true,
-		refetchOnReconnect: true,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false,
 		refetchInterval: false, // Disabled aggressive polling to prevent unnecessary load and 401s
-		// placeholderData: keepPreviousData, // Removed to prevent displaying old data while searching
+		placeholderData: keepPreviousData,
 	});
 
 	// Simplified scroll loading logic
@@ -1043,7 +1044,7 @@ const UserSearch = () => {
 									!hasActiveFilters
 										? "bg-indigo-400 cursor-not-allowed opacity-50"
 										: "bg-indigo-600 hover:bg-indigo-800 cursor-pointer"
-								}`}s
+								}`}
 							>
 								<Search size={16} />
 								<span className="hidden md:inline">Search</span>
