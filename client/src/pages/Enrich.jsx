@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	AlertTriangle,
+	Briefcase,
 	Building2,
 	CalendarClock,
+	CheckCircle2,
+	CircleSlash2,
 	ClipboardList,
 	Download,
 	FileText,
-	Filter,
-	History,
 	Loader2,
 	Mail,
 	MapPin,
@@ -20,45 +20,59 @@ import {
 	ShieldAlert,
 	ShieldCheck,
 	ShieldX,
-	Tags,
-	UserCircle2,
+	Tag,
+	Trash2,
+	Upload,
+	User2,
 	Users,
 	X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../api/axios";
+import { AuthContext } from "../context/AuthContext";
 
 const PAGE_SIZE = 20;
+const card = "rounded-2xl border border-slate-800 bg-slate-900/85 p-4";
+const input =
+	"w-full rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-60";
 
-const VERIFICATION_OPTIONS = [
+const VERIFY_OPTIONS = [
 	{ value: "NEEDS_REVIEW", label: "Needs Review" },
 	{ value: "VERIFIED", label: "Verified" },
 	{ value: "NOT_VERIFIED", label: "Not Verified" },
 ];
+const AVAILABILITY_OPTIONS = [
+	{ value: "IMMEDIATE", label: "Immediate" },
+	{ value: "15_DAYS", label: "15 Days" },
+	{ value: "30_DAYS", label: "30 Days" },
+	{ value: "UNKNOWN", label: "Unknown" },
+];
+const STATUS_OPTIONS = [
+	{ value: "ACTIVE", label: "Active" },
+	{ value: "PASSIVE", label: "Passive" },
+	{ value: "NOT_AVAILABLE", label: "Not Available" },
+];
 
-const fieldInputClass =
-	"w-full rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30";
-
-const sectionCardClass =
-	"rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-xl shadow-slate-950/40";
-
-const formatDateTime = (value) => {
-	if (!value) return "NA";
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return "NA";
-	return date.toLocaleString();
+const fmt = (v) => {
+	if (!v) return "NA";
+	const d = new Date(v);
+	return Number.isNaN(d.getTime()) ? "NA" : d.toLocaleString();
 };
-
-const toSkillsArray = (value) => {
+const splitName = (fullName) => {
+	const p = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+	return { first: p[0] || "", last: p.slice(1).join(" ") };
+};
+const joinName = (first, last) => `${String(first || "").trim()} ${String(last || "").trim()}`.trim();
+const tagsFrom = (v) => {
 	const seen = new Set();
-	return String(value || "")
+	return String(v || "")
 		.split(/[;,]/g)
-		.map((item) => item.trim())
+		.map((x) => x.trim())
 		.filter(Boolean)
-		.filter((item) => {
-			const key = item.toLowerCase();
-			if (seen.has(key)) return false;
-			seen.add(key);
+		.filter((x) => {
+			const k = x.toLowerCase();
+			if (seen.has(k)) return false;
+			seen.add(k);
 			return true;
 		});
 };
@@ -67,336 +81,265 @@ const VerificationBadge = ({ value }) => {
 	if (value === "VERIFIED") {
 		return (
 			<span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
-				<ShieldCheck size={12} />
-				Verified
+				<ShieldCheck size={12} /> Verified
 			</span>
 		);
 	}
 	if (value === "NOT_VERIFIED") {
 		return (
 			<span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-1 text-[11px] font-semibold text-rose-300 ring-1 ring-rose-500/30">
-				<ShieldX size={12} />
-				Not Verified
+				<ShieldX size={12} /> Not Verified
 			</span>
 		);
 	}
 	return (
 		<span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-300 ring-1 ring-amber-500/30">
-			<ShieldAlert size={12} />
-			Needs Review
+			<ShieldAlert size={12} /> Needs Review
 		</span>
 	);
 };
 
-const CandidateEditor = ({ candidate, meta, onSave, isSaving, onDownloadProfile }) => {
-	const [form, setForm] = useState(() => ({
-		fullName: candidate.fullName || "",
-		jobTitle: candidate.jobTitle || "",
-		experience: candidate.experience || "",
-		company: candidate.company || "",
-		locality: candidate.locality || "",
-		location: candidate.location || "",
-		country: candidate.country || "",
-		email: candidate.email || "",
-		phone: candidate.phone || "",
-		linkedinUrl: candidate.linkedinUrl || "",
-		summary: candidate.summary || "",
-	}));
-	const [skills, setSkills] = useState(() => toSkillsArray(candidate.skills));
+const EnrichEditor = ({
+	candidate,
+	meta,
+	activity,
+	activityLoading,
+	onSave,
+	saving,
+	onDelete,
+	deleting,
+	canDelete,
+	onViewResume,
+	onReparse,
+	onUploadResume,
+}) => {
+	const name = splitName(candidate.fullName);
+	const [editing, setEditing] = useState(false);
+	const [first, setFirst] = useState(name.first);
+	const [last, setLast] = useState(name.last);
+	const [email, setEmail] = useState(candidate.email || "");
+	const [phone, setPhone] = useState(candidate.phone || "");
+	const [location, setLocation] = useState(candidate.location || "");
+	const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedinUrl || "");
+	const [jobTitle, setJobTitle] = useState(candidate.jobTitle || "");
+	const [company, setCompany] = useState(candidate.company || "");
+	const [experience, setExperience] = useState(candidate.experience || "");
+	const [availability, setAvailability] = useState(candidate.availability || "UNKNOWN");
+	const [candidateStatus, setCandidateStatus] = useState(candidate.candidateStatus || "ACTIVE");
+	const [skills, setSkills] = useState(tagsFrom(candidate.skills));
+	const [tags, setTags] = useState(tagsFrom(candidate.internalTags));
+	const [notes, setNotes] = useState(candidate.recruiterNotes || "");
 	const [skillInput, setSkillInput] = useState("");
-	const [verificationStatus, setVerificationStatus] = useState(
-		meta.verificationStatus || "NEEDS_REVIEW"
-	);
+	const [tagInput, setTagInput] = useState("");
+	const [verificationStatus, setVerificationStatus] = useState(meta.verificationStatus || "NEEDS_REVIEW");
 
-	const addSkillsFromInput = () => {
-		const incoming = toSkillsArray(skillInput);
-		if (incoming.length === 0) return;
-		setSkills((prev) => toSkillsArray([...prev, ...incoming].join(", ")));
+	const reset = () => {
+		const n = splitName(candidate.fullName);
+		setFirst(n.first);
+		setLast(n.last);
+		setEmail(candidate.email || "");
+		setPhone(candidate.phone || "");
+		setLocation(candidate.location || "");
+		setLinkedinUrl(candidate.linkedinUrl || "");
+		setJobTitle(candidate.jobTitle || "");
+		setCompany(candidate.company || "");
+		setExperience(candidate.experience || "");
+		setAvailability(candidate.availability || "UNKNOWN");
+		setCandidateStatus(candidate.candidateStatus || "ACTIVE");
+		setSkills(tagsFrom(candidate.skills));
+		setTags(tagsFrom(candidate.internalTags));
+		setNotes(candidate.recruiterNotes || "");
 		setSkillInput("");
+		setTagInput("");
+		setVerificationStatus(meta.verificationStatus || "NEEDS_REVIEW");
+		setEditing(false);
 	};
 
-	const removeSkill = (skillToRemove) => {
-		setSkills((prev) => prev.filter((item) => item !== skillToRemove));
+	const addTag = (setter, source, value, clear) => {
+		const incoming = tagsFrom(value);
+		if (incoming.length === 0) return;
+		setter(tagsFrom([...source, ...incoming].join(", ")));
+		clear("");
 	};
 
-	const missingInfo = [];
-	if (!String(form.phone || "").trim()) missingInfo.push("Phone");
-	if (!String(form.email || "").trim()) missingInfo.push("Email");
-	if (!String(form.jobTitle || "").trim()) missingInfo.push("Job Title");
-	if (!String(form.company || "").trim()) missingInfo.push("Company Name");
-	if (skills.length === 0) missingInfo.push("Skills");
+	const save = async () => {
+		const fullName = joinName(first, last);
+		if (!fullName) return toast.error("Candidate name is required");
+		await onSave({
+			updates: {
+				fullName,
+				email,
+				phone,
+				location,
+				linkedinUrl,
+				jobTitle,
+				company,
+				experience,
+				availability,
+				candidateStatus,
+				skills: skills.join(", "),
+				internalTags: tags.join(", "),
+				recruiterNotes: notes,
+			},
+			verificationStatus,
+		});
+		setEditing(false);
+	};
+
+	const timeline = Array.isArray(candidate.experienceTimeline) ? candidate.experienceTimeline : [];
+	const missing = Array.isArray(meta.missingFields) ? meta.missingFields : [];
+	const completeness = Number(meta.completenessScore || 0);
 
 	return (
 		<div className="space-y-4">
-			<div className="rounded-xl border border-slate-800 bg-slate-800/55 p-4">
-				<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-					<Users size={15} />
-					Candidate Profile Overview
-				</div>
-				<div className="grid grid-cols-1 gap-2 text-sm text-slate-200 md:grid-cols-2">
-					<div className="inline-flex items-center gap-2">
-						<UserCircle2 size={14} className="text-slate-400" />
-						<span>Full Name: {candidate.fullName || "NA"}</span>
-					</div>
-					<div className="inline-flex items-center gap-2">
-						<PencilLine size={14} className="text-slate-400" />
-						<span>Job Title: {candidate.jobTitle || "NA"}</span>
-					</div>
-					<div className="inline-flex items-center gap-2">
-						<Building2 size={14} className="text-slate-400" />
-						<span>Company: {candidate.company || "NA"}</span>
-					</div>
-					<div className="inline-flex items-center gap-2">
-						<MapPin size={14} className="text-slate-400" />
-						<span>
-							Location:{" "}
-							{[candidate.locality, candidate.location, candidate.country]
-								.filter(Boolean)
-								.join(", ") || "NA"}
-						</span>
-					</div>
-					<div className="inline-flex items-center gap-2">
-						<Mail size={14} className="text-slate-400" />
-						<span>Email: {candidate.email || "NA"}</span>
-					</div>
-					<div className="inline-flex items-center gap-2">
-						<Phone size={14} className="text-slate-400" />
-						<span>Phone: {candidate.phone || "NA"}</span>
-					</div>
-					<div className="md:col-span-2 inline-flex items-center gap-2">
-						<FileText size={14} className="text-slate-400" />
-						<span>LinkedIn: {candidate.linkedinUrl || "NA"}</span>
-					</div>
-					<div className="md:col-span-2 inline-flex items-center gap-2">
-						<CalendarClock size={14} className="text-slate-400" />
-						<span>Last Updated: {formatDateTime(candidate.updatedAt)}</span>
-					</div>
-				</div>
-			</div>
-
-			<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-				<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-					<PencilLine size={15} />
-					Editable Fields
-				</div>
-				<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-					<input
-						value={form.fullName}
-						onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
-						placeholder="Name"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.jobTitle}
-						onChange={(e) => setForm((prev) => ({ ...prev, jobTitle: e.target.value }))}
-						placeholder="Job Title"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.experience}
-						onChange={(e) => setForm((prev) => ({ ...prev, experience: e.target.value }))}
-						placeholder="Experience"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.company}
-						onChange={(e) => setForm((prev) => ({ ...prev, company: e.target.value }))}
-						placeholder="Company"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.locality}
-						onChange={(e) => setForm((prev) => ({ ...prev, locality: e.target.value }))}
-						placeholder="City"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.location}
-						onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-						placeholder="State / Location"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.country}
-						onChange={(e) => setForm((prev) => ({ ...prev, country: e.target.value }))}
-						placeholder="Country"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.email}
-						onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-						placeholder="Email"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.phone}
-						onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
-						placeholder="Phone"
-						className={fieldInputClass}
-					/>
-					<input
-						value={form.linkedinUrl}
-						onChange={(e) => setForm((prev) => ({ ...prev, linkedinUrl: e.target.value }))}
-						placeholder="LinkedIn URL"
-						className={fieldInputClass}
-					/>
-					<textarea
-						value={form.summary}
-						onChange={(e) => setForm((prev) => ({ ...prev, summary: e.target.value }))}
-						placeholder="Notes"
-						rows={3}
-						className={`md:col-span-2 ${fieldInputClass}`}
-					/>
-				</div>
-			</div>
-
-			<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-				<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-					<Tags size={15} />
-					Skills (Tag Editor)
-				</div>
-				<div className="flex flex-wrap gap-2">
-					{skills.length === 0 ? (
-						<span className="text-xs text-slate-400">No skills added.</span>
-					) : (
-						skills.map((skill) => (
-							<span
-								key={skill}
-								className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200">
-								{skill}
-								<button
-									onClick={() => removeSkill(skill)}
-									className="rounded p-0.5 text-slate-400 transition hover:bg-slate-700 hover:text-slate-200">
-									<X size={12} />
-								</button>
+			<div className={card}>
+				<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+					<div>
+						<div className="flex flex-wrap items-center gap-2">
+							<h2 className="inline-flex items-center gap-2 text-xl font-bold text-white">
+								<User2 size={18} className="text-indigo-300" />
+								{joinName(first, last) || "Unnamed Candidate"}
+							</h2>
+							<span className="rounded-lg bg-slate-800 px-2 py-1 text-xs text-slate-300 ring-1 ring-slate-700">
+								{jobTitle || "No Job Title"}
 							</span>
-						))
-					)}
-				</div>
-				<div className="mt-2 flex gap-2">
-					<input
-						value={skillInput}
-						onChange={(e) => setSkillInput(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								addSkillsFromInput();
-							}
-						}}
-						placeholder="Add skill (comma separated supported)"
-						className={fieldInputClass}
-					/>
-					<button
-						onClick={addSkillsFromInput}
-						className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500">
-						Add
-					</button>
-				</div>
-			</div>
-
-			<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-				<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-					<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-						<FileText size={15} />
-						Resume Preview
-					</div>
-					<div className="space-y-1 text-xs text-slate-300">
-						<div>Parse Status: {candidate.parseStatus || "NA"}</div>
-						<div className="line-clamp-4">
-							Summary: {candidate.summary || "No parsed summary available."}
+							<VerificationBadge value={verificationStatus} />
+						</div>
+						<div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300">
+							<span className="inline-flex items-center gap-1"><FileText size={12} />{linkedinUrl || "No LinkedIn"}</span>
+							<span className="inline-flex items-center gap-1"><Mail size={12} />{email || "No Email"}</span>
+							<span className="inline-flex items-center gap-1"><Phone size={12} />{phone || "No Phone"}</span>
+							<span className="inline-flex items-center gap-1"><MapPin size={12} />{location || "No Location"}</span>
 						</div>
 					</div>
-					<button
-						onClick={onDownloadProfile}
-						className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700">
-						<Download size={13} />
-						View Resume / Profile
-					</button>
-				</div>
-
-				<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-					<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-						<AlertTriangle size={15} />
-						Missing Information
+					<div className="flex gap-2">
+						{!editing ? (
+							<button onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"><PencilLine size={13} />Edit</button>
+						) : (
+							<>
+								<button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">{saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}Save Changes</button>
+								<button onClick={reset} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"><CircleSlash2 size={13} />Cancel</button>
+							</>
+						)}
 					</div>
-					{missingInfo.length === 0 ? (
-						<div className="text-xs font-semibold text-emerald-300">No critical fields missing.</div>
-					) : (
-						<ul className="list-disc pl-4 text-xs text-slate-300">
-							{missingInfo.map((item) => (
-								<li key={item}>{item}</li>
-							))}
-						</ul>
-					)}
 				</div>
 			</div>
 
-			<div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-				<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-					<ShieldCheck size={15} />
-					Verification Status
-				</div>
-				<div className="flex flex-wrap gap-2">
-					{VERIFICATION_OPTIONS.map((option) => (
-						<button
-							key={option.value}
-							onClick={() => setVerificationStatus(option.value)}
-							className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-								verificationStatus === option.value
-									? "border-indigo-400 bg-indigo-500/20 text-indigo-200"
-									: "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
-							}`}>
-							{option.label}
-						</button>
-					))}
+			<div className={card}>
+				<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><ClipboardList size={15} />Data Completeness Summary</div>
+				<div className="text-sm text-slate-200">Profile Completeness: <span className="font-semibold">{completeness}%</span></div>
+				<div className="mt-2 h-2 rounded-full bg-slate-800"><div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.max(0, Math.min(100, completeness))}%` }} /></div>
+				<div className="mt-3 text-xs text-slate-300">
+					<div className="mb-1 font-semibold">Missing:</div>
+					{missing.length === 0 ? <div className="text-emerald-300">No critical fields missing.</div> : <ul className="list-disc pl-4">{missing.map((m) => <li key={m}>{m}</li>)}</ul>}
 				</div>
 			</div>
 
-			<button
-				onClick={() =>
-					onSave({
-						updates: {
-							fullName: form.fullName,
-							jobTitle: form.jobTitle,
-							experience: form.experience,
-							company: form.company,
-							locality: form.locality,
-							location: form.location,
-							country: form.country,
-							email: form.email,
-							phone: form.phone,
-							linkedinUrl: form.linkedinUrl,
-							skills: skills.join(", "),
-							summary: form.summary,
-						},
-						verificationStatus,
-					})
-				}
-				disabled={isSaving}
-				className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50">
-				{isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-				Save Changes
-			</button>
+			<div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+				<div className={card}>
+					<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><User2 size={15} />Personal Details</div>
+					<div className="space-y-2">
+						<input value={first} onChange={(e) => setFirst(e.target.value)} disabled={!editing} placeholder="First Name" className={input} />
+						<input value={last} onChange={(e) => setLast(e.target.value)} disabled={!editing} placeholder="Last Name" className={input} />
+						<input value={email} onChange={(e) => setEmail(e.target.value)} disabled={!editing} placeholder="Email" className={input} />
+						<input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!editing} placeholder="Phone" className={input} />
+						<input value={location} onChange={(e) => setLocation(e.target.value)} disabled={!editing} placeholder="Location" className={input} />
+						<input value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} disabled={!editing} placeholder="LinkedIn URL" className={input} />
+					</div>
+				</div>
+				<div className={card}>
+					<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><Briefcase size={15} />Professional Details</div>
+					<div className="space-y-2">
+						<input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} disabled={!editing} placeholder="Current Job Title" className={input} />
+						<input value={company} onChange={(e) => setCompany(e.target.value)} disabled={!editing} placeholder="Current Company" className={input} />
+						<input value={experience} onChange={(e) => setExperience(e.target.value)} disabled={!editing} placeholder="Experience (Years)" className={input} />
+						<select value={availability} onChange={(e) => setAvailability(e.target.value)} disabled={!editing} className={input}>{AVAILABILITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+						<select value={candidateStatus} onChange={(e) => setCandidateStatus(e.target.value)} disabled={!editing} className={input}>{STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+						<div className="rounded-xl border border-slate-700 bg-slate-800/70 p-2">
+							<div className="mb-1 text-xs font-semibold text-slate-300">Verification</div>
+							<div className="flex flex-wrap gap-2">
+								{VERIFY_OPTIONS.map((o) => (
+									<button key={o.value} onClick={() => editing && setVerificationStatus(o.value)} disabled={!editing} className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${verificationStatus === o.value ? "border-indigo-400 bg-indigo-500/25 text-indigo-200" : "border-slate-700 bg-slate-800 text-slate-300"} disabled:opacity-60`}>{o.label}</button>
+								))}
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div className={card}>
+				<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><Tag size={15} />Skills</div>
+				<div className="flex flex-wrap gap-2">{skills.length === 0 ? <span className="text-xs text-slate-400">No skills</span> : skills.map((s) => <span key={s} className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200">{s}{editing && <button onClick={() => setSkills((p) => p.filter((x) => x !== s))}><X size={12} /></button>}</span>)}</div>
+				<div className="mt-2 flex gap-2">
+					<input value={skillInput} onChange={(e) => setSkillInput(e.target.value)} disabled={!editing} placeholder="Add skill" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(setSkills, skills, skillInput, setSkillInput); } }} className={input} />
+					<button onClick={() => addTag(setSkills, skills, skillInput, setSkillInput)} disabled={!editing} className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Add</button>
+				</div>
+			</div>
+
+			<div className={card}>
+				<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><Building2 size={15} />Experience Timeline</div>
+				{timeline.length === 0 ? <div className="text-sm text-slate-400">No parsed experience timeline available.</div> : <div className="space-y-3">{timeline.map((t, i) => <div key={`${t.company || "exp"}-${i}`} className="rounded-xl border border-slate-800 bg-slate-800/60 p-3"><div className="text-sm font-semibold text-slate-100">{i + 1}. {t.company || "Company"}</div><div className="text-xs text-slate-300">Role: {t.role || "NA"}</div><div className="text-xs text-slate-400">{t.period || "Period NA"}</div>{Array.isArray(t.highlights) && t.highlights.length > 0 && <ul className="mt-2 list-disc pl-4 text-xs text-slate-300">{t.highlights.map((h, idx) => <li key={`${i}-${idx}`}>{h}</li>)}</ul>}</div>)}</div>}
+			</div>
+
+			<div className={card}>
+				<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><FileText size={15} />Resume</div>
+				{candidate.hasResume ? (
+					<div className="flex flex-wrap gap-2">
+						<button onClick={onViewResume} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"><Download size={13} />View Resume PDF</button>
+						<button onClick={onReparse} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"><RefreshCw size={13} />Re-Parse Resume</button>
+					</div>
+				) : (
+					<div className="space-y-2">
+						<div className="text-sm text-slate-400">No resume uploaded.</div>
+						<div className="flex flex-wrap gap-2">
+							<button onClick={onUploadResume} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"><Upload size={13} />Upload Resume</button>
+							<button onClick={onReparse} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"><RefreshCw size={13} />Parse Resume</button>
+						</div>
+					</div>
+				)}
+			</div>
+
+			<div className={card}>
+				<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><Tag size={15} />Internal Tags</div>
+				<div className="flex flex-wrap gap-2">{tags.length === 0 ? <span className="text-xs text-slate-400">No internal tags</span> : tags.map((t) => <span key={t} className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200">{t}{editing && <button onClick={() => setTags((p) => p.filter((x) => x !== t))}><X size={12} /></button>}</span>)}</div>
+				<div className="mt-2 flex gap-2">
+					<input value={tagInput} onChange={(e) => setTagInput(e.target.value)} disabled={!editing} placeholder="Add tag" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(setTags, tags, tagInput, setTagInput); } }} className={input} />
+					<button onClick={() => addTag(setTags, tags, tagInput, setTagInput)} disabled={!editing} className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Add</button>
+				</div>
+				<div className="mt-4 mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><ClipboardList size={15} />Recruiter Notes</div>
+				<textarea value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!editing} rows={4} placeholder="Add recruiter notes..." className={input} />
+			</div>
+
+			<div className={card}>
+				<div className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><CalendarClock size={15} />Activity Log</div>
+				{activityLoading ? <div className="text-sm text-slate-400">Loading activity...</div> : activity.length === 0 ? <div className="text-sm text-slate-400">No activity yet.</div> : <div className="space-y-2">{activity.map((log) => <div key={String(log._id)} className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold text-slate-100">{log.action}</div><div className="text-slate-500">{fmt(log.createdAt)}</div></div><div className="mt-1 text-slate-400">By: {log?.performedBy?.name || log?.performedBy?.email || "Unknown"}</div><div className="mt-1 space-y-1 text-slate-300">{(log.changes || []).length === 0 ? <div>Updated record</div> : (log.changes || []).map((c, idx) => <div key={`${log._id}-${idx}`} className="inline-flex items-center gap-1"><CheckCircle2 size={12} className="text-emerald-400" /><span>{c.field}: \"{c.oldValue || ""}\" -&gt; \"{c.newValue || ""}\"</span></div>)}</div></div>)}</div>}
+			</div>
+
+			<div className={card}>
+				<div className="flex flex-wrap items-center gap-2">
+					<button onClick={save} disabled={!editing || saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">{saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}Save Changes</button>
+					<button onClick={reset} disabled={!editing} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-50"><CircleSlash2 size={14} />Cancel</button>
+					{canDelete && <button onClick={onDelete} disabled={deleting} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50">{deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}Delete Candidate</button>}
+				</div>
+			</div>
 		</div>
 	);
 };
 
 const Enrich = () => {
+	const { user } = useContext(AuthContext);
 	const queryClient = useQueryClient();
 	const [page, setPage] = useState(1);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [needsOnly, setNeedsOnly] = useState(true);
 	const [activeCandidateId, setActiveCandidateId] = useState("");
 	const [isDownloading, setIsDownloading] = useState(false);
+	const isAdmin = user?.role === "ADMIN";
 
 	const queueQuery = useQuery({
 		queryKey: ["enrichmentQueue", page, searchTerm, needsOnly],
 		queryFn: async () => {
-			const params = new URLSearchParams({
-				page: String(page),
-				limit: String(PAGE_SIZE),
-				needsOnly: String(needsOnly),
-			});
+			const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), needsOnly: String(needsOnly) });
 			if (searchTerm.trim()) params.set("q", searchTerm.trim());
 			const { data } = await api.get(`/candidates/enrich/queue?${params.toString()}`);
 			return data;
@@ -406,77 +349,63 @@ const Enrich = () => {
 	const queueItems = queueQuery.data?.items || [];
 	const totalCount = Number(queueQuery.data?.totalCount || 0);
 	const hasMore = !!queueQuery.data?.hasMore;
-
-	const resolvedActiveCandidateId = queueItems.some(
-		(item) => String(item._id) === String(activeCandidateId)
-	)
+	const resolvedId = queueItems.some((i) => String(i._id) === String(activeCandidateId))
 		? String(activeCandidateId)
 		: queueItems[0]
 			? String(queueItems[0]._id)
 			: "";
 
 	const detailQuery = useQuery({
-		queryKey: ["enrichmentDetail", resolvedActiveCandidateId],
-		queryFn: async () => {
-			const { data } = await api.get(`/candidates/enrich/${resolvedActiveCandidateId}`);
-			return data;
-		},
-		enabled: !!resolvedActiveCandidateId,
+		queryKey: ["enrichmentDetail", resolvedId],
+		queryFn: async () => (await api.get(`/candidates/enrich/${resolvedId}`)).data,
+		enabled: !!resolvedId,
 	});
-
 	const activityQuery = useQuery({
-		queryKey: ["enrichmentActivity", resolvedActiveCandidateId],
-		queryFn: async () => {
-			const { data } = await api.get(
-				`/candidates/enrich/${resolvedActiveCandidateId}/activity?limit=15&page=1`
-			);
-			return data;
-		},
-		enabled: !!resolvedActiveCandidateId,
+		queryKey: ["enrichmentActivity", resolvedId],
+		queryFn: async () => (await api.get(`/candidates/enrich/${resolvedId}/activity?limit=15&page=1`)).data,
+		enabled: !!resolvedId,
 	});
 
 	const saveMutation = useMutation({
-		mutationFn: async (payload) => {
-			const { data } = await api.put(
-				`/candidates/enrich/${resolvedActiveCandidateId}/manual`,
-				payload
-			);
-			return data;
-		},
-		onSuccess: (data) => {
-			toast.success(data?.message || "Candidate updated");
+		mutationFn: async (payload) => (await api.put(`/candidates/enrich/${resolvedId}/manual`, payload)).data,
+		onSuccess: (d) => {
+			toast.success(d?.message || "Candidate updated");
 			queryClient.invalidateQueries({ queryKey: ["enrichmentQueue"] });
 			queryClient.invalidateQueries({ queryKey: ["enrichmentDetail"] });
 			queryClient.invalidateQueries({ queryKey: ["enrichmentActivity"] });
 		},
-		onError: (err) => {
-			toast.error(err?.response?.data?.message || "Failed to save changes");
+		onError: (e) => toast.error(e?.response?.data?.message || "Failed to save changes"),
+	});
+	const deleteMutation = useMutation({
+		mutationFn: async () => (await api.delete(`/candidates/${resolvedId}`)).data,
+		onSuccess: (d) => {
+			toast.success(d?.message || "Candidate deleted");
+			setActiveCandidateId("");
+			queryClient.invalidateQueries({ queryKey: ["enrichmentQueue"] });
+			queryClient.invalidateQueries({ queryKey: ["enrichmentDetail"] });
+			queryClient.invalidateQueries({ queryKey: ["enrichmentActivity"] });
 		},
+		onError: (e) => toast.error(e?.response?.data?.message || "Failed to delete candidate"),
 	});
 
-	const activeCandidate = detailQuery.data?.candidate || null;
-	const activeMeta = detailQuery.data?.meta || {};
-
-	const onDownloadProfile = async () => {
-		if (!resolvedActiveCandidateId || isDownloading) return;
+	const onViewResume = async () => {
+		if (!resolvedId || isDownloading) return;
 		try {
 			setIsDownloading(true);
-			const response = await api.get(`/candidates/${resolvedActiveCandidateId}/download`, {
-				responseType: "blob",
-			});
-			const contentDisposition = response.headers["content-disposition"] || "";
-			const nameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-			const filename = nameMatch?.[1] || `candidate-${resolvedActiveCandidateId}.docx`;
-			const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
-			const link = document.createElement("a");
-			link.href = blobUrl;
-			link.setAttribute("download", filename);
-			document.body.appendChild(link);
-			link.click();
-			link.remove();
-			window.URL.revokeObjectURL(blobUrl);
-		} catch (err) {
-			toast.error(err?.response?.data?.message || "Failed to download profile");
+			const response = await api.get(`/candidates/${resolvedId}/download`, { responseType: "blob" });
+			const cd = response.headers["content-disposition"] || "";
+			const m = cd.match(/filename="?([^"]+)"?/i);
+			const filename = m?.[1] || `candidate-${resolvedId}.docx`;
+			const url = window.URL.createObjectURL(new Blob([response.data]));
+			const a = document.createElement("a");
+			a.href = url;
+			a.setAttribute("download", filename);
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			window.URL.revokeObjectURL(url);
+		} catch (e) {
+			toast.error(e?.response?.data?.message || "Failed to download profile");
 		} finally {
 			setIsDownloading(false);
 		}
@@ -485,215 +414,44 @@ const Enrich = () => {
 	return (
 		<div className="h-[calc(100vh-64px)] overflow-auto bg-slate-950 px-3 py-4 text-slate-100 md:px-6 md:py-6">
 			<div className="mx-auto max-w-[1500px] space-y-4">
-				<div className={sectionCardClass}>
+				<div className={card}>
 					<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 						<div>
-							<h1 className="inline-flex items-center gap-2 text-2xl font-bold text-white">
-								<ClipboardList size={22} className="text-indigo-400" />
-								Enrich (Manual - DB Only)
-							</h1>
-							<p className="mt-1 text-sm text-slate-300">
-								Update candidate data directly from your internal database.
-							</p>
+							<h1 className="inline-flex items-center gap-2 text-2xl font-bold text-white"><ClipboardList size={22} className="text-indigo-300" />Enrich</h1>
+							<p className="mt-1 text-sm text-slate-300">Manual recruiter curation for staffing-ready profiles.</p>
 						</div>
 						<div className="flex flex-col gap-2 md:flex-row md:items-center">
 							<div className="relative min-w-[250px]">
-								<Search
-									size={15}
-									className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-								/>
-								<input
-									value={searchTerm}
-									onChange={(e) => {
-										setPage(1);
-										setSearchTerm(e.target.value);
-									}}
-									placeholder="Search candidates"
-									className={`${fieldInputClass} py-2 pl-9`}
-								/>
+								<Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+								<input value={searchTerm} onChange={(e) => { setPage(1); setSearchTerm(e.target.value); }} placeholder="Search candidates" className={`${input} py-2 pl-9`} />
 							</div>
-							<button
-								onClick={() => {
-									setPage(1);
-									setNeedsOnly((prev) => !prev);
-								}}
-								className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
-									needsOnly
-										? "border-indigo-400 bg-indigo-500/20 text-indigo-200"
-										: "border-slate-700 bg-slate-800 text-slate-300"
-								}`}>
-								<Filter size={14} />
-								Only Incomplete
-							</button>
-							<button
-								onClick={() => {
-									queryClient.invalidateQueries({ queryKey: ["enrichmentQueue"] });
-									queryClient.invalidateQueries({ queryKey: ["enrichmentDetail"] });
-									queryClient.invalidateQueries({ queryKey: ["enrichmentActivity"] });
-								}}
-								className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700">
-								<RefreshCw size={14} />
-								Refresh
-							</button>
+							<button onClick={() => { setPage(1); setNeedsOnly((p) => !p); }} className={`rounded-xl border px-3 py-2 text-sm font-semibold ${needsOnly ? "border-indigo-400 bg-indigo-500/25 text-indigo-200" : "border-slate-700 bg-slate-800 text-slate-300"}`}>Only Incomplete</button>
+							<button onClick={() => { queryClient.invalidateQueries({ queryKey: ["enrichmentQueue"] }); queryClient.invalidateQueries({ queryKey: ["enrichmentDetail"] }); queryClient.invalidateQueries({ queryKey: ["enrichmentActivity"] }); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700"><RefreshCw size={14} />Refresh</button>
 						</div>
 					</div>
-					<div className="mt-3 text-xs text-slate-300">
-						Queue Count: <span className="font-semibold text-indigo-300">{totalCount.toLocaleString()}</span>
-					</div>
+					<div className="mt-2 text-xs text-slate-400">Queue Count: <span className="font-semibold text-indigo-300">{totalCount.toLocaleString()}</span></div>
 				</div>
 
-				<div className="grid grid-cols-1 gap-4 xl:grid-cols-[34%_66%]">
-					<div className={sectionCardClass}>
-						<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-							<Users size={15} />
-							Candidates
-						</div>
-						<div className="max-h-[760px] overflow-auto rounded-xl border border-slate-800">
+				<div className="grid grid-cols-1 gap-4 xl:grid-cols-[30%_70%]">
+					<div className={card}>
+						<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300"><Users size={15} />Candidates</div>
+						<div className="max-h-[840px] overflow-auto rounded-xl border border-slate-800">
 							<table className="w-full text-left text-sm">
-								<thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
-									<tr>
-										<th className="px-3 py-3">Candidate</th>
-										<th className="px-3 py-3">Missing</th>
-									</tr>
-								</thead>
+								<thead className="sticky top-0 bg-slate-900 text-xs uppercase tracking-wide text-slate-400"><tr><th className="px-3 py-3">Profile</th><th className="px-3 py-3">Completeness</th></tr></thead>
 								<tbody className="bg-slate-900/70">
-									{queueQuery.isLoading ? (
-										<tr>
-											<td colSpan={2} className="px-3 py-10 text-center text-slate-400">
-												<Loader2 size={18} className="mx-auto mb-2 animate-spin" />
-												Loading...
-											</td>
-										</tr>
-									) : queueItems.length === 0 ? (
-										<tr>
-											<td colSpan={2} className="px-3 py-10 text-center text-slate-400">
-												No candidates found.
-											</td>
-										</tr>
-									) : (
-										queueItems.map((item) => {
-											const id = String(item._id);
-											const isActive = id === String(resolvedActiveCandidateId);
-											return (
-												<tr
-													key={id}
-													onClick={() => setActiveCandidateId(id)}
-													className={`cursor-pointer border-t border-slate-800 transition ${
-														isActive
-															? "bg-indigo-500/10 ring-1 ring-indigo-500/40"
-															: "hover:bg-slate-800/70"
-													}`}>
-													<td className="px-3 py-3 align-top">
-														<div className="inline-flex items-center gap-1 font-semibold text-slate-100">
-															<UserCircle2 size={14} className="text-slate-400" />
-															{item.fullName}
-														</div>
-														<div className="text-xs text-slate-400">
-															{item.jobTitle || "NA"}
-															{item.company ? ` | ${item.company}` : ""}
-														</div>
-														<div className="mt-1">
-															<VerificationBadge
-																value={item.verificationStatus || "NEEDS_REVIEW"}
-															/>
-														</div>
-													</td>
-													<td className="px-3 py-3 align-top text-xs text-slate-300">
-														{(item.missingFields || []).slice(0, 2).join(", ") || "None"}
-														{(item.missingFields || []).length > 2
-															? ` +${item.missingFields.length - 2}`
-															: ""}
-														<div className="mt-1 text-[11px] text-slate-500">
-															Updated: {formatDateTime(item.updatedAt)}
-														</div>
-													</td>
-												</tr>
-											);
-										})
-									)}
+									{queueQuery.isLoading ? <tr><td colSpan={2} className="px-3 py-10 text-center text-slate-400"><Loader2 size={18} className="mx-auto mb-2 animate-spin" />Loading...</td></tr> : queueItems.length === 0 ? <tr><td colSpan={2} className="px-3 py-10 text-center text-slate-400">No candidates found.</td></tr> : queueItems.map((item) => { const id = String(item._id); const active = id === String(resolvedId); return <tr key={id} onClick={() => setActiveCandidateId(id)} className={`cursor-pointer border-t border-slate-800 ${active ? "bg-indigo-500/10 ring-1 ring-indigo-500/40" : "hover:bg-slate-800/70"}`}><td className="px-3 py-3 align-top"><div className="font-semibold text-slate-100">{item.fullName}</div><div className="text-xs text-slate-400">{item.jobTitle || "NA"}{item.company ? ` | ${item.company}` : ""}</div><div className="mt-1"><VerificationBadge value={item.verificationStatus || "NEEDS_REVIEW"} /></div></td><td className="px-3 py-3 align-top text-xs text-slate-300"><div>{Number(item.completenessScore || 0)}%</div><div className="mt-1 text-slate-500">Updated: {fmt(item.updatedAt)}</div></td></tr>; })}
 								</tbody>
 							</table>
 						</div>
-
 						<div className="mt-3 flex items-center justify-between">
-							<button
-								onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-								disabled={page === 1}
-								className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-40">
-								Previous
-							</button>
+							<button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-40">Previous</button>
 							<div className="text-xs font-semibold text-slate-400">Page {page}</div>
-							<button
-								onClick={() => setPage((prev) => prev + 1)}
-								disabled={!hasMore}
-								className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-40">
-								Next
-							</button>
+							<button onClick={() => setPage((p) => p + 1)} disabled={!hasMore} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-40">Next</button>
 						</div>
 					</div>
 
-					<div className="space-y-4">
-						<div className={sectionCardClass}>
-							{detailQuery.isLoading ? (
-								<div className="py-12 text-center text-slate-400">
-									<Loader2 size={18} className="mx-auto mb-2 animate-spin" />
-									Loading candidate...
-								</div>
-							) : !activeCandidate ? (
-								<div className="py-12 text-center text-slate-400">
-									Select a candidate from queue.
-								</div>
-							) : (
-								<CandidateEditor
-									key={resolvedActiveCandidateId}
-									candidate={activeCandidate}
-									meta={activeMeta}
-									onDownloadProfile={onDownloadProfile}
-									isSaving={saveMutation.isPending || isDownloading}
-									onSave={(payload) => saveMutation.mutate(payload)}
-								/>
-							)}
-						</div>
-
-						<div className={sectionCardClass}>
-							<div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-300">
-								<History size={15} />
-								Activity Log
-							</div>
-							{activityQuery.isLoading ? (
-								<div className="text-sm text-slate-400">Loading activity...</div>
-							) : (activityQuery.data?.items || []).length === 0 ? (
-								<div className="text-sm text-slate-400">No activity yet for this candidate.</div>
-							) : (
-								<div className="space-y-2">
-									{(activityQuery.data?.items || []).map((log) => (
-										<div
-											key={String(log._id)}
-											className="rounded-xl border border-slate-800 bg-slate-800/60 p-3 text-xs">
-											<div className="flex flex-wrap items-center justify-between gap-2">
-												<div className="font-semibold text-slate-100">{log.action}</div>
-												<div className="text-slate-500">{formatDateTime(log.createdAt)}</div>
-											</div>
-											<div className="mt-1 text-slate-400">
-												By: {log?.performedBy?.name || log?.performedBy?.email || "Unknown"}
-											</div>
-											<div className="mt-1 space-y-1 text-slate-300">
-												{(log.changes || []).length === 0 ? (
-													<div>No field-level changes</div>
-												) : (
-													(log.changes || []).map((change, idx) => (
-														<div key={`${log._id}-${idx}`}>
-															{change.field}: "{change.oldValue || ""}" -&gt; "
-															{change.newValue || ""}"
-														</div>
-													))
-												)}
-											</div>
-										</div>
-									))}
-								</div>
-							)}
-						</div>
+					<div className={card}>
+						{detailQuery.isLoading ? <div className="py-16 text-center text-slate-400"><Loader2 size={18} className="mx-auto mb-2 animate-spin" />Loading candidate details...</div> : !detailQuery.data?.candidate ? <div className="py-16 text-center text-slate-400">Select a candidate from queue.</div> : <EnrichEditor key={resolvedId} candidate={detailQuery.data.candidate} meta={detailQuery.data.meta || {}} activity={Array.isArray(activityQuery.data?.items) ? activityQuery.data.items : []} activityLoading={activityQuery.isLoading} onSave={async (payload) => saveMutation.mutateAsync(payload)} saving={saveMutation.isPending || isDownloading} onDelete={() => { if (!isAdmin) return; if (window.confirm("Delete this candidate from active records?")) deleteMutation.mutate(); }} deleting={deleteMutation.isPending} canDelete={isAdmin} onViewResume={onViewResume} onReparse={() => toast("Resume re-parse is managed in Admin import pipeline today.")} onUploadResume={() => toast("Resume upload is available in Admin panel import flow.")} />}
 					</div>
 				</div>
 			</div>

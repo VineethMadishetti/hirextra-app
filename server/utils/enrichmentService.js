@@ -23,6 +23,10 @@ const ENRICH_ALLOWED_UPDATE_FIELDS = new Set([
   "linkedinUrl",
   "githubUrl",
   "summary",
+  "availability",
+  "candidateStatus",
+  "internalTags",
+  "recruiterNotes",
 ]);
 
 const hasValue = (value) => {
@@ -339,7 +343,11 @@ export const enrichCandidateProfile = async (candidateInput) => {
 export const sanitizeUpdateValue = (field, value) => {
   if (!ENRICH_ALLOWED_UPDATE_FIELDS.has(field)) return "";
   if (field === "skills") return dedupeCsv(value);
+  if (field === "internalTags") return dedupeCsv(value);
   if (field === "summary") return String(value || "").trim();
+  if (field === "recruiterNotes") return String(value || "").trim();
+  if (field === "availability") return cleanInline(value).toUpperCase();
+  if (field === "candidateStatus") return cleanInline(value).toUpperCase();
   return cleanInline(value);
 };
 

@@ -1223,7 +1223,7 @@ export const getCandidateById = async (req, res) => {
 			isDeleted: false,
 		})
 			.select(
-				"fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt sourceFile parsedResume",
+				"fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary availability candidateStatus internalTags recruiterNotes parseStatus parseWarnings createdAt sourceFile parsedResume",
 			)
 			.lean();
 
@@ -2344,6 +2344,8 @@ const mapEnrichmentQueueCandidate = (candidateDoc) => {
 		locality: candidate.locality || "",
 		country: candidate.country || "",
 		skills: candidate.skills || "",
+		availability: candidate.availability || "UNKNOWN",
+		candidateStatus: candidate.candidateStatus || "ACTIVE",
 		updatedAt: candidate.updatedAt,
 		parseStatus: candidate.parseStatus || "",
 		completenessScore: meta.completenessScore,
@@ -2358,13 +2360,99 @@ const mapEnrichmentQueueCandidate = (candidateDoc) => {
 };
 
 const enrichCandidateSelect =
-	"fullName jobTitle company email phone linkedinUrl location locality country skills summary industry experience parsedResume parseStatus enrichment updatedAt createdAt isDeleted";
+	"fullName jobTitle company email phone linkedinUrl location locality country skills summary industry experience availability candidateStatus internalTags recruiterNotes sourceFile parsedResume parseStatus enrichment updatedAt createdAt isDeleted";
 const MANUAL_ENRICH_UPDATE_FIELDS = new Set(getAllowedEnrichmentFields());
 const VERIFICATION_STATUSES = new Set([
 	"NEEDS_REVIEW",
 	"VERIFIED",
 	"NOT_VERIFIED",
 ]);
+const AVAILABILITY_STATUSES = new Set([
+	"IMMEDIATE",
+	"15_DAYS",
+	"30_DAYS",
+	"UNKNOWN",
+]);
+const CANDIDATE_STATUSES = new Set(["ACTIVE", "PASSIVE", "NOT_AVAILABLE"]);
+
+const toArray = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+
+const cleanInlineText = (value) =>
+	String(value || "")
+		.replace(/\s+/g, " ")
+		.trim();
+
+const extractTimelineBullets = (experienceItem) => {
+	const bullets = [];
+	const addFromText = (value) => {
+		const lines = String(value || "")
+			.replace(/\r\n/g, "\n")
+			.replace(/\r/g, "\n")
+			.split(/\n+/g)
+			.map((line) => line.replace(/^[\u2022\-*\s]+/, "").trim())
+			.filter(Boolean);
+		for (const line of lines) bullets.push(line);
+	};
+
+	addFromText(experienceItem?.JobDescription);
+	addFromText(experienceItem?.Responsibilities);
+	addFromText(experienceItem?.Responsibility);
+	addFromText(experienceItem?.Summary);
+
+	for (const project of toArray(experienceItem?.Projects)) {
+		const projectName = cleanInlineText(project?.ProjectName);
+		const projectDescription = cleanInlineText(project?.ProjectDescription);
+		const usedSkills = cleanInlineText(project?.UsedSkills);
+		if (projectDescription) addFromText(projectDescription);
+		if (projectName && usedSkills) {
+			bullets.push(`${projectName} (${usedSkills})`);
+		} else if (projectName) {
+			bullets.push(projectName);
+		}
+	}
+
+	const deduped = [];
+	const seen = new Set();
+	for (const bullet of bullets) {
+		const normalized = cleanInlineText(bullet);
+		if (!normalized) continue;
+		const key = normalized.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		deduped.push(normalized);
+	}
+	return deduped.slice(0, 4);
+};
+
+const extractExperienceTimeline = (candidate) => {
+	const parserData = candidate?.parsedResume?.raw?.ResumeParserData || {};
+	const segregatedExperience = toArray(parserData?.SegregatedExperience);
+	if (segregatedExperience.length === 0) return [];
+
+	return segregatedExperience
+		.map((item) => {
+			const company = cleanInlineText(
+				item?.Employer?.EmployerName || item?.CompanyName || item?.EmployerName,
+			);
+			const role = cleanInlineText(
+				item?.JobProfile?.Title || item?.JobProfile?.FormattedName || item?.JobTitle,
+			);
+			const period = cleanInlineText(
+				item?.FormattedJobPeriod ||
+					[item?.StartDate, item?.EndDate].filter(Boolean).join(" - "),
+			);
+			const highlights = extractTimelineBullets(item);
+
+			if (!company && !role && !period && highlights.length === 0) return null;
+			return {
+				company,
+				role,
+				period,
+				highlights,
+			};
+		})
+		.filter(Boolean);
+};
 
 export const getEnrichmentQueue = async (req, res) => {
 	try {
@@ -2626,9 +2714,15 @@ export const getCandidateEnrichmentDetail = async (req, res) => {
 				country: candidate.country || "",
 				skills: candidate.skills || "",
 				summary: candidate.summary || "",
+				availability: candidate.availability || "UNKNOWN",
+				candidateStatus: candidate.candidateStatus || "ACTIVE",
+				internalTags: candidate.internalTags || "",
+				recruiterNotes: candidate.recruiterNotes || "",
 				industry: candidate.industry || "",
 				experience: candidate.experience || "",
 				sourceFile: candidate.sourceFile || "",
+				experienceTimeline: extractExperienceTimeline(candidate),
+				hasResume: !!candidate.sourceFile || !!candidate.parsedResume,
 				updatedAt: candidate.updatedAt,
 				parseStatus: candidate.parseStatus || "",
 			},
@@ -2809,6 +2903,16 @@ export const saveCandidateEnrichmentManual = async (req, res) => {
 			if (!MANUAL_ENRICH_UPDATE_FIELDS.has(field)) continue;
 
 			const sanitizedValue = sanitizeUpdateValue(field, nextValueRaw);
+			if (field === "availability" && !AVAILABILITY_STATUSES.has(sanitizedValue)) {
+				return res.status(400).json({
+					message: "availability must be IMMEDIATE, 15_DAYS, 30_DAYS or UNKNOWN",
+				});
+			}
+			if (field === "candidateStatus" && !CANDIDATE_STATUSES.has(sanitizedValue)) {
+				return res.status(400).json({
+					message: "candidateStatus must be ACTIVE, PASSIVE or NOT_AVAILABLE",
+				});
+			}
 			const previousValue = String(candidate[field] || "").trim();
 			if (previousValue.toLowerCase() === sanitizedValue.toLowerCase()) continue;
 

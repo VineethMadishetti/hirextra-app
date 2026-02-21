@@ -28,6 +28,18 @@ const candidateSchema = new mongoose.Schema(
     linkedinUrl: String,
     githubUrl: String,
     summary: String,
+    availability: {
+      type: String,
+      enum: ['IMMEDIATE', '15_DAYS', '30_DAYS', 'UNKNOWN'],
+      default: 'UNKNOWN'
+    },
+    candidateStatus: {
+      type: String,
+      enum: ['ACTIVE', 'PASSIVE', 'NOT_AVAILABLE'],
+      default: 'ACTIVE'
+    },
+    internalTags: { type: String, default: '' },
+    recruiterNotes: { type: String, default: '' },
     parsedResume: { type: mongoose.Schema.Types.Mixed },
     parseStatus: { type: String, enum: ['PARSED', 'PARTIAL', 'FAILED'], default: 'PARSED' },
     parseWarnings: [String],
