@@ -22,10 +22,15 @@ const Enrich = () => {
     const handleSearch = async (e) => {
         e.preventDefault();
         
-        // Prioritize search terms: Email > LinkedIn > Phone > Name
-        const query = inputs.email || inputs.linkedinUrl || inputs.phone || inputs.fullName;
+        // Construct params with all available fields
+        const params = { limit: 1 };
+        if (inputs.email) params.email = inputs.email;
+        if (inputs.linkedinUrl) params.linkedin = inputs.linkedinUrl;
+        if (inputs.phone) params.phone = inputs.phone;
+        if (inputs.fullName) params.name = inputs.fullName;
+        if (inputs.email || inputs.linkedinUrl || inputs.phone || inputs.fullName) params.q = inputs.email || inputs.linkedinUrl || inputs.phone || inputs.fullName;
 
-        if (!query) {
+        if (Object.keys(params).length <= 1) {
             toast.error("Please enter at least one detail to search");
             return;
         }
@@ -35,13 +40,13 @@ const Enrich = () => {
         setIsEditing(false);
 
         try {
-            const { data } = await api.get('/candidates/search', {
-                params: { q: query, limit: 1 }
-            });
+            const { data } = await api.get('/candidates/search', { params });
 
-            if (data.candidates && data.candidates.length > 0) {
-                setCandidate(data.candidates[0]);
-                setFormData(data.candidates[0]);
+            const result = data.candidates && data.candidates.length > 0 ? data.candidates[0] : (data.id || data._id ? data : null);
+
+            if (result) {
+                setCandidate(result);
+                setFormData(result);
                 toast.success("Candidate found");
             } else {
                 toast.error("No candidate found matching your criteria");
@@ -59,11 +64,12 @@ const Enrich = () => {
     };
 
     const handleSave = async () => {
-        if (!candidate?._id) return;
+        const id = candidate?._id || candidate?.id;
+        if (!id) return;
         
         setLoading(true);
         try {
-            const { data } = await api.put(`/candidates/${candidate._id}`, formData);
+            const { data } = await api.put(`/candidates/${id}`, formData);
             setCandidate(data);
             setFormData(data);
             setIsEditing(false);
