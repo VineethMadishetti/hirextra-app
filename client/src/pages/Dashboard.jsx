@@ -23,6 +23,7 @@ import LoadingScreen from "../components/LoadingScreen";
 const AdminDashboard = lazy(() => import("./AdminDashboard"));
 const UserSearch = lazy(() => import("./UserSearch"));
 const UserManagement = lazy(() => import("./UserManagement"));
+const Enrich = lazy(() => import("./Enrich"));
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
@@ -284,7 +285,7 @@ const Dashboard = () => {
 					) : currentView === "users" ? (
 						<UserManagement />
 					) : currentView === "enrich" ? (
-						<UserSearch />
+						<Enrich />
 					) : (
 						<UserSearch />
 					)}

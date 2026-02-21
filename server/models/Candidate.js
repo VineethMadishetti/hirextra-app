@@ -31,6 +31,25 @@ const candidateSchema = new mongoose.Schema(
     parsedResume: { type: mongoose.Schema.Types.Mixed },
     parseStatus: { type: String, enum: ['PARSED', 'PARTIAL', 'FAILED'], default: 'PARSED' },
     parseWarnings: [String],
+    enrichment: {
+      completenessScore: { type: Number, default: 0 },
+      missingFields: { type: [String], default: [] },
+      needsEnrichment: { type: Boolean, default: true },
+      staleDays: { type: Number, default: 0 },
+      suggestionStatus: {
+        type: String,
+        enum: ['NONE', 'PENDING', 'APPLIED', 'REJECTED'],
+        default: 'NONE'
+      },
+      lastEnrichedAt: Date,
+      lastReviewedAt: Date,
+      lastReviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      provider: String,
+      suggestedUpdates: { type: mongoose.Schema.Types.Mixed, default: null },
+    },
 
     // -------------------------
     // Upload & lifecycle
@@ -117,5 +136,10 @@ candidateSchema.index({
   weights: { fullName: 10, jobTitle: 5, skills: 5 },
   name: "CandidateTextIndex"
 });
+
+candidateSchema.index(
+  { "enrichment.needsEnrichment": 1, "enrichment.completenessScore": 1, updatedAt: -1 },
+  { partialFilterExpression: { isDeleted: false }, background: true, name: "CandidateEnrichmentQueueIdx" }
+);
 
 export default mongoose.model('Candidate', candidateSchema);

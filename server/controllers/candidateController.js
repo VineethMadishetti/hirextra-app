@@ -2,6 +2,7 @@ import importQueue, { processCsvJob, processResumeJob } from "../utils/queue.js"
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
+import EnrichmentLog from "../models/EnrichmentLog.js";
 import fs from "fs";
 import DeleteLog from "../models/DeleteLog.js";
 import csv from "csv-parser";
@@ -30,6 +31,11 @@ import {
 	downloadFromS3,
 	listS3FilesByPage,
 } from "../utils/s3Service.js";
+import {
+	computeCandidateEnrichmentMeta,
+	enrichCandidateProfile,
+	sanitizeUpdateValue,
+} from "../utils/enrichmentService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -949,6 +955,7 @@ export const searchCandidates = async (req, res) => {
 
         if (searchQ && searchQ.trim()) {
             const safeQ = searchQ.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const searchFields = ["fullName", "jobTitle", "skills", "company", "location", "locality"];
 
             const isEmail = safeQ.includes('@');
             const isPhone = /^[0-9+\-\s()]+$/.test(safeQ) && safeQ.replace(/\D/g, '').length > 5;
@@ -958,27 +965,56 @@ export const searchCandidates = async (req, res) => {
             } else if (isPhone) {
                 andConditions.push({ phone: new RegExp(safeQ.replace(/\s+/g, ''), "i") });
             } else {
-                const textSearch = searchQ
-                    .replace(/[^a-zA-Z0-9\s]/g, " ")
-                    .replace(/\s+/g, " ")
-                    .trim();
-                const regex = new RegExp(safeQ, "i");
-                keywordRegexFallbackClause = {
-                    $or: [
-                        { fullName: regex },
-                        { jobTitle: regex },
-                        { skills: regex },
-                        { company: regex },
-                        { location: regex },
-                        { locality: regex }
-                    ]
-                };
+                const normalizedQ = String(searchQ || "").trim().replace(/\s+/g, " ");
+                const hasCommaSeparatedTerms = normalizedQ.includes(",");
 
-                if (textSearch.length >= 2) {
-                    andConditions.push({ $text: { $search: textSearch } });
-                    useTextSearch = true;
+                if (hasCommaSeparatedTerms) {
+                    const terms = parseCsvFilter(normalizedQ, 20)
+                        .map((term) => String(term).trim().slice(0, 64))
+                        .filter(Boolean);
+
+                    const escapedTerms = terms.map((term) =>
+                        term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                    );
+                    const keywordPattern = escapedTerms.join("|");
+                    const keywordRegex = new RegExp(keywordPattern, "i");
+
+                    keywordRegexFallbackClause = {
+                        $or: searchFields.map((field) => ({ [field]: keywordRegex })),
+                    };
+
+                    const textSearch = terms
+                        .join(" ")
+                        .replace(/[^a-zA-Z0-9\s]/g, " ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                    if (textSearch.length >= 2) {
+                        andConditions.push({ $text: { $search: textSearch } });
+                        useTextSearch = true;
+                    } else {
+                        andConditions.push(keywordRegexFallbackClause);
+                    }
                 } else {
-                    andConditions.push(keywordRegexFallbackClause);
+                    const phrase = normalizedQ;
+                    const safePhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    const phraseRegex = new RegExp(safePhrase, "i");
+                    keywordRegexFallbackClause = {
+                        $or: searchFields.map((field) => ({ [field]: phraseRegex })),
+                    };
+
+                    const textPhrase = phrase
+                        .replace(/"/g, " ")
+                        .replace(/[^a-zA-Z0-9\s]/g, " ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                    if (textPhrase.length >= 2) {
+                        andConditions.push({ $text: { $search: `"${textPhrase}"` } });
+                        useTextSearch = true;
+                    } else {
+                        andConditions.push(keywordRegexFallbackClause);
+                    }
                 }
             }
         }
@@ -2264,6 +2300,498 @@ export const downloadProfile = async (req, res) => {
 	} catch (error) {
 		console.error(error);
 		res.status(500).json({ message: "Error generating resume" });
+	}
+};
+
+const getMissingStringFieldCondition = (field) => ({
+	$or: [{ [field]: { $exists: false } }, { [field]: null }, { [field]: "" }],
+});
+
+const getMissingLocationCondition = () => ({
+	$and: [getMissingStringFieldCondition("location"), getMissingStringFieldCondition("locality")],
+});
+
+const buildNeedsEnrichmentQuery = (staleCutoffDate) => ({
+	$or: [
+		getMissingStringFieldCondition("email"),
+		getMissingStringFieldCondition("phone"),
+		getMissingStringFieldCondition("linkedinUrl"),
+		getMissingStringFieldCondition("jobTitle"),
+		getMissingStringFieldCondition("company"),
+		getMissingStringFieldCondition("skills"),
+		getMissingLocationCondition(),
+		{ updatedAt: { $lte: staleCutoffDate } },
+	],
+});
+
+const mapEnrichmentQueueCandidate = (candidateDoc) => {
+	const candidate =
+		typeof candidateDoc?.toObject === "function" ? candidateDoc.toObject() : candidateDoc;
+	const meta = computeCandidateEnrichmentMeta(candidate);
+	const suggestionStatus = candidate?.enrichment?.suggestionStatus || "NONE";
+	return {
+		_id: candidate._id,
+		fullName: candidate.fullName || "Unknown Candidate",
+		jobTitle: candidate.jobTitle || "",
+		company: candidate.company || "",
+		email: candidate.email || "",
+		phone: candidate.phone || "",
+		linkedinUrl: candidate.linkedinUrl || "",
+		location: candidate.location || "",
+		locality: candidate.locality || "",
+		country: candidate.country || "",
+		skills: candidate.skills || "",
+		updatedAt: candidate.updatedAt,
+		parseStatus: candidate.parseStatus || "",
+		completenessScore: meta.completenessScore,
+		missingFields: meta.missingFields,
+		staleDays: meta.staleDays,
+		needsEnrichment: meta.needsEnrichment,
+		suggestionStatus,
+		lastEnrichedAt: candidate?.enrichment?.lastEnrichedAt || null,
+		provider: candidate?.enrichment?.provider || "",
+	};
+};
+
+const enrichCandidateSelect =
+	"fullName jobTitle company email phone linkedinUrl location locality country skills summary industry experience parsedResume parseStatus enrichment updatedAt createdAt isDeleted";
+
+export const getEnrichmentQueue = async (req, res) => {
+	try {
+		res.setHeader("Cache-Control", "no-store");
+		const pageNum = Math.max(1, Number(req.query.page) || 1);
+		const limitNum = Math.min(100, Math.max(5, Number(req.query.limit) || 25));
+		const skip = (pageNum - 1) * limitNum;
+		const q = String(req.query.q || "").trim();
+		const needsOnly = String(req.query.needsOnly || "true").toLowerCase() === "true";
+		const staleCutoffDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+		const filterClauses = [{ isDeleted: false }];
+		if (q) {
+			const safeQ = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			const regex = new RegExp(safeQ, "i");
+			filterClauses.push({
+				$or: [
+					{ fullName: regex },
+					{ jobTitle: regex },
+					{ company: regex },
+					{ skills: regex },
+					{ location: regex },
+					{ locality: regex },
+				],
+			});
+		}
+		if (needsOnly) {
+			filterClauses.push(buildNeedsEnrichmentQuery(staleCutoffDate));
+		}
+
+		const query =
+			filterClauses.length === 1 ? filterClauses[0] : { $and: filterClauses };
+
+		const [totalCount, candidates, summaryCounts] = await Promise.all([
+			Candidate.countDocuments(query),
+			Candidate.find(query)
+				.select(enrichCandidateSelect)
+				.sort({ updatedAt: 1, createdAt: 1 })
+				.skip(skip)
+				.limit(limitNum)
+				.lean()
+				.maxTimeMS(20000),
+			Promise.all([
+				Candidate.countDocuments({ isDeleted: false }),
+				Candidate.countDocuments({
+					isDeleted: false,
+					$or: [
+						getMissingStringFieldCondition("email"),
+						getMissingStringFieldCondition("phone"),
+						getMissingStringFieldCondition("linkedinUrl"),
+					],
+				}),
+				Candidate.countDocuments({
+					isDeleted: false,
+					$and: [
+						{ email: { $exists: true, $ne: "" } },
+						{ phone: { $exists: true, $ne: "" } },
+						{ linkedinUrl: { $exists: true, $ne: "" } },
+						{ jobTitle: { $exists: true, $ne: "" } },
+						{ company: { $exists: true, $ne: "" } },
+						{ skills: { $exists: true, $ne: "" } },
+						{
+							$or: [
+								{ location: { $exists: true, $ne: "" } },
+								{ locality: { $exists: true, $ne: "" } },
+							],
+						},
+					],
+				}),
+				Candidate.countDocuments({
+					isDeleted: false,
+					updatedAt: { $lte: staleCutoffDate },
+				}),
+			]),
+		]);
+
+		const queueItems = candidates
+			.map(mapEnrichmentQueueCandidate)
+			.sort((a, b) => {
+				if (a.needsEnrichment !== b.needsEnrichment) {
+					return a.needsEnrichment ? -1 : 1;
+				}
+				if (a.completenessScore !== b.completenessScore) {
+					return a.completenessScore - b.completenessScore;
+				}
+				if (a.staleDays !== b.staleDays) {
+					return b.staleDays - a.staleDays;
+				}
+				return String(a.fullName || "").localeCompare(String(b.fullName || ""));
+			});
+
+		const pageAverageCompleteness =
+			queueItems.length > 0
+				? Math.round(
+						queueItems.reduce((sum, item) => sum + (item.completenessScore || 0), 0) /
+							queueItems.length,
+				  )
+				: 0;
+
+		const [allActiveCount, missingContactCount, readyToSubmitCount, staleCount] =
+			summaryCounts;
+
+		return res.json({
+			items: queueItems,
+			page: pageNum,
+			limit: limitNum,
+			totalCount,
+			hasMore: skip + queueItems.length < totalCount,
+			summary: {
+				needEnrichment: Math.max(0, allActiveCount - readyToSubmitCount),
+				readyToSubmit: readyToSubmitCount,
+				missingContact: missingContactCount,
+				staleProfiles: staleCount,
+				avgCompleteness: pageAverageCompleteness,
+				totalActive: allActiveCount,
+			},
+		});
+	} catch (error) {
+		console.error("Enrichment Queue Error:", error);
+		return res.status(500).json({ message: "Failed to load enrichment queue" });
+	}
+};
+
+export const runCandidateEnrichment = async (req, res) => {
+	try {
+		const candidateIds = Array.isArray(req.body?.candidateIds)
+			? req.body.candidateIds.map((id) => String(id)).filter(Boolean)
+			: [];
+
+		if (candidateIds.length === 0) {
+			return res.status(400).json({ message: "candidateIds are required" });
+		}
+		if (candidateIds.length > 50) {
+			return res
+				.status(400)
+				.json({ message: "Maximum 50 candidates per enrichment run" });
+		}
+
+		const candidates = await Candidate.find({
+			_id: { $in: candidateIds },
+			isDeleted: false,
+		}).select(enrichCandidateSelect);
+
+		if (!candidates.length) {
+			return res.status(404).json({ message: "No candidates found for enrichment" });
+		}
+
+		const results = [];
+
+		for (const candidate of candidates) {
+			try {
+				const enrichmentResult = await enrichCandidateProfile(candidate);
+				const metaBefore = enrichmentResult.metaBefore;
+				const now = new Date();
+
+				candidate.enrichment = {
+					...(candidate.enrichment || {}),
+					completenessScore: metaBefore.completenessScore,
+					missingFields: metaBefore.missingFields,
+					staleDays: metaBefore.staleDays,
+					needsEnrichment: metaBefore.needsEnrichment,
+					suggestionStatus:
+						enrichmentResult.suggestions.length > 0 ? "PENDING" : "NONE",
+					lastEnrichedAt: now,
+					provider: enrichmentResult.provider,
+					suggestedUpdates:
+						enrichmentResult.suggestions.length > 0
+							? {
+									items: enrichmentResult.suggestions,
+									provider: enrichmentResult.provider,
+									generatedAt: now.toISOString(),
+							  }
+							: null,
+				};
+				await candidate.save();
+
+				if (enrichmentResult.suggestions.length > 0) {
+					await EnrichmentLog.create({
+						candidateId: candidate._id,
+						action: "RUN",
+						provider: enrichmentResult.provider,
+						performedBy: req.user._id,
+						changes: enrichmentResult.suggestions.map((item) => ({
+							field: item.field,
+							oldValue: item.currentValue || "",
+							newValue: item.suggestedValue || "",
+							confidence: item.confidence || 0,
+							source: item.source || "",
+						})),
+						metadata: {
+							missingFields: metaBefore.missingFields,
+							completenessScore: metaBefore.completenessScore,
+						},
+					});
+				}
+
+				results.push({
+					candidateId: String(candidate._id),
+					status: "ENRICHED",
+					suggestionsCount: enrichmentResult.suggestions.length,
+					provider: enrichmentResult.provider,
+				});
+			} catch (err) {
+				results.push({
+					candidateId: String(candidate._id),
+					status: "FAILED",
+					error: err?.message || "Unknown enrichment error",
+				});
+			}
+		}
+
+		const successCount = results.filter((r) => r.status === "ENRICHED").length;
+		const failedCount = results.length - successCount;
+
+		return res.json({
+			message: `Enrichment completed for ${successCount}/${results.length} candidates`,
+			processed: results.length,
+			successCount,
+			failedCount,
+			results,
+		});
+	} catch (error) {
+		console.error("Run Enrichment Error:", error);
+		return res.status(500).json({ message: "Failed to run enrichment" });
+	}
+};
+
+export const getCandidateEnrichmentDetail = async (req, res) => {
+	try {
+		const candidate = await Candidate.findOne({
+			_id: req.params.id,
+			isDeleted: false,
+		})
+			.select(enrichCandidateSelect)
+			.lean();
+
+		if (!candidate) {
+			return res.status(404).json({ message: "Candidate not found" });
+		}
+
+		const meta = computeCandidateEnrichmentMeta(candidate);
+		const suggestions = Array.isArray(
+			candidate?.enrichment?.suggestedUpdates?.items,
+		)
+			? candidate.enrichment.suggestedUpdates.items
+			: [];
+
+		return res.json({
+			candidate: {
+				_id: candidate._id,
+				fullName: candidate.fullName || "",
+				email: candidate.email || "",
+				phone: candidate.phone || "",
+				linkedinUrl: candidate.linkedinUrl || "",
+				jobTitle: candidate.jobTitle || "",
+				company: candidate.company || "",
+				location: candidate.location || "",
+				locality: candidate.locality || "",
+				country: candidate.country || "",
+				skills: candidate.skills || "",
+				summary: candidate.summary || "",
+				industry: candidate.industry || "",
+				experience: candidate.experience || "",
+				updatedAt: candidate.updatedAt,
+				parseStatus: candidate.parseStatus || "",
+			},
+			meta: {
+				...meta,
+				suggestionStatus: candidate?.enrichment?.suggestionStatus || "NONE",
+				lastEnrichedAt: candidate?.enrichment?.lastEnrichedAt || null,
+				lastReviewedAt: candidate?.enrichment?.lastReviewedAt || null,
+				provider: candidate?.enrichment?.provider || "",
+			},
+			suggestions,
+		});
+	} catch (error) {
+		console.error("Enrichment Detail Error:", error);
+		return res.status(500).json({ message: "Failed to fetch enrichment detail" });
+	}
+};
+
+export const reviewCandidateEnrichment = async (req, res) => {
+	try {
+		const { action, selectedFields = [], manualUpdates = {} } = req.body || {};
+		const normalizedAction = String(action || "").toUpperCase();
+		if (!["APPROVE", "REJECT", "EDIT"].includes(normalizedAction)) {
+			return res
+				.status(400)
+				.json({ message: "action must be APPROVE, REJECT or EDIT" });
+		}
+
+		const candidate = await Candidate.findOne({
+			_id: req.params.id,
+			isDeleted: false,
+		}).select(enrichCandidateSelect);
+		if (!candidate) {
+			return res.status(404).json({ message: "Candidate not found" });
+		}
+
+		const existingSuggestions = Array.isArray(
+			candidate?.enrichment?.suggestedUpdates?.items,
+		)
+			? candidate.enrichment.suggestedUpdates.items
+			: [];
+
+		const appliedChanges = [];
+		const now = new Date();
+
+		if (normalizedAction === "APPROVE") {
+			const selectedSet = new Set(
+				Array.isArray(selectedFields) && selectedFields.length > 0
+					? selectedFields.map((f) => String(f).trim())
+					: existingSuggestions.map((s) => s.field),
+			);
+
+			for (const suggestion of existingSuggestions) {
+				if (!selectedSet.has(String(suggestion.field))) continue;
+				const field = String(suggestion.field || "").trim();
+				const sanitizedValue = sanitizeUpdateValue(field, suggestion.suggestedValue);
+				if (!sanitizedValue) continue;
+
+				const previousValue = String(candidate[field] || "").trim();
+				if (previousValue.toLowerCase() === sanitizedValue.toLowerCase()) continue;
+
+				candidate[field] = sanitizedValue;
+				appliedChanges.push({
+					field,
+					oldValue: previousValue,
+					newValue: sanitizedValue,
+					confidence: Number(suggestion.confidence || 0),
+					source: suggestion.source || "enrichment",
+				});
+			}
+		} else if (normalizedAction === "EDIT") {
+			const entries = Object.entries(manualUpdates || {});
+			for (const [field, nextValue] of entries) {
+				const sanitizedValue = sanitizeUpdateValue(field, nextValue);
+				if (!sanitizedValue) continue;
+				const previousValue = String(candidate[field] || "").trim();
+				if (previousValue.toLowerCase() === sanitizedValue.toLowerCase()) continue;
+				candidate[field] = sanitizedValue;
+				appliedChanges.push({
+					field,
+					oldValue: previousValue,
+					newValue: sanitizedValue,
+					confidence: 100,
+					source: "manual",
+				});
+			}
+		}
+
+		const metaAfter =
+			normalizedAction === "REJECT" && appliedChanges.length === 0
+				? computeCandidateEnrichmentMeta(candidate)
+				: computeCandidateEnrichmentMeta(candidate);
+
+		candidate.enrichment = {
+			...(candidate.enrichment || {}),
+			completenessScore: metaAfter.completenessScore,
+			missingFields: metaAfter.missingFields,
+			staleDays: metaAfter.staleDays,
+			needsEnrichment: metaAfter.needsEnrichment,
+			suggestionStatus:
+				normalizedAction === "REJECT"
+					? "REJECTED"
+					: appliedChanges.length > 0
+						? "APPLIED"
+						: "REJECTED",
+			lastReviewedAt: now,
+			lastReviewedBy: req.user._id,
+			suggestedUpdates: null,
+		};
+		await candidate.save();
+
+		await EnrichmentLog.create({
+			candidateId: candidate._id,
+			action: normalizedAction,
+			provider: candidate?.enrichment?.provider || "",
+			performedBy: req.user._id,
+			changes: appliedChanges,
+			metadata: {
+				selectionCount: Array.isArray(selectedFields) ? selectedFields.length : 0,
+			},
+		});
+
+		const actionLabel = {
+			APPROVE: "approved",
+			REJECT: "rejected",
+			EDIT: "saved",
+		}[normalizedAction];
+
+		return res.json({
+			message: `Enrichment ${actionLabel || "updated"} successfully`,
+			appliedCount: appliedChanges.length,
+			candidate: mapEnrichmentQueueCandidate(candidate.toObject()),
+		});
+	} catch (error) {
+		console.error("Review Enrichment Error:", error);
+		return res.status(500).json({ message: "Failed to review enrichment" });
+	}
+};
+
+export const getEnrichmentAuditLogs = async (req, res) => {
+	try {
+		const pageNum = Math.max(1, Number(req.query.page) || 1);
+		const limitNum = Math.min(100, Math.max(10, Number(req.query.limit) || 20));
+		const skip = (pageNum - 1) * limitNum;
+
+		const [totalCount, logs] = await Promise.all([
+			EnrichmentLog.countDocuments({}),
+			EnrichmentLog.find({})
+				.sort({ createdAt: -1 })
+				.skip(skip)
+				.limit(limitNum)
+				.populate("performedBy", "name email")
+				.populate("candidateId", "fullName jobTitle")
+				.lean(),
+		]);
+
+		return res.json({
+			items: logs.map((log) => ({
+				_id: log._id,
+				action: log.action,
+				provider: log.provider || "",
+				changes: Array.isArray(log.changes) ? log.changes : [],
+				createdAt: log.createdAt,
+				performedBy: log.performedBy || null,
+				candidate: log.candidateId || null,
+			})),
+			page: pageNum,
+			limit: limitNum,
+			totalCount,
+			hasMore: skip + logs.length < totalCount,
+		});
+	} catch (error) {
+		console.error("Enrichment Audit Error:", error);
+		return res.status(500).json({ message: "Failed to fetch enrichment audit logs" });
 	}
 };
 

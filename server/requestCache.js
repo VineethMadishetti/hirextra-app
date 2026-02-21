@@ -8,7 +8,15 @@ export const requestCache = (duration = 60) => {
       return next();
     }
 
-    const key = req.originalUrl || req.url;
+    const requestUrl = req.originalUrl || req.url || "";
+    if (
+      requestUrl.includes("/api/candidates/search") ||
+      requestUrl.includes("/api/candidates/enrich")
+    ) {
+      return next();
+    }
+
+    const key = requestUrl;
     let cachedResponse = cache.get(key);
 
     if (cachedResponse) {
