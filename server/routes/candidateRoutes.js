@@ -19,7 +19,9 @@ import {
   runCandidateEnrichment,
   getCandidateEnrichmentDetail,
   reviewCandidateEnrichment,
-  getEnrichmentAuditLogs
+  getEnrichmentAuditLogs,
+  saveCandidateEnrichmentManual,
+  getCandidateEnrichmentActivity
 } from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -46,8 +48,10 @@ router.get('/search', protect, searchCandidates); // All authenticated users can
 router.get('/enrich/queue', protect, getEnrichmentQueue);
 router.post('/enrich/run', protect, runCandidateEnrichment);
 router.get('/enrich/audit', protect, getEnrichmentAuditLogs);
+router.get('/enrich/:id/activity', protect, getCandidateEnrichmentActivity);
 router.get('/enrich/:id', protect, getCandidateEnrichmentDetail);
 router.post('/enrich/:id/review', protect, reviewCandidateEnrichment);
+router.put('/enrich/:id/manual', protect, saveCandidateEnrichmentManual);
 router.post('/export', protect, exportCandidates); // Export selected candidates
 router.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() })); // Health check
 router.get('/:id/download', protect, downloadProfile); // Download profile

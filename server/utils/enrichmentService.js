@@ -339,8 +339,8 @@ export const enrichCandidateProfile = async (candidateInput) => {
 export const sanitizeUpdateValue = (field, value) => {
   if (!ENRICH_ALLOWED_UPDATE_FIELDS.has(field)) return "";
   if (field === "skills") return dedupeCsv(value);
+  if (field === "summary") return String(value || "").trim();
   return cleanInline(value);
 };
 
 export const getAllowedEnrichmentFields = () => [...ENRICH_ALLOWED_UPDATE_FIELDS];
-

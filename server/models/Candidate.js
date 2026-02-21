@@ -36,6 +36,11 @@ const candidateSchema = new mongoose.Schema(
       missingFields: { type: [String], default: [] },
       needsEnrichment: { type: Boolean, default: true },
       staleDays: { type: Number, default: 0 },
+      verificationStatus: {
+        type: String,
+        enum: ['NEEDS_REVIEW', 'VERIFIED', 'NOT_VERIFIED'],
+        default: 'NEEDS_REVIEW'
+      },
       suggestionStatus: {
         type: String,
         enum: ['NONE', 'PENDING', 'APPLIED', 'REJECTED'],
@@ -43,7 +48,12 @@ const candidateSchema = new mongoose.Schema(
       },
       lastEnrichedAt: Date,
       lastReviewedAt: Date,
+      lastVerifiedAt: Date,
       lastReviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      lastVerifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
       },

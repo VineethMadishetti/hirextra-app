@@ -21,7 +21,7 @@ const enrichmentLogSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ["RUN", "APPROVE", "REJECT", "EDIT"],
+      enum: ["RUN", "APPROVE", "REJECT", "EDIT", "VERIFY"],
       required: true,
       index: true,
     },
@@ -41,4 +41,3 @@ const enrichmentLogSchema = new mongoose.Schema(
 enrichmentLogSchema.index({ createdAt: -1, candidateId: 1 });
 
 export default mongoose.model("EnrichmentLog", enrichmentLogSchema);
-

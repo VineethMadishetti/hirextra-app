@@ -34,6 +34,7 @@ import {
 import {
 	computeCandidateEnrichmentMeta,
 	enrichCandidateProfile,
+	getAllowedEnrichmentFields,
 	sanitizeUpdateValue,
 } from "../utils/enrichmentService.js";
 
@@ -2329,6 +2330,8 @@ const mapEnrichmentQueueCandidate = (candidateDoc) => {
 		typeof candidateDoc?.toObject === "function" ? candidateDoc.toObject() : candidateDoc;
 	const meta = computeCandidateEnrichmentMeta(candidate);
 	const suggestionStatus = candidate?.enrichment?.suggestionStatus || "NONE";
+	const verificationStatus =
+		candidate?.enrichment?.verificationStatus || "NEEDS_REVIEW";
 	return {
 		_id: candidate._id,
 		fullName: candidate.fullName || "Unknown Candidate",
@@ -2348,6 +2351,7 @@ const mapEnrichmentQueueCandidate = (candidateDoc) => {
 		staleDays: meta.staleDays,
 		needsEnrichment: meta.needsEnrichment,
 		suggestionStatus,
+		verificationStatus,
 		lastEnrichedAt: candidate?.enrichment?.lastEnrichedAt || null,
 		provider: candidate?.enrichment?.provider || "",
 	};
@@ -2355,6 +2359,12 @@ const mapEnrichmentQueueCandidate = (candidateDoc) => {
 
 const enrichCandidateSelect =
 	"fullName jobTitle company email phone linkedinUrl location locality country skills summary industry experience parsedResume parseStatus enrichment updatedAt createdAt isDeleted";
+const MANUAL_ENRICH_UPDATE_FIELDS = new Set(getAllowedEnrichmentFields());
+const VERIFICATION_STATUSES = new Set([
+	"NEEDS_REVIEW",
+	"VERIFIED",
+	"NOT_VERIFIED",
+]);
 
 export const getEnrichmentQueue = async (req, res) => {
 	try {
@@ -2618,14 +2628,19 @@ export const getCandidateEnrichmentDetail = async (req, res) => {
 				summary: candidate.summary || "",
 				industry: candidate.industry || "",
 				experience: candidate.experience || "",
+				sourceFile: candidate.sourceFile || "",
 				updatedAt: candidate.updatedAt,
 				parseStatus: candidate.parseStatus || "",
 			},
 			meta: {
 				...meta,
 				suggestionStatus: candidate?.enrichment?.suggestionStatus || "NONE",
+				verificationStatus:
+					candidate?.enrichment?.verificationStatus || "NEEDS_REVIEW",
 				lastEnrichedAt: candidate?.enrichment?.lastEnrichedAt || null,
 				lastReviewedAt: candidate?.enrichment?.lastReviewedAt || null,
+				lastVerifiedAt: candidate?.enrichment?.lastVerifiedAt || null,
+				lastVerifiedBy: candidate?.enrichment?.lastVerifiedBy || null,
 				provider: candidate?.enrichment?.provider || "",
 			},
 			suggestions,
@@ -2754,6 +2769,171 @@ export const reviewCandidateEnrichment = async (req, res) => {
 	} catch (error) {
 		console.error("Review Enrichment Error:", error);
 		return res.status(500).json({ message: "Failed to review enrichment" });
+	}
+};
+
+export const saveCandidateEnrichmentManual = async (req, res) => {
+	try {
+		const { updates = {}, verificationStatus = "" } = req.body || {};
+		const normalizedVerification = String(verificationStatus || "")
+			.trim()
+			.toUpperCase();
+
+		if (updates && typeof updates !== "object") {
+			return res
+				.status(400)
+				.json({ message: "updates must be an object of field-value pairs" });
+		}
+		if (
+			normalizedVerification &&
+			!VERIFICATION_STATUSES.has(normalizedVerification)
+		) {
+			return res.status(400).json({
+				message:
+					"verificationStatus must be VERIFIED, NOT_VERIFIED, or NEEDS_REVIEW",
+			});
+		}
+
+		const candidate = await Candidate.findOne({
+			_id: req.params.id,
+			isDeleted: false,
+		}).select(enrichCandidateSelect);
+		if (!candidate) {
+			return res.status(404).json({ message: "Candidate not found" });
+		}
+
+		const now = new Date();
+		const editChanges = [];
+		for (const [rawField, nextValueRaw] of Object.entries(updates || {})) {
+			const field = String(rawField || "").trim();
+			if (!MANUAL_ENRICH_UPDATE_FIELDS.has(field)) continue;
+
+			const sanitizedValue = sanitizeUpdateValue(field, nextValueRaw);
+			const previousValue = String(candidate[field] || "").trim();
+			if (previousValue.toLowerCase() === sanitizedValue.toLowerCase()) continue;
+
+			candidate[field] = sanitizedValue;
+			editChanges.push({
+				field,
+				oldValue: previousValue,
+				newValue: sanitizedValue,
+				confidence: 100,
+				source: "manual",
+			});
+		}
+
+		const previousVerification =
+			candidate?.enrichment?.verificationStatus || "NEEDS_REVIEW";
+		let verificationChanged = false;
+		if (
+			normalizedVerification &&
+			normalizedVerification !== String(previousVerification).toUpperCase()
+		) {
+			verificationChanged = true;
+		}
+
+		const metaAfter = computeCandidateEnrichmentMeta(candidate);
+		candidate.enrichment = {
+			...(candidate.enrichment || {}),
+			completenessScore: metaAfter.completenessScore,
+			missingFields: metaAfter.missingFields,
+			staleDays: metaAfter.staleDays,
+			needsEnrichment: metaAfter.needsEnrichment,
+			lastReviewedAt: now,
+			lastReviewedBy: req.user._id,
+			...(normalizedVerification
+				? {
+						verificationStatus: normalizedVerification,
+						lastVerifiedAt:
+							normalizedVerification === "VERIFIED" ? now : null,
+						lastVerifiedBy:
+							normalizedVerification === "VERIFIED" ? req.user._id : null,
+				  }
+				: {}),
+		};
+		await candidate.save();
+
+		if (editChanges.length > 0) {
+			await EnrichmentLog.create({
+				candidateId: candidate._id,
+				action: "EDIT",
+				provider: "manual",
+				performedBy: req.user._id,
+				changes: editChanges,
+				metadata: {
+					editCount: editChanges.length,
+				},
+			});
+		}
+
+		if (verificationChanged) {
+			await EnrichmentLog.create({
+				candidateId: candidate._id,
+				action: "VERIFY",
+				provider: "manual",
+				performedBy: req.user._id,
+				changes: [
+					{
+						field: "verificationStatus",
+						oldValue: String(previousVerification || ""),
+						newValue: normalizedVerification,
+						confidence: 100,
+						source: "manual",
+					},
+				],
+				metadata: null,
+			});
+		}
+
+		return res.json({
+			message: "Candidate updates saved",
+			updatedCount: editChanges.length,
+			verificationChanged,
+			candidate: mapEnrichmentQueueCandidate(candidate.toObject()),
+		});
+	} catch (error) {
+		console.error("Save Manual Enrichment Error:", error);
+		return res.status(500).json({ message: "Failed to save candidate updates" });
+	}
+};
+
+export const getCandidateEnrichmentActivity = async (req, res) => {
+	try {
+		const pageNum = Math.max(1, Number(req.query.page) || 1);
+		const limitNum = Math.min(100, Math.max(5, Number(req.query.limit) || 20));
+		const skip = (pageNum - 1) * limitNum;
+
+		const candidateId = req.params.id;
+		const [totalCount, logs] = await Promise.all([
+			EnrichmentLog.countDocuments({ candidateId }),
+			EnrichmentLog.find({ candidateId })
+				.sort({ createdAt: -1 })
+				.skip(skip)
+				.limit(limitNum)
+				.populate("performedBy", "name email")
+				.lean(),
+		]);
+
+		return res.json({
+			items: logs.map((log) => ({
+				_id: log._id,
+				action: log.action,
+				provider: log.provider || "",
+				changes: Array.isArray(log.changes) ? log.changes : [],
+				metadata: log.metadata || null,
+				createdAt: log.createdAt,
+				performedBy: log.performedBy || null,
+			})),
+			page: pageNum,
+			limit: limitNum,
+			totalCount,
+			hasMore: skip + logs.length < totalCount,
+		});
+	} catch (error) {
+		console.error("Candidate Enrichment Activity Error:", error);
+		return res
+			.status(500)
+			.json({ message: "Failed to fetch candidate enrichment activity" });
 	}
 };
 
