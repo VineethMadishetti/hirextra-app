@@ -8,12 +8,14 @@ import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import readline from "readline";
 import logger from "./logger.js";
-import { downloadFromS3, fileExistsInS3 } from "./s3Service.js";
+import { downloadFromS3, fileExistsInS3, listS3FilesByPage } from "./s3Service.js";
 import { cleanAndValidateCandidate } from "./dataCleaner.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
+const pdfModule = require("pdf-parse");
+const pdfParser =
+	typeof pdfModule === "function" ? pdfModule : (typeof pdfModule?.default === "function" ? pdfModule.default : null);
 
 // Helper to convert a stream to a buffer
 const streamToBuffer = (stream) =>
@@ -44,6 +46,7 @@ const getRedisConnection = () => {
 				// ioredis uses the 'db' option, not the URL pathname.
 				db: redisUrl.pathname ? Number(redisUrl.pathname.slice(1) || 0) : 0,
 				...(redisUrl.protocol === 'rediss:' ? { tls: {} } : {})
+		
 			};
 			return connectionOptions;
 		} catch (error) {
@@ -237,8 +240,11 @@ const extractTextFromFile = async (buffer, fileExt) => {
 			}
 		}
 		if (fileExt === 'pdf') {
+			if (!pdfParser) {
+				throw new Error("PDF_EXTRACT_ERROR: pdf-parse parser is unavailable");
+			}
 			// Add a timeout for pdf-parse as it can hang on corrupted or large files
-			const parsePromise = pdf(buffer);
+			const parsePromise = pdfParser(buffer);
 			const timeoutPromise = new Promise((_, reject) =>
 				setTimeout(() => reject(new Error('PDF_TIMEOUT: PDF parsing timed out after 15 seconds')), 15000)
 			);
@@ -268,8 +274,28 @@ const extractTextFromFile = async (buffer, fileExt) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const resumeParseConcurrency = Math.max(
 	1,
-	Number(process.env.RESUME_PARSE_CONCURRENCY || process.env.RESUME_AI_CONCURRENCY || 4),
+	Number(process.env.RESUME_PARSE_CONCURRENCY || process.env.RESUME_AI_CONCURRENCY || 1),
 );
+const rchilliRequestTimeoutMs = Math.max(
+	15000,
+	Number(process.env.RCHILLI_REQUEST_TIMEOUT_MS || 120000),
+);
+
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 120000) => {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		return await fetch(url, { ...options, signal: controller.signal });
+	} catch (error) {
+		if (error?.name === "AbortError") {
+			throw new Error(`RCHILLI_TIMEOUT: request exceeded ${timeoutMs}ms`);
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+};
+
 const runWithResumeParseLimit = (() => {
 	let active = 0;
 	const waitQueue = [];
@@ -596,7 +622,7 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 	}
 
 	return runWithResumeParseLimit(async () => {
-		const maxAttempts = 4;
+		const maxAttempts = Math.max(1, Number(process.env.RCHILLI_MAX_ATTEMPTS || 1));
 		const strategies =
 			requestMode === "json"
 				? ["json"]
@@ -619,22 +645,22 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 				for (const [k, v] of Object.entries(extraFields || {})) {
 					if (v !== undefined && v !== null) form.append(k, String(v));
 				}
-				response = await fetch(endpoint, {
-					method: "POST",
-					headers: { Accept: "application/json" },
-					body: form,
-				});
-			} else {
-				const requestPayload = { ...baseFields, ...(extraFields || {}) };
-				response = await fetch(endpoint, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Accept: "application/json",
-					},
-					body: JSON.stringify(requestPayload),
-				});
-			}
+					response = await fetchWithTimeout(endpoint, {
+						method: "POST",
+						headers: { Accept: "application/json" },
+						body: form,
+					}, rchilliRequestTimeoutMs);
+				} else {
+					const requestPayload = { ...baseFields, ...(extraFields || {}) };
+					response = await fetchWithTimeout(endpoint, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Accept: "application/json",
+						},
+						body: JSON.stringify(requestPayload),
+					}, rchilliRequestTimeoutMs);
+				}
 
 			const rawBody = await response.text();
 			let responseJson = null;
@@ -658,9 +684,7 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 			try {
 				const fileName = path.basename(String(s3Key || `resume.${fileExt || "pdf"}`));
-				const baseFields = {
-					filedata: buffer.toString("base64"),
-					filename: fileName,
+				const commonFields = {
 					userkey: userKey,
 					version,
 					...(subUserId ? { subuserid: subUserId } : {}),
@@ -669,14 +693,17 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 				let lastError = null;
 				for (const strategy of strategies) {
 					try {
+						const baseFields = strategy === "json"
+							? { ...commonFields, filename: fileName, filedata: buffer.toString("base64") }
+							: commonFields;
 						responseJson = await callRChilli({ strategy, fileName, baseFields });
 						break;
 					} catch (strategyErr) {
 						lastError = strategyErr;
-						const retriable = /RCHILLI_API_ERROR:\s*(429|5\d\d)/.test(String(strategyErr.message || ""));
-						if (retriable) throw strategyErr;
+							const retriable = /(RCHILLI_API_ERROR:\s*(429|5\d\d)|RCHILLI_TIMEOUT)/.test(String(strategyErr.message || ""));
+							if (retriable) throw strategyErr;
+						}
 					}
-				}
 				if (!responseJson) {
 					throw lastError || new Error("RCHILLI_PARSE_FAILED: no response from parser");
 				}
@@ -710,17 +737,17 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 					rawPayload: mapped.rawPayload,
 				};
 			} catch (error) {
-				const retriable = /RCHILLI_API_ERROR:\s*(429|5\d\d)/.test(String(error.message || ""));
-				if (retriable && attempt < maxAttempts) {
-					await sleep(1000 * attempt * attempt);
-					continue;
+					const retriable = /(RCHILLI_API_ERROR:\s*(429|5\d\d)|RCHILLI_TIMEOUT)/.test(String(error.message || ""));
+					if (retriable && attempt < maxAttempts) {
+						await sleep(1000 * attempt * attempt);
+						continue;
 				}
 				throw error;
 			}
 		}
 		throw new Error("RCHILLI_PARSE_FAILED: exhausted retry attempts");
 	});
-};
+	};
 
 const mergeResumeData = ({ parsedData, fallbackData, s3Key, jobId, parseStatus, parseWarnings, rawParsedResume }) => {
 	const parsed = parsedData || {};
@@ -758,7 +785,7 @@ const mergeResumeData = ({ parsedData, fallbackData, s3Key, jobId, parseStatus, 
 	};
 };
 
-export const processResumeJob = async ({ jobId, s3Key }) => {
+export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, skipAutoFinalize = false }) => {
 	let success = false;
 	let reason = 'UNKNOWN_ERROR';
 	let errorMessage = "";
@@ -767,6 +794,21 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 	let insertedPartial = false;
 
 	try {
+		logger.info(`📄 Processing Resume: ${s3Key} (Job: ${jobId})`);
+
+		if (skipIfExists) {
+			const existingCandidate = await Candidate.findOne({
+				sourceFile: s3Key,
+				isDeleted: false,
+			})
+				.select("_id")
+				.lean();
+			if (existingCandidate) {
+				success = true;
+				return;
+			}
+		}
+
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 
 		// 1. Download
@@ -905,18 +947,262 @@ export const processResumeJob = async ({ jobId, s3Key }) => {
 			// Perform one atomic update and get the new document state
 			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
 
-			// Check if the job is complete using the returned document
-			// totalRows can briefly be 0 while enqueueing; avoid marking complete in that window.
-			if (updatedJob && updatedJob.totalRows > 0 && (updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)) {
-				const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
-				await UploadJob.findByIdAndUpdate(jobId, {
-					status: finalStatus,
+				// Check if the job is complete using the returned document.
+				// In direct import mode, folder scanning updates totalRows progressively.
+				// skipAutoFinalize prevents premature completion while discovery is still running.
+				if (
+					!skipAutoFinalize &&
+					updatedJob &&
+					updatedJob.totalRows > 0 &&
+					(updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)
+				) {
+					const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
+					await UploadJob.findByIdAndUpdate(jobId, {
+						status: finalStatus,
 					completedAt: new Date()
 				});
+					logger.info(`🏁 Job ${jobId} Auto-Finalized: ${finalStatus}`);
 			}
 		} catch (e) {
 			logger.error(`Failed to update job progress for ${jobId}:`, e);
 		}
+	}
+};
+
+// ---------------------------------------------------
+// Folder Resume Processing (AI Powered)
+// Scans S3 folder for resume files and processes them
+// ---------------------------------------------------
+export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
+	logger.info(`📁 Processing Resume Folder: Job ${jobId}`);
+
+	try {
+		const jobDoc = await UploadJob.findById(jobId).lean();
+		if (!jobDoc) {
+			logger.error(`❌ Job ${jobId} not found. Aborting.`);
+			return;
+		}
+
+		const normalizedFolderPath = String(jobDoc.fileName).trim().replace(/^\/+/, "");
+		if (!normalizedFolderPath) {
+			logger.error(`❌ Job ${jobId} has invalid folder path.`);
+			await UploadJob.findByIdAndUpdate(jobId, {
+				status: "FAILED",
+				error: "Invalid folder path",
+			});
+			return;
+		}
+
+		// Keep trailing slash predictable for prefix filtering
+		const s3Prefix = normalizedFolderPath.endsWith("/")
+			? normalizedFolderPath
+			: `${normalizedFolderPath}/`;
+
+		logger.info(`🔍 Scanning S3 prefix: "${s3Prefix}"`);
+
+		const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
+		const directConcurrency = Math.max(
+			1,
+			Number(
+				process.env.RESUME_IMPORT_DIRECT_CONCURRENCY ||
+				process.env.RESUME_PARSE_CONCURRENCY ||
+				1,
+			),
+		);
+
+		let discoveredCount = 0;
+		let queuedCount = 0;
+		let skippedExistingCount = 0;
+		let sawAnyResumeFile = false;
+		let pageCount = 0;
+		let totalFilesInFolder = 0;
+		let processedCount = 0; // Track files actively being processed
+
+		const running = new Set();
+		const schedule = async (s3Key) => {
+			const task = (async () => {
+				try {
+					// Add timeout per file to prevent hanging on single file (default 5 min)
+					const fileTimeoutMs = Math.max(60000, Number(process.env.RESUME_FILE_TIMEOUT_MS || 300000));
+					const processPromise = processResumeJob({
+						jobId,
+						s3Key,
+						skipAutoFinalize: true,
+						skipIfExists: !!skipIfExists,
+					});
+					
+					const timeoutPromise = new Promise((_, reject) => 
+						setTimeout(() => reject(new Error(`FILE_TIMEOUT: Processing ${s3Key} exceeded ${fileTimeoutMs}ms`)), fileTimeoutMs)
+					);
+					
+					await Promise.race([processPromise, timeoutPromise]);
+					processedCount++;
+				} catch (error) {
+					logger.error(`Resume processing failed for ${s3Key}: ${error?.message || error}`);
+					processedCount++;
+				}
+			})().finally(() => running.delete(task));
+
+			running.add(task);
+			if (running.size >= directConcurrency) {
+				await Promise.race(running);
+			}
+		};
+
+		// Scan all files in the S3 folder
+		try {
+			logger.info(`🔌 Starting S3 folder scan with listS3FilesByPage...`);
+			let hasStarted = false;
+			
+			for await (const filesPage of listS3FilesByPage(s3Prefix, s3ListPageSize)) {
+				hasStarted = true;
+				pageCount++;
+				logger.info(`📄 Page ${pageCount}: Received ${filesPage?.length || 0} files from S3`);
+
+				if (!filesPage || filesPage.length === 0) {
+					logger.info(`📄 Page ${pageCount}: Empty result`);
+					continue;
+				}
+
+				totalFilesInFolder += filesPage.length;
+
+				const resumeFilesPage = filesPage.filter((f) =>
+					f?.Key &&
+					(
+						f.Key.toLowerCase().endsWith(".pdf") ||
+						f.Key.toLowerCase().endsWith(".docx") ||
+						f.Key.toLowerCase().endsWith(".doc")
+					),
+				);
+
+				logger.info(`✅ Page ${pageCount}: Found ${resumeFilesPage.length} resume files (.pdf, .docx, .doc) out of ${filesPage.length} total`);
+
+				if (resumeFilesPage.length === 0) {
+					// Log non-resume files for debugging
+					const nonResumeFiles = filesPage.slice(0, 3).map((f) => f?.Key);
+					if (nonResumeFiles.length > 0) {
+						logger.info(`⚠️ Sample non-resume files in folder: ${nonResumeFiles.join(", ")}`);
+					}
+					continue;
+				}
+
+				sawAnyResumeFile = true;
+				discoveredCount += resumeFilesPage.length;
+
+				let filesToProcess = resumeFilesPage;
+				if (skipIfExists) {
+					const fileKeys = resumeFilesPage.map((f) => f.Key);
+					const existingRows = await Candidate.find({
+						sourceFile: { $in: fileKeys },
+						isDeleted: false,
+					})
+						.select("sourceFile -_id")
+						.lean();
+
+					const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
+					filesToProcess = resumeFilesPage.filter((f) => !existingKeys.has(f.Key));
+					skippedExistingCount += resumeFilesPage.length - filesToProcess.length;
+
+					if (filesToProcess.length === 0 && skipIfExists) {
+						logger.info(`⏭️ Page ${pageCount}: All ${resumeFilesPage.length} files already exist, skipping...`);
+					}
+				}
+
+				if (filesToProcess.length === 0) continue;
+
+				queuedCount += filesToProcess.length;
+				logger.info(`🚀 Page ${pageCount}: Queuing ${filesToProcess.length} files for processing (Total queued: ${queuedCount})`);
+				await UploadJob.findByIdAndUpdate(jobId, { totalRows: queuedCount, status: "PROCESSING" });
+
+				for (const file of filesToProcess) {
+					logger.debug(`📌 Scheduling: ${file.Key}`);
+					await schedule(file.Key);
+				}
+			}
+			
+			if (!hasStarted) {
+				logger.warn(`⚠️ S3 ListObjects returned no pages (iterator was empty)`);
+			}
+		} catch (scanError) {
+			logger.error(`❌ Error scanning S3 folder "${s3Prefix}":`, scanError?.message || scanError);
+			logger.error(`Error details:`, scanError);
+			throw new Error(`S3_SCAN_ERROR: ${scanError?.message || "Failed to scan S3 folder"}`);
+		}
+
+		// Log final scan results
+		logger.info(`📊 S3 Scan Complete: Pages=${pageCount}, Total Files in Folder=${totalFilesInFolder}, Resume Files=${discoveredCount}, Queued=${queuedCount}`);
+
+		// Wait for running tasks with a timeout (don't block forever on large imports)
+		// For large folders, this prevents indefinite hangs
+		const taskTimeoutMs = Math.max(30000, queuedCount * 100); // 30s minimum, 100ms per file
+		const waitPromise = Promise.allSettled([...running]);
+		const timeoutPromise = new Promise((resolve) => setTimeout(resolve, taskTimeoutMs));
+		
+		logger.info(`⏳ Waiting for ${running.size} running tasks to complete (timeout: ${taskTimeoutMs}ms)...`);
+		await Promise.race([waitPromise, timeoutPromise]);
+		
+		if (running.size > 0) {
+			logger.warn(`⚠️ Task timeout reached. ${running.size} tasks still running, but proceeding to finalize job. Tasks will continue in background.`);
+		}
+
+		if (!sawAnyResumeFile) {
+			logger.warn(`⚠️ No resume files found in S3 prefix "${s3Prefix}". Total files in folder: ${totalFilesInFolder}`);
+			await UploadJob.findByIdAndUpdate(jobId, {
+				status: "FAILED",
+				error: `No PDF, DOCX, or DOC files found in folder. Found ${totalFilesInFolder} total files, but 0 resume files.`,
+			});
+			return;
+		}
+
+		if (queuedCount === 0) {
+			logger.info(`✅ All files in folder already exist in database. No new processing needed.`);
+			await UploadJob.findByIdAndUpdate(jobId, {
+				status: "COMPLETED",
+				totalRows: 0,
+				successRows: 0,
+				failedRows: 0,
+				completedAt: new Date(),
+			});
+			return;
+		}
+
+		// Fetch final job state to determine completion status
+		const updatedJob = await UploadJob.findById(jobId).select("successRows failedRows totalRows").lean();
+		const successCount = (updatedJob?.successRows || 0);
+		const failCount = (updatedJob?.failedRows || 0);
+		const totalProcessed = successCount + failCount;
+
+		logger.info(`📊 Job Progress: ${totalProcessed}/${queuedCount} files processed (${successCount} success, ${failCount} failed)`);
+
+		// Only mark as COMPLETED if we have substantial progress or all files were skipped
+		// Otherwise, keep as PROCESSING to allow background completion
+		const percentage = queuedCount > 0 ? Math.round((totalProcessed / queuedCount) * 100) : 0;
+		
+		if (percentage >= 95 || queuedCount === 0) {
+			// Nearly done, finalize now
+			const finalStatus = successCount > 0 ? "COMPLETED" : "FAILED";
+			await UploadJob.findByIdAndUpdate(jobId, {
+				status: finalStatus,
+				completedAt: new Date(),
+			});
+			logger.info(`✅ Folder Job ${jobId} ${finalStatus}. Progress: ${percentage}%. Discovered: ${discoveredCount}, Queued: ${queuedCount}, Processed: ${totalProcessed}, Skipped: ${skippedExistingCount}`);
+		} else {
+			// Still processing, leave as PROCESSING so background tasks can continue
+			logger.info(`⏳ Folder Job ${jobId} continuing in background. Progress: ${percentage}% (${totalProcessed}/${queuedCount}). Discovered: ${discoveredCount}, Skipped: ${skippedExistingCount}`);
+			// Update with current progress but don't finalize yet
+			await UploadJob.findByIdAndUpdate(jobId, {
+				status: "PROCESSING",
+				totalRows: queuedCount,
+			});
+		}
+
+	} catch (error) {
+		logger.error(`❌ Folder processing failed for job ${jobId}:`, error);
+		const errorMsg = error?.message || String(error);
+		await UploadJob.findByIdAndUpdate(jobId, {
+			status: "FAILED",
+			error: errorMsg.length > 500 ? errorMsg.substring(0, 500) : errorMsg,
+		}).catch((e) => logger.error(`Failed to update job on error:`, e));
 	}
 };
 

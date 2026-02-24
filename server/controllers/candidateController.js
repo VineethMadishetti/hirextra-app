@@ -1,8 +1,9 @@
-import importQueue, { processCsvJob, processResumeJob } from "../utils/queue.js";
+import importQueue, { processCsvJob, processResumeJob, processFolderJob } from "../utils/queue.js";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
 import EnrichmentLog from "../models/EnrichmentLog.js";
+import logger from "../utils/logger.js";
 import fs from "fs";
 import DeleteLog from "../models/DeleteLog.js";
 import csv from "csv-parser";
@@ -395,7 +396,7 @@ export const uploadChunk = async (req, res) => {
 };
 
 // --- BULK RESUME IMPORT (S3 Folder) ---
-const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = false }) => {
+const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) => {
 	const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
 	const scanBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_SCAN_BATCH || 1000));
 	const directConcurrency = Math.max(
@@ -403,7 +404,7 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = false }) 
 		Number(
 			process.env.RESUME_IMPORT_DIRECT_CONCURRENCY ||
 			process.env.RESUME_PARSE_CONCURRENCY ||
-			4,
+			1,
 		),
 	);
 
@@ -416,7 +417,12 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = false }) 
 	const schedule = async (s3Key) => {
 		const task = (async () => {
 			try {
-				await processResumeJob({ jobId, s3Key, skipAutoFinalize: true });
+				await processResumeJob({
+					jobId,
+					s3Key,
+					skipAutoFinalize: true,
+					skipIfExists: !!skipExisting,
+				});
 			} catch (error) {
 				console.error(`Direct resume processing failed for ${s3Key}:`, error?.message || error);
 			}
@@ -522,8 +528,10 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = false }) 
 export const importResumes = async (req, res) => {
 	let createdJobId = null;
 	try {
-		const { folderPath, skipExisting = false } = req.body || {};
+		const { folderPath, skipExisting, forceReparse = false } = req.body || {};
 		if (!folderPath) return res.status(400).json({ message: "Folder path is required" });
+		const allowReparse = String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "false").toLowerCase() === "true";
+		const safeSkipExisting = forceReparse && allowReparse ? false : skipExisting !== false;
 		// Default to direct mode for resume imports to avoid Redis request caps on bulk folders.
 		// Set RESUME_IMPORT_USE_QUEUE=true only when you explicitly want BullMQ queueing.
 		const queueEnabledByEnv = String(process.env.RESUME_IMPORT_USE_QUEUE || "false").toLowerCase() === "true";
@@ -557,6 +565,7 @@ export const importResumes = async (req, res) => {
 		if (useQueueMode) {
 			const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
 			const enqueueBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_ENQUEUE_BATCH || 1000));
+			const resumeJobAttempts = Math.max(1, Number(process.env.RESUME_IMPORT_JOB_ATTEMPTS || 1));
 			let discoveredCount = 0;
 			let queuedCount = 0;
 			let skippedExistingCount = 0;
@@ -581,7 +590,7 @@ export const importResumes = async (req, res) => {
 					if (chunk.length === 0) continue;
 
 					let filesToQueue = chunk;
-					if (skipExisting) {
+					if (safeSkipExisting) {
 						const chunkKeys = chunk.map((f) => f.Key);
 						const existingRows = await Candidate.find({
 							sourceFile: { $in: chunkKeys },
@@ -599,9 +608,9 @@ export const importResumes = async (req, res) => {
 
 					const jobsData = filesToQueue.map((file) => ({
 						name: "resume-import",
-						data: { jobId: job._id, s3Key: file.Key },
+						data: { jobId: job._id, s3Key: file.Key, skipIfExists: !!safeSkipExisting },
 						opts: {
-							attempts: 5,
+							attempts: resumeJobAttempts,
 							backoff: { type: "exponential", delay: 3000 },
 							removeOnComplete: { age: 24 * 3600, count: 2000 },
 							removeOnFail: { age: 7 * 24 * 3600, count: 5000 },
@@ -636,7 +645,7 @@ export const importResumes = async (req, res) => {
 					fileCount: discoveredCount,
 					queuedCount: 0,
 					skippedExistingCount,
-					skipExisting: !!skipExisting,
+					skipExisting: !!safeSkipExisting,
 				});
 			}
 
@@ -647,7 +656,7 @@ export const importResumes = async (req, res) => {
 				fileCount: discoveredCount,
 				queuedCount,
 				skippedExistingCount,
-				skipExisting: !!skipExisting,
+				skipExisting: !!safeSkipExisting,
 			});
 		}
 
@@ -657,7 +666,7 @@ export const importResumes = async (req, res) => {
 				await runDirectResumeImport({
 					jobId: job._id,
 					s3Prefix,
-					skipExisting: !!skipExisting,
+					skipExisting: !!safeSkipExisting,
 				});
 			} catch (error) {
 				console.error("Direct resume import failed:", error);
@@ -672,7 +681,7 @@ export const importResumes = async (req, res) => {
 			message: "Import started",
 			mode: "direct",
 			jobId: job._id,
-			skipExisting: !!skipExisting,
+			skipExisting: !!safeSkipExisting,
 		});
 	} catch (error) {
 		console.error("Import Error:", error);
@@ -696,7 +705,7 @@ export const processFile = async (req, res) => {
 
 			// Calculate resume point from actual processed rows
 			const resumeFrom = job.successRows + job.failedRows;
-			console.log(`🔄 Resuming job ${job._id} from row ${resumeFrom} via processFile endpoint`);
+			logger.info(`🔄 Resuming job ${job._id} from row ${resumeFrom} via processFile endpoint`);
 
 			// Update status to PROCESSING
 			await UploadJob.findByIdAndUpdate(job._id, {
@@ -710,7 +719,7 @@ export const processFile = async (req, res) => {
 				resumeFrom: resumeFrom,
 				initialSuccess: job.successRows,
 				initialFailed: job.failedRows
-			}).catch(err => console.error("Resume background error:", err));
+			}).catch(err => logger.error("Resume background error:", err));
 
 			return res.json({ message: "Job resumed successfully", resumeFrom, jobId: job._id });
 		}
@@ -720,17 +729,61 @@ export const processFile = async (req, res) => {
 		if (!filePath) {
 			return res.status(400).json({ message: "File path is required" });
 		}
-		if (!headers || headers.length === 0) {
+
+		const normalizedPath = String(filePath).trim();
+		const isFolderPath = normalizedPath.endsWith("/");
+
+		logger.info(`📂 File/folder detection: "${filePath}" → normalized: "${normalizedPath}" → isFolder: ${isFolderPath}`);
+
+		// For folder imports, we don't require headers (we'll use folder scanning instead)
+		if (!isFolderPath && (!headers || headers.length === 0)) {
 			return res
 				.status(400)
-				.json({ message: "Header information is required" });
+				.json({ message: "Header information is required for file uploads" });
 		}
 
-		const fileName = path.basename(filePath);
+		const fileName = path.basename(normalizedPath.replace(/\/$/, '')); // Remove trailing slash for display
+
+		// ✅ FIX: Detect and route folder paths to folder processing
+		if (isFolderPath) {
+			logger.info(`📁 Folder import detected: ${normalizedPath}`);
+
+			// 1. Create a DB Record for this Folder Job
+			const newJob = await UploadJob.create({
+				fileName: normalizedPath, // Keep the trailing slash for S3 prefix matching
+				originalName: `Bulk Import: ${fileName}`,
+				uploadedBy: req.user._id,
+				status: "PROCESSING",
+				totalRows: 0,
+				successRows: 0,
+				failedRows: 0,
+				headers: ["Resume Import"], // Placeholder header for folder imports
+				mapping: {}, // No mapping needed for folder imports
+			});
+
+			logger.info(`✅ Created folder job: ${newJob._id}. Starting background processing...`);
+
+			// 2. Start folder processing in the background
+			processFolderJob({ jobId: newJob._id, skipIfExists: req.body.skipIfExists })
+				.then(() => logger.info(`✅ Folder job ${newJob._id} processing completed`))
+				.catch(async (processingError) => {
+					logger.error("Background folder processing failed:", processingError?.message || processingError);
+					await UploadJob.findByIdAndUpdate(newJob._id, {
+						status: "FAILED",
+						error: (processingError?.message || String(processingError) || "Background folder processing failed").substring(0, 500),
+					}).catch((e) => logger.error("Failed to update job on error:", e));
+				});
+
+			// Respond immediately; frontend can poll /job/:id/status for live updates
+			return res.json({ message: "Folder processing started", jobId: newJob._id, type: "folder" });
+		}
+
+		// ===== ORIGINAL CSV FILE PROCESSING LOGIC =====
+		logger.info(`📄 CSV file import detected: ${normalizedPath}`);
 
 		// 1. Create a DB Record for this Job
 		const newJob = await UploadJob.create({
-			fileName: filePath,
+			fileName: normalizedPath,
 			originalName: fileName,
 			uploadedBy: req.user._id,
 			status: "MAPPING_PENDING",
@@ -741,17 +794,17 @@ export const processFile = async (req, res) => {
 		// 2. Start processing immediately in the background (no Redis required)
 		//    We do NOT await here so the HTTP response returns quickly.
 		processCsvJob({ jobId: newJob._id }).catch(async (processingError) => {
-			console.error("Background CSV processing failed:", processingError);
+			logger.error("Background CSV processing failed:", processingError?.message || processingError);
 			await UploadJob.findByIdAndUpdate(newJob._id, {
 				status: "FAILED",
-				error: processingError.message || "Background processing failed",
+				error: processingError?.message || "Background processing failed",
 			});
 		});
 
 		// Respond immediately; frontend can poll /job/:id/status for live updates
-		return res.json({ message: "Processing started", jobId: newJob._id });
+		return res.json({ message: "Processing started", jobId: newJob._id, type: "file" });
 	} catch (error) {
-		console.error("Error in processFile:", error);
+		logger.error("Error in processFile:", error);
 		res.status(500).json({
 			message: "Failed to start file processing",
 			error: error.message,

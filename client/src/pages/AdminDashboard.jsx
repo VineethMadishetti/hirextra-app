@@ -409,7 +409,8 @@ const AdminDashboard = () => {
 			setIsStartingResumeImport(true);
 			toast.loading("Starting resume import...", { id: "resume-import" });
 			const { data } = await api.post("/candidates/import-resumes", {
-				folderPath: normalizedFolderPath
+				folderPath: normalizedFolderPath,
+				skipExisting: true,
 			});
 			toast.success(
 				`Import started. ${data.queuedCount ?? data.fileCount ?? 0} files queued${data.skippedExistingCount ? `, ${data.skippedExistingCount} skipped` : ""}.`,

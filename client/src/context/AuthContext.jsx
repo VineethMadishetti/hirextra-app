@@ -7,14 +7,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Configure Axios globally
-  // In development, use '/api' to trigger the Vite proxy (solves Incognito/CORS issues)
-  // In production, use the environment variable or fallback
-  const baseURL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api');
-  
-  api.defaults.baseURL = baseURL;
-  api.defaults.withCredentials = true;
-
   // Add response interceptor for token refresh
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
@@ -57,7 +49,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       api.interceptors.response.eject(interceptor);
     };
-  }, [baseURL]);
+  }, []);
 
   // Verify token on mount
   useEffect(() => {
@@ -105,8 +97,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('userInfo', JSON.stringify(data));
       return { success: true };
     } catch (error) {
-      console.error("Login Error:", error.response?.data?.message);
-      return { success: false, message: error.response?.data?.message || 'Login failed' };
+      const msg = error.response?.data?.message || error.message || 'Login failed';
+      console.error("Login Error:", msg);
+      return { success: false, message: msg };
     }
   };
 

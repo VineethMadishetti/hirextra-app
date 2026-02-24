@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configure axios defaults
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'https://api.stucrow.com:8444/api' || 'http://localhost:5002/api';
 axios.defaults.withCredentials = true;
 axios.defaults.timeout = 30000; // 30 seconds
 

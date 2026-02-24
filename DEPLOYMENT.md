@@ -128,3 +128,27 @@ If you prefer Vercel:
 **Cold Starts:** Free tiers may have delays (Render sleeps services)
 **File Upload:** Large files may timeout on free tiers
 **Memory:** Monitor usage as free tiers have limits
+
+**Connection Refused (localhost):**
+If you see `net::ERR_CONNECTION_REFUSED` pointing to `localhost` in your browser console after deployment:
+1. This means the frontend was built with the default development API URL.
+2. Rebuild the frontend with your production URL:
+   ```bash
+   # Replace with your actual backend URL
+   export VITE_API_URL=https://your-api-domain.com/api
+   npm run build
+   ```
+3. Re-upload the `dist` folder to your server.
+
+### ⚠️ Critical: Fixing "Network Error" / "localhost" Issues
+
+If you see `net::ERR_CONNECTION_REFUSED` pointing to `localhost` in your browser console after deployment, it means your **local development URL** was baked into the production build.
+
+**To fix this permanently:**
+
+1. Create a file named `.env.production` in your `client` folder.
+2. Add this line to it: `VITE_API_URL=` (leave the value empty).
+3. Run `npm run build` again.
+4. Upload the new `dist` folder to CPanel.
+
+This forces the app to use relative paths (`/api`) in production, which works correctly with CPanel when the Node.js app is mapped to the `/api` route.

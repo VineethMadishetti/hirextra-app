@@ -2,7 +2,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 // Use environment variable, or fallback to '/api' in dev (for proxy), or absolute URL in prod
-const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://api.stucrow.com:8444/api');
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create a base instance for general API requests
 const api = axios.create({
