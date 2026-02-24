@@ -1,4 +1,15 @@
 import 'dotenv/config';
+// 🔍 Enable garbage collection for manual cleanup during memory-intensive operations
+// This allows calling global.gc() in processResumeJob to explicitly free memory
+if (global.gc === undefined) {
+	try {
+		// Try to require gc module if available
+		eval('require("gc")');
+	} catch (e) {
+		// gc not available - that's ok, we'll just use what's available
+		// (Note: To enable, start Node with: node --expose-gc server.js)
+	}
+}
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';

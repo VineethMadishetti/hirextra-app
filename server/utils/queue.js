@@ -13,9 +13,18 @@ import { cleanAndValidateCandidate } from "./dataCleaner.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const pdfModule = require("pdf-parse");
-const pdfParser =
-	typeof pdfModule === "function" ? pdfModule : (typeof pdfModule?.default === "function" ? pdfModule.default : null);
+
+// 🔍 Safe PDF parsing - wrap in try-catch as pdf-parse has optional native dependencies
+let pdfParser = null;
+try {
+	const pdfModule = require("pdf-parse");
+	pdfParser = typeof pdfModule === "function" ? pdfModule : 
+		(typeof pdfModule?.default === "function" ? pdfModule.default : null);
+} catch (e) {
+	logger.warn(`⚠️ PDF Parser (pdf-parse) initialization failed: ${e.message}`);
+	logger.warn("PDF text extraction will be unavailable, but RChilli parses binary directly so most resumes will still work");
+	pdfParser = null;
+}
 
 // Helper to convert a stream to a buffer
 const streamToBuffer = (stream) =>
@@ -792,6 +801,7 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 	let extractedText = "";
 	let fallbackData = {};
 	let insertedPartial = false;
+	let buffer = null; // Will be explicitly cleared in finally block
 
 	try {
 		logger.info(`📄 Processing Resume: ${s3Key} (Job: ${jobId})`);
@@ -811,9 +821,15 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 
-		// 1. Download
+		// 1. Download & memory warning
+		const memBefore = process.memoryUsage().heapUsed / 1024 / 1024;
 		const fileStream = await downloadFromS3(s3Key);
-		const buffer = await streamToBuffer(fileStream);
+		buffer = await streamToBuffer(fileStream);
+		const memAfter = process.memoryUsage().heapUsed / 1024 / 1024;
+		const memUsedByFile = Math.round((memAfter - memBefore) * 10) / 10;
+		if (memAfter > 400) {
+			logger.warn(`⚠️ HIGH MEMORY: ${Math.round(memAfter)}MB of 512MB used after loading ${s3Key} (+${memUsedByFile}MB)`);
+		}
 
 
 		// 2. Text extraction is best-effort fallback (RChilli parses binary directly)
@@ -926,6 +942,18 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 			logger.error(`Partial insert failed for ${s3Key}: ${partialErr.message}`);
 		}
 	} finally {
+		// 🔍 CRITICAL: Explicitly clear memory to prevent accumulation
+		buffer = null;
+		extractedText = null;
+		fallbackData = null;
+		if (global.gc) {
+			try {
+				global.gc();
+			} catch (e) {
+				// gc may not be enabled, that's ok
+			}
+		}
+		
 		// This block is the single source of truth for updating job progress.
 		try {
 			// Define the update operation based on success or failure
@@ -1001,12 +1029,15 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 		logger.info(`🔍 Scanning S3 prefix: "${s3Prefix}"`);
 
 		const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
+		// 🔍 MEMORY CRITICAL: Process folders sequentially to avoid OOM on Render's 512MB limit
+		// Files are loaded into memory (buffers) - parallel processing multiplies memory usage
+		// e.g., 10 parallel 50MB files = 500MB RAM instantly
 		const directConcurrency = Math.max(
 			1,
 			Number(
 				process.env.RESUME_IMPORT_DIRECT_CONCURRENCY ||
 				process.env.RESUME_PARSE_CONCURRENCY ||
-				1,
+				1, // Default: sequential processing only
 			),
 		);
 
