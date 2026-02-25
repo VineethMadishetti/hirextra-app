@@ -349,3 +349,8 @@ const Dashboard = () => {
 
 		{/* AI Sourcing Agent Modal */}
 		<SourcingAgentModal isOpen={showSourcingModal} onClose={() => setShowSourcingModal(false)} />
+	</div>
+	);
+};
+
+export default Dashboard;

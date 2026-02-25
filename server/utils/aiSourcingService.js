@@ -6,23 +6,30 @@ import logger from './logger.js';
  * Uses OpenAI to extract structured candidate requirements
  */
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let openai = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured. Please set it in environment variables.');
+    }
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openai;
+}
 
 export const parseJobDescription = async (jobDescription) => {
   if (!jobDescription || jobDescription.trim().length < 20) {
     throw new Error('Job description must be at least 20 characters');
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY not set in environment variables');
-  }
-
   try {
     logger.info(`🤖 Parsing job description (${jobDescription.length} chars)...`);
 
-    const response = await openai.chat.completions.create({
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
       model: 'gpt-4o-mini', // Cost-effective model
       messages: [
         {
