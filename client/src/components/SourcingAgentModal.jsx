@@ -118,19 +118,19 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex justify-between items-center">
+        <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-700 dark:to-blue-700 text-white p-6 flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold">🤖 AI Candidate Sourcing</h2>
-            <p className="text-blue-100 text-sm mt-1">
+            <p className="text-indigo-100 text-sm mt-1">
               Paste a job description and let AI find matching candidates
             </p>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-blue-500 rounded-lg transition"
+            className="p-2 hover:bg-indigo-500 rounded-lg transition-all duration-200"
           >
             <X size={24} />
           </button>
@@ -144,7 +144,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
               <form onSubmit={handleStartSourcing}>
                 {/* Job Description Textarea */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
                     Job Description
                   </label>
                   <textarea
@@ -152,18 +152,18 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                     onChange={(e) => setJobDescription(e.target.value)}
                     placeholder="Paste the complete job description here...
                     Include job title, required skills, experience level, location, and any other relevant details."
-                    className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="w-full h-48 p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition-all duration-200"
                   />
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                     Minimum 20 characters • The more detailed, the better the results
                   </p>
                 </div>
 
                 {/* Error Display */}
                 {error && (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <AlertCircle size={20} className="text-red-600" />
-                    <p className="text-red-700 text-sm">{error}</p>
+                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg">
+                    <AlertCircle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <p className="text-red-700 dark:text-red-200 text-sm">{error}</p>
                   </div>
                 )}
 
@@ -171,17 +171,17 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                 <button
                   type="submit"
                   disabled={jobDescription.trim().length < 20}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg transition"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-semibold py-3 rounded-lg transition-all duration-200 disabled:cursor-not-allowed"
                 >
                   🔍 Find Candidates
                 </button>
 
                 {/* Info */}
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-gray-700">
-                    <strong>How it works:</strong>
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800/50">
+                  <p className="text-sm text-slate-900 dark:text-slate-100 font-semibold">
+                    How it works:
                   </p>
-                  <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                  <ul className="text-sm text-slate-700 dark:text-slate-300 mt-2 space-y-1">
                     <li>✓ AI parses your job description</li>
                     <li>✓ Generates LinkedIn search queries</li>
                     <li>✓ Searches across 50+ countries</li>
@@ -195,9 +195,9 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
           {/* Step 2: Processing */}
           {step === 'processing' && (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <Loader2 size={48} className="text-blue-600 animate-spin" />
-              <p className="text-lg font-semibold text-gray-700">Finding candidates...</p>
-              <p className="text-sm text-gray-500">
+              <Loader2 size={48} className="text-indigo-600 dark:text-indigo-400 animate-spin" />
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">Finding candidates...</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Parsing JD • Generating queries • Searching globally • Enriching contacts
               </p>
             </div>
@@ -209,21 +209,21 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
               {/* Metadata */}
               {metadata && (
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-xs text-gray-600">Job Title</p>
-                    <p className="font-semibold text-gray-900">{metadata.jobTitle}</p>
+                  <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800/50">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Job Title</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">{metadata.jobTitle}</p>
                   </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-xs text-gray-600">Candidates Found</p>
-                    <p className="font-semibold text-gray-900">{metadata.totalExtracted}</p>
+                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Candidates Found</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">{metadata.totalExtracted}</p>
                   </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <p className="text-xs text-gray-600">Contacts Enriched</p>
-                    <p className="font-semibold text-gray-900">{metadata.contactsEnriched}</p>
+                  <div className="p-4 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-200 dark:border-violet-800/50">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Contacts Enriched</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">{metadata.contactsEnriched}</p>
                   </div>
-                  <div className="p-4 bg-orange-50 rounded-lg">
-                    <p className="text-xs text-gray-600">Time Taken</p>
-                    <p className="font-semibold text-gray-900">
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800/50">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Time Taken</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">
                       {(metadata.timeMs / 1000).toFixed(1)}s
                     </p>
                   </div>
@@ -233,41 +233,41 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
               {/* Candidates List */}
               {candidates.length > 0 ? (
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100">
                     {candidates.length} Candidates
                   </h3>
                   {candidates.map((candidate, index) => (
                     <div
                       key={index}
-                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                      className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md dark:hover:shadow-xl transition-all duration-200 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800"
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">{candidate.name}</h4>
-                          <p className="text-sm text-gray-600">
+                          <h4 className="font-semibold text-slate-900 dark:text-slate-100">{candidate.name}</h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
                             {candidate.jobTitle} {candidate.company && `@ ${candidate.company}`}
                           </p>
                           {candidate.level && (
-                            <span className="inline-block mt-2 px-2 py-1 bg-gray-100 text-xs font-medium text-gray-700 rounded">
+                            <span className="inline-block mt-2 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 rounded">
                               {candidate.level.toUpperCase()}
                             </span>
                           )}
                         </div>
                         <div className="text-right">
                           {candidate.relevanceScore && (
-                            <div className="text-xs font-semibold text-blue-600 mb-2">
+                            <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-2">
                               Score: {candidate.relevanceScore}
                             </div>
                           )}
                           {candidate.contact && (
                             <div className="mb-2">
                               {candidate.contact.email && (
-                                <p className="text-xs text-green-600">
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
                                   ✓ Email found
                                 </p>
                               )}
                               {candidate.contact.phone && (
-                                <p className="text-xs text-green-600">
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
                                   ✓ Phone found
                                 </p>
                               )}
@@ -276,7 +276,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                         </div>
                       </div>
 
-                      <p className="text-sm text-gray-600 mb-3">
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
                         {candidate.snippet.substring(0, 120)}...
                       </p>
 
@@ -285,7 +285,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                           href={candidate.linkedInUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline"
+                          className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline transition-colors"
                         >
                           View LinkedIn
                         </a>
@@ -294,11 +294,11 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                           disabled={
                             savingCandidateId === index || savedCandidates.has(candidate.linkedInUrl)
                           }
-                          className={`flex items-center gap-2 ml-auto px-3 py-2 rounded text-sm font-medium transition ${
+                          className={`flex items-center gap-2 ml-auto px-3 py-2 rounded text-sm font-medium transition-all duration-200 ${
                             savedCandidates.has(candidate.linkedInUrl)
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                          } disabled:opacity-50`}
+                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           {savingCandidateId === index ? (
                             <>
@@ -323,26 +323,26 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                 </div>
               ) : (
                 <div className="py-8 text-center">
-                  <p className="text-gray-600">No candidates found matching your criteria</p>
+                  <p className="text-slate-600 dark:text-slate-400">No candidates found matching your criteria</p>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 mt-6 pt-6 border-t">
+              <div className="flex gap-3 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => setStep('input')}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
+                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200">
                   Search Again
                 </button>
                 <button
                   onClick={handleExportCSV}
-                  className="flex-1 px-4 py-2 border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition flex items-center justify-center gap-2">
+                  className="flex-1 px-4 py-2 border border-emerald-300 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-200 flex items-center justify-center gap-2">
                   <Download size={16} />
                   Export CSV
                 </button>
                 <button
                   onClick={handleClose}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600 text-white rounded-lg transition-all duration-200">
                   Done
                 </button>
               </div>

@@ -1451,11 +1451,6 @@ const CandidateRow = React.memo(
 							</div>
 						)}
 
-						{/* Get Contact Button - Shown when no email/phone */}
-						{!candidate.email && !candidate.phone && (
-							<GetContactButton candidateId={candidate._id} candidate={candidate} />
-						)}
-
 						{/* Location Icon */}
 						{(candidate.locality || candidate.location) && (
 							<div className="relative group/icon">
@@ -1492,9 +1487,16 @@ const CandidateRow = React.memo(
 									<Linkedin size={16} />
 								</button>
 								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/linkedin:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50 shadow-lg">
-									{formatLocation(candidate.locality, candidate.location) || "View Profile"}
+									View LinkedIn Profile
 								</div>
 							</div>
+						</div>
+					)}
+
+					{/* Get Contact Button - Separate */}
+					{!candidate.email && !candidate.phone && (
+						<div className="mt-2">
+							<GetContactButton candidateId={candidate._id} candidate={candidate} />
 						</div>
 					)}
 				</td>
