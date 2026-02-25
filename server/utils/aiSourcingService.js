@@ -172,3 +172,9 @@ export const determineTargetCountries = (location, isRemote) => {
   // Default to India + UK for broad searches
   return ['india', 'uk'];
 };
+
+export default {
+  parseJobDescription,
+  generateSearchQueries,
+  determineTargetCountries,
+};

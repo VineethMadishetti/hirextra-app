@@ -168,6 +168,7 @@ const Dashboard = () => {
 						</button>
 					</div>
 				)}
+			</div>
 
 			{/* Right: User Profile & Logout */}
 			<div className="flex items-center gap-4">
