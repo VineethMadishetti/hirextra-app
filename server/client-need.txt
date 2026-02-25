@@ -1,0 +1,1827 @@
+User:
+can you give me in a doc to share to developer with notes spesfic to developer
+________________________________________
+Kimi:
+I’ll create a comprehensive developer document for you. Let me generate this as a formatted document.
+________________________________________
+STUCROW AI SOURCING AGENT
+Developer Implementation Guide
+Project: Stucrow.com AI Sourcing Module
+Version: 1.0
+Date: February 2025
+Prepared for: Development Team
+________________________________________
+TABLE OF CONTENTS
+1.	Executive Summary
+2.	Architecture Overview
+3.	Module 1: Contact Enrichment
+4.	Module 2: AI Sourcing Agent
+5.	Database Schema
+6.	API Integration Details
+7.	Frontend Components
+8.	Implementation Timeline
+9.	Testing Checklist
+10.	Appendix: API Keys & Credentials
+________________________________________
+EXECUTIVE SUMMARY
+Current State
+•	Platform: Stucrow.com People Finder
+•	Database: MongoDB + Elasticsearch
+•	Data: Millions of resumes from 20 years of staffing operations
+•	Gap: Missing contact information (email/phone) in search results
+Objective
+Build two integrated modules:
+Module	Purpose	User Action
+Contact Enrichment	Add email/phone to existing candidates	Click “Get Contact” button
+AI Sourcing Agent	Find NEW candidates from web + auto-enrich	Click “AI Source Candidates” button
+________________________________________
+ARCHITECTURE OVERVIEW
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     STUCROW PLATFORM                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────────┐    ┌─────────────────────────────┐    │
+│  │  PEOPLE FINDER      │    │  AI SOURCING AGENT          │    │
+│  │  (Existing)         │    │  (New Module)               │    │
+│  │                     │    │                             │    │
+│  │  MongoDB/ES         │◄──►│  Job Description Input      │    │
+│  │  Search internal DB │    │  ↓                          │    │
+│  │  ↓                  │    │  AI Skill Extraction        │    │
+│  │  "Get Contact" ─────┼───►│  ↓                          │    │
+│  │  [Enrichment API]   │    │  CSE Search (50 countries)  │    │
+│  │                     │    │  ↓                          │    │
+│  │                     │    │  Contact Enrichment         │    │
+│  │                     │    │  ↓                          │    │
+│  │                     │    │  Results Table              │    │
+│  │                     │    │  ↓                          │    │
+│  │                     │    │  "Save to DB" ─────────────►│    │
+│  └─────────────────────┘    └─────────────────────────────┘    │
+│           ▲                            │                        │
+│           └────────────────────────────┘                        │
+│              Shared Enrichment Service                           │
+│              (Skrapp → PDL → Lusha Cascade)                     │
+└─────────────────────────────────────────────────────────────────┘
+________________________________________
+MODULE 1: CONTACT ENRICHMENT
+Purpose
+Allow recruiters to get email/phone for existing candidates in People Finder.
+User Flow
+1.	Recruiter searches internal database
+2.	Sees candidate list with missing contact info
+3.	Clicks “🔍 Get Contact” button
+4.	System tries: Skrapp → PDL → Lusha (in sequence)
+5.	Displays email/phone with confidence score
+Backend Implementation
+File: services/enrichment_service.py
+
+"""
+Contact Enrichment Service
+Handles cascade: Skrapp → PDL → Lusha → Cached
+"""
+
+import asyncio
+import aiohttp
+from typing import List, Dict, Optional, Union
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from motor.motor_asyncio import AsyncIOMotorClient
+import logging
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class EnrichmentResult:
+    email: Optional[str]
+    phone: Optional[str]
+    linkedin_url: Optional[str]
+    confidence: float
+    source: str  # 'skrapp', 'pdl', 'lusha', 'cached'
+    verified_at: Optional[str]
+    error: Optional[str] = None
+
+class ContactEnricher:
+    def __init__(self, mongodb_uri: str):
+        # Database connection
+        self.client = AsyncIOMotorClient(mongodb_uri)
+        self.db = self.client.stucrow
+        self.cache_collection = self.db.enriched_contacts
+        
+        # API Keys - LOAD FROM ENVIRONMENT VARIABLES
+        self.skrapp_key = os.getenv('SKRAPP_API_KEY')
+        self.pdl_key = os.getenv('PDL_API_KEY')
+        self.lusha_key = os.getenv('LUSHA_API_KEY')
+        
+        # HTTP session
+        self.session = None
+    
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+    
+    async def enrich_candidate(self, candidate: Dict) -> EnrichmentResult:
+        """
+        Main enrichment method with cascade logic
+        Tries cheapest/fastest first
+        """
+        candidate_id = str(candidate.get('_id'))
+        
+        # 1. Check cache first (avoid API costs)
+        cached = await self._check_cache(candidate_id)
+        if cached:
+            logger.info(f"Cache hit for candidate {candidate_id}")
+            return EnrichmentResult(**cached, source='cached')
+        
+        # 2. Try Skrapp if LinkedIn URL exists (best for LI URLs)
+        if candidate.get('linkedin_url'):
+            result = await self._skrapp_lookup(candidate['linkedin_url'])
+            if result and result.get('email'):
+                await self._save_to_cache(candidate_id, result)
+                return EnrichmentResult(**result, source='skrapp')
+        
+        # 3. Fallback to PDL (name + company match)
+        result = await self._pdl_lookup(
+            name=candidate.get('full_name'),
+            company=candidate.get('company_name')
+        )
+        if result and result.get('email'):
+            await self._save_to_cache(candidate_id, result)
+            return EnrichmentResult(**result, source='pdl')
+        
+        # 4. Last resort: Lusha for phone numbers
+        if candidate.get('linkedin_url'):
+            result = await self._lusha_lookup(candidate['linkedin_url'])
+            if result and (result.get('phone') or result.get('email')):
+                await self._save_to_cache(candidate_id, result)
+                return EnrichmentResult(**result, source='lusha')
+        
+        # All failed
+        return EnrichmentResult(
+            email=None, 
+            phone=None, 
+            linkedin_url=candidate.get('linkedin_url'),
+            confidence=0, 
+            source='failed', 
+            verified_at=None,
+            error='All enrichment sources failed'
+        )
+    
+    async def _skrapp_lookup(self, linkedin_url: str) -> Optional[Dict]:
+        """
+        Skrapp.io API - Best for LinkedIn URLs
+        Cost: ~$0.049 per lookup
+        Accuracy: 85-90%
+        """
+        if not self.skrapp_key:
+            logger.error("Skrapp API key not configured")
+            return None
+        
+        url = "https://api.skrapp.io/api/v2/accounts/find"
+        headers = {
+            "X-Access-Token": self.skrapp_key,
+            "Content-Type": "application/json"
+        }
+        payload = {"linkedin_url": linkedin_url}
+        
+        try:
+            async with self.session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return {
+                        'email': data.get('email'),
+                        'phone': data.get('phone'),
+                        'linkedin_url': linkedin_url,
+                        'confidence': data.get('confidence_score', 0) / 100,
+                        'verified_at': datetime.now().isoformat()
+                    }
+                elif resp.status == 429:
+                    logger.warning("Skrapp rate limit hit")
+                    return None
+                else:
+                    logger.error(f"Skrapp error: {resp.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Skrapp exception: {e}")
+            return None
+    
+    async def _pdl_lookup(self, name: str, company: str) -> Optional[Dict]:
+        """
+        People Data Labs API - Best for name + company
+        Cost: ~$0.040 per lookup
+        Accuracy: 80-85%
+        """
+        if not self.pdl_key:
+            logger.error("PDL API key not configured")
+            return None
+        
+        url = "https://api.peopledatalabs.com/v5/person/enrich"
+        headers = {"Authorization": f"Bearer {self.pdl_key}"}
+        params = {
+            "name": name,
+            "company": company
+        }
+        
+        try:
+            async with self.session.get(url, headers=headers, params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    emails = data.get('emails', [])
+                    phones = data.get('phone_numbers', [])
+                    
+                    # Get highest confidence email
+                    best_email = None
+                    if emails:
+                        sorted_emails = sorted(emails, key=lambda x: x.get('confidence', 0), reverse=True)
+                        best_email = sorted_emails[0].get('address')
+                    
+                    # Get first phone
+                    best_phone = phones[0].get('number') if phones else None
+                    
+                    return {
+                        'email': best_email,
+                        'phone': best_phone,
+                        'linkedin_url': data.get('linkedin_url'),
+                        'confidence': data.get('likelihood', 0) / 100,
+                        'verified_at': datetime.now().isoformat()
+                    }
+                else:
+                    logger.error(f"PDL error: {resp.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"PDL exception: {e}")
+            return None
+    
+    async def _lusha_lookup(self, linkedin_url: str) -> Optional[Dict]:
+        """
+        Lusha API - Best for phone numbers
+        Cost: ~$0.156 per lookup
+        Accuracy: 85-90% for phones
+        """
+        if not self.lusha_key:
+            logger.error("Lusha API key not configured")
+            return None
+        
+        # Lusha API implementation
+        # Note: Lusha has different endpoint structure
+        url = "https://api.lusha.co/prospecting/social/linkedin"
+        headers = {
+            "Authorization": f"Bearer {self.lusha_key}",
+            "Content-Type": "application/json"
+        }
+        params = {"linkedinUrl": linkedin_url}
+        
+        try:
+            async with self.session.get(url, headers=headers, params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return {
+                        'email': data.get('email'),
+                        'phone': data.get('phone'),
+                        'linkedin_url': linkedin_url,
+                        'confidence': 0.85 if data.get('phone') else 0.70,
+                        'verified_at': datetime.now().isoformat()
+                    }
+                else:
+                    logger.error(f"Lusha error: {resp.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Lusha exception: {e}")
+            return None
+    
+    async def _check_cache(self, candidate_id: str) -> Optional[Dict]:
+        """Check MongoDB cache for existing enrichment (30-day TTL)"""
+        try:
+            cached = await self.cache_collection.find_one({
+                'candidate_id': candidate_id,
+                'expires_at': {'$gt': datetime.now()}
+            })
+            if cached:
+                return {
+                    'email': cached.get('email'),
+                    'phone': cached.get('phone'),
+                    'linkedin_url': cached.get('linkedin_url'),
+                    'confidence': cached.get('confidence'),
+                    'verified_at': cached.get('verified_at').isoformat() if cached.get('verified_at') else None
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Cache check error: {e}")
+            return None
+    
+    async def _save_to_cache(self, candidate_id: str, data: Dict):
+        """Save successful enrichment to MongoDB with 30-day TTL"""
+        try:
+            cache_doc = {
+                'candidate_id': candidate_id,
+                'email': data.get('email'),
+                'phone': data.get('phone'),
+                'linkedin_url': data.get('linkedin_url'),
+                'confidence': data.get('confidence'),
+                'source': data.get('source'),
+                'verified_at': datetime.now(),
+                'expires_at': datetime.now() + timedelta(days=30)
+            }
+            
+            await self.cache_collection.update_one(
+                {'candidate_id': candidate_id},
+                {'$set': cache_doc},
+                upsert=True
+            )
+            logger.info(f"Cached enrichment for candidate {candidate_id}")
+        except Exception as e:
+            logger.error(f"Cache save error: {e}")
+File: routes/enrichment.py
+
+"""
+FastAPI routes for contact enrichment
+"""
+
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from services.enrichment_service import ContactEnricher, EnrichmentResult
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+
+router = APIRouter()
+
+# Database dependency
+
+async def get_db():
+    client = AsyncIOMotorClient(os.getenv('MONGODB_URI'))
+    return client.stucrow
+
+class EnrichRequest(BaseModel):
+    candidate_id: str
+
+class EnrichResponse(BaseModel):
+    email: Optional[str]
+    phone: Optional[str]
+    confidence: float
+    source: str
+    verified_at: Optional[str]
+
+@router.post("/api/enrich-contact", response_model=EnrichResponse)
+async def enrich_contact(request: EnrichRequest, db=Depends(get_db)):
+    """
+    Enrich single candidate with email/phone
+    Tries: Cache → Skrapp → PDL → Lusha
+    """
+    
+    # Fetch candidate from MongoDB
+    candidate = await db.candidates.find_one({'_id': request.candidate_id})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    # Run enrichment
+    async with ContactEnricher(os.getenv('MONGODB_URI')) as enricher:
+        result = await enricher.enrich_candidate(candidate)
+    
+    # Update candidate record with enrichment data
+    if result.email or result.phone:
+        await db.candidates.update_one(
+            {'_id': request.candidate_id},
+            {
+                '$set': {
+                    'enriched_contact': {
+                        'email': result.email,
+                        'phone': result.phone,
+                        'confidence': result.confidence,
+                        'source': result.source,
+                        'verified_at': result.verified_at
+                    }
+                }
+            }
+        )
+    
+    return EnrichResponse(
+        email=result.email,
+        phone=result.phone,
+        confidence=result.confidence,
+        source=result.source,
+        verified_at=result.verified_at
+    )
+
+@router.post("/api/enrich-contact/bulk")
+async def enrich_contact_bulk(candidate_ids: List[str], db=Depends(get_db)):
+    """
+    Bulk enrichment for multiple candidates
+    Use with caution - consumes API credits quickly
+    """
+    results = []
+    
+    async with ContactEnricher(os.getenv('MONGODB_URI')) as enricher:
+        for cid in candidate_ids:
+            candidate = await db.candidates.find_one({'_id': cid})
+            if candidate:
+                result = await enricher.enrich_candidate(candidate)
+                results.append({
+                    'candidate_id': cid,
+                    'email': result.email,
+                    'phone': result.phone,
+                    'source': result.source
+                })
+    
+    return {"enriched": len([r for r in results if r['email']]), "results": results}
+Frontend Implementation
+File: components/ContactColumn.jsx
+
+/**
+
+ * Contact Column Component
+
+ * Shows email/phone or "Get Contact" button
+
+ * Props: candidate object with _id, enriched_contact
+
+ */
+
+import React, { useState } from 'react';
+import { Mail, Phone, Linkedin, Loader, AlertCircle } from 'lucide-react';
+import { toast } from 'react-hot-toast'; // or your preferred toast library
+
+const ContactColumn = ({ candidate }) => {
+  const [loading, setLoading] = useState(false);
+  const [contact, setContact] = useState(candidate.enriched_contact || null);
+
+  const handleEnrich = async () => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch('/api/enrich-contact', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // adjust auth as needed
+        },
+        body: JSON.stringify({ candidate_id: candidate._id })
+      });
+
+      if (!response.ok) {
+        throw new Error('Enrichment failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.email || data.phone) {
+        setContact(data);
+        toast.success(`Contact found via ${data.source}!`);
+      } else {
+        toast.error('No contact found. Try manual search.');
+      }
+      
+    } catch (error) {
+      console.error('Enrichment error:', error);
+      toast.error('Failed to get contact. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-gray-400">
+        <Loader className="animate-spin" size={16} />
+        <span className="text-xs">Finding...</span>
+      </div>
+    );
+  }
+
+  // Has contact data - display it
+  if (contact?.email || contact?.phone) {
+    return (
+      <div className="flex flex-col gap-1 max-w-[200px]">
+        {contact.email && (
+          <a 
+            href={`mailto:${contact.email}`} 
+            className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 truncate"
+            title={contact.email}
+
+          >
+
+            <Mail size={12} />
+            <span className="truncate">{contact.email}</span>
+          </a>
+        )}
+        
+        {contact.phone && (
+          <a 
+            href={`tel:${contact.phone}`} 
+            className="text-green-400 hover:text-green-300 text-xs flex items-center gap-1"
+
+          >
+
+            <Phone size={12} />
+            {contact.phone}
+          </a>
+        )}
+        
+        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+          <span className="bg-gray-800 px-1 rounded">{contact.source}</span>
+          <span>{Math.round(contact.confidence * 100)}%</span>
+          {contact.verified_at && (
+            <span>• {new Date(contact.verified_at).toLocaleDateString()}</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // No contact - show button
+  return (
+    <button 
+      onClick={handleEnrich}
+      className="text-xs bg-purple-600 hover:bg-purple-700 active:bg-purple-800 
+                 text-white px-3 py-1.5 rounded-md flex items-center gap-1 
+                 transition-colors duration-200"
+      disabled={loading}
+
+    >
+
+      <Linkedin size={12} />
+      Get Contact
+    </button>
+  );
+};
+
+export default ContactColumn;
+Integration: Update People Finder Table
+
+// In your existing People Finder table component
+// Add this column to your table headers
+
+const columns = [
+  // ... existing columns
+  {
+    header: 'Contact',
+    accessor: 'contact',
+    Cell: ({ row }) => <ContactColumn candidate={row.original} />
+  },
+  // ... other columns
+];
+________________________________________
+MODULE 2: AI SOURCING AGENT
+Purpose
+Find NEW candidates from web using CSE + auto-enrich contacts.
+User Flow
+1.	Recruiter clicks “🤖 AI Source Candidates” button
+2.	Modal opens with job description input
+3.	AI extracts skills, experience, location
+4.	System searches 50-country CSE network
+5.	Results displayed with auto-enriched contacts
+6.	Recruiter clicks “Save to DB” to import
+Backend Implementation
+File: services/sourcing_agent.py
+
+"""
+AI Sourcing Agent
+Orchestrates: JD Parsing → CSE Search → Contact Enrichment
+"""
+
+import asyncio
+import aiohttp
+import re
+import json
+import os
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime
+from openai import AsyncOpenAI
+from services.enrichment_service import ContactEnricher
+import logging
+
+logger = logging.getLogger(__name__)
+
+class CSEService:
+    """Google Custom Search Engine service for 50 countries"""
+    
+    # CSE IDs from Stucrow's existing configuration
+    COUNTRY_CSES = {
+        'india': '017007144926744970718:auveiwtwlu4',
+        'uk': '7856acfbbbfa9e1fc',
+        'germany': '017007144926744970718:-aagbo27gso',
+        'netherlands': '017007144926744970718:3_w50grmndy',
+        'france': '017007144926744970718:7yb1n4skdyy',
+        'singapore': '017007144926744970718:mmxkvzia178',
+        'australia': '017007144926744970718:jei0f9zdakm',
+        'canada': '017007144926744970718:ihlly5ilxxq',
+        'us': '017007144926744970718:ih8i99z9hdg',  # if exists
+        # Add remaining 40+ countries as needed
+    }
+    
+    def __init__(self):
+        self.google_api_key = os.getenv('GOOGLE_CSE_API_KEY')
+        self.session = None
+    
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+    
+    async def search_country(self, query: str, country: str, num_results: int = 10) -> List[Dict]:
+        """
+        Search single country CSE
+        """
+        cse_id = self.COUNTRY_CSES.get(country.lower())
+        if not cse_id:
+            logger.warning(f"No CSE configured for country: {country}")
+            return []
+        
+        url = "https://www.googleapis.com/customsearch/v1"
+        params = {
+            'key': self.google_api_key,
+            'cx': cse_id,
+            'q': query,
+            'num': min(num_results, 10)  # Max 10 per API call
+        }
+        
+        try:
+            async with self.session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    items = data.get('items', [])
+                    return [{
+                        'title': item.get('title'),
+                        'link': item.get('link'),
+                        'snippet': item.get('snippet'),
+                        'displayLink': item.get('displayLink'),
+                        'country': country
+                    } for item in items]
+                elif resp.status == 429:
+                    logger.error(f"Google API rate limit hit for {country}")
+                    return []
+                else:
+                    logger.error(f"Google CSE error {resp.status}: {await resp.text()}")
+                    return []
+        except Exception as e:
+            logger.error(f"CSE search exception for {country}: {e}")
+            return []
+
+class AISourcingAgent:
+    """
+    Main orchestrator for AI sourcing
+    """
+    
+    def __init__(self, mongodb_uri: str):
+        self.mongodb_uri = mongodb_uri
+        self.openai = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.cse_service = CSEService()
+        self.enricher = None  # Initialized in async context
+    
+    async def __aenter__(self):
+        self.enricher = ContactEnricher(self.mongodb_uri)
+        await self.enricher.__aenter__()
+        await self.cse_service.__aenter__()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.enricher:
+            await self.enricher.__aexit__(exc_type, exc_val, exc_tb)
+        await self.cse_service.__aexit__(exc_type, exc_val, exc_tb)
+    
+    async def source_candidates(self, job_description: str, max_results: int = 50) -> Dict:
+        """
+        Main entry point for AI sourcing
+        """
+        logger.info(f"Starting AI sourcing for JD: {job_description[:100]}...")
+        
+        # Step 1: Parse job description with AI
+        parsed = await self._parse_job_description(job_description)
+        logger.info(f"Parsed JD: {parsed}")
+        
+        # Step 2: Determine target countries
+        countries = self._determine_countries(parsed.get('location', ''), parsed.get('remote', False))
+        logger.info(f"Targeting countries: {countries}")
+        
+        # Step 3: Generate optimized search queries
+        queries = self._generate_queries(parsed)
+        logger.info(f"Generated {len(queries)} queries")
+        
+        # Step 4: Search CSEs in parallel
+        search_results = await self._search_all_cses(queries, countries)
+        logger.info(f"Found {len(search_results)} raw results")
+        
+        # Step 5: Parse and deduplicate candidates
+        candidates = self._extract_candidates(search_results)
+        logger.info(f"Extracted {len(candidates)} unique candidates")
+        
+        # Step 6: Enrich top candidates with contacts
+        top_candidates = candidates[:max_results]
+        enriched = await self._enrich_candidates(top_candidates)
+        successful = len([c for c in enriched if c.get('email')])
+        logger.info(f"Successfully enriched {successful}/{len(enriched)} candidates")
+        
+        return {
+            'success': True,
+            'job_description': job_description,
+            'parsed_requirements': parsed,
+            'countries_searched': countries,
+            'queries_used': queries,
+            'total_found': len(candidates),
+            'enriched_count': successful,
+            'candidates': enriched
+        }
+    
+    async def _parse_job_description(self, jd: str) -> Dict:
+        """
+        Use OpenAI to extract structured requirements from JD
+        """
+        system_prompt = """
+        You are a recruitment AI. Extract key information from job descriptions.
+        Return ONLY valid JSON with these fields:
+
+        - job_title: object with "main" title and 3-4 "synonyms"
+
+        - skills: array of required technical skills (max 8)
+
+        - experience_years: minimum years required (number)
+
+        - experience_level: "Junior", "Mid", "Senior", "Lead", or "Executive"
+
+        - location: city/country mentioned, or "Remote"
+
+        - remote: boolean, true if remote/work from home mentioned
+
+        - must_have_skills: array of critical skills (max 3)
+
+        - nice_to_have_skills: array of secondary skills (max 3)
+
+        """
+        
+        user_prompt = f"Extract from this job description:\n\n{jd}"
+        
+        try:
+            response = await self.openai.chat.completions.create(
+                model="gpt-4o-mini",  # Fast and cost-effective
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1  # Consistent, deterministic output
+            )
+            
+            parsed = json.loads(response.choices[0].message.content)
+            
+            # Validate required fields
+            required = ['job_title', 'skills', 'experience_years', 'location']
+            for field in required:
+                if field not in parsed:
+                    parsed[field] = [] if field == 'skills' else ""
+            
+            return parsed
+            
+        except Exception as e:
+            logger.error(f"JD parsing error: {e}")
+            # Fallback to basic extraction
+            return self._fallback_parse(jd)
+    
+    def _fallback_parse(self, jd: str) -> Dict:
+        """Basic regex extraction if AI fails"""
+        # Extract years of experience
+        years_match = re.search(r'(\d+)\+?\s*years?', jd, re.IGNORECASE)
+        years = int(years_match.group(1)) if years_match else 3
+        
+        # Common skills list
+        common_skills = ['Java', 'Python', 'JavaScript', 'React', 'Angular', 'Node.js', 
+                        'AWS', 'Azure', 'Docker', 'Kubernetes', 'SQL', 'MongoDB']
+        found_skills = [skill for skill in common_skills if skill.lower() in jd.lower()]
+        
+        return {
+            'job_title': {'main': 'Developer', 'synonyms': ['Engineer', 'Programmer']},
+            'skills': found_skills[:5] or ['Java', 'Spring'],
+            'experience_years': years,
+            'experience_level': 'Senior' if years >= 5 else 'Mid',
+            'location': 'India',
+            'remote': 'remote' in jd.lower(),
+            'must_have_skills': found_skills[:2] or ['Java'],
+            'nice_to_have_skills': []
+        }
+    
+    def _determine_countries(self, location: str, is_remote: bool) -> List[str]:
+        """
+        Map location to CSE countries to search
+        """
+        location = location.lower()
+        
+        # Remote jobs - search top talent markets
+        if is_remote or 'remote' in location or 'anywhere' in location:
+            return ['india', 'uk', 'germany', 'singapore', 'canada']
+        
+        # Specific country mapping
+        country_map = {
+            'india': ['india'],
+            'pune': ['india'],
+            'bangalore': ['india'],
+            'mumbai': ['india'],
+            'hyderabad': ['india'],
+            'chennai': ['india'],
+            'delhi': ['india'],
+            'uk': ['uk'],
+            'london': ['uk'],
+            'united kingdom': ['uk'],
+            'germany': ['germany'],
+            'berlin': ['germany'],
+            'munich': ['germany'],
+            'netherlands': ['netherlands'],
+            'amsterdam': ['netherlands'],
+            'singapore': ['singapore'],
+            'australia': ['australia'],
+            'sydney': ['australia'],
+            'melbourne': ['australia'],
+            'canada': ['canada'],
+            'toronto': ['canada'],
+            'vancouver': ['canada'],
+        }
+        
+        for key, countries in country_map.items():
+            if key in location:
+                return countries
+        
+        # Default to India + UK for broad searches
+        return ['india', 'uk']
+    
+    def _generate_queries(self, parsed: Dict) -> List[str]:
+        """
+        Generate Google CSE-optimized boolean queries
+        """
+        title = parsed['job_title']['main']
+        synonyms = parsed['job_title'].get('synonyms', [])[:2]
+        skills = parsed.get('must_have_skills', []) or parsed.get('skills', [])[:3]
+        skill_str = ' OR '.join([f'"{s}"' for s in skills])
+        
+        queries = []
+        
+        # Query 1: Exact title + skills + LinkedIn profiles
+        queries.append(f'"{title}" AND ({skill_str}) site:linkedin.com/in')
+        
+        # Query 2: Synonym titles
+        for syn in synonyms:
+            queries.append(f'"{syn}" AND ({skill_str}) site:linkedin.com/in')
+        
+        # Query 3: Active job seekers (high intent)
+        queries.append(f'"{title}" AND ("open to work" OR "seeking opportunities" OR "available immediately") site:linkedin.com/in')
+        
+        # Query 4: Senior level specific
+        if parsed.get('experience_level') in ['Senior', 'Lead']:
+            queries.append(f'("Senior {title}" OR "Lead {title}" OR "Principal {title}") AND ({skill_str}) site:linkedin.com/in')
+        
+        return queries[:4]  # Max 4 queries to control costs
+    
+    async def _search_all_cses(self, queries: List[str], countries: List[str]) -> List[Dict]:
+        """
+        Parallel search across all country CSEs
+        """
+        tasks = []
+        
+        for country in countries:
+            for query in queries:
+                tasks.append(self.cse_service.search_country(query, country))
+        
+        # Execute all searches with concurrency limit
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent API calls
+        
+        async def bounded_search(task):
+            async with semaphore:
+                return await task
+        
+        results = await asyncio.gather(*[bounded_search(t) for t in tasks], return_exceptions=True)
+        
+        # Flatten and filter errors
+        flat_results = []
+        for result in results:
+            if isinstance(result, list):
+                flat_results.extend(result)
+            elif isinstance(result, Exception):
+                logger.error(f"Search task failed: {result}")
+        
+        return flat_results
+    
+    def _extract_candidates(self, search_results: List[Dict]) -> List[Dict]:
+        """
+        Extract structured candidate data from CSE results
+        """
+        candidates = []
+        seen_urls = set()
+        
+        for result in search_results:
+            url = result.get('link', '')
+            
+            # Filter: Must be LinkedIn profile
+            if 'linkedin.com/in/' not in url:
+                continue
+            
+            # Deduplicate
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            
+            # Parse name from title
+            title = result.get('title', '')
+            name = self._extract_name(title)
+            
+            # Parse snippet for additional info
+            snippet = result.get('snippet', '')
+            
+            candidate = {
+                'name': name,
+                'linkedin_url': url,
+                'title': self._extract_job_title(snippet, title),
+                'company': self._extract_company(snippet),
+                'location': self._extract_location(snippet) or result.get('country'),
+                'source_country': result.get('country'),
+                'source_query': result.get('query'),
+                'discovered_at': datetime.now().isoformat(),
+                'email': None,
+                'phone': None
+            }
+            
+            candidates.append(candidate)
+        
+        return candidates
+    
+    def _extract_name(self, title: str) -> str:
+        """Extract person name from search result title"""
+        # LinkedIn titles usually: "Name - Title | LinkedIn"
+        parts = title.split(' - ')
+        if len(parts) > 1:
+            return parts[0].strip()
+        
+        parts = title.split(' | ')
+        if len(parts) > 1:
+            return parts[0].strip()
+        
+        # Fallback: first 2-3 words
+        words = title.split()[:3]
+        return ' '.join(words)
+    
+    def _extract_job_title(self, snippet: str, title: str) -> str:
+        """Extract current job title"""
+        # Try to find patterns like "is a Software Engineer"
+        patterns = [
+            r'(?:is a|working as|currently)\s+([^\.]{3,40}?)(?:\s+at|\s+in|\.|,)',
+            r'\|\s*([^|]{3,40}?)(?:\s+at|\s*\|)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, snippet + ' ' + title, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        
+        return "Unknown"
+    
+    def _extract_company(self, snippet: str) -> str:
+        """Extract current company"""
+        # Pattern: "at Company Name"
+        match = re.search(r'at\s+([A-Z][A-Za-z0-9\s&\.]{2,30})(?:\.|\s|,|$)', snippet)
+        if match:
+            return match.group(1).strip()
+        
+        # Pattern: "Company Name | LinkedIn"
+        match = re.search(r'at\s+([^|]{2,30})\s*\|', snippet)
+        if match:
+            return match.group(1).strip()
+        
+        return "Unknown"
+    
+    def _extract_location(self, snippet: str) -> Optional[str]:
+        """Extract location"""
+        patterns = [
+            r'(?:in|based in|located in|area)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)',
+            r'([A-Z][a-z]+,\s*[A-Z]{2})',  # City, ST
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, snippet)
+            if match:
+                return match.group(1).strip()
+        
+        return None
+    
+    async def _enrich_candidates(self, candidates: List[Dict]) -> List[Dict]:
+        """
+        Enrich candidates with contact info using cascade
+        """
+        # Process in batches of 10 to avoid rate limits
+        batch_size = 10
+        enriched = []
+        
+        for i in range(0, len(candidates), batch_size):
+            batch = candidates[i:i+batch_size]
+            tasks = [self.enricher.enrich_candidate(c) for c in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for candidate, result in zip(batch, results):
+                if isinstance(result, Exception):
+                    logger.error(f"Enrichment failed for {candidate['name']}: {result}")
+                    enriched.append(candidate)
+                    continue
+                
+                candidate['email'] = result.email
+                candidate['phone'] = result.phone
+                candidate['enrichment_confidence'] = result.confidence
+                candidate['enrichment_source'] = result.source
+                candidate['enrichment_status'] = 'success' if result.email else 'failed'
+                
+                enriched.append(candidate)
+        
+        return enriched
+File: routes/sourcing.py
+
+"""
+FastAPI routes for AI Sourcing Agent
+"""
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from services.sourcing_agent import AISourcingAgent
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+from datetime import datetime
+
+router = APIRouter()
+
+# Database connection
+
+def get_db():
+    client = AsyncIOMotorClient(os.getenv('MONGODB_URI'))
+    return client.stucrow
+
+class SourceRequest(BaseModel):
+    job_description: str = Field(..., min_length=20, description="Full job description text")
+    max_results: int = Field(default=50, ge=10, le=100, description="Maximum candidates to return")
+
+class SourceResponse(BaseModel):
+    success: bool
+    search_id: Optional[str]
+    total_found: int
+    enriched_count: int
+    countries_searched: List[str]
+    candidates: List[Dict]
+
+@router.post("/api/ai-source", response_model=SourceResponse)
+async def ai_source(request: SourceRequest, background_tasks: BackgroundTasks):
+    """
+    Main endpoint for AI sourcing
+
+    - Parses job description
+
+    - Searches CSE network
+
+    - Enriches contacts
+
+    - Returns structured candidates
+
+    """
+    
+    db = get_db()
+    
+    # Create search record for tracking
+    search_record = {
+        'job_description': request.job_description,
+        'status': 'processing',
+        'created_at': datetime.now(),
+        'created_by': 'current_user_id',  # Get from auth context
+        'results': []
+    }
+    
+    insert_result = await db.ai_sourcing_searches.insert_one(search_record)
+    search_id = str(insert_result.inserted_id)
+    
+    try:
+        # Execute sourcing
+        async with AISourcingAgent(os.getenv('MONGODB_URI')) as agent:
+            results = await agent.source_candidates(
+                request.job_description, 
+                max_results=request.max_results
+            )
+        
+        # Update search record with results
+        await db.ai_sourcing_searches.update_one(
+            {'_id': insert_result.inserted_id},
+            {
+                '$set': {
+                    'status': 'completed',
+                    'results': results['candidates'],
+                    'total_found': results['total_found'],
+                    'enriched_count': results['enriched_count'],
+                    'countries_searched': results['countries_searched'],
+                    'completed_at': datetime.now()
+                }
+            }
+        )
+        
+        return {
+            'success': True,
+            'search_id': search_id,
+            'total_found': results['total_found'],
+            'enriched_count': results['enriched_count'],
+            'countries_searched': results['countries_searched'],
+            'candidates': results['candidates']
+        }
+        
+    except Exception as e:
+        # Update record with error
+        await db.ai_sourcing_searches.update_one(
+            {'_id': insert_result.inserted_id},
+            {
+                '$set': {
+                    'status': 'failed',
+                    'error': str(e),
+                    'failed_at': datetime.now()
+                }
+            }
+        )
+        raise HTTPException(status_code=500, detail=f"Sourcing failed: {str(e)}")
+
+@router.post("/api/ai-source/save-candidate")
+async def save_sourced_candidate(candidate: Dict):
+    """
+    Save a sourced candidate to main database
+    Called when recruiter clicks "Save to DB"
+    """
+    db = get_db()
+    
+    # Check for duplicates
+    existing = await db.candidates.find_one({
+        '$or': [
+            {'linkedin_url': candidate.get('linkedin_url')},
+            {'email': candidate.get('email')}
+        ]
+    })
+    
+    if existing:
+        return {
+            'success': False,
+            'message': 'Candidate already exists in database',
+            'existing_id': str(existing['_id'])
+        }
+    
+    # Prepare document
+    doc = {
+        'full_name': candidate.get('name'),
+        'job_title': candidate.get('title'),
+        'company_name': candidate.get('company'),
+        'location': candidate.get('location'),
+        'linkedin_url': candidate.get('linkedin_url'),
+        'email': candidate.get('email'),
+        'phone': candidate.get('phone'),
+        'skills': [],  # To be extracted later
+        'experience_years': 0,  # To be calculated
+        'source': 'ai_sourcing_agent',
+        'source_country': candidate.get('source_country'),
+        'enriched_contact': {
+            'email': candidate.get('email'),
+            'phone': candidate.get('phone'),
+            'confidence': candidate.get('enrichment_confidence'),
+            'source': candidate.get('enrichment_source'),
+            'verified_at': datetime.now()
+        },
+        'created_at': datetime.now(),
+        'status': 'new'  # For recruiter workflow
+    }
+    
+    result = await db.candidates.insert_one(doc)
+    
+    return {
+        'success': True,
+        'candidate_id': str(result.inserted_id),
+        'message': 'Candidate saved successfully'
+    }
+
+@router.get("/api/ai-source/history")
+async def get_sourcing_history(limit: int = 10):
+    """Get recent AI sourcing searches"""
+    db = get_db()
+    
+    searches = await db.ai_sourcing_searches.find().sort('created_at', -1).limit(limit).to_list(length=limit)
+    
+    return [{
+        'id': str(s['_id']),
+        'job_description': s['job_description'][:100] + '...',
+        'status': s['status'],
+        'total_found': s.get('total_found', 0),
+        'created_at': s['created_at']
+    } for s in searches]
+Frontend Implementation
+File: components/SourcingAgentCTA.jsx
+
+/**
+
+ * AI Sourcing Agent CTA Button and Modal
+
+ * Main entry point for external candidate sourcing
+
+ */
+
+import React, { useState } from 'react';
+import { Sparkles, X, Search, Save, Loader, Globe, Mail, Phone } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+const SourcingAgentCTA = () => {
+  const [showModal, setShowModal] = useState(false);
+
+  return (
+    <>
+      {/* CTA Button - Add to header/navigation */}
+      <button 
+        onClick={() => setShowModal(true)}
+        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 
+                   text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium 
+                   shadow-lg shadow-purple-500/20 transition-all duration-200"
+
+      >
+
+        <Sparkles size={18} />
+        🤖 AI Source Candidates
+      </button>
+
+      {showModal && (
+        <SourcingModal onClose={() => setShowModal(false)} />
+      )}
+    </>
+  );
+};
+
+const SourcingModal = ({ onClose }) => {
+  const [step, setStep] = useState('input'); // input, processing, results
+  const [jobDescription, setJobDescription] = useState('');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSource = async () => {
+    if (!jobDescription.trim() || jobDescription.length < 20) {
+      toast.error('Please enter a detailed job description (min 20 characters)');
+      return;
+    }
+
+    setLoading(true);
+    setStep('processing');
+
+    try {
+      const response = await fetch('/api/ai-source', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          job_description: jobDescription,
+          max_results: 50
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Sourcing request failed');
+      }
+
+      const data = await response.json();
+      setResults(data);
+      setStep('results');
+      toast.success(`Found ${data.total_found} candidates!`);
+      
+    } catch (error) {
+      console.error('Sourcing error:', error);
+      toast.error('Failed to source candidates. Please try again.');
+      setStep('input');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-xl border border-gray-800">
+        
+        {/* Header */}
+        <div className="sticky top-0 bg-gray-900 border-b border-gray-800 p-6 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Sparkles className="text-purple-400" />
+              AI Sourcing Agent
+            </h2>
+            <p className="text-gray-400 text-sm mt-1">
+              Find and enrich candidates from across the web
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded-lg"
+
+          >
+
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {step === 'input' && (
+            <InputStep 
+              jobDescription={jobDescription}
+              setJobDescription={setJobDescription}
+              onSource={handleSource}
+              loading={loading}
+            />
+          )}
+          
+          {step === 'processing' && (
+            <ProcessingStep />
+          )}
+          
+          {step === 'results' && results && (
+            <ResultsStep results={results} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const InputStep = ({ jobDescription, setJobDescription, onSource, loading }) => (
+  <div className="space-y-6">
+    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+      <label className="text-gray-300 font-medium block mb-2">
+        Job Description
+      </label>
+      <textarea
+        value={jobDescription}
+        onChange={(e) => setJobDescription(e.target.value)}
+        placeholder="Paste the full job description here. Include: job title, required skills, years of experience, location, and any specific requirements.
+
+Example:
+'Senior Java Developer with 8+ years experience in Spring Boot, Microservices, and AWS. Location: Pune or Remote. Must have experience with Kafka and Kubernetes.'"
+        className="w-full h-48 bg-gray-800 border border-gray-700 rounded-lg p-4 text-white 
+                   placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 
+                   resize-none"
+      />
+      <div className="flex justify-between text-xs text-gray-500 mt-2">
+        <span>Min 20 characters</span>
+        <span>{jobDescription.length} chars</span>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-3 gap-4 text-sm">
+      <div className="bg-gray-800/30 p-3 rounded-lg border border-gray-700">
+        <div className="text-purple-400 font-medium mb-1">1. AI Analysis</div>
+        <div className="text-gray-400">Extracts skills, experience, location</div>
+      </div>
+      <div className="bg-gray-800/30 p-3 rounded-lg border border-gray-700">
+        <div className="text-blue-400 font-medium mb-1">2. Web Search</div>
+        <div className="text-gray-400">Searches 50-country CSE network</div>
+      </div>
+      <div className="bg-gray-800/30 p-3 rounded-lg border border-gray-700">
+        <div className="text-green-400 font-medium mb-1">3. Enrichment</div>
+        <div className="text-gray-400">Finds emails & phone numbers</div>
+      </div>
+    </div>
+
+    <button 
+      onClick={onSource}
+      disabled={loading || jobDescription.length < 20}
+      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 
+                 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-lg font-medium 
+                 flex items-center justify-center gap-2 transition-all"
+
+    >
+
+      {loading ? (
+        <>
+          <Loader className="animate-spin" size={20} />
+          Initializing AI Agent...
+        </>
+      ) : (
+        <>
+          <Search size={20} />
+          🚀 Start AI Sourcing
+        </>
+      )}
+    </button>
+  </div>
+);
+
+const ProcessingStep = () => (
+  <div className="flex flex-col items-center justify-center py-20">
+    <div className="relative">
+      <div className="w-20 h-20 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Sparkles className="text-purple-400 animate-pulse" size={24} />
+      </div>
+    </div>
+    
+    <h3 className="text-xl font-medium text-white mt-6">AI Agent is Working...</h3>
+    <p className="text-gray-400 mt-2 text-center max-w-md">
+      Parsing job description • Searching global CSE network • Enriching contacts
+    </p>
+    
+    <div className="mt-8 space-y-2 w-full max-w-md">
+      <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500 animate-[loading_2s_ease-in-out_infinite] w-2/3"></div>
+      </div>
+      <div className="flex justify-between text-xs text-gray-500">
+        <span>Step 1/3: Parsing</span>
+        <span>~30-60 seconds</span>
+      </div>
+    </div>
+  </div>
+);
+
+const ResultsStep = ({ results }) => {
+  const [saving, setSaving] = useState({});
+
+  const handleSave = async (candidate) => {
+    setSaving({ ...saving, [candidate.linkedin_url]: true });
+    
+    try {
+      const response = await fetch('/api/ai-source/save-candidate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(candidate)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(`${candidate.name} saved to database!`);
+      } else {
+        toast.error(data.message || 'Already exists');
+      }
+    } catch (error) {
+      toast.error('Failed to save candidate');
+    } finally {
+      setSaving({ ...saving, [candidate.linkedin_url]: false });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard 
+          label="Total Found" 
+          value={results.total_found} 
+          icon={Search} 
+          color="blue" 
+        />
+        <StatCard 
+          label="With Contact" 
+          value={results.enriched_count} 
+          icon={Mail} 
+          color="green" 
+        />
+        <StatCard 
+          label="Countries" 
+          value={results.countries_searched.length} 
+          icon={Globe} 
+          color="purple" 
+        />
+        <StatCard 
+          label="Success Rate" 
+          value={`${Math.round((results.enriched_count / results.total_found) * 100)}%`} 
+          icon={Sparkles} 
+          color="yellow" 
+        />
+      </div>
+
+      {/* Extracted Skills */}
+      {results.parsed_requirements?.skills && (
+        <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700">
+          <div className="text-sm text-gray-400 mb-2">Extracted Skills:</div>
+          <div className="flex flex-wrap gap-2">
+            {results.parsed_requirements.skills.map((skill, idx) => (
+              <span key={idx} className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs border border-purple-700/30">
+                {skill}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Results Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="text-gray-400 text-xs uppercase tracking-wider border-b border-gray-700">
+            <tr>
+              <th className="pb-3 font-medium">Candidate</th>
+              <th className="pb-3 font-medium">Title & Company</th>
+              <th className="pb-3 font-medium">Location</th>
+              <th className="pb-3 font-medium">Contact</th>
+              <th className="pb-3 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="text-sm">
+            {results.candidates.map((candidate, idx) => (
+              <tr key={idx} className="border-b border-gray-800 hover:bg-gray-800/30">
+                <td className="py-4">
+                  <div className="font-medium text-white">{candidate.name}</div>
+                  <a 
+                    href={candidate.linkedin_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-1"
+
+                  >
+
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                    </svg>
+                    View Profile
+                  </a>
+                </td>
+                <td className="py-4">
+                  <div className="text-gray-300">{candidate.title}</div>
+                  <div className="text-gray-500 text-xs">{candidate.company}</div>
+                </td>
+                <td className="py-4 text-gray-300">
+                  {candidate.location}
+                  <div className="text-xs text-gray-500">{candidate.source_country}</div>
+                </td>
+                <td className="py-4">
+                  {candidate.email ? (
+                    <div className="space-y-1">
+                      <div className="text-green-400 text-xs flex items-center gap-1">
+                        <Mail size={12} />
+                        <span className="truncate max-w-[150px]" title={candidate.email}>
+                          {candidate.email}
+                        </span>
+                      </div>
+                      {candidate.phone && (
+                        <div className="text-blue-400 text-xs flex items-center gap-1">
+                          <Phone size={12} />
+                          {candidate.phone}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-gray-500">
+                        {candidate.enrichment_source} • {Math.round(candidate.enrichment_confidence * 100)}%
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-gray-500 text-xs">Not found</span>
+                  )}
+                </td>
+                <td className="py-4">
+                  <button
+                    onClick={() => handleSave(candidate)}
+                    disabled={saving[candidate.linkedin_url]}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 
+                               text-white text-xs px-3 py-1.5 rounded flex items-center gap-1"
+
+                  >
+
+                    {saving[candidate.linkedin_url] ? (
+                      <Loader size={12} className="animate-spin" />
+                    ) : (
+                      <Save size={12} />
+                    )}
+                    Save to DB
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const StatCard = ({ label, value, icon: Icon, color }) => {
+  const colors = {
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    green: 'bg-green-500/10 text-green-400 border-green-500/20',
+    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    yellow: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+  };
+
+  return (
+    <div className={`p-4 rounded-lg border ${colors[color]}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={16} />
+        <span className="text-xs uppercase tracking-wider opacity-80">{label}</span>
+      </div>
+      <div className="text-2xl font-bold">{value}</div>
+    </div>
+  );
+};
+
+export default SourcingAgentCTA;
+________________________________________
+DATABASE SCHEMA
+New Collections to Create
+
+// 1. enriched_contacts - Cache for contact enrichment
+db.createCollection("enriched_contacts", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["candidate_id", "expires_at"],
+      properties: {
+        candidate_id: { bsonType: "string" },
+        email: { bsonType: "string" },
+        phone: { bsonType: "string" },
+        linkedin_url: { bsonType: "string" },
+        confidence: { bsonType: "double" },
+        source: { bsonType: "string" }, // skrapp, pdl, lusha
+        verified_at: { bsonType: "date" },
+        expires_at: { bsonType: "date" }
+      }
+    }
+  }
+});
+
+// Create TTL index for auto-expiration (30 days)
+db.enriched_contacts.createIndex(
+  { "expires_at": 1 }, 
+  { expireAfterSeconds: 0 }
+);
+
+// Create index for fast lookup
+db.enriched_contacts.createIndex({ "candidate_id": 1 });
+
+// 2. ai_sourcing_searches - Track AI sourcing jobs
+db.createCollection("ai_sourcing_searches", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["job_description", "status", "created_at"],
+      properties: {
+        job_description: { bsonType: "string" },
+        status: { 
+          enum: ["processing", "completed", "failed"] 
+        },
+        parsed_requirements: { bsonType: "object" },
+        countries_searched: { bsonType: "array" },
+        total_found: { bsonType: "int" },
+        enriched_count: { bsonType: "int" },
+        results: { bsonType: "array" },
+        created_at: { bsonType: "date" },
+        created_by: { bsonType: "string" },
+        completed_at: { bsonType: "date" },
+        error: { bsonType: "string" }
+      }
+    }
+  }
+});
+
+db.ai_sourcing_searches.createIndex({ "created_at": -1 });
+db.ai_sourcing_searches.createIndex({ "created_by": 1 });
+
+// 3. Update existing candidates collection schema
+// Add enriched_contact field to existing candidates
+db.candidates.updateMany(
+  { "enriched_contact": { $exists: false } },
+  { 
+    $set: { 
+      "enriched_contact": null,
+      "source": "manual_upload" // or existing source
+    } 
+  }
+);
+________________________________________
+API INTEGRATION DETAILS
+Required API Keys
+Service	Purpose	Get API Key From	Cost
+OpenAI	Job description parsing	platform.openai.com	~$0.001 per JD
+Google CSE	Custom search engine queries	console.cloud.google.com	$5 per 1000 queries
+Skrapp.io	LinkedIn email finder	skrapp.io	$49/mo (1000 emails)
+People Data Labs	Name/company enrichment	peopledatalabs.com	$99/mo (2500 matches)
+Lusha	Phone numbers	lusha.co	$75/mo (480 credits)
+Environment Variables
+Create .env file:
+
+# Database
+
+MONGODB_URI=mongodb://localhost:27017/stucrow
+
+# AI
+
+OPENAI_API_KEY=sk-...
+
+# Google CSE
+
+GOOGLE_CSE_API_KEY=AIza...
+
+# Enrichment APIs
+
+SKRAPP_API_KEY=...
+PDL_API_KEY=...
+LUSHA_API_KEY=...
+
+# Optional: Rate limiting
+
+MAX_CSE_QUERIES_PER_MINUTE=10
+MAX_ENRICHMENT_CONCURRENT=5
+________________________________________
+IMPLEMENTATION TIMELINE
+Week 1: Contact Enrichment (People Finder Enhancement)
+•	☐ Set up API accounts (Skrapp, PDL, Lusha)
+•	☐ Create enrichment_service.py
+•	☐ Create enrichment.py routes
+•	☐ Build ContactColumn.jsx component
+•	☐ Integrate into existing People Finder table
+•	☐ Test with 10-20 existing candidates
+Deliverable: “Get Contact” button working in People Finder
+Week 2: AI Sourcing Agent Core
+•	☐ Set up OpenAI API account
+•	☐ Create sourcing_agent.py with CSE service
+•	☐ Implement JD parsing with GPT-4o-mini
+•	☐ Build query generation logic
+•	☐ Integrate 50-country CSE configuration
+•	☐ Test CSE search with sample queries
+Deliverable: Backend sourcing working via API endpoints
+Week 3: Frontend & Integration
+•	☐ Build SourcingAgentCTA.jsx component
+•	☐ Create modal with input/processing/results states
+•	☐ Implement “Save to DB” functionality
+•	☐ Add deduplication logic
+•	☐ Style components to match Stucrow design
+Deliverable: Full UI flow working end-to-end
+Week 4: Testing & Optimization
+•	☐ Add rate limiting and error handling
+•	☐ Implement caching to reduce API costs
+•	☐ Add logging and monitoring
+•	☐ Performance optimization (parallel processing)
+•	☐ User acceptance testing with recruiters
+Deliverable: Production-ready release
+________________________________________
+TESTING CHECKLIST
+Module 1: Contact Enrichment
+•	☐ Click “Get Contact” on candidate with LinkedIn URL → Skrapp lookup
+•	☐ Click on candidate without LinkedIn URL → PDL lookup
+•	☐ Verify cache works (second click should be instant)
+•	☐ Test rate limit handling (429 errors)
+•	☐ Verify MongoDB cache collection populates
+Module 2: AI Sourcing
+•	☐ Enter JD with clear skills → verify correct extraction
+•	☐ Enter JD with location → verify correct country selection
+•	☐ Enter remote JD → verify multiple countries searched
+•	☐ Verify results show enriched contacts
+•	☐ Click “Save to DB” → verify candidate appears in People Finder
+•	☐ Try saving duplicate → verify error message
+•	☐ Test with 50+ candidates → verify performance
+Integration
+•	☐ People Finder search still works (no regression)
+•	☐ New candidates appear in search after saving
+•	☐ Contact info persists after save
+•	☐ Mobile responsive design
+________________________________________
+APPENDIX: API KEYS & CREDENTIALS
+Stucrow Existing CSE IDs (50 Countries)
+
+CSE_IDS = {
+    'india': '017007144926744970718:auveiwtwlu4',
+    'uk': '7856acfbbbfa9e1fc',
+    'germany': '017007144926744970718:-aagbo27gso',
+    'austria': '017007144926744970718:atq64kyfupy',
+    'belgium': '017007144926744970718:rnu7nffzls4',
+    'czech_republic': '017007144926744970718:ndhk0eeqp74',
+    'denmark': '052a82679c22147de',
+    'estonia': '017007144926744970718:qclk5bzomcw',
+    'finland': '017007144926744970718:bu_nzan44yw',
+    'greece': '017007144926744970718:g0-jiitr250',
+    'hungary': '017007144926744970718:8_z_ntpgxp4',
+    'iceland': '017007144926744970718:zaectnah11s',
+    'italy': 'd1cb148e17ddae2ef',
+    'latvia': '017007144926744970718:9sdb2mziooc',
+    'lithuania': '017007144926744970718:d9_51lvnppc',
+    'luxembourg': '72c5005461a103be7',
+    'malta': '017007144926744970718:ze40dycyqji',
+    'netherlands': '017007144926744970718:3_w50grmndy',
+    'norway': '017007144926744970718:opzf_kqniws',
+    'poland': 'c3e4d3b4defe045b9',
+    'portugal': '017007144926744970718:hghyo91e4_s',
+    'romania': '017007144926744970718:_7qjp3uvcoa',
+    'slovakia': '017007144926744970718:tdsf_on64vq',
+    'slovenia': '017007144926744970718:mwp19bsrstm',
+    'spain': '017007144926744970718:7yb1n4skdyy',
+    'sweden': '017007144926744970718:_z-o1j8afeu',
+    'switzerland': '017007144926744970718:lgyf-6ghtvu',
+    # Add remaining countries as needed...
+}
+________________________________________
+DEVELOPER NOTES
+Important Implementation Details
+1.	Rate Limiting: Google CSE allows 100 queries/day free, then $5/1000. Implement semaphore limiting (max 5 concurrent).
+2.	Error Handling: Always wrap external API calls in try-except. If Skrapp fails, continue to PDL, etc.
+3.	Caching: Contact enrichment is expensive. Always cache successful lookups for 30 days.
+4.	Deduplication: Before saving sourced candidates, check existing database by LinkedIn URL and email.
+5.	Security: Never commit API keys to git. Use environment variables exclusively.
+6.	Async/Await: All external API calls must be async to enable parallel processing.
+7.	MongoDB Indexes: Ensure indexes on candidate_id (cache) and created_at (search history) for performance.
+Questions?
+Contact: [Your Name]
+Slack: #dev-stucrow
+Email: dev@stucrow.com
+________________________________________
+END OF DOCUMENT
+________________________________________

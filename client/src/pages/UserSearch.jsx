@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
+import GetContactButton from "../components/GetContactButton";
 
 const PAGE_SIZE = 50; // Smaller page size to return first results faster
 
@@ -1415,75 +1416,81 @@ const CandidateRow = React.memo(
 					</div>
 				</td>
 
-				{/* Contact with Icons */}
-				<td className="w-40 px-3 py-4 align-top hidden sm:table-cell ">
-					<div className="flex gap-0.5 flex-wrap">
-						{candidate.phone && (
-							<div className="relative group/icon">
-								<button
-									onClick={() =>
-										window.open(`tel:${candidate.phone}`, "_blank")
-									}
-									className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
-									<Phone size={16} />
-								</button>
-								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
-									{candidate.phone}
+				{/* Contact Column - Shows enriched contact info or Get Contact button */}
+				<td className="w-40 px-3 py-4 align-top hidden sm:table-cell">
+					{candidate.email || candidate.phone ? (
+						// Has contact info - show as icons/links
+						<div className="flex gap-0.5 flex-wrap">
+							{candidate.phone && (
+								<div className="relative group/icon">
+									<button
+										onClick={() =>
+											window.open(`tel:${candidate.phone}`, "_blank")
+										}
+										className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
+										<Phone size={16} />
+									</button>
+									<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
+										{candidate.phone}
+									</div>
 								</div>
-							</div>
-						)}
-						{candidate.email && (
-							<div className="relative group/icon">
-								<button
-									onClick={() =>
-										window.open(`mailto:${candidate.email}`, "_blank")
-									}
-									className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
-									<Mail size={16} />
-								</button>
-								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
-									{candidate.email}
+							)}
+							{candidate.email && (
+								<div className="relative group/icon">
+									<button
+										onClick={() =>
+											window.open(`mailto:${candidate.email}`, "_blank")
+										}
+										className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
+										<Mail size={16} />
+									</button>
+									<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
+										{candidate.email}
+									</div>
 								</div>
-							</div>
-						)}
-						{candidate.linkedinUrl && (
-							<div className="relative group/icon">
-								<button
-									onClick={() => {
-										let url = candidate.linkedinUrl;
-										if (!url.startsWith("http")) url = "https://" + url;
-										const win = window.open(url, "_blank");
-										if (win) win.opener = null; // Security: Prevent reverse tabnabbing
-									}}
-									className="p-1 text-slate-500 dark:text-slate-400 hover:text-[#0077b5] hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
-									<Linkedin size={16} />
-								</button>
-								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50 shadow-lg">
-									{candidate.linkedinUrl.replace(/^https?:\/\//, "")}
+							)}
+							{candidate.linkedinUrl && (
+								<div className="relative group/icon">
+									<button
+										onClick={() => {
+											let url = candidate.linkedinUrl;
+											if (!url.startsWith("http")) url = "https://" + url;
+											const win = window.open(url, "_blank");
+											if (win) win.opener = null; // Security: Prevent reverse tabnabbing
+										}}
+										className="p-1 text-slate-500 dark:text-slate-400 hover:text-[#0077b5] hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
+										<Linkedin size={16} />
+									</button>
+									<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50 shadow-lg">
+										{candidate.linkedinUrl.replace(/^https?:\/\//, "")}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
 
-						{/* Location */}
-						{(candidate.locality || candidate.location) && (
-							<div className="relative group/icon">
-								<button
-									className="p-1 rounded-lg text-slate-500 dark:text-slate-400 
-						hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110
-						transition-all duration-200">
-									<MapPin size={15} />
-								</button>
-								<div
-									className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
-					max-w-xs truncate
-					px-2 py-1 rounded bg-slate-900 text-white text-[11px]
-					opacity-0 group-hover/icon:opacity-100 transition-opacity
-					pointer-events-none shadow-lg z-50">
-									{formatLocation(candidate.locality, candidate.location)}
+							{/* Location */}
+							{(candidate.locality || candidate.location) && (
+								<div className="relative group/icon">
+									<button
+										className="p-1 rounded-lg text-slate-500 dark:text-slate-400 
+							hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110
+							transition-all duration-200">
+										<MapPin size={15} />
+									</button>
+									<div
+										className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
+								max-w-xs truncate
+								px-2 py-1 rounded bg-slate-900 text-white text-[11px]
+								opacity-0 group-hover/icon:opacity-100 transition-opacity
+								pointer-events-none shadow-lg z-50">
+										{formatLocation(candidate.locality, candidate.location)}
+									</div>
 								</div>
-							</div>
-						)}
-					</div>
+							)}
+						</div>
+					) : (
+						// No contact info - show Get Contact button
+						<GetContactButton candidateId={candidate._id} candidate={candidate} />
+					)}
 				</td>
 
 				{/* Actions */}
