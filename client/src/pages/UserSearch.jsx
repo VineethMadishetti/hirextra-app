@@ -1496,6 +1496,7 @@ const CandidateRow = React.memo(
 								</div>
 							</div>
 						</div>
+					)}
 
 				{/* Actions */}
 				<td className="w-32 px-4 py-4 align-top sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors duration-200 hidden md:table-cell border-l border-slate-200 dark:border-slate-800">
