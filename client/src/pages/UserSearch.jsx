@@ -1469,12 +1469,10 @@ const CandidateRow = React.memo(
 								</div>
 							</div>
 						)}
-					</div>
 
-					{/* LinkedIn - Separate Section Below */}
-					{candidate.linkedinUrl && (
-						<div className="mt-2">
-							<div className="relative group/linkedin inline-block">
+						{/* LinkedIn Icon */}
+						{candidate.linkedinUrl && (
+							<div className="relative group/linkedin">
 								<button
 									onClick={() => {
 										let url = candidate.linkedinUrl;
@@ -1490,8 +1488,8 @@ const CandidateRow = React.memo(
 									View LinkedIn Profile
 								</div>
 							</div>
-						</div>
-					)}
+						)}
+					</div>
 
 					{/* Get Contact Button - Separate */}
 					{!candidate.email && !candidate.phone && (
