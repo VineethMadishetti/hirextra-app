@@ -169,7 +169,32 @@ const Dashboard = () => {
 					</div>
 				)}
 
-				{/* USER navigation - AI Source button */}
+			{/* Right: User Profile & Logout */}
+			<div className="flex items-center gap-4">
+				{/* <button
+					onClick={toggleTheme}
+					className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+					title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>
+					{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+				</button> */}
+
+				{/* <div
+					className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
+					aria-hidden="true"
+				/> */}
+
+				{/* Candidate Count */}
+				{/* {user?.role === "USER" && statsData && (
+					<div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pr-2">
+						<Users size={16} className="text-indigo-500" />
+						<span>{(statsData.totalCandidates || 0).toLocaleString()}</span>
+						<span className="font-normal text-slate-500 dark:text-slate-400">
+							Candidates
+						</span>
+					</div>
+				)} */}
+
+				{/* AI Source button for USER role */}
 				{user?.role === "USER" && (
 					<button
 						onClick={() => setShowSourcingModal(true)}
@@ -179,77 +204,62 @@ const Dashboard = () => {
 						<Zap size={16} />
 						AI Source Candidates
 					</button>
+				)}
 
-					{/* <div
-						className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
-						aria-hidden="true"
-					/> */}
-
-					{/* Candidate Count */}
-					{/* {user?.role === "USER" && statsData && (
-						<div className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pr-2">
-							<Users size={16} className="text-indigo-500" />
-							<span>{(statsData.totalCandidates || 0).toLocaleString()}</span>
+				{/* Credits Display */}
+				{user?.role === "USER" && (
+					<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-full shadow-inner">
+						<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
+							<CircleDollarSign size={16} className="text-amber-500" />
+							<span>1,250</span>
 							<span className="font-normal text-slate-500 dark:text-slate-400">
-								Candidates
+								Credits
 							</span>
 						</div>
-					)} */}
+						<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-green-500 rounded-full shadow-md transition-all cursor-pointer">
+							<Plus size={14} />
+							BUY
+						</button>
+					</div>
+				)}
 
-					{/* Credits Display */}
-					{user?.role === "USER" && (
-						<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-full shadow-inner">
-							<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
-								<CircleDollarSign size={16} className="text-amber-500" />
-								<span>1,250</span>
-								<span className="font-normal text-slate-500 dark:text-slate-400">
-									Credits
-								</span>
-							</div>
-							<button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-green-500 rounded-full shadow-md transition-all cursor-pointer">
-								<Plus size={14} />
-								BUY
-							</button>
-						</div>
-					)}
+				<div
+					className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
+					aria-hidden="true"
+				/>
 
-					<div
-						className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
-						aria-hidden="true"
-					/>
-
-					<div className="hidden sm:flex flex-col items-end leading-tight">
-						<span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-							{user?.name}
-						</span>
-						<span
-							className="text-[10px] font-semibold tracking-wider uppercase
+				<div className="hidden sm:flex flex-col items-end leading-tight">
+					<span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+						{user?.name}
+					</span>
+					<span
+						className="text-[10px] font-semibold tracking-wider uppercase
         text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-2 py-0.5 rounded-full">
-							{user?.role}
-						</span>
-					</div>
-
-					<div
-						className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600
-      flex items-center justify-center text-white shadow">
-						<User size={18} />
-					</div>
-
-					<button
-						onClick={handleLogout}
-						title="Logout"
-						className="ml-1 p-2 rounded-full text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all cursor-pointer">
-						<LogOut size={18} />
-					</button>
+						{user?.role}
+					</span>
 				</div>
-			</nav>
 
-			{/* --- Mobile Nav (Only for Admin) --- */}
-			{user?.role === "ADMIN" && (
-				<div className="md:hidden flex border-b bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-slate-200 dark:border-slate-800 fixed top-16 left-0 right-0 z-40">
-					<button
-						onClick={() => setCurrentView("admin")}
-						className={`flex-1 py-3 text-sm font-medium text-center ${
+				<div
+					className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600
+      flex items-center justify-center text-white shadow">
+					<User size={18} />
+				</div>
+
+				<button
+					onClick={handleLogout}
+					title="Logout"
+					className="ml-1 p-2 rounded-full text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all cursor-pointer">
+					<LogOut size={18} />
+				</button>
+			</div>
+		</nav>
+
+		{/* --- Mobile Nav (Only for Admin) --- */}
+		{user?.role === "ADMIN" && (
+			<div className="md:hidden flex border-b bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-slate-200 dark:border-slate-800 fixed top-16 left-0 right-0 z-40">
+				<button
+					onClick={() => setCurrentView("admin")}
+					className={`flex-1 py-3 text-sm font-medium text-center ${
 							currentView === "admin"
 								? "text-indigo-600 border-b-2 border-indigo-600"
 								: "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
