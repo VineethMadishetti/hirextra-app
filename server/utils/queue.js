@@ -1146,7 +1146,8 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 
 				queuedCount += filesToProcess.length;
 				logger.info(`🚀 Page ${pageCount}: Queuing ${filesToProcess.length} files for processing (Total queued: ${queuedCount})`);
-				await UploadJob.findByIdAndUpdate(jobId, { totalRows: queuedCount, status: "PROCESSING" });
+				// Update totalRows with DISCOVERED count (all files), not queuedCount (only new ones)
+				await UploadJob.updateOne({ _id: jobId }, { totalRows: discoveredCount, status: "PROCESSING" });
 
 				for (const file of filesToProcess) {
 					logger.debug(`📌 Scheduling: ${file.Key}`);
