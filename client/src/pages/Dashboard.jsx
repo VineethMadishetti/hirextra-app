@@ -16,8 +16,10 @@ import {
 	Moon,
 	Sun,
 	Loader,
+	Zap,
 } from "lucide-react";
 import LoadingScreen from "../components/LoadingScreen";
+import SourcingAgentModal from "../components/SourcingAgentModal";
 
 // Lazy load components to reduce initial bundle size
 const AdminDashboard = lazy(() => import("./AdminDashboard"));
@@ -37,6 +39,9 @@ const Dashboard = () => {
 	const [currentView, setCurrentView] = useState(
 		() => (user?.role === "ADMIN" ? "admin" : "search"),
 	);
+
+	// State for AI Sourcing Modal
+	const [showSourcingModal, setShowSourcingModal] = useState(false);
 
 	const { data: statsData } = useQuery({
 		queryKey: ["candidateStats"],
@@ -151,18 +156,29 @@ const Dashboard = () => {
 								<Sparkles size={16} />
 								Enrich
 							</button>
-						</div>
-					)}
-				</div>
 
-				{/* Right: User Profile & Logout */}
-				<div className="flex items-center gap-4">
-					{/* <button
-						onClick={toggleTheme}
-						className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-						title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>
-						{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-					</button> */}
+						<button
+							onClick={() => setShowSourcingModal(true)}
+							className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
+            ${
+							"text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
+						}`}>
+							<Zap size={16} />
+							AI Source
+						</button>
+					</div>
+				)}
+
+				{/* USER navigation - AI Source button */}
+				{user?.role === "USER" && (
+					<button
+						onClick={() => setShowSourcingModal(true)}
+						className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold 
+						bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transition-all"
+						title="Find candidates with AI">
+						<Zap size={16} />
+						AI Source Candidates
+					</button>
 
 					{/* <div
 						className="h-8 w-px bg-slate-200/80 dark:bg-slate-700/80 mx-1 hidden sm:block"
@@ -319,8 +335,6 @@ const Dashboard = () => {
 					</div>
 				</div>
 			)}
-		</div>
-	);
-};
 
-export default Dashboard;
+		{/* AI Sourcing Agent Modal */}
+		<SourcingAgentModal isOpen={showSourcingModal} onClose={() => setShowSourcingModal(false)} />

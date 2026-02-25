@@ -1418,80 +1418,84 @@ const CandidateRow = React.memo(
 
 				{/* Contact Column - Shows enriched contact info or Get Contact button */}
 				<td className="w-40 px-3 py-4 align-top hidden sm:table-cell">
-					{candidate.email || candidate.phone ? (
-						// Has contact info - show as icons/links
-						<div className="flex gap-0.5 flex-wrap">
-							{candidate.phone && (
-								<div className="relative group/icon">
-									<button
-										onClick={() =>
-											window.open(`tel:${candidate.phone}`, "_blank")
-										}
-										className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
-										<Phone size={16} />
-									</button>
-									<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
-										{candidate.phone}
-									</div>
+					<div className="flex gap-1 flex-wrap items-center">
+						{/* Phone Icon */}
+						{candidate.phone && (
+							<div className="relative group/icon">
+								<button
+									onClick={() =>
+										window.open(`tel:${candidate.phone}`, "_blank")
+									}
+									className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
+									<Phone size={16} />
+								</button>
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
+									{candidate.phone}
 								</div>
-							)}
-							{candidate.email && (
-								<div className="relative group/icon">
-									<button
-										onClick={() =>
-											window.open(`mailto:${candidate.email}`, "_blank")
-										}
-										className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
-										<Mail size={16} />
-									</button>
-									<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
-										{candidate.email}
-									</div>
-								</div>
-							)}
-							{candidate.linkedinUrl && (
-								<div className="relative group/icon">
-									<button
-										onClick={() => {
-											let url = candidate.linkedinUrl;
-											if (!url.startsWith("http")) url = "https://" + url;
-											const win = window.open(url, "_blank");
-											if (win) win.opener = null; // Security: Prevent reverse tabnabbing
-										}}
-										className="p-1 text-slate-500 dark:text-slate-400 hover:text-[#0077b5] hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
-										<Linkedin size={16} />
-									</button>
-									<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50 shadow-lg">
-										{candidate.linkedinUrl.replace(/^https?:\/\//, "")}
-									</div>
-								</div>
-							)}
+							</div>
+						)}
 
-							{/* Location */}
-							{(candidate.locality || candidate.location) && (
-								<div className="relative group/icon">
-									<button
-										className="p-1 rounded-lg text-slate-500 dark:text-slate-400 
-							hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110
-							transition-all duration-200">
-										<MapPin size={15} />
-									</button>
-									<div
-										className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
-								max-w-xs truncate
-								px-2 py-1 rounded bg-slate-900 text-white text-[11px]
-								opacity-0 group-hover/icon:opacity-100 transition-opacity
-								pointer-events-none shadow-lg z-50">
-										{formatLocation(candidate.locality, candidate.location)}
-									</div>
+						{/* Email Icon */}
+						{candidate.email && (
+							<div className="relative group/icon">
+								<button
+									onClick={() =>
+										window.open(`mailto:${candidate.email}`, "_blank")
+									}
+									className="p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200">
+									<Mail size={16} />
+								</button>
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
+									{candidate.email}
 								</div>
-							)}
+							</div>
+						)}
+
+						{/* Get Contact Button - Shown when no email/phone */}
+						{!candidate.email && !candidate.phone && (
+							<GetContactButton candidateId={candidate._id} candidate={candidate} />
+						)}
+
+						{/* Location Icon */}
+						{(candidate.locality || candidate.location) && (
+							<div className="relative group/icon">
+								<button
+									className="p-1 rounded-lg text-slate-500 dark:text-slate-400 
+										hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110
+										transition-all duration-200">
+									<MapPin size={15} />
+								</button>
+								<div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
+									max-w-xs truncate
+									px-2 py-1 rounded bg-slate-900 text-white text-[11px]
+									opacity-0 group-hover/icon:opacity-100 transition-opacity
+									pointer-events-none shadow-lg">
+									{formatLocation(candidate.locality, candidate.location)}
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* LinkedIn - Separate Section Below */}
+					{candidate.linkedinUrl && (
+						<div className="mt-2">
+							<div className="relative group/linkedin inline-block">
+								<button
+									onClick={() => {
+										let url = candidate.linkedinUrl;
+										if (!url.startsWith("http")) url = "https://" + url;
+										const win = window.open(url, "_blank");
+										if (win) win.opener = null;
+									}}
+									className="p-1 text-slate-500 dark:text-slate-400 hover:text-[#0077b5] dark:hover:text-[#0a66c2] hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-110 rounded-lg transition-all duration-200"
+									title="View LinkedIn Profile">
+									<Linkedin size={16} />
+								</button>
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover/linkedin:opacity-100 transition-opacity pointer-events-none whitespace-nowrap max-w-xs truncate z-50 shadow-lg">
+									{formatLocation(candidate.locality, candidate.location) || "View Profile"}
+								</div>
+							</div>
 						</div>
-					) : (
-						// No contact info - show Get Contact button
-						<GetContactButton candidateId={candidate._id} candidate={candidate} />
-					)}
-				</td>
 
 				{/* Actions */}
 				<td className="w-32 px-4 py-4 align-top sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors duration-200 hidden md:table-cell border-l border-slate-200 dark:border-slate-800">

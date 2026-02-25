@@ -29,6 +29,7 @@ import authRoutes from './routes/authRoutes.js';
 import candidateRoutes from './routes/candidateRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import enrichmentRoutes from './routes/enrichmentRoutes.js';
+import sourcingRoutes from './routes/sourcingRoutes.js';
 
 // Define __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -185,6 +186,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/candidates', requestCache(30), candidateRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/enrich-contact', enrichmentRoutes);
+app.use('/api/ai-source', sourcingRoutes);
 
 /* ---------------------------------------------------
    GLOBAL ERROR HANDLER

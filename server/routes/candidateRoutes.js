@@ -14,14 +14,7 @@ import {
   pauseUploadJob,
   getDeleteHistory,
   importResumes,
-  analyzeSearchQuery,
-  getEnrichmentQueue,
-  runCandidateEnrichment,
-  getCandidateEnrichmentDetail,
-  reviewCandidateEnrichment,
-  getEnrichmentAuditLogs,
-  saveCandidateEnrichmentManual,
-  getCandidateEnrichmentActivity
+  analyzeSearchQuery
 } from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -45,13 +38,6 @@ router.get('/history', protect, adminOnly, getUploadHistory);
 router.get('/delete-history', protect, adminOnly, getDeleteHistory);
 router.get('/job/:id/status', protect, adminOnly, getJobStatus); // Get job status for live updates
 router.get('/search', protect, searchCandidates); // All authenticated users can search
-router.get('/enrich/queue', protect, getEnrichmentQueue);
-router.post('/enrich/run', protect, runCandidateEnrichment);
-router.get('/enrich/audit', protect, getEnrichmentAuditLogs);
-router.get('/enrich/:id/activity', protect, getCandidateEnrichmentActivity);
-router.get('/enrich/:id', protect, getCandidateEnrichmentDetail);
-router.post('/enrich/:id/review', protect, reviewCandidateEnrichment);
-router.put('/enrich/:id/manual', protect, saveCandidateEnrichmentManual);
 router.post('/export', protect, exportCandidates); // Export selected candidates
 router.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() })); // Health check
 router.get('/:id/download', protect, downloadProfile); // Download profile
