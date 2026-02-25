@@ -128,7 +128,7 @@ const GetContactButton = ({ candidateId, candidate, onContactFound }) => {
       className="inline-flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-2.5 py-1.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md font-medium group whitespace-nowrap"
       title="Enrich contact information (email/phone) using Skrapp, PDL, or Lusha APIs"
       disabled={loading}>
-      <Linkedin size={12} className="flex-shrink-0" />
+      {/* <Linkedin size={12} className="flex-shrink-0" /> */}
       <span>Get Contact</span>
     </button>
   );
