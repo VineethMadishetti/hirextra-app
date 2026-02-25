@@ -973,23 +973,26 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 			}
 
 			// Perform one atomic update and get the new document state
-			const updatedJob = await UploadJob.findByIdAndUpdate(jobId, update, { new: true });
+			// 🔍 MEMORY FIX: Use updateOne (doesn't return doc) instead of findByIdAndUpdate
+			// Over 4000+ files, returning full documents causes memory accumulation
+			await UploadJob.updateOne({ _id: jobId }, update);
 
-				// Check if the job is complete using the returned document.
-				// In direct import mode, folder scanning updates totalRows progressively.
-				// skipAutoFinalize prevents premature completion while discovery is still running.
+			// Only check completion status if auto-finalize is enabled
+			// Fetch ONLY when needed, not per file
+			if (!skipAutoFinalize) {
+				const jobDoc = await UploadJob.findById(jobId).select('successRows failedRows totalRows').lean();
 				if (
-					!skipAutoFinalize &&
-					updatedJob &&
-					updatedJob.totalRows > 0 &&
-					(updatedJob.successRows + updatedJob.failedRows >= updatedJob.totalRows)
+					jobDoc &&
+					jobDoc.totalRows > 0 &&
+					(jobDoc.successRows + jobDoc.failedRows >= jobDoc.totalRows)
 				) {
-					const finalStatus = updatedJob.successRows > 0 ? "COMPLETED" : "FAILED";
-					await UploadJob.findByIdAndUpdate(jobId, {
+					const finalStatus = jobDoc.successRows > 0 ? "COMPLETED" : "FAILED";
+					await UploadJob.updateOne({ _id: jobId }, {
 						status: finalStatus,
-					completedAt: new Date()
-				});
+						completedAt: new Date()
+					});
 					logger.info(`🏁 Job ${jobId} Auto-Finalized: ${finalStatus}`);
+				}
 			}
 		} catch (e) {
 			logger.error(`Failed to update job progress for ${jobId}:`, e);
@@ -1197,10 +1200,9 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 			return;
 		}
 
-		// Fetch final job state to determine completion status
-		const updatedJob = await UploadJob.findById(jobId).select("successRows failedRows totalRows").lean();
-		const successCount = (updatedJob?.successRows || 0);
-		const failCount = (updatedJob?.failedRows || 0);
+		// 🔍 MEMORY FIX: Reuse jobDoc to avoid extra fetch
+		const successCount = (jobDoc?.successRows || 0);
+		const failCount = (jobDoc?.failedRows || 0);
 		const totalProcessed = successCount + failCount;
 
 		logger.info(`📊 Job Progress: ${totalProcessed}/${queuedCount} files processed (${successCount} success, ${failCount} failed)`);
@@ -1220,8 +1222,8 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 		} else {
 			// Still processing, leave as PROCESSING so background tasks can continue
 			logger.info(`⏳ Folder Job ${jobId} continuing in background. Progress: ${percentage}% (${totalProcessed}/${queuedCount}). Discovered: ${discoveredCount}, Skipped: ${skippedExistingCount}`);
-			// Update with current progress but don't finalize yet
-			await UploadJob.findByIdAndUpdate(jobId, {
+			// Update with current progress but don't finalize yet (use updateOne to save memory)
+			await UploadJob.updateOne({ _id: jobId }, {
 				status: "PROCESSING",
 				totalRows: queuedCount,
 			});
@@ -1230,7 +1232,7 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 	} catch (error) {
 		logger.error(`❌ Folder processing failed for job ${jobId}:`, error);
 		const errorMsg = error?.message || String(error);
-		await UploadJob.findByIdAndUpdate(jobId, {
+		await UploadJob.updateOne({ _id: jobId }, {
 			status: "FAILED",
 			error: errorMsg.length > 500 ? errorMsg.substring(0, 500) : errorMsg,
 		}).catch((e) => logger.error(`Failed to update job on error:`, e));
