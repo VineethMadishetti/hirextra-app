@@ -18,6 +18,7 @@ let creditCache = {
 
 /**
  * Check RChilli account credit balance
+ * ✅ IMPROVED: Increased timeout to 15 seconds, better error handling
  */
 export const checkRChilliCredits = async () => {
 	try {
@@ -31,9 +32,10 @@ export const checkRChilliCredits = async () => {
 		}
 
 		// Call RChilli API to get account info
+		// Increased timeout to 15 seconds (RChilli API can be slow)
 		const response = await axios.get(
 			`${RCHILLI_API_URL}?api_key=${RCHILLI_API_KEY}&detail=1`,
-			{ timeout: 5000 }
+			{ timeout: 15000 } // 15 second timeout instead of 5
 		);
 
 		if (response.data && response.data.data) {

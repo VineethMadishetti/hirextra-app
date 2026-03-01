@@ -100,6 +100,7 @@ const Login = () => {
 						</label>
 						<input
 							type="email"
+							autoComplete="email"
 							required
 							placeholder="user@email.com"
 							className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm
@@ -119,6 +120,7 @@ const Login = () => {
 						</label>
 						<input
 							type="password"
+							autoComplete="current-password"
 							required
 							placeholder="••••••••"
 							className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm

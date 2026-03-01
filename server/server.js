@@ -180,6 +180,33 @@ app.get('/health', (req, res) => {
 app.get('/test', (req, res) => res.send('Server is alive!'));
 
 /* ---------------------------------------------------
+   CORS DIAGNOSTIC ENDPOINT
+   Purpose: Debug CORS issues on dedicated servers
+   ✅ NEW: Helps diagnose CORS authorization problems
+--------------------------------------------------- */
+app.options('/cors-diagnostic', cors(corsOptions)); // Enable CORS for this endpoint
+app.get('/cors-diagnostic', (req, res) => {
+  const origin = req.get('origin') || 'No origin header';
+  const isOriginAllowed = allowedOrigins.includes(origin);
+  
+  res.json({
+    message: 'CORS Diagnostic Information',
+    requestOrigin: origin,
+    allowedOrigins: allowedOrigins,
+    isOriginAllowed: isOriginAllowed,
+    corsHeadersSent: {
+      'Access-Control-Allow-Origin': res.get('Access-Control-Allow-Origin'),
+      'Access-Control-Allow-Credentials': res.get('Access-Control-Allow-Credentials'),
+      'Access-Control-Allow-Methods': res.get('Access-Control-Allow-Methods'),
+      'Access-Control-Allow-Headers': res.get('Access-Control-Allow-Headers')
+    },
+    recommendation: isOriginAllowed 
+      ? '✅ Origin is allowed. CORS should work.'
+      : '❌ Origin is not in allowedOrigins. Add it to server.js with process.env.CLIENT_URL'
+  });
+});
+
+/* ---------------------------------------------------
    ROUTES
 --------------------------------------------------- */
 app.use('/api/auth', authRoutes);
