@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Loader2, AlertCircle, Check, Save, Download } from 'lucide-react';
-import axios from '../api/axios';
+import api from '../api/axios';
 
 /**
  * AI Sourcing Modal Component
@@ -30,7 +30,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
     setStep('processing');
 
     try {
-      const response = await axios.post('/api/ai-source', {
+      const response = await api.post('/ai-source', {
         jobDescription: jobDescription.trim(),
         maxCandidates: 50,
         enrichContacts: true,
@@ -51,7 +51,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
     setSavingCandidateId(index);
 
     try {
-      await axios.post('/api/ai-source/save-candidate', {
+      await api.post('/ai-source/save-candidate', {
         name: candidate.name,
         linkedInUrl: candidate.linkedInUrl,
         jobTitle: candidate.jobTitle,
@@ -73,9 +73,14 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
   };
 
   const handleExportCSV = async () => {
+    if (!candidates || candidates.length === 0) {
+      setError('No candidates available to export.');
+      return;
+    }
+
     try {
       // Send candidates to backend for CSV conversion
-      const response = await axios.post('/api/ai-source/export/csv', {
+      const response = await api.post('/ai-source/export/csv', {
         candidates: candidates.map((c) => ({
           name: c.name,
           linkedInUrl: c.linkedInUrl,
@@ -215,11 +220,15 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                   </div>
                   <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
                     <p className="text-xs text-slate-600 dark:text-slate-400">Candidates Found</p>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">{metadata.totalExtracted}</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                      {metadata.totalExtracted ?? 0}
+                    </p>
                   </div>
                   <div className="p-4 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-200 dark:border-violet-800/50">
                     <p className="text-xs text-slate-600 dark:text-slate-400">Contacts Enriched</p>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">{metadata.contactsEnriched}</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                      {metadata.contactsEnriched ?? 0}
+                    </p>
                   </div>
                   <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800/50">
                     <p className="text-xs text-slate-600 dark:text-slate-400">Time Taken</p>
@@ -227,6 +236,63 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                       {(metadata.timeMs / 1000).toFixed(1)}s
                     </p>
                   </div>
+                </div>
+              )}
+
+              {metadata?.parseOnly && (
+                <div className="space-y-3">
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                      Parse-only mode enabled
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      {metadata.parseOnlyReason}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Experience</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                        {metadata.experienceLevel || 'Unknown'} ({metadata.experienceYears || 0}+ years)
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Location</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                        {metadata.location || 'Unknown'} {metadata.remote ? '(Remote)' : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {Array.isArray(metadata.mustHaveSkills) && metadata.mustHaveSkills.length > 0 && (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Must-have skills</p>
+                      <div className="flex flex-wrap gap-2">
+                        {metadata.mustHaveSkills.map((skill, idx) => (
+                          <span
+                            key={`${skill}-${idx}`}
+                            className="px-2 py-1 text-xs font-medium rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Array.isArray(metadata.searchQueries) && metadata.searchQueries.length > 0 && (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Generated search queries</p>
+                      <ul className="space-y-1">
+                        {metadata.searchQueries.map((query, idx) => (
+                          <li key={`${idx}-${query}`} className="text-xs text-slate-700 dark:text-slate-300">
+                            {query}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -323,7 +389,11 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                 </div>
               ) : (
                 <div className="py-8 text-center">
-                  <p className="text-slate-600 dark:text-slate-400">No candidates found matching your criteria</p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    {metadata?.parseOnly
+                      ? 'Job description parsed successfully. Add GOOGLE_CSE_API_KEY to enable candidate discovery.'
+                      : 'No candidates found matching your criteria'}
+                  </p>
                 </div>
               )}
 
@@ -336,7 +406,8 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                 </button>
                 <button
                   onClick={handleExportCSV}
-                  className="flex-1 px-4 py-2 border border-emerald-300 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-200 flex items-center justify-center gap-2">
+                  disabled={candidates.length === 0}
+                  className="flex-1 px-4 py-2 border border-emerald-300 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download size={16} />
                   Export CSV
                 </button>

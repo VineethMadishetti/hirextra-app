@@ -14,7 +14,8 @@ import {
   pauseUploadJob,
   getDeleteHistory,
   importResumes,
-  analyzeSearchQuery
+  analyzeSearchQuery,
+  processResumeFolder
 } from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -34,6 +35,7 @@ const upload = multer({ dest: uploadDir });
 
 router.post('/upload-chunk', protect, adminOnly, upload.single('file'), uploadChunk);
 router.post('/process', protect, adminOnly, processFile);
+router.post('/process-folder', protect, adminOnly, processResumeFolder); // Process resume folder directly
 router.get('/history', protect, adminOnly, getUploadHistory);
 router.get('/delete-history', protect, adminOnly, getDeleteHistory);
 router.get('/job/:id/status', protect, adminOnly, getJobStatus); // Get job status for live updates

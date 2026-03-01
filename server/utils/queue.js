@@ -10,6 +10,7 @@ import readline from "readline";
 import logger from "./logger.js";
 import { downloadFromS3, fileExistsInS3, listS3FilesByPage } from "./s3Service.js";
 import { cleanAndValidateCandidate } from "./dataCleaner.js";
+import { detectDelimiter, parseCsvLineWithDelimiter } from "./delimiterDetector.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -34,6 +35,47 @@ const streamToBuffer = (stream) =>
 		stream.on("error", reject);
 		stream.on("end", () => resolve(Buffer.concat(chunks)));
 	});
+
+// Helper to detect delimiter from file's first line
+const detectFileDelimiter = async (filePath) => {
+	try {
+		let fileStream;
+		
+		try {
+			fileStream = await getFileStream(filePath);
+		} catch (e) {
+			logger.warn(`Could not open file for delimiter detection: ${e.message}. Defaulting to comma.`);
+			return ',';
+		}
+
+		const rl = readline.createInterface({
+			input: fileStream,
+			crlfDelay: Infinity,
+		});
+
+		let firstLine = '';
+		for await (const line of rl) {
+			if (line && line.trim()) {
+				firstLine = line;
+				rl.close();
+				fileStream.destroy();
+				break;
+			}
+		}
+
+		if (!firstLine) {
+			logger.warn('File appears to be empty. Defaulting to comma delimiter.');
+			return ',';
+		}
+
+		const detected = detectDelimiter(firstLine, path.extname(filePath));
+		logger.info(`✅ Delimiter detected from file: '${detected === '\t' ? 'TAB' : 'COMMA'}'`);
+		return detected;
+	} catch (error) {
+		logger.error(`Error detecting delimiter: ${error.message}. Defaulting to comma.`);
+		return ',';
+	}
+};
 
 // ---------------------------------------------------
 // Redis connection configuration
@@ -821,11 +863,31 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 
 		const fileExt = s3Key.split('.').pop().toLowerCase();
 
-		// 1. Download & memory warning
-		const memBefore = process.memoryUsage().heapUsed / 1024 / 1024;
-		const fileStream = await downloadFromS3(s3Key);
-		buffer = await streamToBuffer(fileStream);
-		const memAfter = process.memoryUsage().heapUsed / 1024 / 1024;
+			// 1. Download & memory warning
+			const memBefore = process.memoryUsage().heapUsed / 1024 / 1024;
+			const fileStream = await downloadFromS3(s3Key);
+			const downloadTimeoutMs = Math.max(
+				30000,
+				Number(process.env.RESUME_DOWNLOAD_TIMEOUT_MS || 120000),
+			);
+			buffer = await Promise.race([
+				streamToBuffer(fileStream),
+				new Promise((_, reject) =>
+					setTimeout(() => {
+						try {
+							fileStream.destroy();
+						} catch (_) {
+							// no-op
+						}
+						reject(
+							new Error(
+								`S3_DOWNLOAD_TIMEOUT: Downloading ${s3Key} exceeded ${downloadTimeoutMs}ms`,
+							),
+						);
+					}, downloadTimeoutMs),
+				),
+			]);
+			const memAfter = process.memoryUsage().heapUsed / 1024 / 1024;
 		const memUsedByFile = Math.round((memAfter - memBefore) * 10) / 10;
 		if (memAfter > 400) {
 			logger.warn(`⚠️ HIGH MEMORY: ${Math.round(memAfter)}MB of 512MB used after loading ${s3Key} (+${memUsedByFile}MB)`);
@@ -1391,6 +1453,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				let sourceStream;
 				const fileStream = await getFileStream(filePath);
 
+				// Detect the file delimiter (comma or tab) for proper parsing
+				const detectedDelimiter = await detectFileDelimiter(filePath);
+
 				if (isXlsx) {
 					const buffer = await streamToBuffer(fileStream);
 					const workbook = xlsx.read(buffer, { type: "buffer" });
@@ -1408,6 +1473,7 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 					headers: false, // ✅ RAW MODE: Get raw arrays to validate column count manually
 					strict: false,
 					skipEmptyLines: false, // Don't skip empty lines - we want to preserve empty cells
+					delimiter: detectedDelimiter, // ✅ Use detected delimiter (comma or tab)
 				});
 
 				// Handle CSV parser errors without stopping the stream

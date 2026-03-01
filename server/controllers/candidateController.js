@@ -38,6 +38,7 @@ import {
 	getAllowedEnrichmentFields,
 	sanitizeUpdateValue,
 } from "../utils/enrichmentService.js";
+import { detectDelimiter, parseCsvLineWithDelimiter } from "../utils/delimiterDetector.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -158,8 +159,9 @@ export const getFileHeaders = async (req, res) => {
 						headersReceived = true;
 						clearTimeout(timeoutId);
 
-						// Parse CSV header line manually (faster than csv-parser for single line)
-						const headers = parseCsvLine(line);
+						// Detect delimiter and parse CSV header line
+						const delimiter = detectDelimiter(line, path.extname(filePath));
+						const headers = parseCsvLineWithDelimiter(line, delimiter);
 
 						rl.close();
 						s3Stream.destroy();
@@ -351,17 +353,25 @@ export const uploadChunk = async (req, res) => {
 					crlfDelay: Infinity,
 				});
 
+				let firstLine = '';
 				for await (const line of rl) {
 					if (line && line.trim()) {
+						firstLine = line;
 						rl.close();
 						fileStream.destroy();
-						return parseCsvLine(line);
+						break;
 					}
 				}
 
-				rl.close();
-				fileStream.destroy();
-				return [];
+				if (!firstLine) {
+					rl.close();
+					fileStream.destroy();
+					return [];
+				}
+
+				// Detect the delimiter (comma or tab) and parse accordingly
+				const delimiter = detectDelimiter(firstLine, path.extname(finalFilePath));
+				return parseCsvLineWithDelimiter(firstLine, delimiter);
 			}
 		} catch (err) {
 			console.error("❌ Manual header read failed:", err);
@@ -415,18 +425,24 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) =
 
 	const running = new Set();
 	const schedule = async (s3Key) => {
-		const task = (async () => {
-			try {
-				await processResumeJob({
-					jobId,
-					s3Key,
-					skipAutoFinalize: true,
-					skipIfExists: !!skipExisting,
-				});
-			} catch (error) {
+		const task = Promise.race([
+			processResumeJob({
+				jobId,
+				s3Key,
+				skipAutoFinalize: true,
+				skipIfExists: !!skipExisting,
+			}),
+			new Promise((_, reject) =>
+				setTimeout(
+					() => reject(new Error(`FILE_TIMEOUT: Processing ${s3Key} exceeded timeout`)),
+					Math.max(60000, Number(process.env.RESUME_FILE_TIMEOUT_MS || 300000)),
+				),
+			),
+		])
+			.catch((error) => {
 				console.error(`Direct resume processing failed for ${s3Key}:`, error?.message || error);
-			}
-		})().finally(() => running.delete(task));
+			})
+			.finally(() => running.delete(task));
 
 		running.add(task);
 		if (running.size >= directConcurrency) {
@@ -816,10 +832,56 @@ export const processFile = async (req, res) => {
 export const resumeUploadJob = async (req, res) => {
 	try {
 		const { id } = req.params;
+		const { forceReparse = false } = req.body || {};
 		const job = await UploadJob.findById(id);
 
 		if (!job) {
 			return res.status(404).json({ message: "Job not found" });
+		}
+
+		const isResumeFolderJob =
+			String(job.fileName || "").endsWith("/") ||
+			(Array.isArray(job.headers) && job.headers.includes("Resume Import"));
+
+		// Resume bulk resume import jobs using the resume-folder pipeline
+		if (isResumeFolderJob) {
+			const allowReparse =
+				String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "false").toLowerCase() === "true";
+			const skipExisting = forceReparse && allowReparse ? false : true;
+			const normalizedFolderPath = String(job.fileName || "").trim().replace(/^\/+/, "");
+			const s3Prefix = normalizedFolderPath.endsWith("/")
+				? normalizedFolderPath
+				: `${normalizedFolderPath}/`;
+
+			await UploadJob.findByIdAndUpdate(id, {
+				status: "PROCESSING",
+				error: null,
+				completedAt: null,
+			});
+
+			setImmediate(async () => {
+				try {
+					await runDirectResumeImport({
+						jobId: job._id,
+						s3Prefix,
+						skipExisting,
+					});
+				} catch (err) {
+					const errorMsg = err?.message || String(err) || "Resume import restart failed";
+					console.error(`❌ Resume-folder restart failed for job ${id}:`, err);
+					await UploadJob.findByIdAndUpdate(id, {
+						status: "FAILED",
+						error: "Resume import restart failed: " + errorMsg,
+					}).catch(() => {});
+				}
+			});
+
+			return res.json({
+				message: "Resume-folder job restart triggered",
+				jobId: id,
+				skipExisting,
+				forceReparse: !!(forceReparse && allowReparse),
+			});
 		}
 
 		// Resume from the last recorded totalRows (which acts as the processed count)
@@ -837,25 +899,107 @@ export const resumeUploadJob = async (req, res) => {
 		});
 
 		// Trigger processing
-		processCsvJob({
-			jobId: job._id,
-			resumeFrom: resumeFrom,
-			initialSuccess: job.successRows,
-			initialFailed: job.failedRows
-		}).catch(async (err) => {
-			const errorMsg = err.message || String(err) || "Resume failed";
-			console.error(`❌ Resume failed for job ${id}:`, err);
-			await UploadJob.findByIdAndUpdate(id, {
-				status: "FAILED",
-				error: "Resume failed: " + err.message,
-				error: "Resume failed: " + errorMsg
+			processCsvJob({
+				jobId: job._id,
+				resumeFrom: resumeFrom,
+				initialSuccess: job.successRows,
+				initialFailed: job.failedRows
+			}).catch(async (err) => {
+				const errorMsg = err.message || String(err) || "Resume failed";
+				console.error(`❌ Resume failed for job ${id}:`, err);
+				await UploadJob.findByIdAndUpdate(id, {
+					status: "FAILED",
+					error: "Resume failed: " + errorMsg
+				});
 			});
-		});
 
 		res.json({ message: "Job resumed successfully", resumeFrom });
 	} catch (error) {
 		console.error("Error resuming job:", error);
 		res.status(500).json({ message: error.message });
+	}
+};
+
+// --- PROCESS RESUME FOLDER (Simple Direct Processing) ---
+// This endpoint directly processes a resume folder without Redis queue
+// Perfect for on-demand processing of pending resume folders
+export const processResumeFolder = async (req, res) => {
+	try {
+		// ✅ CORS is handled by global middleware in server.js
+		// No need to manually set headers - credentials and origin whitelisting are already configured
+		
+		const { folderPath } = req.body;
+		const { forceReparse = false } = req.body || {};
+
+		if (!folderPath || !String(folderPath).includes('/')) {
+			return res.status(400).json({
+				message: "Invalid folder path. Must be an S3 folder (e.g., 'Resumes 2/')",
+				example: { folderPath: "Resumes 2/", forceReparse: false }
+			});
+		}
+
+		const normalizedPath = String(folderPath).trim().replace(/^\/+/, '');
+		const s3Prefix = normalizedPath.endsWith('/') ? normalizedPath : `${normalizedPath}/`;
+
+		// Check if a job already exists for this folder
+		let existingJob = await UploadJob.findOne({
+			fileName: s3Prefix,
+			isDeleted: false
+		}).lean();
+
+		if (!existingJob) {
+			// Create new job record
+			existingJob = await UploadJob.create({
+				fileName: s3Prefix,
+				originalName: `Resume Folder: ${s3Prefix}`,
+				uploadedBy: req.user._id,
+				status: "PROCESSING",
+				headers: ["Resume Import"], // Marker for folder jobs
+				totalRows: 0,
+				successRows: 0,
+				failedRows: 0
+			});
+		} else if (existingJob.status !== "PROCESSING") {
+			// Resume existing job
+			await UploadJob.findByIdAndUpdate(existingJob._id, {
+				status: "PROCESSING",
+				error: null,
+				completedAt: null
+			});
+		}
+
+		// Start processing asynchronously in background
+		// Don't await - return response immediately
+		setImmediate(async () => {
+			try {
+				const skipExisting = forceReparse ? false : true;
+				await runDirectResumeImport({
+					jobId: existingJob._id,
+					s3Prefix,
+					skipExisting
+				});
+			} catch (err) {
+				console.error(`Resume folder processing failed: ${err?.message || err}`);
+				await UploadJob.findByIdAndUpdate(existingJob._id, {
+					status: "FAILED",
+					error: String(err?.message || err).slice(0, 500)
+				}).catch(() => {});
+			}
+		});
+
+		res.json({
+			message: "Resume folder processing started",
+			jobId: existingJob._id,
+			folderPath: s3Prefix,
+			skipExisting: forceReparse ? false : true,
+			checkStatusUrl: `/api/candidates/job/${existingJob._id}/status`
+		});
+	} catch (error) {
+		console.error("Error starting resume folder processing:", error);
+		res.status(500).json({
+			message: "Failed to start resume folder processing",
+			error: error.message
+		});
 	}
 };
 
@@ -919,14 +1063,42 @@ export const getUploadHistory = async (req, res) => {
 // --- GET JOB STATUS (For Live Updates) ---
 export const getJobStatus = async (req, res) => {
 	try {
-		const job = await UploadJob.findById(req.params.id).populate(
-			"uploadedBy",
-			"name email",
-		);
-		if (!job) return res.status(404).json({ message: "Job not found" });
-		res.json(job);
+		// ✅ CORS is handled by global middleware in server.js
+		// ✅ PERFORMANCE FIX: Use .lean() for read-only query
+		// Returns plain JS object, not Mongoose document - much faster for polling
+		
+		const { id } = req.params;
+		const job = await UploadJob.findById(id).lean();
+
+		if (!job) {
+			return res.status(404).json({ message: "Job not found" });
+		}
+
+		// Calculate progress percentage for UI
+		const total = job.totalRows || 0;
+		const processed = (job.successRows || 0) + (job.failedRows || 0);
+		const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+		// Return lightweight progress object
+		res.json({
+			status: job.status,
+			totalRows: job.totalRows,
+			successRows: job.successRows,
+			failedRows: job.failedRows,
+			error: job.error,
+			progress: {
+				percentage,
+				processed,
+				total,
+				pending: Math.max(0, total - processed),
+			},
+		});
 	} catch (error) {
-		res.status(500).json({ message: error.message });
+		console.error(`[getJobStatus] Error for ID ${req.params.id}:`, error.message);
+		res.status(500).json({
+			message: "Failed to fetch job status",
+			error: error.message,
+		});
 	}
 };
 
@@ -3133,51 +3305,161 @@ export const getEnrichmentAuditLogs = async (req, res) => {
 };
 
 // --- AI SEARCH QUERY ANALYSIS ---
+const AI_SEARCH_FILTER_DEFAULTS = Object.freeze({
+	q: "",
+	jobTitle: "",
+	location: "",
+	skills: "",
+	experience: 0,
+	hasEmail: false,
+	hasPhone: false,
+	hasLinkedin: false,
+});
+
+const normalizeAiSearchText = (value, maxLength = 160) =>
+	String(value || "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, maxLength);
+
+const normalizeSkillsCsv = (value, maxSkills = 12) => {
+	const normalized = Array.isArray(value) ? value.join(",") : String(value || "");
+	if (!normalized) return "";
+
+	const tokens = normalized
+		.split(/[;,]/)
+		.map((token) => token.trim())
+		.filter(Boolean)
+		.filter((token) => token.length >= 2)
+		.slice(0, 50);
+
+	const deduped = [];
+	const seen = new Set();
+	for (const token of tokens) {
+		const key = token.toLowerCase();
+		if (!seen.has(key)) {
+			seen.add(key);
+			deduped.push(token);
+		}
+		if (deduped.length >= maxSkills) break;
+	}
+
+	return deduped.join(", ");
+};
+
+const normalizeExperience = (value) => {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return Math.min(50, Math.max(0, Math.floor(value)));
+	}
+
+	const text = String(value || "").trim().toLowerCase();
+	if (!text) return 0;
+
+	const rangeMatch = text.match(/(\d{1,2})\s*(?:-|\sto\s)\s*(\d{1,2})/i);
+	if (rangeMatch) {
+		return Math.min(50, Math.max(0, Number(rangeMatch[1]) || 0));
+	}
+
+	const plusMatch = text.match(/(\d{1,2})\s*\+/);
+	if (plusMatch) {
+		return Math.min(50, Math.max(0, Number(plusMatch[1]) || 0));
+	}
+
+	const yearsMatch = text.match(/(\d{1,2})\s*(?:years?|yrs?|y)\b/i);
+	if (yearsMatch) {
+		return Math.min(50, Math.max(0, Number(yearsMatch[1]) || 0));
+	}
+
+	const genericMatch = text.match(/(\d{1,2})/);
+	return genericMatch ? Math.min(50, Math.max(0, Number(genericMatch[1]) || 0)) : 0;
+};
+
+const normalizeBoolean = (value) =>
+	value === true ||
+	value === 1 ||
+	String(value || "")
+		.trim()
+		.toLowerCase() === "true";
+
+const inferContactFlags = (query) => {
+	const text = String(query || "").toLowerCase();
+	return {
+		email: /\b(email|mail id|mail)\b/.test(text),
+		phone: /\b(phone|mobile|contact number|call)\b/.test(text),
+		linkedin: /\b(linked[\s-]?in|linkedin profile|li profile)\b/.test(text),
+	};
+};
+
+const sanitizeAnalyzedSearchFilters = (rawFilters, originalQuery) => {
+	const inferredFlags = inferContactFlags(originalQuery);
+	const q = normalizeAiSearchText(rawFilters?.q || "");
+	const jobTitle = normalizeAiSearchText(rawFilters?.jobTitle || "", 100);
+	const location = normalizeAiSearchText(rawFilters?.location || "", 100);
+	const skills = normalizeSkillsCsv(rawFilters?.skills || "");
+	const experience = normalizeExperience(rawFilters?.experience);
+
+	const hasEmail = normalizeBoolean(rawFilters?.hasEmail) || inferredFlags.email;
+	const hasPhone = normalizeBoolean(rawFilters?.hasPhone) || inferredFlags.phone;
+	const hasLinkedin = normalizeBoolean(rawFilters?.hasLinkedin) || inferredFlags.linkedin;
+
+	return {
+		...AI_SEARCH_FILTER_DEFAULTS,
+		q: q && q.toLowerCase() !== jobTitle.toLowerCase() ? q : q && !jobTitle ? q : "",
+		jobTitle,
+		location,
+		skills,
+		experience,
+		hasEmail,
+		hasPhone,
+		hasLinkedin,
+	};
+};
+
 export const analyzeSearchQuery = async (req, res) => {
 	try {
 		const { query } = req.body;
-		if (!query) return res.status(400).json({ message: "Query is required" });
+		if (!query || !String(query).trim()) {
+			return res.status(400).json({ message: "Query is required" });
+		}
 
-		const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-		if (!apiKey) return res.status(500).json({ message: "OpenAI API key not configured" });
+		const apiKey = process.env.OPENAI_API_KEY;
+		if (!apiKey) {
+			return res.status(500).json({ message: "OPENAI_API_KEY not configured on server" });
+		}
 
 		const systemPrompt = `
-			You are a recruitment search assistant. Analyze the following user query and extract search filters.
-			
-			Rules:
-			1. Normalize "jobTitle" to singular form (e.g., "Developer" instead of "Developers").
-			2. Extract skills from the query and job title (e.g., "Python Developer" -> skills: "Python").
-			3. Extract years of experience as a number (e.g., "5 years experience" -> experience: 5).
-			4. For "q", remove generic words like "experienced", "needed", and also remove the experience part that is now in its own field.
+You are a precise recruiter search parser.
+Extract only what is explicitly present in the input.
+Never guess unknown fields.
 
-			Return ONLY a valid JSON object with the following keys:
-			- q: (string) General keywords not covered by other filters
-			- jobTitle: (string) Job title (singular)
-			- location: (string) Location or city
-			- skills: (string) Comma-separated skills
-			- experience: (number) Minimum years of experience as a number. Default to 0 if not mentioned.
-			- hasEmail: (boolean) true if email/contact info is requested
-			- hasPhone: (boolean) true if phone number is requested
-			- hasLinkedin: (boolean) true if LinkedIn profile is requested
-			
-			If a field is not mentioned, use empty string or false.
-		`;
+Output rules:
+1) Return ONLY valid JSON.
+2) Use these exact keys: q, jobTitle, location, skills, experience, hasEmail, hasPhone, hasLinkedin.
+3) q: leftover search intent not already captured by other fields.
+4) jobTitle: normalized role title.
+5) location: city/state/country terms from input.
+6) skills: comma-separated technical skills only.
+7) experience: minimum years as integer (0 if absent).
+8) Contact flags should be true only if explicitly requested.
+9) Keep values concise and high precision.
+`;
 
 		const response = await fetch("https://api.openai.com/v1/chat/completions", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"Authorization": `Bearer ${apiKey}`
+				Authorization: `Bearer ${apiKey}`,
 			},
 			body: JSON.stringify({
 				model: "gpt-4o-mini",
 				messages: [
 					{ role: "system", content: systemPrompt },
-					{ role: "user", content: query }
+					{ role: "user", content: String(query) },
 				],
 				response_format: { type: "json_object" },
-				temperature: 0.1
-			})
+				temperature: 0.0,
+				max_tokens: 260,
+			}),
 		});
 
 		if (!response.ok) {
@@ -3187,11 +3469,12 @@ export const analyzeSearchQuery = async (req, res) => {
 
 		const data = await response.json();
 		const content = data.choices?.[0]?.message?.content;
+		const rawFilters = JSON.parse(content || "{}");
+		const filters = sanitizeAnalyzedSearchFilters(rawFilters, query);
 
-		const filters = JSON.parse(content || "{}");
-		res.json(filters);
+		return res.json(filters);
 	} catch (error) {
 		console.error("AI Search Error:", error);
-		res.status(500).json({ message: error.message || "Failed to analyze search query" });
+		return res.status(500).json({ message: error.message || "Failed to analyze search query" });
 	}
 };

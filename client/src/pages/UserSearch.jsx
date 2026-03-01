@@ -41,6 +41,70 @@ import FilterImage from "../assets/filtering.svg";
 import GetContactButton from "../components/GetContactButton";
 
 const PAGE_SIZE = 50; // Smaller page size to return first results faster
+const DEFAULT_SEARCH_FILTERS = Object.freeze({
+	location: "",
+	jobTitle: "",
+	skills: "",
+	experience: "",
+	hasEmail: false,
+	hasPhone: false,
+	hasLinkedin: false,
+});
+
+const normalizeAiSearchText = (value, maxLen = 160) =>
+	String(value || "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, maxLen);
+
+const normalizeAiFilterPayload = (raw = {}) => {
+	const normalizeBoolean = (value) =>
+		value === true ||
+		value === 1 ||
+		String(value || "")
+			.trim()
+			.toLowerCase() === "true";
+
+	const normalizeExperience = (value) => {
+		if (typeof value === "number" && Number.isFinite(value)) {
+			return String(Math.max(0, Math.floor(value)));
+		}
+		const str = String(value || "").trim();
+		if (!str) return "";
+		const range = str.match(/(\d{1,2})\s*(?:-|\sto\s)\s*(\d{1,2})/i);
+		if (range) return String(Math.max(0, Number(range[1]) || 0));
+		const single = str.match(/(\d{1,2})/);
+		return single ? String(Math.max(0, Number(single[1]) || 0)) : "";
+	};
+
+	const skills = String(raw.skills || "")
+		.split(/[;,]/)
+		.map((s) => s.trim())
+		.filter(Boolean)
+		.filter((s) => s.length >= 2)
+		.slice(0, 12);
+
+	const uniqueSkills = [];
+	const seen = new Set();
+	for (const skill of skills) {
+		const key = skill.toLowerCase();
+		if (!seen.has(key)) {
+			seen.add(key);
+			uniqueSkills.push(skill);
+		}
+	}
+
+	return {
+		...DEFAULT_SEARCH_FILTERS,
+		jobTitle: normalizeAiSearchText(raw.jobTitle, 100),
+		location: normalizeAiSearchText(raw.location, 100),
+		skills: uniqueSkills.join(", "),
+		experience: normalizeExperience(raw.experience),
+		hasEmail: normalizeBoolean(raw.hasEmail),
+		hasPhone: normalizeBoolean(raw.hasPhone),
+		hasLinkedin: normalizeBoolean(raw.hasLinkedin),
+	};
+};
 
 // Helper to format location (Capitalize & Deduplicate)
 const formatLocation = (locality, location) => {
@@ -259,20 +323,11 @@ const UserSearch = () => {
 	);
 
 	const [filters, setFilters] = useState(() => {
-		const defaultFilters = {
-			location: "",
-			jobTitle: "",
-			skills: "",
-			experience: "",
-			hasEmail: false,
-			hasPhone: false,
-			hasLinkedin: false,
-		};
 		try {
 			const saved = localStorage.getItem("hirextra_filters");
-			return saved ? { ...defaultFilters, ...JSON.parse(saved) } : defaultFilters;
+			return saved ? { ...DEFAULT_SEARCH_FILTERS, ...JSON.parse(saved) } : DEFAULT_SEARCH_FILTERS;
 		} catch (e) {
-			return defaultFilters;
+			return DEFAULT_SEARCH_FILTERS;
 		}
 	});
 
@@ -400,28 +455,27 @@ const UserSearch = () => {
 		const toastId = toast.loading("AI is analyzing your requirements...");
 
 		try {
-			const { data: extracted } = await api.post("/candidates/analyze-search", { query: aiQuery });
-			
-			if (extracted) {
-				setSearchInput(extracted.q || "");
-				setFilters(prev => ({
-					...prev,
-					jobTitle: extracted.jobTitle || "",
-					location: extracted.location || "",
-					skills: extracted.skills || "",
-					experience: extracted.experience || "",
-					hasEmail: extracted.hasEmail || false,
-					hasPhone: extracted.hasPhone || false,
-					hasLinkedin: extracted.hasLinkedin || false
-				}));
+			const { data: extracted } = await api.post("/candidates/analyze-search", {
+				query: aiQuery.trim(),
+			});
 
-				// Apply search immediately
-				setAppliedSearchInput(extracted.q || "");
-				setAppliedFilters(extracted); // extracted matches structure mostly, but let's be safe if we pass extra keys it's fine or we can map explicitly
-				setSelectedIds(new Set());
-				setIsSearchApplied(true);
-				toast.success("Filters applied!", { id: toastId });
-			}
+			const nextFilters = normalizeAiFilterPayload(extracted || {});
+			const nextSearchInput = normalizeAiSearchText(extracted?.q || "");
+			const hasAnyAiFilter = Object.values(nextFilters).some(
+				(v) => v !== "" && v !== false,
+			);
+
+			setSearchInput(nextSearchInput);
+			setFilters(nextFilters);
+
+			// Apply search immediately with sanitized shape only
+			setAppliedSearchInput(nextSearchInput);
+			setAppliedFilters(nextFilters);
+			setSelectedIds(new Set());
+			setIsSearchApplied(Boolean(nextSearchInput || hasAnyAiFilter));
+			setAiQuery("");
+
+			toast.success("AI requirements applied to filters.", { id: toastId });
 		} catch (err) {
 			const errorMessage = err.response?.data?.message || err.message || "AI Search failed";
 			toast.error(errorMessage, { id: toastId });
@@ -568,17 +622,9 @@ const UserSearch = () => {
 
 	const clearAllFilters = useCallback(() => {
 		setSearchInput("");
-		setFilters({
-			location: "",
-			jobTitle: "",
-			skills: "",
-			experience: "",
-			hasEmail: false,
-			hasPhone: false,
-			hasLinkedin: false,
-		});
+		setFilters(DEFAULT_SEARCH_FILTERS);
 		setAppliedSearchInput("");
-		setAppliedFilters({ location: "", jobTitle: "", skills: "", experience: "", hasEmail: false, hasPhone: false, hasLinkedin: false });
+		setAppliedFilters(DEFAULT_SEARCH_FILTERS);
 		setSelectedIds(new Set());
 		setIsSearchApplied(false);
 	}, []);

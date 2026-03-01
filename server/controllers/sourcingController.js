@@ -69,6 +69,32 @@ export const sourceCandidates = async (req, res) => {
     logger.info(`✅ Target countries: ${targetCountries.join(', ')}`);
 
     // Step 4: Search across countries
+    if (!cseService.isConfigured()) {
+      return res.status(200).json({
+        message:
+          'Job description parsed successfully. Candidate discovery is disabled until GOOGLE_CSE_API_KEY is configured.',
+        candidates: [],
+        metadata: {
+          parseOnly: true,
+          parseOnlyReason:
+            'GOOGLE_CSE_API_KEY is not configured. Candidate discovery and enrichment were skipped.',
+          jobTitle: parsed.job_title?.main || 'Unknown',
+          skills: parsed.must_have_skills || [],
+          mustHaveSkills: parsed.must_have_skills || [],
+          niceToHaveSkills: parsed.nice_to_have_skills || [],
+          experienceLevel: parsed.experience_level || 'Unknown',
+          experienceYears: parsed.experience_years || 0,
+          location: parsed.location || 'Unknown',
+          remote: Boolean(parsed.remote),
+          searchQueries,
+          countriesSearched: targetCountries.length,
+          totalExtracted: 0,
+          contactsEnriched: 0,
+          timeMs: Date.now() - startTime,
+        },
+      });
+    }
+
     logger.info(`🔎 Step 4: Searching across ${targetCountries.length} countries...`);
     const allResults = [];
 
@@ -121,13 +147,12 @@ export const sourceCandidates = async (req, res) => {
             name: candidate.name,
             company: candidate.company,
           });
-
-          if (enriched && enriched.contact) {
+          if (enriched && (enriched.email || enriched.phone)) {
             candidates[i].contact = {
-              email: enriched.contact.email,
-              phone: enriched.contact.phone,
-              confidence: enriched.contact.confidence,
-              source: enriched.contact.source,
+              email: enriched.email,
+              phone: enriched.phone,
+              confidence: enriched.confidence,
+              source: enriched.source,
             };
           }
 
@@ -456,3 +481,4 @@ export default {
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
 };
+

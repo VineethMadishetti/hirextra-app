@@ -24,7 +24,7 @@ const enrichedContactSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['skrapp', 'pdl', 'lusha', 'cached', 'manual'],
+      enum: ['skrapp', 'pdl', 'lusha', 'cached', 'manual', 'failed', 'error'],
       required: true,
     },
 

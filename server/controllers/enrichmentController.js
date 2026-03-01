@@ -3,12 +3,15 @@ import EnrichedContact from '../models/EnrichedContact.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 
+const PERSISTENT_CONTACT_EXPIRY = new Date('2999-12-31T00:00:00.000Z');
+
 /**
  * Enrich single candidate with email/phone
  * GET /api/enrich-contact/:candidateId
  */
 export const enrichContact = async (req, res) => {
   const { candidateId } = req.params;
+  const forceRefresh = req.query.force === 'true';
 
   try {
     // Validate candidate exists
@@ -27,27 +30,39 @@ export const enrichContact = async (req, res) => {
     }).lean();
 
     if (enrichedContact) {
-      logger.info(`📦 Cache hit for candidate ${candidateId}`);
-      return res.json({
-        success: true,
-        data: {
-          candidateId,
-          email: enrichedContact.email,
-          phone: enrichedContact.phone,
-          linkedinUrl: enrichedContact.linkedinUrl,
-          confidence: enrichedContact.confidence,
-          source: enrichedContact.source,
-          verifiedAt: enrichedContact.verifiedAt,
-          cachedAt: enrichedContact.createdAt,
-        },
-      });
+      const hasCachedContact = Boolean(enrichedContact.email || enrichedContact.phone);
+      const isFailureCache = !hasCachedContact;
+
+      if (!(forceRefresh && isFailureCache)) {
+        logger.info(`Cache hit for candidate ${candidateId}`);
+        return res.json({
+          success: true,
+          data: {
+            candidateId,
+            email: enrichedContact.email,
+            phone: enrichedContact.phone,
+            linkedinUrl: enrichedContact.linkedinUrl,
+            confidence: enrichedContact.confidence,
+            source: enrichedContact.source,
+            error: enrichedContact.lastError || null,
+            verifiedAt: enrichedContact.verifiedAt,
+            cachedAt: enrichedContact.createdAt,
+          },
+        });
+      }
+
+      logger.info(`Bypassing failure cache for candidate ${candidateId} (force=true)`);
     }
 
     // Not in cache, run enrichment
-    logger.info(`🔍 Starting enrichment for candidate ${candidateId}`);
+    logger.info(`Starting enrichment for candidate ${candidateId}`);
     const result = await contactEnrichmentService.enrichCandidate(candidate);
 
-    // Save to cache (even errors, to avoid repeated API calls)
+    if (result.source === 'error' && !result.email && !result.phone) {
+      throw new Error(result.error || 'Contact enrichment provider unavailable');
+    }
+
+    // Save to cache (including failed lookups)
     if (result.email || result.phone) {
       await EnrichedContact.updateOne(
         { candidateId },
@@ -59,7 +74,8 @@ export const enrichContact = async (req, res) => {
           confidence: result.confidence || 0,
           source: result.source,
           verifiedAt: result.verifiedAt,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          // Keep successful enrichments effectively permanent (non-ephemeral)
+          expiresAt: PERSISTENT_CONTACT_EXPIRY,
         },
         { upsert: true }
       );
@@ -77,16 +93,15 @@ export const enrichContact = async (req, res) => {
         }
       );
 
-      logger.info(`✅ Enrichment successful for ${candidateId}: ${result.source}`);
+      logger.info(`Enrichment successful for ${candidateId}: ${result.source}`);
     } else {
-      // Cache the failure to avoid repeated API calls
       await EnrichedContact.updateOne(
         { candidateId },
         {
           candidateId,
           email: null,
           phone: null,
-          source: result.source,
+          source: result.source || 'failed',
           lastError: result.error,
           errorCount: (await EnrichedContact.findOne({ candidateId }))?.errorCount + 1 || 1,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7-day TTL for failures
@@ -94,7 +109,7 @@ export const enrichContact = async (req, res) => {
         { upsert: true }
       );
 
-      logger.warn(`⚠️ Enrichment failed for ${candidateId}: ${result.error}`);
+      logger.warn(`Enrichment failed for ${candidateId}: ${result.error}`);
     }
 
     return res.json({
@@ -106,11 +121,12 @@ export const enrichContact = async (req, res) => {
         linkedinUrl: result.linkedinUrl || candidate.linkedinUrl,
         confidence: result.confidence || 0,
         source: result.source,
+        error: result.error || null,
         verifiedAt: result.verifiedAt,
       },
     });
   } catch (error) {
-    logger.error(`❌ Enrichment error for ${candidateId}:`, error.message);
+    logger.error(`Enrichment error for ${candidateId}:`, error.message);
     return res.status(500).json({
       success: false,
       error: 'Enrichment failed',
@@ -118,7 +134,6 @@ export const enrichContact = async (req, res) => {
     });
   }
 };
-
 /**
  * Bulk enrich multiple candidates
  * POST /api/enrich-contact/bulk
@@ -189,7 +204,8 @@ export const enrichContactBulk = async (req, res) => {
                 confidence: result.confidence || 0,
                 source: result.source,
                 verifiedAt: result.verifiedAt,
-                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                // Keep successful enrichments effectively permanent (non-ephemeral)
+                expiresAt: PERSISTENT_CONTACT_EXPIRY,
               },
               { upsert: true }
             );
@@ -325,3 +341,4 @@ export const clearEnrichmentCache = async (req, res) => {
     });
   }
 };
+
