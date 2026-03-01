@@ -15,7 +15,9 @@ import {
   getDeleteHistory,
   importResumes,
   analyzeSearchQuery,
-  processResumeFolder
+  processResumeFolder,
+  checkRChilliStatus,
+  getJobDetails
 } from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -39,6 +41,8 @@ router.post('/process-folder', protect, adminOnly, processResumeFolder); // Proc
 router.get('/history', protect, adminOnly, getUploadHistory);
 router.get('/delete-history', protect, adminOnly, getDeleteHistory);
 router.get('/job/:id/status', protect, adminOnly, getJobStatus); // Get job status for live updates
+router.get('/job/:id/details', protect, adminOnly, getJobDetails); // ✅ NEW: Detailed job info with events
+router.get('/rchilli/status', protect, adminOnly, checkRChilliStatus); // ✅ NEW: Check RChilli credits
 router.get('/search', protect, searchCandidates); // All authenticated users can search
 router.post('/export', protect, exportCandidates); // Export selected candidates
 router.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() })); // Health check

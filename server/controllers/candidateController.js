@@ -3,7 +3,9 @@ import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
 import EnrichmentLog from "../models/EnrichmentLog.js";
+import ImportEvent from "../models/ImportEvent.js";
 import logger from "../utils/logger.js";
+import { checkRChilliCredits, hasEnoughCredits, logRChilliAttempt, clearCreditCache } from "../utils/rchilliService.js";
 import fs from "fs";
 import DeleteLog from "../models/DeleteLog.js";
 import csv from "csv-parser";
@@ -42,6 +44,141 @@ import { detectDelimiter, parseCsvLineWithDelimiter } from "../utils/delimiterDe
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ===== NEW: RCHILLI & IMPORT MANAGEMENT ENDPOINTS =====
+
+/**
+ * Check RChilli credits and import readiness
+ * GET /api/candidates/rchilli/status
+ */
+export const checkRChilliStatus = async (req, res) => {
+	try {
+		const creditInfo = await checkRChilliCredits();
+		
+		if (creditInfo.status === 'error') {
+			return res.status(200).json({
+				canImport: false,
+				creditStatus: 'unknown',
+				error: creditInfo.error,
+				message: 'Unable to verify RChilli credits',
+				recommendation: 'Check your RChilli API key configuration'
+			});
+		}
+
+		const { remaining, percentage } = creditInfo;
+		const canImport = remaining >= 100 && percentage > 0;
+
+		res.json({
+			canImport,
+			creditStatus: percentage < 10 ? 'critical' : percentage < 30 ? 'warning' : 'ok',
+			remaining,
+			total: creditInfo.total,
+			percentage,
+			message: canImport ? 'Ready to import' : 'Insufficient credits',
+			recommendation: canImport ? null : 'Please recharge RChilli account'
+		});
+	} catch (error) {
+		console.error('[checkRChilliStatus] Error:', error.message);
+		res.status(500).json({
+			canImport: false,
+			error: error.message,
+			message: 'Error checking RChilli status'
+		});
+	}
+};
+
+/**
+ * Get detailed import job with events and error history
+ * GET /api/candidates/job/:id/details
+ */
+export const getJobDetails = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const job = await UploadJob.findById(id).lean();
+
+		if (!job) {
+			return res.status(404).json({ message: "Job not found" });
+		}
+
+		// Get recent import events for this job
+		const events = await ImportEvent.find({ jobId: id })
+			.sort({ createdAt: -1 })
+			.limit(50)
+			.lean();
+
+		// Get error summary
+		const errorEvents = events.filter(e => e.severity === 'ERROR' || e.severity === 'CRITICAL');
+		const lastError = errorEvents[0] || null;
+
+		// Calculate progress details
+		const total = job.totalRows || 0;
+		const processed = (job.successRows || 0) + (job.failedRows || 0);
+		const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
+		const estimatedTimeRemaining = processed > 0 
+			? Math.ceil((total - processed) / (processed / Math.max(1, (Date.now() - new Date(job.createdAt).getTime()) / 1000 / 60)))
+			: 0;
+
+		res.json({
+			job: {
+				id: job._id,
+				fileName: job.fileName,
+				status: job.status,
+				totalRows: job.totalRows,
+				successRows: job.successRows,
+				failedRows: job.failedRows,
+				error: job.error,
+				createdAt: job.createdAt,
+				updatedAt: job.updatedAt,
+				completedAt: job.completedAt
+			},
+			progress: {
+				percentage,
+				processed,
+				total,
+				pending: Math.max(0, total - processed),
+				estimatedMinutesRemaining: estimatedTimeRemaining
+			},
+			lastError: lastError ? {
+				type: lastError.eventType,
+				message: lastError.details?.message,
+				severity: lastError.severity,
+				timestamp: lastError.createdAt,
+				credentials: lastError.details?.creditsRemaining
+			} : null,
+			recentEvents: events.slice(0, 10).map(e => ({
+				type: e.eventType,
+				message: e.details?.message,
+				severity: e.severity,
+				timestamp: e.createdAt
+			}))
+		});
+	} catch (error) {
+		console.error('[getJobDetails] Error:', error.message);
+		res.status(500).json({
+			message: "Failed to fetch job details",
+			error: error.message
+		});
+	}
+};
+
+/**
+ * Log an import event with error tracking
+ * (Internal use - called from import functions)
+ */
+export const logImportEvent = async (jobId, eventType, details = {}, severity = 'INFO') => {
+	try {
+		await ImportEvent.create({
+			jobId,
+			eventType,
+			details,
+			severity
+		});
+	} catch (error) {
+		console.error(`[logImportEvent] Failed to log ${eventType}:`, error.message);
+	}
+};
+
+// ===== END NEW ENDPOINTS =====
 
 // --- HELPER: Robust CSV Line Parser (ETL) ---
 // Handles quoted fields correctly (e.g. "Manager, Sales" is one column)
@@ -545,7 +682,25 @@ export const importResumes = async (req, res) => {
 	let createdJobId = null;
 	try {
 		const { folderPath, skipExisting, forceReparse = false } = req.body || {};
-		if (!folderPath) return res.status(400).json({ message: "Folder path is required" });
+		
+		if (!folderPath) {
+			return res.status(400).json({ message: "Folder path is required" });
+		}
+
+		// ✅ NEW: Check RChilli credits before starting import
+		console.log(`[importResumes] Checking RChilli credits for import from: ${folderPath}`);
+		const creditCheck = await hasEnoughCredits(10000, 50); // Estimate 10k resumes, min 50 credits
+		if (!creditCheck.sufficient) {
+			console.warn(`[importResumes] Insufficient RChilli credits:`, creditCheck);
+			return res.status(402).json({
+				message: creditCheck.reason,
+				canImport: false,
+				recommendation: creditCheck.recommendAction,
+				creditsRemaining: creditCheck.remaining,
+				creditsNeeded: creditCheck.estimated
+			});
+		}
+
 		const allowReparse = String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "false").toLowerCase() === "true";
 		const safeSkipExisting = forceReparse && allowReparse ? false : skipExisting !== false;
 		// Default to direct mode for resume imports to avoid Redis request caps on bulk folders.
@@ -563,19 +718,48 @@ export const importResumes = async (req, res) => {
 			? normalizedFolderPath
 			: `${normalizedFolderPath}/`;
 
-		// 2. Create Master Job
-		const job = await UploadJob.create({
-			fileName: s3Prefix,
-			originalName: `Bulk Import: ${path.basename(normalizedFolderPath)}`,
-			uploadedBy: req.user._id,
-			status: "PROCESSING",
-			totalRows: 0,
-			successRows: 0,
-			failedRows: 0,
-			headers: ["Resume Import"],
-			mapping: {},
-		});
-		createdJobId = job._id;
+		// ✅ NEW: Better job creation with error handling
+		let job;
+		try {
+			// 2. Create Master Job with retry logic
+			job = await UploadJob.create({
+				fileName: s3Prefix,
+				originalName: `Bulk Import: ${path.basename(normalizedFolderPath)}`,
+				uploadedBy: req.user._id,
+				status: "PROCESSING",
+				totalRows: 0,
+				successRows: 0,
+				failedRows: 0,
+				headers: ["Resume Import"],
+				mapping: {},
+			});
+			createdJobId = job._id;
+
+			// ✅ NEW: Log the import start event
+			await logImportEvent(createdJobId, 'IMPORT_STARTED', {
+				folderPath: s3Prefix,
+				skipExisting: safeSkipExisting,
+				queueMode: useQueueMode
+			}, 'INFO');
+
+			console.log(`[importResumes] Job created successfully: ${createdJobId}`);
+		} catch (jobCreationError) {
+			console.error(`[importResumes] Failed to create job:`, jobCreationError.message);
+			
+			// Log the failed job creation  
+			if (createdJobId) {
+				await logImportEvent(createdJobId, 'JOB_CREATED', {
+					message: `Job creation failed: ${jobCreationError.message}`,
+					error: jobCreationError.message
+				}, 'ERROR');
+			}
+			
+			return res.status(500).json({
+				message: "Failed to initialize import job",
+				error: jobCreationError.message,
+				recommendation: "Please try again. If problem persists, contact admin."
+			});
+		}
 
 		// Queue mode (BullMQ + Redis)
 		if (useQueueMode) {
@@ -700,14 +884,42 @@ export const importResumes = async (req, res) => {
 			skipExisting: !!safeSkipExisting,
 		});
 	} catch (error) {
-		console.error("Import Error:", error);
+		console.error("[importResumes] Fatal error:", error.message);
+		
+		// ✅ NEW: Better error logging and response
 		if (createdJobId) {
-			await UploadJob.findByIdAndUpdate(createdJobId, {
-				status: "FAILED",
-				error: String(error.message || error).slice(0, 1000),
-			}).catch(() => {});
+			try {
+				await UploadJob.findByIdAndUpdate(createdJobId, {
+					status: "FAILED",
+					error: String(error.message || error).slice(0, 1000),
+					completedAt: new Date()
+				});
+				
+				// Log the error event
+				await logImportEvent(createdJobId, 'IMPORT_FAILED', {
+					message: error.message,
+					errorCode: error.code,
+					stack: error.stack?.split('\n')[0]
+				}, 'ERROR');
+			} catch (logError) {
+				console.error("[importResumes] Failed to log error:", logError.message);
+			}
 		}
-		res.status(500).json({ message: error.message });
+		
+		// ✅ NEW: Better error response with actionable information
+		const isCreditsError = error.message?.toLowerCase().includes('credit');
+		const isS3Error = error.message?.toLowerCase().includes('s3') || error.message?.toLowerCase().includes('bucket');
+		
+		res.status(isCreditsError ? 402 : isS3Error ? 503 : 500).json({
+			message: "Import failed",
+			error: error.message,
+			jobId: createdJobId,
+			recommendation: isCreditsError 
+				? "Please recharge your RChilli account and try again"
+				: isS3Error
+				? "S3 connection error. Check your S3 configuration."
+				: "Please try again. If problem persists, contact admin."
+		});
 	}
 };
 
