@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import {
   AlertCircle,
   Briefcase,
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileSearch,
   Globe2,
@@ -22,7 +24,7 @@ const CARD_FONT = { fontFamily: '"Plus Jakarta Sans","Segoe UI",sans-serif' };
 
 function StatCard({ label, value, icon, tone = 'blue' }) {
   const tones = {
-    blue: 'bg-blue-950/35 border-blue-700/40 text-blue-100',
+    blue: 'bg-[#432DD7]/30 border-[#6B5AF0]/40 text-[#E3DEFF]',
     teal: 'bg-teal-950/35 border-teal-700/40 text-teal-100',
     amber: 'bg-amber-950/35 border-amber-700/40 text-amber-100',
     slate: 'bg-slate-900/80 border-slate-700 text-slate-100',
@@ -40,7 +42,7 @@ function StatCard({ label, value, icon, tone = 'blue' }) {
 
 const stageMeta = {
   DISCOVERED: { label: 'Discovered', className: 'bg-slate-800 text-slate-200 border-slate-700' },
-  CONTACT_ENRICHED: { label: 'Contact Enriched', className: 'bg-blue-950/45 text-blue-200 border-blue-700/50' },
+  CONTACT_ENRICHED: { label: 'Contact Enriched', className: 'bg-[#432DD7]/25 text-[#E3DEFF] border-[#6B5AF0]/50' },
   SEQUENCED: { label: 'Sequenced', className: 'bg-teal-950/45 text-teal-200 border-teal-700/50' },
   CALL_QUEUED: { label: 'Call Queued', className: 'bg-amber-950/45 text-amber-200 border-amber-700/50' },
   SHORTLISTED: { label: 'Shortlisted', className: 'bg-emerald-950/45 text-emerald-200 border-emerald-700/50' },
@@ -63,6 +65,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || responseData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim());
+  const hasParsedDraft = Boolean(parsedDraft);
   const candidates = useMemo(
     () => responseData?.candidates || responseData?.results || [],
     [responseData]
@@ -277,9 +280,9 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-[2px]" style={CARD_FONT}>
-      <div className="h-full w-full overflow-hidden border border-slate-800 bg-slate-950">
-        <div className="bg-[linear-gradient(110deg,#020617,#0f172a,#0f766e)] border-b border-slate-800 text-white px-6 py-5 flex items-center justify-between">
+    <div className="fixed inset-x-0 bottom-0 top-[72px] z-40 bg-slate-950/85 backdrop-blur-[2px]" style={CARD_FONT}>
+      <div className="mx-auto h-full max-w-7xl overflow-hidden rounded-t-2xl border border-slate-800 bg-slate-950">
+        <div className="bg-[linear-gradient(110deg,#020617,#1a1440,#432DD7)] border-b border-slate-800 text-white px-6 py-5 flex items-center justify-between">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Recruitment AI</p>
             <h2 className="text-2xl md:text-3xl font-bold mt-1">AI Sourcing Agent</h2>
@@ -290,7 +293,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        <div className="h-[calc(100%-102px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(30,64,175,0.14),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(20,184,166,0.12),transparent_35%)]">
+        <div className="h-[calc(100%-102px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
           {error && (
             <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
               <AlertCircle size={16} className="mt-0.5" />
@@ -300,25 +303,67 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
 
           {view === 'compose' && (
             <div className="mx-auto max-w-6xl">
+              {hasParsedDraft && (
+                <div className="mb-4 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 flex items-center justify-between">
+                  <button
+                    onClick={() => setComposeStep('input')}
+                    className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                      composeStep === 'input'
+                        ? 'bg-[#432DD7]/20 text-[#D8D0FF]'
+                        : 'text-slate-200 hover:bg-[#432DD7]/15 hover:text-white'
+                    }`}
+                  >
+                    <ChevronLeft size={16} />
+                    Back
+                  </button>
+
+                  <button
+                    onClick={handleStartSourcing}
+                    disabled={sourcing || extracting || !parsedRequirements}
+                    className="rounded-lg bg-[#432DD7] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#5A45E5] disabled:opacity-60"
+                  >
+                    Find Candidate
+                  </button>
+
+                  <button
+                    onClick={() => setComposeStep('parsed')}
+                    className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                      composeStep === 'parsed'
+                        ? 'bg-[#432DD7]/20 text-[#D8D0FF]'
+                        : 'text-slate-200 hover:bg-[#432DD7]/15 hover:text-white'
+                    }`}
+                  >
+                    Next
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+
               {composeStep === 'input' ? (
                 <div className="space-y-5">
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
+                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.25)]">
                       <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-400">Input</p>
-                      <h3 className="mt-1 text-xl font-bold text-slate-100">Describe Your Hiring Need</h3>
+                      <h3 className="mt-1 text-xl font-bold text-slate-100 inline-flex items-center gap-2">
+                        <FileSearch size={18} className="text-[#A99BFF]" />
+                        Describe Your Hiring Need
+                      </h3>
                       <textarea
                         value={jobDescription}
                         onChange={(e) => setJobDescription(e.target.value)}
                         placeholder="Paste JD text with role overview, must-have skills, location, years of experience, and hiring preferences."
-                        className="mt-4 h-64 w-full rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm text-slate-100 placeholder:text-slate-500 leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-4 h-64 w-full rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm text-slate-100 placeholder:text-slate-500 leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
 
-                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5 flex flex-col">
+                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5 flex flex-col transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.25)]">
                       <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-400">Document</p>
-                      <h3 className="mt-1 text-xl font-bold text-slate-100">Upload Job Description</h3>
-                      <label className="mt-4 flex-1 group block rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-6 text-center cursor-pointer transition-all hover:border-blue-500 hover:bg-slate-900">
-                        <UploadCloud size={22} className="mx-auto text-slate-400 group-hover:text-blue-400 transition-colors" />
+                      <h3 className="mt-1 text-xl font-bold text-slate-100 inline-flex items-center gap-2">
+                        <UploadCloud size={18} className="text-[#A99BFF]" />
+                        Upload Job Description
+                      </h3>
+                      <label className="mt-4 flex-1 group block rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-6 text-center cursor-pointer transition-all hover:border-[#6B5AF0] hover:bg-slate-900">
+                        <UploadCloud size={22} className="mx-auto text-slate-400 group-hover:text-[#A99BFF] transition-colors" />
                         <p className="text-sm font-semibold text-slate-200 mt-3">
                           {jdFile ? jdFile.name : 'Click to upload'}
                         </p>
@@ -337,7 +382,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                     <button
                       onClick={handleExtractRequirements}
                       disabled={extracting || !canExtractRequirements}
-                      className="min-w-[260px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-400 text-white px-6 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2"
+                      className="min-w-[260px] rounded-xl bg-[#432DD7] hover:bg-[#5A45E5] disabled:bg-slate-700 disabled:text-slate-400 text-white px-6 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2"
                     >
                       {extracting ? <Loader2 size={16} className="animate-spin" /> : <FileSearch size={16} />}
                       Extract Requirements
@@ -346,11 +391,23 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
 
                   <div className="rounded-2xl border border-slate-700 bg-slate-900/70 px-5 py-4">
                     <p className="text-sm font-semibold text-slate-100">How it works:</p>
-                    <div className="mt-2 grid gap-1 text-sm text-slate-300">
-                      <p>✓ AI parses your job description</p>
-                      <p>✓ Generates LinkedIn search queries</p>
-                      <p>✓ Searches across 50+ countries</p>
-                      <p>✓ Extracts & enriches candidates with contact info</p>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-slate-200 inline-flex items-center gap-2">
+                        <FileSearch size={14} className="text-[#A99BFF]" />
+                        <span>AI parses your job description</span>
+                      </div>
+                      <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-slate-200 inline-flex items-center gap-2">
+                        <Search size={14} className="text-[#A99BFF]" />
+                        <span>Generates LinkedIn search queries</span>
+                      </div>
+                      <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-slate-200 inline-flex items-center gap-2">
+                        <Globe2 size={14} className="text-[#A99BFF]" />
+                        <span>Searches across 50+ countries</span>
+                      </div>
+                      <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-slate-200 inline-flex items-center gap-2">
+                        <Mail size={14} className="text-[#A99BFF]" />
+                        <span>Extracts & enriches candidates with contact info</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -365,7 +422,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                       <input
                         value={parsedDraft?.jobTitle || ''}
                         onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), jobTitle: e.target.value }))}
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div>
@@ -373,7 +430,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                       <input
                         value={parsedDraft?.industry || ''}
                         onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), industry: e.target.value }))}
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div>
@@ -381,7 +438,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                       <input
                         value={parsedDraft?.location || ''}
                         onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), location: e.target.value }))}
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div>
@@ -393,7 +450,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                         onChange={(e) =>
                           setParsedDraft((prev) => ({ ...(prev || {}), experienceYears: Math.max(0, Number(e.target.value) || 0) }))
                         }
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -406,7 +463,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                             dosa: { ...(prev?.dosa || {}), availability: e.target.value },
                           }))
                         }
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -416,7 +473,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                         onChange={(e) =>
                           setParsedDraft((prev) => ({ ...(prev || {}), requiredSkills: parseSkillsText(e.target.value) }))
                         }
-                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -426,27 +483,11 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                         onChange={(e) =>
                           setParsedDraft((prev) => ({ ...(prev || {}), preferredSkills: parseSkillsText(e.target.value) }))
                         }
-                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                   </div>
 
-                  <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={handleStartSourcing}
-                      disabled={sourcing || extracting}
-                      className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
-                    >
-                      {sourcing ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                      Find Candidates
-                    </button>
-                    <button
-                      onClick={() => setComposeStep('input')}
-                      className="flex-1 rounded-xl border border-slate-600 bg-slate-800/70 hover:bg-slate-800 text-slate-100 px-4 py-3 text-sm font-semibold transition-colors"
-                    >
-                      Back to Requirements Input
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -454,7 +495,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
 
           {view === 'sourcing' && (
             <div className="py-20 text-center">
-              <Loader2 size={44} className="animate-spin mx-auto text-blue-600" />
+              <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
               <p className="mt-4 text-lg font-semibold text-slate-100">Sourcing Pipeline Running</p>
               <p className="text-sm text-slate-400 mt-1">
                 Parsing aliases, generating CSE queries, extracting profiles, enriching contacts, and saving results.
@@ -489,7 +530,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                     const isUpdatingStage = stageUpdatingUrl === linkedInUrl;
 
                     return (
-                      <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
+                      <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -519,7 +560,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                               </span>
                             )}
                             {candidate.phone && (
-                              <span className="inline-flex items-center gap-1 text-xs rounded-lg border border-blue-700/50 bg-blue-950/35 text-blue-200 px-2 py-1">
+                              <span className="inline-flex items-center gap-1 text-xs rounded-lg border border-[#6B5AF0]/50 bg-[#432DD7]/25 text-[#E3DEFF] px-2 py-1">
                                 <Phone size={12} /> {candidate.phone}
                               </span>
                             )}
@@ -528,7 +569,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           {linkedInUrl ? (
-                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-300 hover:underline">
+                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-sm text-[#B9AEFF] hover:text-white hover:underline">
                               View LinkedIn
                             </a>
                           ) : (
@@ -593,7 +634,7 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
                 <button
                   onClick={handleExportCSV}
                   disabled={!candidates.length}
-                  className="flex-1 rounded-xl border border-blue-700/50 bg-blue-950/30 px-4 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-950/45 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                  className="flex-1 rounded-xl border border-[#6B5AF0]/50 bg-[#432DD7]/25 px-4 py-2.5 text-sm font-semibold text-[#E3DEFF] hover:bg-[#432DD7]/40 disabled:opacity-50 inline-flex items-center justify-center gap-2"
                 >
                   <Download size={15} /> Export CSV
                 </button>
