@@ -1,7 +1,10 @@
 import express from 'express';
+import multer from 'multer';
 import { protect } from '../middleware/authMiddleware.js';
 import {
+  extractRequirements,
   sourceCandidates,
+  updateCandidateStage,
   parseSearchQuery,
   saveSourcingResult,
   getSourcingHistory,
@@ -11,6 +14,10 @@ import {
 } from '../controllers/sourcingController.js';
 
 const router = express.Router();
+const jdUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
+});
 
 /**
  * AI Sourcing Routes
@@ -19,6 +26,12 @@ const router = express.Router();
 
 // Main sourcing endpoint - accepts job description and returns candidates
 router.post('/', protect, sourceCandidates);
+
+// Extract structured requirements from JD text/file
+router.post('/requirements', protect, jdUpload.single('jdFile'), extractRequirements);
+
+// Update stage: sequence/call/shortlist
+router.post('/candidate-stage', protect, updateCandidateStage);
 
 // Parse AI search text into structured filters
 router.post('/parse-query', protect, parseSearchQuery);

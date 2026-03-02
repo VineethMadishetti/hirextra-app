@@ -1,3 +1,5 @@
+import mammoth from 'mammoth';
+import pdfParse from 'pdf-parse';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
 import {
@@ -16,27 +18,77 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, Math.floor(num)));
 }
 
-function buildParsedRequirements(parsed) {
-  return {
-    jobTitle: parsed?.job_title?.main || 'Unknown',
-    titleVariations: parsed?.job_title?.synonyms || [],
-    requiredSkills: parsed?.skills || [],
-    mustHaveSkills: parsed?.must_have_skills || [],
-    niceToHaveSkills: parsed?.nice_to_have_skills || [],
-    experienceLevel: parsed?.experience_level || 'Unknown',
-    experienceYears: Number(parsed?.experience_years || 0),
-    location: parsed?.location || 'Unspecified',
-    remote: Boolean(parsed?.remote),
-    companyTypes: parsed?.company_types || [],
-  };
+function stageToStatus(stage) {
+  const normalized = String(stage || '').toUpperCase();
+  if (normalized === 'SEQUENCED') {
+    return { pipelineStage: 'SEQUENCED', sequenceStatus: 'QUEUED', callStatus: 'NOT_SCHEDULED' };
+  }
+  if (normalized === 'CALL_QUEUED') {
+    return { pipelineStage: 'CALL_QUEUED', sequenceStatus: 'QUEUED', callStatus: 'QUEUED' };
+  }
+  if (normalized === 'SHORTLISTED') {
+    return { pipelineStage: 'SHORTLISTED', sequenceStatus: 'QUEUED', callStatus: 'QUEUED' };
+  }
+  return { pipelineStage: 'DISCOVERED', sequenceStatus: 'NOT_STARTED', callStatus: 'NOT_SCHEDULED' };
+}
+
+function normalizeAvailability(value) {
+  const text = String(value || '').toLowerCase();
+  if (!text) return 'UNKNOWN';
+  if (text.includes('immediate')) return 'IMMEDIATE';
+  if (text.includes('15')) return '15_DAYS';
+  if (text.includes('30') || text.includes('month')) return '30_DAYS';
+  return 'UNKNOWN';
+}
+
+function buildStructuredRequirements(parsed) {
+  return aiSourcingService.toStructuredRequirements(parsed);
+}
+
+function toInternalParsed({ parsedRequirements, jobDescription }) {
+  if (parsedRequirements && typeof parsedRequirements === 'object') {
+    return aiSourcingService.normalizeParsedRequirements(parsedRequirements);
+  }
+  if (!jobDescription || String(jobDescription).trim().length < 20) {
+    throw new Error('Job description must be at least 20 characters');
+  }
+  return aiSourcingService.parseJobDescription(jobDescription);
+}
+
+async function extractTextFromFile(file) {
+  if (!file?.buffer) {
+    throw new Error('Uploaded file is empty');
+  }
+
+  const name = String(file.originalname || '').toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase();
+
+  if (mime.includes('pdf') || name.endsWith('.pdf')) {
+    const parsed = await pdfParse(file.buffer);
+    return String(parsed?.text || '').trim();
+  }
+
+  if (
+    mime.includes('officedocument.wordprocessingml.document') ||
+    name.endsWith('.docx')
+  ) {
+    const parsed = await mammoth.extractRawText({ buffer: file.buffer });
+    return String(parsed?.value || '').trim();
+  }
+
+  if (mime.includes('text/plain') || name.endsWith('.txt')) {
+    return file.buffer.toString('utf8').trim();
+  }
+
+  throw new Error('Unsupported file type. Upload PDF, DOCX, or TXT.');
 }
 
 function deriveCandidatePayload(candidate, parsed, userId) {
   const linkedInUrl = candidate.linkedInUrl || candidate.linkedinUrl || null;
   const fullName = candidate.name || candidate.fullName || null;
-  const locationFallback = parsed?.location && !/remote|unspecified|unknown/i.test(parsed.location)
+  const locationFallback = parsed?.location && !/remote|unspecified|unknown|not specified/i.test(parsed.location)
     ? parsed.location
-    : null;
+    : '';
   const location = candidate.location || locationFallback || '';
   const experienceYears = Number(parsed?.experience_years || 0);
   const experience = experienceYears > 0 ? `${experienceYears}+ years` : '';
@@ -45,6 +97,7 @@ function deriveCandidatePayload(candidate, parsed, userId) {
   const contactPhone = candidate.contact?.phone || candidate.phone || '';
   const enrichmentSource = candidate.contact?.source || candidate.enrichmentSource || '';
   const enrichmentConfidence = Number(candidate.contact?.confidence || candidate.enrichmentConfidence || 0);
+  const baseStage = contactEmail || contactPhone ? 'CONTACT_ENRICHED' : 'DISCOVERED';
 
   return {
     linkedInUrl,
@@ -53,9 +106,12 @@ function deriveCandidatePayload(candidate, parsed, userId) {
     company: candidate.company || '',
     location,
     country: candidate.sourceCountry || candidate.foundIn || '',
+    industry: parsed?.industry || 'Not Specified',
+    availability: normalizeAvailability(parsed?.availability),
+    education: parsed?.education || 'Not Specified',
     email: contactEmail,
     phone: contactPhone,
-    skills: Array.isArray(parsed?.skills) ? parsed.skills.join(', ') : '',
+    skills: Array.isArray(parsed?.required_skills) ? parsed.required_skills.join(', ') : '',
     experience,
     createdBy: userId,
     source: 'AI_SOURCING',
@@ -69,6 +125,9 @@ function deriveCandidatePayload(candidate, parsed, userId) {
             enrichedAt: new Date(),
           }
         : null,
+    pipelineStage: baseStage,
+    sequenceStatus: 'NOT_STARTED',
+    callStatus: 'NOT_SCHEDULED',
   };
 }
 
@@ -92,10 +151,17 @@ async function persistSourcedCandidates(candidates, parsed, userId) {
           company: payload.company,
           location: payload.location,
           country: payload.country,
+          industry: payload.industry,
+          availability: payload.availability,
+          education: payload.education,
           linkedinUrl: payload.linkedInUrl,
           source: payload.source,
           sourceCountry: payload.sourceCountry,
           enrichmentStatus: payload.enrichmentStatus,
+          pipelineStage: payload.pipelineStage,
+          sequenceStatus: payload.sequenceStatus,
+          callStatus: payload.callStatus,
+          candidateStatus: payload.candidateStatus || 'ACTIVE',
         },
         $setOnInsert: {
           createdBy: payload.createdBy,
@@ -106,9 +172,7 @@ async function persistSourcedCandidates(candidates, parsed, userId) {
       if (payload.experience) update.$set.experience = payload.experience;
       if (payload.email) update.$set.email = payload.email;
       if (payload.phone) update.$set.phone = payload.phone;
-      if (payload.enrichmentMetadata) {
-        update.$set.enrichmentMetadata = payload.enrichmentMetadata;
-      }
+      if (payload.enrichmentMetadata) update.$set.enrichmentMetadata = payload.enrichmentMetadata;
 
       const doc = await Candidate.findOneAndUpdate(
         { linkedinUrl: payload.linkedInUrl },
@@ -129,12 +193,61 @@ async function persistSourcedCandidates(candidates, parsed, userId) {
 }
 
 /**
+ * POST /api/ai-source/requirements
+ * Extract structured requirements from JD text or uploaded file.
+ */
+export const extractRequirements = async (req, res) => {
+  try {
+    const textInput = String(req.body?.jobDescription || '').trim();
+    let rawText = textInput;
+
+    if (!rawText && req.file) {
+      rawText = await extractTextFromFile(req.file);
+    }
+
+    if (!rawText || rawText.length < 20) {
+      return res.status(400).json({
+        success: false,
+        error: 'Provide at least 20 characters of JD text or upload a valid file.',
+      });
+    }
+
+    const parsed = await aiSourcingService.parseJobDescription(rawText);
+    const structured = buildStructuredRequirements(parsed);
+    const searchQueries = aiSourcingService.generateSearchQueries(parsed, 6);
+    const targetCountries = aiSourcingService.determineTargetCountries(
+      structured.location,
+      structured.remote
+    );
+
+    return res.status(200).json({
+      success: true,
+      sourceTextLength: rawText.length,
+      sourceTextPreview: rawText.slice(0, 900),
+      parsedRequirements: structured,
+      searchPlanPreview: {
+        queries: searchQueries,
+        countries: targetCountries,
+      },
+    });
+  } catch (error) {
+    logger.error(`JD requirements extraction failed: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to extract requirements',
+      message: error.message,
+    });
+  }
+};
+
+/**
  * POST /api/ai-source
- * Main sourcing endpoint: parse -> query generation -> CSE search -> extraction -> enrichment -> save.
+ * Main sourcing endpoint.
  */
 export const sourceCandidates = async (req, res) => {
   const {
     jobDescription,
+    parsedRequirements,
     maxCandidates = 50,
     maxQueries = 6,
     resultsPerCountry = 3,
@@ -147,25 +260,14 @@ export const sourceCandidates = async (req, res) => {
   const startedAt = Date.now();
 
   try {
-    if (!jobDescription || String(jobDescription).trim().length < 20) {
-      return res.status(400).json({
-        success: false,
-        error: 'Job description must be at least 20 characters',
-      });
-    }
+    const parsed = await toInternalParsed({ parsedRequirements, jobDescription });
+    const structured = buildStructuredRequirements(parsed);
 
-    const maxCandidatesSafe = clampNumber(maxCandidates, 1, 100, 50);
+    const maxCandidatesSafe = clampNumber(maxCandidates, 1, 120, 50);
     const maxQueriesSafe = clampNumber(maxQueries, 1, 8, 6);
     const resultsPerCountrySafe = clampNumber(resultsPerCountry, 1, 10, 3);
     const enrichTopNSafe = clampNumber(enrichTopN, 1, 50, 15);
 
-    logger.info(`AI sourcing started by user ${userId}`);
-
-    // Step 1: Parse JD
-    const parsed = await aiSourcingService.parseJobDescription(jobDescription);
-    const parsedRequirements = buildParsedRequirements(parsed);
-
-    // Step 2: Generate boolean queries
     const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
     if (searchQueries.length === 0) {
       return res.status(500).json({
@@ -174,10 +276,9 @@ export const sourceCandidates = async (req, res) => {
       });
     }
 
-    // Step 3: Determine countries for CSE search
     const targetCountries = aiSourcingService.determineTargetCountries(
-      parsedRequirements.location,
-      parsedRequirements.remote
+      structured.location,
+      structured.remote
     );
 
     if (!cseService.isConfigured()) {
@@ -185,8 +286,8 @@ export const sourceCandidates = async (req, res) => {
         success: true,
         parseOnly: true,
         message:
-          'Job description parsed and search plan generated. Add GOOGLE_CSE_API_KEY to run external sourcing.',
-        parsedRequirements,
+          'Requirements extracted and search plan generated. Add GOOGLE_CSE_API_KEY to run CSE candidate discovery.',
+        parsedRequirements: structured,
         searchPlan: {
           queries: searchQueries,
           countries: targetCountries,
@@ -204,29 +305,13 @@ export const sourceCandidates = async (req, res) => {
           queryCount: searchQueries.length,
           timeMs: Date.now() - startedAt,
         },
-        metadata: {
-          parseOnly: true,
-          parseOnlyReason: 'GOOGLE_CSE_API_KEY not configured',
-          jobTitle: parsedRequirements.jobTitle,
-          skills: parsedRequirements.requiredSkills,
-          mustHaveSkills: parsedRequirements.mustHaveSkills,
-          location: parsedRequirements.location,
-          remote: parsedRequirements.remote,
-          searchQueries,
-          countriesSearched: targetCountries.length,
-          totalExtracted: 0,
-          contactsEnriched: 0,
-          timeMs: Date.now() - startedAt,
-        },
       });
     }
 
-    // Step 4: Search all generated queries across target countries
     const searchPromises = searchQueries.map(async (query) => {
       const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
       return rows.map((row) => ({ ...row, query }));
     });
-
     const searchResponses = await Promise.allSettled(searchPromises);
     const allResults = searchResponses
       .filter((item) => item.status === 'fulfilled')
@@ -236,8 +321,8 @@ export const sourceCandidates = async (req, res) => {
       return res.status(200).json({
         success: true,
         parseOnly: false,
-        message: 'No candidate profiles found for this job description.',
-        parsedRequirements,
+        message: 'No candidate profiles found for this requirement set.',
+        parsedRequirements: structured,
         searchPlan: {
           queries: searchQueries,
           countries: targetCountries,
@@ -258,13 +343,11 @@ export const sourceCandidates = async (req, res) => {
       });
     }
 
-    // Step 5: Candidate extraction and dedupe
     let candidates = extractCandidates(allResults, targetCountries, searchQueries);
     candidates = deduplicateCandidates(candidates);
-    candidates = rankCandidates(candidates, parsedRequirements.mustHaveSkills);
+    candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
     candidates = candidates.slice(0, maxCandidatesSafe);
 
-    // Step 6: Contact enrichment (top candidates only)
     if (enrichContacts) {
       const enrichCount = Math.min(candidates.length, enrichTopNSafe);
       for (let i = 0; i < enrichCount; i += 1) {
@@ -290,7 +373,6 @@ export const sourceCandidates = async (req, res) => {
       }
     }
 
-    // Step 7: Persist sourced candidates to DB
     let savedCount = 0;
     let savedIds = new Map();
     if (autoSave) {
@@ -301,13 +383,11 @@ export const sourceCandidates = async (req, res) => {
 
     for (const candidate of candidates) {
       const savedId = savedIds.get(candidate.linkedInUrl);
-      if (savedId) {
-        candidate.savedCandidateId = savedId;
-        candidate.savedToDatabase = true;
-      } else {
-        candidate.savedCandidateId = null;
-        candidate.savedToDatabase = false;
-      }
+      candidate.savedCandidateId = savedId || null;
+      candidate.savedToDatabase = Boolean(savedId);
+      candidate.pipelineStage = candidate.contact?.email || candidate.contact?.phone ? 'CONTACT_ENRICHED' : 'DISCOVERED';
+      candidate.sequenceStatus = 'NOT_STARTED';
+      candidate.callStatus = 'NOT_SCHEDULED';
     }
 
     const formatted = formatCandidates(candidates);
@@ -318,7 +398,7 @@ export const sourceCandidates = async (req, res) => {
       success: true,
       parseOnly: false,
       message: 'AI sourcing completed successfully.',
-      parsedRequirements,
+      parsedRequirements: structured,
       searchPlan: {
         queries: searchQueries,
         countries: targetCountries,
@@ -340,8 +420,8 @@ export const sourceCandidates = async (req, res) => {
         timeMs: totalTime,
       },
       metadata: {
-        jobTitle: parsedRequirements.jobTitle,
-        skills: parsedRequirements.requiredSkills,
+        jobTitle: structured.jobTitle,
+        skills: structured.requiredSkills,
         searchQueries: searchQueries.length,
         countriesSearched: targetCountries.length,
         totalExtracted: formatted.length,
@@ -354,6 +434,78 @@ export const sourceCandidates = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to source candidates. Please try again.',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/ai-source/candidate-stage
+ * Update sequence/call/shortlist stage for AI sourced candidate.
+ */
+export const updateCandidateStage = async (req, res) => {
+  const userId = req.user?._id;
+  const {
+    linkedInUrl,
+    linkedinUrl,
+    stage,
+    name,
+    fullName,
+    company,
+    jobTitle,
+    title,
+    location,
+    sourceCountry,
+  } = req.body || {};
+
+  try {
+    const resolvedLinkedin = linkedInUrl || linkedinUrl;
+    if (!resolvedLinkedin) {
+      return res.status(400).json({ success: false, error: 'linkedinUrl is required' });
+    }
+
+    const stageStatus = stageToStatus(stage);
+    const update = {
+      $set: {
+        source: 'AI_SOURCING',
+        linkedinUrl: resolvedLinkedin,
+        pipelineStage: stageStatus.pipelineStage,
+        sequenceStatus: stageStatus.sequenceStatus,
+        callStatus: stageStatus.callStatus,
+      },
+      $setOnInsert: {
+        createdBy: userId,
+        fullName: fullName || name || 'Unknown Candidate',
+        company: company || '',
+        jobTitle: jobTitle || title || '',
+        location: location || '',
+        sourceCountry: sourceCountry || '',
+        availability: 'UNKNOWN',
+      },
+    };
+
+    if (stageStatus.pipelineStage === 'SHORTLISTED') {
+      update.$set.shortlistedAt = new Date();
+    }
+
+    const doc = await Candidate.findOneAndUpdate({ linkedinUrl: resolvedLinkedin }, update, {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }).lean();
+
+    return res.status(200).json({
+      success: true,
+      candidateId: doc?._id,
+      stage: doc?.pipelineStage || stageStatus.pipelineStage,
+      sequenceStatus: doc?.sequenceStatus || stageStatus.sequenceStatus,
+      callStatus: doc?.callStatus || stageStatus.callStatus,
+    });
+  } catch (error) {
+    logger.error(`Failed to update candidate stage: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to update candidate stage',
       message: error.message,
     });
   }
@@ -425,7 +577,6 @@ export const parseSearchQuery = async (req, res) => {
 
 /**
  * POST /api/ai-source/save-candidate
- * Save (or upsert) a sourced candidate manually.
  */
 export const saveSourcingResult = async (req, res) => {
   const userId = req.user?._id;
@@ -442,6 +593,9 @@ export const saveSourcingResult = async (req, res) => {
     contact,
     email,
     phone,
+    pipelineStage,
+    sequenceStatus,
+    callStatus,
   } = req.body || {};
 
   try {
@@ -470,6 +624,10 @@ export const saveSourcingResult = async (req, res) => {
         source: 'AI_SOURCING',
         sourceCountry: sourceCountry || '',
         enrichmentStatus: resolvedEmail || resolvedPhone ? 'ENRICHED' : 'NEW',
+        availability: normalizeAvailability(req.body?.availability),
+        pipelineStage: pipelineStage || 'DISCOVERED',
+        sequenceStatus: sequenceStatus || 'NOT_STARTED',
+        callStatus: callStatus || 'NOT_SCHEDULED',
       },
       $setOnInsert: {
         createdBy: userId,
@@ -532,7 +690,7 @@ export const getSourcingHistory = async (req, res) => {
     const total = await Candidate.countDocuments(query);
     const candidates = await Candidate.find(query)
       .select(
-        'fullName jobTitle company location sourceCountry email phone linkedinUrl createdAt enrichmentStatus enrichmentMetadata'
+        'fullName jobTitle company location sourceCountry email phone linkedinUrl createdAt enrichmentStatus enrichmentMetadata pipelineStage sequenceStatus callStatus shortlistedAt'
       )
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -573,16 +731,21 @@ export const getSourcingStats = async (req, res) => {
       ...query,
       $or: [{ email: { $nin: [null, ''] } }, { phone: { $nin: [null, ''] } }],
     });
+    const shortlisted = await Candidate.countDocuments({
+      ...query,
+      pipelineStage: 'SHORTLISTED',
+    });
 
     const byStatus = await Candidate.aggregate([
       { $match: query },
-      { $group: { _id: '$enrichmentStatus', count: { $sum: 1 } } },
+      { $group: { _id: '$pipelineStage', count: { $sum: 1 } } },
     ]);
 
     return res.status(200).json({
       success: true,
       total,
       enrichedCount: enriched,
+      shortlistedCount: shortlisted,
       enrichmentRate: total > 0 ? `${((enriched / total) * 100).toFixed(2)}%` : '0%',
       byStatus: Object.fromEntries(byStatus.map((row) => [row._id || 'UNKNOWN', row.count])),
     });
@@ -607,6 +770,7 @@ function convertToCSV(candidates) {
     'Email',
     'Phone',
     'Enrichment Source',
+    'Pipeline Stage',
     'Saved At',
   ];
 
@@ -620,6 +784,7 @@ function convertToCSV(candidates) {
     `"${String(c.email || c.contact?.email || '').replace(/"/g, '""')}"`,
     `"${String(c.phone || c.contact?.phone || '').replace(/"/g, '""')}"`,
     `"${String(c.enrichmentMetadata?.source || c.enrichmentSource || '').replace(/"/g, '""')}"`,
+    `"${String(c.pipelineStage || '').replace(/"/g, '""')}"`,
     `"${String(c.createdAt || '').substring(0, 10)}"`,
   ]);
 
@@ -639,7 +804,7 @@ export const exportSourcedCandidatesCSV = async (req, res) => {
       isDeleted: false,
     })
       .select(
-        'fullName jobTitle company location sourceCountry email phone linkedinUrl enrichmentMetadata createdAt'
+        'fullName jobTitle company location sourceCountry email phone linkedinUrl enrichmentMetadata pipelineStage createdAt'
       )
       .lean();
 
@@ -692,7 +857,9 @@ export const exportCandidatesAsCSV = async (req, res) => {
 };
 
 export default {
+  extractRequirements,
   sourceCandidates,
+  updateCandidateStage,
   parseSearchQuery,
   saveSourcingResult,
   getSourcingHistory,

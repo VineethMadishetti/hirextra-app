@@ -3,6 +3,32 @@ import logger from './logger.js';
 
 let openai = null;
 
+const TITLE_ALIAS_MAP = {
+  'full stack developer': [
+    'fullstack developer',
+    'full stack engineer',
+    'fullstack engineer',
+    'software engineer',
+  ],
+  'frontend developer': ['front end developer', 'frontend engineer', 'ui developer', 'react developer'],
+  'backend developer': ['back end developer', 'backend engineer', 'api developer', 'server-side developer'],
+  'software engineer': ['software developer', 'application engineer'],
+  'data engineer': ['big data engineer', 'etl engineer'],
+  'devops engineer': ['site reliability engineer', 'sre', 'platform engineer'],
+};
+
+const SKILL_ALIAS_MAP = {
+  react: ['reactjs', 'react.js'],
+  javascript: ['js', 'ecmascript'],
+  typescript: ['ts'],
+  'node.js': ['nodejs', 'node'],
+  postgresql: ['postgres', 'postgresql db'],
+  aws: ['amazon web services'],
+  docker: ['containerization'],
+  kubernetes: ['k8s'],
+  'ci/cd': ['continuous integration', 'continuous delivery'],
+};
+
 function getOpenAIClient() {
   if (!openai) {
     if (!process.env.OPENAI_API_KEY) {
@@ -13,33 +39,125 @@ function getOpenAIClient() {
   return openai;
 }
 
-function normalizeSkillList(input, maxItems = 8) {
-  const list = Array.isArray(input) ? input : [];
-  const deduped = [];
+function uniqueStrings(values, max = 10) {
+  const out = [];
   const seen = new Set();
 
-  for (const item of list) {
-    const value = String(item || '').trim();
-    if (!value) continue;
-    const key = value.toLowerCase();
+  for (const value of values || []) {
+    const clean = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!clean) continue;
+    const key = clean.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    deduped.push(value);
-    if (deduped.length >= maxItems) break;
+    out.push(clean);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function normalizeNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : fallback;
+}
+
+function normalizeTitleObject(rawTitle) {
+  if (typeof rawTitle === 'string') {
+    const mainFromString = String(rawTitle).trim();
+    return { main: mainFromString || 'Software Engineer', synonyms: [] };
   }
 
-  return deduped;
-}
-
-function normalizeTitleObject(jobTitle) {
-  const main = String(jobTitle?.main || '').trim();
-  const synonyms = normalizeSkillList(jobTitle?.synonyms || [], 4).filter(
-    (s) => s.toLowerCase() !== main.toLowerCase()
+  const main = String(rawTitle?.main || '').trim();
+  const synonyms = uniqueStrings(rawTitle?.synonyms || [], 5).filter(
+    (item) => item.toLowerCase() !== main.toLowerCase()
   );
-  return { main: main || 'Software Engineer', synonyms };
+
+  return {
+    main: main || 'Software Engineer',
+    synonyms,
+  };
 }
 
-export const parseJobDescription = async (jobDescription) => {
+function normalizeRemote(value, location) {
+  const byFlag = value === true || String(value || '').toLowerCase() === 'true';
+  const byText = /remote|work from home|anywhere/i.test(String(location || ''));
+  return Boolean(byFlag || byText);
+}
+
+function expandByAliasMap(items, aliasMap) {
+  const expanded = [];
+
+  for (const raw of items || []) {
+    const clean = String(raw || '').trim();
+    if (!clean) continue;
+    expanded.push(clean);
+
+    const mapValues = aliasMap[clean.toLowerCase()] || [];
+    expanded.push(...mapValues);
+  }
+
+  return uniqueStrings(expanded, 20);
+}
+
+export function normalizeParsedRequirements(raw = {}) {
+  const job_title = normalizeTitleObject({
+    ...(raw.job_title || {}),
+    ...(typeof raw.jobTitle === 'string' ? { main: raw.jobTitle } : raw.jobTitle || {}),
+    synonyms: raw.titleVariations || raw.job_title?.synonyms || raw.jobTitle?.synonyms || [],
+  });
+  const required_skills = uniqueStrings(
+    raw.required_skills ||
+      raw.requiredSkills ||
+      raw.skills ||
+      raw.must_have_skills ||
+      raw.mustHaveSkills ||
+      [],
+    12
+  );
+  const preferred_skills = uniqueStrings(
+    raw.preferred_skills || raw.preferredSkills || raw.nice_to_have_skills || raw.niceToHaveSkills || [],
+    10
+  );
+
+  const must_have_skills = uniqueStrings(raw.must_have_skills || raw.mustHaveSkills || required_skills, 6);
+  const experience_years = normalizeNumber(raw.experience_years || raw.experienceYears || raw.yearsOfExperience, 0);
+  const experience_level = String(
+    raw.experience_level ||
+      raw.experienceLevel ||
+      (experience_years >= 8 ? 'Lead' : experience_years >= 4 ? 'Senior' : 'Mid')
+  ).trim();
+
+  const location = String(raw.location || 'Unspecified').trim() || 'Unspecified';
+  const industry = String(raw.industry || 'Not Specified').trim() || 'Not Specified';
+  const duration_type = String(raw.duration_type || raw.durationType || 'Not Specified').trim();
+  const organization_hierarchy = String(
+    raw.organization_hierarchy || raw.organizationHierarchy || 'Not Specified'
+  ).trim();
+  const salary_package = String(raw.salary_package || raw.salaryPackage || 'Not Specified').trim();
+  const availability = String(raw.availability || 'Not Specified').trim();
+  const education = String(raw.education || 'Not Specified').trim();
+  const company_types = uniqueStrings(raw.company_types || raw.companyTypes || [], 5);
+  const remote = normalizeRemote(raw.remote, location);
+
+  return {
+    job_title,
+    industry,
+    duration_type,
+    location,
+    experience_years,
+    experience_level,
+    organization_hierarchy,
+    salary_package,
+    availability,
+    education,
+    required_skills,
+    preferred_skills,
+    must_have_skills,
+    company_types,
+    remote,
+  };
+}
+
+export async function parseJobDescription(jobDescription) {
   if (!jobDescription || String(jobDescription).trim().length < 20) {
     throw new Error('Job description must be at least 20 characters');
   }
@@ -53,111 +171,184 @@ export const parseJobDescription = async (jobDescription) => {
       messages: [
         {
           role: 'system',
-          content: `You are a recruitment AI parser. Return ONLY valid JSON using this schema:
+          content: `You are a recruitment AI parser.
+Return ONLY valid JSON with this exact schema:
 {
   "job_title": { "main": "string", "synonyms": ["string"] },
-  "skills": ["string"],
-  "must_have_skills": ["string"],
-  "nice_to_have_skills": ["string"],
+  "industry": "string",
+  "duration_type": "string",
+  "location": "string",
   "experience_years": number,
   "experience_level": "Junior|Mid|Senior|Lead|Executive",
-  "location": "string",
-  "remote": boolean,
-  "company_types": ["string"]
+  "organization_hierarchy": "string",
+  "salary_package": "string",
+  "availability": "string",
+  "education": "string",
+  "required_skills": ["string"],
+  "preferred_skills": ["string"],
+  "must_have_skills": ["string"],
+  "company_types": ["string"],
+  "remote": boolean
 }
 
-Rules:
-- Extract concise values from text only. Do not invent.
-- Keep skills <= 10, must_have_skills <= 5, nice_to_have_skills <= 5.
-- If location missing, use "Unspecified".
-- If experience is missing, use 0.
+Extraction policy:
+- Keep concise and precise.
+- Extract from text only; do not invent.
+- Required skills <= 12, preferred skills <= 10, must-have <= 6.
+- If missing, use "Not Specified" for string fields and 0 for experience_years.
 - Return JSON only.`,
         },
         {
           role: 'user',
-          content: `Extract structured hiring requirements from this JD:\n\n${jobDescription}`,
+          content: `Extract hiring requirements from this JD:\n\n${jobDescription}`,
         },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: 700,
+      max_tokens: 900,
     });
 
-    const parsedRaw = JSON.parse(response.choices?.[0]?.message?.content || '{}');
-    const job_title = normalizeTitleObject(parsedRaw.job_title || {});
-    const skills = normalizeSkillList(parsedRaw.skills, 10);
-    const must_have_skills = normalizeSkillList(parsedRaw.must_have_skills, 5);
-    const nice_to_have_skills = normalizeSkillList(parsedRaw.nice_to_have_skills, 5);
-    const experience_years = Math.max(0, Number(parsedRaw.experience_years || 0));
-    const experience_level = String(
-      parsedRaw.experience_level || (experience_years >= 8 ? 'Lead' : experience_years >= 4 ? 'Senior' : 'Mid')
-    ).trim();
-    const location = String(parsedRaw.location || 'Unspecified').trim() || 'Unspecified';
-    const remote = Boolean(parsedRaw.remote);
-    const company_types = normalizeSkillList(parsedRaw.company_types, 5);
-
-    const parsed = {
-      job_title,
-      skills,
-      must_have_skills,
-      nice_to_have_skills,
-      experience_years,
-      experience_level,
-      location,
-      remote,
-      company_types,
-    };
-
-    logger.info(`JD parsed successfully: ${parsed.job_title.main}`);
-    return parsed;
+    const raw = JSON.parse(response.choices?.[0]?.message?.content || '{}');
+    const normalized = normalizeParsedRequirements(raw);
+    logger.info(`JD parsed successfully: ${normalized.job_title.main}`);
+    return normalized;
   } catch (error) {
     logger.error(`OpenAI parsing error: ${error.message}`);
     throw new Error(`Job description parsing failed: ${error.message}`);
   }
-};
+}
 
-export const generateSearchQueries = (parsed, maxQueries = 6) => {
-  const titleMain = parsed?.job_title?.main || 'Software Engineer';
-  const titleVariants = [titleMain, ...(parsed?.job_title?.synonyms || [])]
-    .map((t) => String(t || '').trim())
-    .filter(Boolean)
-    .slice(0, 3);
+export function buildAliases(parsed) {
+  const titleBase = [parsed?.job_title?.main, ...(parsed?.job_title?.synonyms || [])];
+  const titleAliases = expandByAliasMap(uniqueStrings(titleBase, 6), TITLE_ALIAS_MAP);
 
-  const mustHave = normalizeSkillList(parsed?.must_have_skills || [], 4);
-  const fallbackSkills = normalizeSkillList(parsed?.skills || [], 4);
-  const skills = mustHave.length > 0 ? mustHave : fallbackSkills;
+  const skillBase = uniqueStrings(
+    parsed?.must_have_skills?.length ? parsed.must_have_skills : parsed?.required_skills || [],
+    8
+  );
+  const skillAliases = expandByAliasMap(skillBase, SKILL_ALIAS_MAP);
 
+  return {
+    titleAliases,
+    skillAliases,
+  };
+}
+
+export function buildBooleanQueries(parsed) {
+  const aliases = buildAliases(parsed);
   const location = String(parsed?.location || '').trim();
-  const includeLocation = Boolean(location && !/unspecified|unknown|remote/i.test(location));
-  const locationToken = includeLocation ? `("${location}")` : '';
-  const skillToken = skills.length > 0 ? `(${skills.map((s) => `"${s}"`).join(' OR ')})` : '';
+  const includeLocation = Boolean(location && !/unspecified|not specified|remote/i.test(location));
+
+  const titleClause = aliases.titleAliases.length
+    ? `(${aliases.titleAliases.map((t) => `"${t}"`).join(' OR ')})`
+    : '';
+  const requiredClause = aliases.skillAliases.length
+    ? `(${aliases.skillAliases.map((s) => `"${s}"`).join(' OR ')})`
+    : '';
+  const preferredClause = uniqueStrings(parsed?.preferred_skills || [], 6).length
+    ? `(${uniqueStrings(parsed?.preferred_skills || [], 6).map((s) => `"${s}"`).join(' OR ')})`
+    : '';
+  const locationClause = includeLocation ? `("${location}")` : '';
+  const linkedinClause = 'site:linkedin.com/in';
+
+  const requiredBoolean = [titleClause, requiredClause, locationClause, linkedinClause]
+    .filter(Boolean)
+    .join(' AND ');
+  const preferredBoolean = [titleClause, requiredClause, preferredClause, linkedinClause]
+    .filter(Boolean)
+    .join(' AND ');
+
+  return {
+    requiredBoolean,
+    preferredBoolean,
+  };
+}
+
+export function toStructuredRequirements(parsedInput) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+  const aliases = buildAliases(parsed);
+  const booleanQueries = buildBooleanQueries(parsed);
+
+  return {
+    jobTitle: parsed.job_title.main,
+    titleVariations: parsed.job_title.synonyms,
+    industry: parsed.industry,
+    durationType: parsed.duration_type,
+    location: parsed.location,
+    experienceYears: parsed.experience_years,
+    experienceLevel: parsed.experience_level,
+    organizationHierarchy: parsed.organization_hierarchy,
+    salaryPackage: parsed.salary_package,
+    availability: parsed.availability,
+    education: parsed.education,
+    requiredSkills: parsed.required_skills,
+    preferredSkills: parsed.preferred_skills,
+    mustHaveSkills: parsed.must_have_skills,
+    companyTypes: parsed.company_types,
+    remote: parsed.remote,
+    aliases,
+    booleanQueries,
+    idly: {
+      industry: parsed.industry,
+      durationType: parsed.duration_type,
+      location: parsed.location,
+      yearsOfExperience: parsed.experience_years,
+    },
+    dosa: {
+      desiredSkills: parsed.required_skills,
+      organizationHierarchy: parsed.organization_hierarchy,
+      salaryPackage: parsed.salary_package,
+      availability: parsed.availability,
+    },
+  };
+}
+
+export function generateSearchQueries(parsedInput, maxQueries = 6) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+  const aliases = buildAliases(parsed);
+
+  const titles = uniqueStrings(aliases.titleAliases, 4);
+  const coreSkills = uniqueStrings(
+    parsed.must_have_skills.length ? parsed.must_have_skills : parsed.required_skills,
+    5
+  );
+  const skillsClause = coreSkills.length ? `(${coreSkills.map((s) => `"${s}"`).join(' OR ')})` : '';
+  const location = String(parsed.location || '').trim();
+  const includeLocation = Boolean(location && !/unspecified|not specified|remote/i.test(location));
+  const locationClause = includeLocation ? `("${location}")` : '';
 
   const queries = [];
-  for (const title of titleVariants) {
-    const baseParts = [`"${title}"`, skillToken, locationToken, 'site:linkedin.com/in'];
-    queries.push(baseParts.filter(Boolean).join(' '));
+  for (const title of titles) {
+    queries.push([`"${title}"`, skillsClause, locationClause, 'site:linkedin.com/in'].filter(Boolean).join(' '));
   }
 
-  if (skills.length > 0) {
+  if (titles.length) {
     queries.push(
-      `("${titleVariants.join('" OR "')}") ${skillToken} ("open to work" OR "actively looking") site:linkedin.com/in`
+      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, '"open to work"', 'site:linkedin.com/in']
+        .filter(Boolean)
+        .join(' ')
     );
   }
 
-  if (['Senior', 'Lead', 'Executive'].includes(parsed?.experience_level)) {
+  if (parsed.remote) {
     queries.push(
-      `("Senior ${titleMain}" OR "Lead ${titleMain}" OR "Principal ${titleMain}") ${skillToken} site:linkedin.com/in`
+      [`"${parsed.job_title.main}"`, skillsClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
+        .filter(Boolean)
+        .join(' ')
     );
   }
 
-  if (parsed?.remote) {
-    queries.push(`"${titleMain}" ${skillToken} ("remote" OR "distributed") site:linkedin.com/in`);
-  }
+  // Resume-oriented pass (still linked to LinkedIn profile results)
+  queries.push(
+    [`"${parsed.job_title.main}"`, skillsClause, '("resume" OR "cv")', 'site:linkedin.com/in']
+      .filter(Boolean)
+      .join(' ')
+  );
 
-  return normalizeSkillList(queries, maxQueries);
-};
+  return uniqueStrings(queries, Math.min(Math.max(1, Number(maxQueries) || 6), 8));
+}
 
-export const determineTargetCountries = (location, isRemote) => {
+export function determineTargetCountries(location, isRemote) {
   const normalized = String(location || '').toLowerCase();
 
   if (isRemote || normalized.includes('remote') || normalized.includes('anywhere')) {
@@ -181,28 +372,26 @@ export const determineTargetCountries = (location, isRemote) => {
     berlin: ['germany'],
     munich: ['germany'],
     netherlands: ['netherlands'],
-    amsterdam: ['netherlands'],
     singapore: ['singapore'],
     australia: ['australia'],
-    sydney: ['australia'],
     canada: ['canada'],
-    toronto: ['canada'],
     us: ['us'],
     usa: ['us'],
     'united states': ['us'],
-    california: ['us'],
-    'new york': ['us'],
   };
 
   for (const [key, countries] of Object.entries(countryMap)) {
     if (normalized.includes(key)) return countries;
   }
-
   return ['india', 'uk', 'us'];
-};
+}
 
 export default {
   parseJobDescription,
+  normalizeParsedRequirements,
+  toStructuredRequirements,
+  buildAliases,
+  buildBooleanQueries,
   generateSearchQueries,
   determineTargetCountries,
 };

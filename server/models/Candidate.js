@@ -24,6 +24,7 @@ const candidateSchema = new mongoose.Schema(
     phone: String,
     company: { type: String }, // Part of compound index
     industry: { type: String }, // Not indexed to improve write speed
+    education: { type: String },
 
     linkedinUrl: String,
     githubUrl: String,
@@ -43,6 +44,22 @@ const candidateSchema = new mongoose.Schema(
       source: String,
       confidence: { type: Number, default: 0 },
     },
+    pipelineStage: {
+      type: String,
+      enum: ['DISCOVERED', 'CONTACT_ENRICHED', 'SEQUENCED', 'CALL_QUEUED', 'SHORTLISTED'],
+      default: 'DISCOVERED',
+    },
+    sequenceStatus: {
+      type: String,
+      enum: ['NOT_STARTED', 'QUEUED', 'SENT'],
+      default: 'NOT_STARTED',
+    },
+    callStatus: {
+      type: String,
+      enum: ['NOT_SCHEDULED', 'QUEUED', 'COMPLETED'],
+      default: 'NOT_SCHEDULED',
+    },
+    shortlistedAt: Date,
     summary: String,
     availability: {
       type: String,
@@ -153,6 +170,10 @@ candidateSchema.index({ country: 1, createdAt: -1 }, { partialFilterExpression: 
 // Ensure your schema has a 'createdBy' field for this to work.
 candidateSchema.index({ createdBy: 1 }, { partialFilterExpression: { isDeleted: false } });
 candidateSchema.index({ createdBy: 1, source: 1, createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index(
+  { createdBy: 1, source: 1, pipelineStage: 1, createdAt: -1 },
+  { partialFilterExpression: { isDeleted: false } }
+);
 
 // 11. Compound Filter Index (High Performance for Search Page)
 // Matches the common filter pattern: Job Title + Location + Skills + Sort by Date

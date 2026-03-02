@@ -281,6 +281,9 @@ export function formatCandidates(candidates) {
     relevanceScore: c.relevanceScore || 0,
     savedCandidateId: c.savedCandidateId || null,
     savedToDatabase: Boolean(c.savedToDatabase),
+    pipelineStage: c.pipelineStage || 'DISCOVERED',
+    sequenceStatus: c.sequenceStatus || 'NOT_STARTED',
+    callStatus: c.callStatus || 'NOT_SCHEDULED',
   }));
 }
 
