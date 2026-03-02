@@ -302,139 +302,156 @@ export default function SourcingAgentModal({ isOpen, onClose }) {
           )}
 
           {view === 'compose' && (
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.1fr] gap-5">
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.18em] font-semibold text-slate-500">Input</p>
-                <h3 className="text-xl font-bold text-slate-900 mt-1">Paste Job Description</h3>
-
-                <textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste JD text with role overview, must-have skills, location, years of experience, and hiring preferences."
-                  className="mt-4 h-56 w-full rounded-xl border border-slate-300 p-4 text-sm text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-
-                <div className="my-4 text-center text-xs uppercase tracking-[0.16em] text-slate-400">or</div>
-
-                <label className="block rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-                  <UploadCloud size={20} className="mx-auto text-slate-500" />
-                  <p className="text-sm font-semibold text-slate-700 mt-2">
-                    {jdFile ? jdFile.name : 'Upload JD (PDF, DOCX, TXT)'}
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.12fr] gap-5">
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 md:p-6 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.5)]">
+                <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-blue-100/40 blur-3xl" />
+                <div className="relative">
+                  <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-500">Job Input</p>
+                  <h3 className="mt-1 text-xl font-bold text-slate-900">Describe Your Hiring Need</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Paste a JD or upload a file. We will convert it into structured filters and search-ready queries.
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">Click to select file</p>
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.txt"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
 
-                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    onClick={handleExtractRequirements}
-                    disabled={extracting}
-                    className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
-                  >
-                    {extracting ? <Loader2 size={16} className="animate-spin" /> : <FileSearch size={16} />}
-                    Extract Requirements
-                  </button>
-                  <button
-                    onClick={handleStartSourcing}
-                    disabled={sourcing || extracting}
-                    className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
-                  >
-                    {sourcing ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                    Start Sourcing
-                  </button>
+                  <textarea
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Paste JD text with role overview, must-have skills, location, years of experience, and hiring preferences."
+                    className="mt-4 h-56 w-full rounded-2xl border border-slate-300 bg-white p-4 text-sm text-slate-800 leading-relaxed shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <div className="my-4 text-center text-[11px] uppercase tracking-[0.2em] text-slate-400">or upload</div>
+
+                  <label className="group block rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/70">
+                    <UploadCloud size={20} className="mx-auto text-slate-500 group-hover:text-blue-600 transition-colors" />
+                    <p className="text-sm font-semibold text-slate-700 mt-2">
+                      {jdFile ? jdFile.name : 'Upload Job Description'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">PDF, DOCX, TXT</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button
+                      onClick={handleExtractRequirements}
+                      disabled={extracting}
+                      className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                    >
+                      {extracting ? <Loader2 size={16} className="animate-spin" /> : <FileSearch size={16} />}
+                      Extract Requirements
+                    </button>
+                    <button
+                      onClick={handleStartSourcing}
+                      disabled={sourcing || extracting}
+                      className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                    >
+                      {sourcing ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                      Start Sourcing
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.18em] font-semibold text-slate-500">Structured Requirements</p>
-                {!parsedRequirements ? (
-                  <div className="mt-4 h-[calc(100%-26px)] rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center text-sm text-slate-500">
-                    Extract requirements to preview IDLY/DOSA fields and Boolean queries.
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 md:p-6 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.5)]">
+                <div className="pointer-events-none absolute -bottom-16 -left-10 h-52 w-52 rounded-full bg-teal-100/40 blur-3xl" />
+                <div className="relative">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-500">AI Parsing</p>
+                      <h3 className="mt-1 text-xl font-bold text-slate-900">Structured Hiring Brief</h3>
+                    </div>
+                    {parsedRequirements?.jobTitle ? (
+                      <Chip text={parsedRequirements.jobTitle} tone="blue" />
+                    ) : null}
                   </div>
-                ) : (
-                  <div className="mt-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
+
+                  {!parsedRequirements ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+                      <Briefcase size={22} className="mx-auto text-slate-400" />
+                      <p className="mt-3 text-sm font-semibold text-slate-700">No parsed brief yet</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Click <span className="font-semibold text-slate-700">Extract Requirements</span> to generate structured fields.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Industry</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.industry || 'Not Specified'}</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Location</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.location || 'Not Specified'}</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Experience</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.experienceYears || 0}+ years</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Availability</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.dosa?.availability || 'Not Specified'}</p>
+                        </div>
+                      </div>
+
                       <div className="rounded-xl border border-slate-200 p-3">
-                        <p className="text-xs font-semibold tracking-wider text-slate-500">Job Title</p>
-                        <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.jobTitle || 'Not Specified'}</p>
+                        <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Required Skills</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {(parsedRequirements.requiredSkills || []).length ? (
+                            (parsedRequirements.requiredSkills || []).map((skill) => (
+                              <Chip key={`req-${skill}`} text={skill} tone="teal" />
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-500">No required skills detected.</span>
+                          )}
+                        </div>
                       </div>
+
                       <div className="rounded-xl border border-slate-200 p-3">
-                        <p className="text-xs font-semibold tracking-wider text-slate-500">Industry</p>
-                        <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.industry || 'Not Specified'}</p>
+                        <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Preferred Skills</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {(parsedRequirements.preferredSkills || []).length ? (
+                            (parsedRequirements.preferredSkills || []).map((skill) => (
+                              <Chip key={`pref-${skill}`} text={skill} tone="emerald" />
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-500">No preferred skills detected.</span>
+                          )}
+                        </div>
                       </div>
+
                       <div className="rounded-xl border border-slate-200 p-3">
-                        <p className="text-xs font-semibold tracking-wider text-slate-500">Location</p>
-                        <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.location || 'Not Specified'}</p>
-                      </div>
-                      <div className="rounded-xl border border-slate-200 p-3">
-                        <p className="text-xs font-semibold tracking-wider text-slate-500">Experience</p>
-                        <p className="text-sm font-bold text-slate-900 mt-1">{parsedRequirements.experienceYears || 0}+ years</p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-xs font-semibold tracking-wider text-slate-500">IDLY</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Chip text={`I: ${parsedRequirements.idly?.industry || 'NA'}`} tone="slate" />
-                        <Chip text={`D: ${parsedRequirements.idly?.durationType || 'NA'}`} tone="slate" />
-                        <Chip text={`L: ${parsedRequirements.idly?.location || 'NA'}`} tone="slate" />
-                        <Chip text={`Y: ${parsedRequirements.idly?.yearsOfExperience || 0}+`} tone="slate" />
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-xs font-semibold tracking-wider text-slate-500">DOSA</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Chip text={`D: Skills (${parsedRequirements.requiredSkills?.length || 0})`} tone="blue" />
-                        <Chip text={`O: ${parsedRequirements.dosa?.organizationHierarchy || 'NA'}`} tone="blue" />
-                        <Chip text={`S: ${parsedRequirements.dosa?.salaryPackage || 'NA'}`} tone="blue" />
-                        <Chip text={`A: ${parsedRequirements.dosa?.availability || 'NA'}`} tone="blue" />
+                        <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">Boolean Query Preview</p>
+                        <div className="mt-2 grid grid-cols-1 gap-2">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                            {parsedRequirements?.booleanQueries?.requiredBoolean || 'Required query not generated yet.'}
+                          </div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                            {parsedRequirements?.booleanQueries?.preferredBoolean || 'Preferred query not generated yet.'}
+                          </div>
+                        </div>
+                        <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleCopyBoolean(parsedRequirements?.booleanQueries?.requiredBoolean)}
+                            className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold px-3 py-2 inline-flex items-center justify-center gap-1"
+                          >
+                            <Clipboard size={14} /> Copy Required Boolean
+                          </button>
+                          <button
+                            onClick={() => handleCopyBoolean(parsedRequirements?.booleanQueries?.preferredBoolean)}
+                            className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold px-3 py-2 inline-flex items-center justify-center gap-1"
+                          >
+                            <Clipboard size={14} /> Copy Preferred Boolean
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold tracking-wider text-slate-500">Required Skills</p>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {(parsedRequirements.requiredSkills || []).map((skill) => (
-                          <Chip key={`req-${skill}`} text={skill} tone="teal" />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold tracking-wider text-slate-500">Preferred Skills</p>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {(parsedRequirements.preferredSkills || []).map((skill) => (
-                          <Chip key={`pref-${skill}`} text={skill} tone="emerald" />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleCopyBoolean(parsedRequirements?.booleanQueries?.requiredBoolean)}
-                        className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold px-3 py-2 inline-flex items-center justify-center gap-1"
-                      >
-                        <Clipboard size={14} /> Copy Required Boolean
-                      </button>
-                      <button
-                        onClick={() => handleCopyBoolean(parsedRequirements?.booleanQueries?.preferredBoolean)}
-                        className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold px-3 py-2 inline-flex items-center justify-center gap-1"
-                      >
-                        <Clipboard size={14} /> Copy Preferred Boolean
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           )}
