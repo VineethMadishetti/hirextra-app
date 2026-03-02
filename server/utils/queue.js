@@ -845,6 +845,13 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 	let insertedPartial = false;
 	let buffer = null; // Will be explicitly cleared in finally block
 
+	// Guard against stale Redis jobs: skip work when parent UploadJob is gone/inactive.
+	const parentJob = await UploadJob.findById(jobId).select("status isDeleted").lean();
+	const activeStatuses = new Set(["PROCESSING", "MAPPING_PENDING"]);
+	if (!parentJob || parentJob.isDeleted || !activeStatuses.has(String(parentJob.status || ""))) {
+		return;
+	}
+
 	try {
 		logger.info(`📄 Processing Resume: ${s3Key} (Job: ${jobId})`);
 
