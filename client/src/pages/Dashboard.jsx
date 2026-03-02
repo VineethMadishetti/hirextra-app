@@ -40,9 +40,6 @@ const Dashboard = () => {
 		() => (user?.role === "ADMIN" ? "admin" : "search"),
 	);
 
-	// State for AI Sourcing Modal
-	const [showSourcingModal, setShowSourcingModal] = useState(false);
-
 	const { data: statsData } = useQuery({
 		queryKey: ["candidateStats"],
 		queryFn: async () => {
@@ -158,10 +155,12 @@ const Dashboard = () => {
 							</button>
 
 						<button
-							onClick={() => setShowSourcingModal(true)}
+							onClick={() => setCurrentView("ai-source")}
 							className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
             ${
-							"text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
+							currentView === "ai-source"
+								? "bg-white dark:bg-slate-900 text-blue-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700"
+								: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
 						}`}>
 							<Zap size={16} />
 							AI Source
@@ -198,7 +197,7 @@ const Dashboard = () => {
 				{/* AI Source button for USER role */}
 				{user?.role === "USER" && (
 					<button
-						onClick={() => setShowSourcingModal(true)}
+						onClick={() => setCurrentView("ai-source")}
 						className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold 
 						bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg transition-all"
 						title="Find candidates with AI">
@@ -313,6 +312,8 @@ const Dashboard = () => {
 						<UserManagement />
 					) : currentView === "enrich" ? (
 						<Enrich />
+					) : currentView === "ai-source" ? (
+						<SourcingAgentModal inline={true} onClose={() => setCurrentView("search")} />
 					) : (
 						<UserSearch />
 					)}
@@ -346,9 +347,6 @@ const Dashboard = () => {
 					</div>
 				</div>
 			)}
-
-		{/* AI Sourcing Agent Modal */}
-		<SourcingAgentModal isOpen={showSourcingModal} onClose={() => setShowSourcingModal(false)} />
 	</div>
 	);
 };
