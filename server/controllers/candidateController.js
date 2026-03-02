@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import EnrichmentLog from "../models/EnrichmentLog.js";
 import ImportEvent from "../models/ImportEvent.js";
 import logger from "../utils/logger.js";
-import { checkRChilliCredits, hasEnoughCredits, logRChilliAttempt, clearCreditCache } from "../utils/rchilliService.js";
+import { checkRChilliCredits } from "../utils/rchilliService.js";
 import fs from "fs";
 import DeleteLog from "../models/DeleteLog.js";
 import csv from "csv-parser";
@@ -687,27 +687,7 @@ export const importResumes = async (req, res) => {
 			return res.status(400).json({ message: "Folder path is required" });
 		}
 
-		// ✅ NEW: Check RChilli credits before starting import (with fallback)
-		// If RChilli is unreachable, allow import but log warning
-		console.log(`[importResumes] Checking RChilli credits for import from: ${folderPath}`);
-		let creditWarning = null;
-		try {
-			const creditCheck = await hasEnoughCredits(10000, 50); // Estimate 10k resumes, min 50 credits
-			if (!creditCheck.sufficient) {
-				console.warn(`[importResumes] Insufficient RChilli credits:`, creditCheck);
-				return res.status(402).json({
-					message: creditCheck.reason,
-					canImport: false,
-					recommendation: creditCheck.recommendAction,
-					creditsRemaining: creditCheck.remaining,
-					creditsNeeded: creditCheck.estimated
-				});
-			}
-		} catch (creditError) {
-			// If RChilli check fails, log warning but allow import to continue
-			console.warn(`[importResumes] RChilli credit check failed (non-blocking):`, creditError.message);
-			creditWarning = `Warning: Could not verify RChilli credits (${creditError.message}). Import will proceed but may fail if credits are insufficient.`;
-		}
+		// Keep import start non-blocking. Do not gate by pre-checking RChilli credits.
 
 		const allowReparse = String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "true").toLowerCase() !== "false";
 		const safeSkipExisting = forceReparse && allowReparse ? false : skipExisting !== false;
@@ -892,10 +872,6 @@ export const importResumes = async (req, res) => {
 			jobId: job._id,
 			skipExisting: !!safeSkipExisting,
 		};
-
-		if (creditWarning) {
-			response.warning = creditWarning;
-		}
 
 		return res.json(response);
 	} catch (error) {
