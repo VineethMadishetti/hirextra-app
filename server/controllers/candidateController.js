@@ -691,10 +691,11 @@ export const importResumes = async (req, res) => {
 
 		const allowReparse = String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "true").toLowerCase() !== "false";
 		const safeSkipExisting = forceReparse && allowReparse ? false : skipExisting !== false;
-		// Default to direct mode for resume imports to avoid Redis request caps on bulk folders.
-		// Set RESUME_IMPORT_USE_QUEUE=true only when you explicitly want BullMQ queueing.
+		// Default to direct mode for resume imports to avoid Redis script timeouts on large folders.
+		// Set RESUME_IMPORT_FORCE_DIRECT=false + RESUME_IMPORT_USE_QUEUE=true only when you explicitly want BullMQ queueing.
 		const queueEnabledByEnv = String(process.env.RESUME_IMPORT_USE_QUEUE || "false").toLowerCase() === "true";
-		const useQueueMode = queueEnabledByEnv && !!importQueue;
+		const forceDirectMode = String(process.env.RESUME_IMPORT_FORCE_DIRECT || "true").toLowerCase() !== "false";
+		const useQueueMode = !forceDirectMode && queueEnabledByEnv && !!importQueue;
 
 		const normalizedFolderPath = String(folderPath).trim().replace(/^\/+/, "");
 		if (!normalizedFolderPath) {
