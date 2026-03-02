@@ -10,136 +10,264 @@ import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
 
-/**
- * AI Sourcing Controller
- * Handles end-to-end candidate sourcing from job descriptions
- */
+function clampNumber(value, min, max, fallback) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(num)));
+}
+
+function buildParsedRequirements(parsed) {
+  return {
+    jobTitle: parsed?.job_title?.main || 'Unknown',
+    titleVariations: parsed?.job_title?.synonyms || [],
+    requiredSkills: parsed?.skills || [],
+    mustHaveSkills: parsed?.must_have_skills || [],
+    niceToHaveSkills: parsed?.nice_to_have_skills || [],
+    experienceLevel: parsed?.experience_level || 'Unknown',
+    experienceYears: Number(parsed?.experience_years || 0),
+    location: parsed?.location || 'Unspecified',
+    remote: Boolean(parsed?.remote),
+    companyTypes: parsed?.company_types || [],
+  };
+}
+
+function deriveCandidatePayload(candidate, parsed, userId) {
+  const linkedInUrl = candidate.linkedInUrl || candidate.linkedinUrl || null;
+  const fullName = candidate.name || candidate.fullName || null;
+  const locationFallback = parsed?.location && !/remote|unspecified|unknown/i.test(parsed.location)
+    ? parsed.location
+    : null;
+  const location = candidate.location || locationFallback || '';
+  const experienceYears = Number(parsed?.experience_years || 0);
+  const experience = experienceYears > 0 ? `${experienceYears}+ years` : '';
+
+  const contactEmail = candidate.contact?.email || candidate.email || '';
+  const contactPhone = candidate.contact?.phone || candidate.phone || '';
+  const enrichmentSource = candidate.contact?.source || candidate.enrichmentSource || '';
+  const enrichmentConfidence = Number(candidate.contact?.confidence || candidate.enrichmentConfidence || 0);
+
+  return {
+    linkedInUrl,
+    fullName,
+    jobTitle: candidate.jobTitle || candidate.title || parsed?.job_title?.main || '',
+    company: candidate.company || '',
+    location,
+    country: candidate.sourceCountry || candidate.foundIn || '',
+    email: contactEmail,
+    phone: contactPhone,
+    skills: Array.isArray(parsed?.skills) ? parsed.skills.join(', ') : '',
+    experience,
+    createdBy: userId,
+    source: 'AI_SOURCING',
+    sourceCountry: candidate.sourceCountry || candidate.foundIn || '',
+    enrichmentStatus: contactEmail || contactPhone ? 'ENRICHED' : 'NEW',
+    enrichmentMetadata:
+      enrichmentSource || enrichmentConfidence
+        ? {
+            source: enrichmentSource || 'unknown',
+            confidence: enrichmentConfidence,
+            enrichedAt: new Date(),
+          }
+        : null,
+  };
+}
+
+async function persistSourcedCandidates(candidates, parsed, userId) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return { savedCount: 0, savedIds: new Map() };
+  }
+
+  const savedIds = new Map();
+  let savedCount = 0;
+
+  for (const candidate of candidates) {
+    try {
+      const payload = deriveCandidatePayload(candidate, parsed, userId);
+      if (!payload.linkedInUrl || !payload.fullName) continue;
+
+      const update = {
+        $set: {
+          fullName: payload.fullName,
+          jobTitle: payload.jobTitle,
+          company: payload.company,
+          location: payload.location,
+          country: payload.country,
+          linkedinUrl: payload.linkedInUrl,
+          source: payload.source,
+          sourceCountry: payload.sourceCountry,
+          enrichmentStatus: payload.enrichmentStatus,
+        },
+        $setOnInsert: {
+          createdBy: payload.createdBy,
+        },
+      };
+
+      if (payload.skills) update.$set.skills = payload.skills;
+      if (payload.experience) update.$set.experience = payload.experience;
+      if (payload.email) update.$set.email = payload.email;
+      if (payload.phone) update.$set.phone = payload.phone;
+      if (payload.enrichmentMetadata) {
+        update.$set.enrichmentMetadata = payload.enrichmentMetadata;
+      }
+
+      const doc = await Candidate.findOneAndUpdate(
+        { linkedinUrl: payload.linkedInUrl },
+        update,
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      if (doc?._id) {
+        savedCount += 1;
+        savedIds.set(payload.linkedInUrl, String(doc._id));
+      }
+    } catch (error) {
+      logger.debug(`Failed to persist sourced candidate: ${error.message}`);
+    }
+  }
+
+  return { savedCount, savedIds };
+}
 
 /**
  * POST /api/ai-source
- * Main sourcing endpoint - full pipeline
+ * Main sourcing endpoint: parse -> query generation -> CSE search -> extraction -> enrichment -> save.
  */
 export const sourceCandidates = async (req, res) => {
-  const { jobDescription, maxCandidates = 50, enrichContacts = true } = req.body;
-  const userId = req.user._id;
+  const {
+    jobDescription,
+    maxCandidates = 50,
+    maxQueries = 6,
+    resultsPerCountry = 3,
+    enrichContacts = true,
+    enrichTopN = 15,
+    autoSave = true,
+  } = req.body || {};
 
-  const startTime = Date.now();
+  const userId = req.user?._id;
+  const startedAt = Date.now();
 
   try {
-    // Validate input
-    if (!jobDescription || jobDescription.trim().length < 20) {
+    if (!jobDescription || String(jobDescription).trim().length < 20) {
       return res.status(400).json({
+        success: false,
         error: 'Job description must be at least 20 characters',
       });
     }
 
-    logger.info(`🎯 Starting AI sourcing for user ${userId}`);
+    const maxCandidatesSafe = clampNumber(maxCandidates, 1, 100, 50);
+    const maxQueriesSafe = clampNumber(maxQueries, 1, 8, 6);
+    const resultsPerCountrySafe = clampNumber(resultsPerCountry, 1, 10, 3);
+    const enrichTopNSafe = clampNumber(enrichTopN, 1, 50, 15);
 
-    // Step 1: Parse job description with OpenAI
-    logger.info(`📋 Step 1: Parsing job description...`);
+    logger.info(`AI sourcing started by user ${userId}`);
+
+    // Step 1: Parse JD
     const parsed = await aiSourcingService.parseJobDescription(jobDescription);
+    const parsedRequirements = buildParsedRequirements(parsed);
 
-    if (!parsed) {
+    // Step 2: Generate boolean queries
+    const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
+    if (searchQueries.length === 0) {
       return res.status(500).json({
-        error: 'Failed to parse job description. Please try again.',
-      });
-    }
-
-    logger.info(`✅ Parsed JD: ${parsed.job_title?.main || 'Unknown'}`);
-
-    // Step 2: Generate search queries
-    logger.info(`🔍 Step 2: Generating search queries...`);
-    const searchQueries = aiSourcingService.generateSearchQueries(parsed);
-
-    if (!searchQueries || searchQueries.length === 0) {
-      return res.status(500).json({
+        success: false,
         error: 'Failed to generate search queries',
       });
     }
 
-    logger.info(`✅ Generated ${searchQueries.length} search queries`);
-
-    // Step 3: Determine target countries
-    logger.info(`🌍 Step 3: Determining target countries...`);
+    // Step 3: Determine countries for CSE search
     const targetCountries = aiSourcingService.determineTargetCountries(
-      parsed.location,
-      parsed.remote
+      parsedRequirements.location,
+      parsedRequirements.remote
     );
 
-    logger.info(`✅ Target countries: ${targetCountries.join(', ')}`);
-
-    // Step 4: Search across countries
     if (!cseService.isConfigured()) {
       return res.status(200).json({
+        success: true,
+        parseOnly: true,
         message:
-          'Job description parsed successfully. Candidate discovery is disabled until GOOGLE_CSE_API_KEY is configured.',
+          'Job description parsed and search plan generated. Add GOOGLE_CSE_API_KEY to run external sourcing.',
+        parsedRequirements,
+        searchPlan: {
+          queries: searchQueries,
+          countries: targetCountries,
+          resultsPerCountry: resultsPerCountrySafe,
+          maxQueries: maxQueriesSafe,
+        },
         candidates: [],
+        results: [],
+        summary: {
+          totalDiscovered: 0,
+          totalExtracted: 0,
+          totalEnriched: 0,
+          totalSaved: 0,
+          countriesSearched: targetCountries.length,
+          queryCount: searchQueries.length,
+          timeMs: Date.now() - startedAt,
+        },
         metadata: {
           parseOnly: true,
-          parseOnlyReason:
-            'GOOGLE_CSE_API_KEY is not configured. Candidate discovery and enrichment were skipped.',
-          jobTitle: parsed.job_title?.main || 'Unknown',
-          skills: parsed.must_have_skills || [],
-          mustHaveSkills: parsed.must_have_skills || [],
-          niceToHaveSkills: parsed.nice_to_have_skills || [],
-          experienceLevel: parsed.experience_level || 'Unknown',
-          experienceYears: parsed.experience_years || 0,
-          location: parsed.location || 'Unknown',
-          remote: Boolean(parsed.remote),
+          parseOnlyReason: 'GOOGLE_CSE_API_KEY not configured',
+          jobTitle: parsedRequirements.jobTitle,
+          skills: parsedRequirements.requiredSkills,
+          mustHaveSkills: parsedRequirements.mustHaveSkills,
+          location: parsedRequirements.location,
+          remote: parsedRequirements.remote,
           searchQueries,
           countriesSearched: targetCountries.length,
           totalExtracted: 0,
           contactsEnriched: 0,
-          timeMs: Date.now() - startTime,
+          timeMs: Date.now() - startedAt,
         },
       });
     }
 
-    logger.info(`🔎 Step 4: Searching across ${targetCountries.length} countries...`);
-    const allResults = [];
+    // Step 4: Search all generated queries across target countries
+    const searchPromises = searchQueries.map(async (query) => {
+      const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
+      return rows.map((row) => ({ ...row, query }));
+    });
 
-    for (const query of searchQueries) {
-      const results = await cseService.searchCountries(query, targetCountries, 3);
-      allResults.push(...results);
-    }
+    const searchResponses = await Promise.allSettled(searchPromises);
+    const allResults = searchResponses
+      .filter((item) => item.status === 'fulfilled')
+      .flatMap((item) => item.value || []);
 
     if (allResults.length === 0) {
       return res.status(200).json({
-        message: 'No candidates found matching the job description',
+        success: true,
+        parseOnly: false,
+        message: 'No candidate profiles found for this job description.',
+        parsedRequirements,
+        searchPlan: {
+          queries: searchQueries,
+          countries: targetCountries,
+          resultsPerCountry: resultsPerCountrySafe,
+          maxQueries: maxQueriesSafe,
+        },
         candidates: [],
-        metadata: {
-          jobTitle: parsed.job_title?.main,
-          searchQueries: searchQueries.length,
+        results: [],
+        summary: {
+          totalDiscovered: 0,
+          totalExtracted: 0,
+          totalEnriched: 0,
+          totalSaved: 0,
           countriesSearched: targetCountries.length,
-          totalResults: 0,
-          timeMs: Date.now() - startTime,
+          queryCount: searchQueries.length,
+          timeMs: Date.now() - startedAt,
         },
       });
     }
 
-    logger.info(`✅ Found ${allResults.length} results across countries`);
-
-    // Step 5: Extract candidates
-    logger.info(`📊 Step 5: Extracting and deduplicating candidates...`);
-    let candidates = extractCandidates(
-      allResults.map((r) => ({ ...r, query: 'general' })),
-      targetCountries,
-      searchQueries
-    );
-
+    // Step 5: Candidate extraction and dedupe
+    let candidates = extractCandidates(allResults, targetCountries, searchQueries);
     candidates = deduplicateCandidates(candidates);
-    candidates = rankCandidates(candidates, parsed.must_have_skills || []);
+    candidates = rankCandidates(candidates, parsedRequirements.mustHaveSkills);
+    candidates = candidates.slice(0, maxCandidatesSafe);
 
-    // Limit to requested amount
-    candidates = candidates.slice(0, maxCandidates);
-
-    logger.info(`✅ Extracted ${candidates.length} unique candidates`);
-
-    // Step 6: Enrich contacts if requested
+    // Step 6: Contact enrichment (top candidates only)
     if (enrichContacts) {
-      logger.info(`💎 Step 6: Enriching candidate contacts...`);
-
-      for (let i = 0; i < candidates.length; i++) {
+      const enrichCount = Math.min(candidates.length, enrichTopNSafe);
+      for (let i = 0; i < enrichCount; i += 1) {
         try {
           const candidate = candidates[i];
           const enriched = await contactEnrichmentService.enrichCandidate({
@@ -147,47 +275,149 @@ export const sourceCandidates = async (req, res) => {
             name: candidate.name,
             company: candidate.company,
           });
+
           if (enriched && (enriched.email || enriched.phone)) {
             candidates[i].contact = {
-              email: enriched.email,
-              phone: enriched.phone,
-              confidence: enriched.confidence,
-              source: enriched.source,
+              email: enriched.email || null,
+              phone: enriched.phone || null,
+              confidence: enriched.confidence || 0,
+              source: enriched.source || null,
             };
           }
-
-          // Rate limiting between enrichment calls
-          if ((i + 1) % 5 === 0) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
         } catch (error) {
-          logger.debug(`Failed to enrich candidate ${candidates[i].name}: ${error.message}`);
-          // Continue with next candidate
+          logger.debug(`Enrichment failed for ${candidates[i]?.name}: ${error.message}`);
         }
       }
-
-      logger.info(`✅ Enrichment complete`);
     }
 
-    // Format response
-    const formattedCandidates = formatCandidates(candidates);
+    // Step 7: Persist sourced candidates to DB
+    let savedCount = 0;
+    let savedIds = new Map();
+    if (autoSave) {
+      const persisted = await persistSourcedCandidates(candidates, parsed, userId);
+      savedCount = persisted.savedCount;
+      savedIds = persisted.savedIds;
+    }
 
-    res.status(200).json({
-      candidates: formattedCandidates,
+    for (const candidate of candidates) {
+      const savedId = savedIds.get(candidate.linkedInUrl);
+      if (savedId) {
+        candidate.savedCandidateId = savedId;
+        candidate.savedToDatabase = true;
+      } else {
+        candidate.savedCandidateId = null;
+        candidate.savedToDatabase = false;
+      }
+    }
+
+    const formatted = formatCandidates(candidates);
+    const enrichedCount = formatted.filter((c) => c.email || c.phone).length;
+    const totalTime = Date.now() - startedAt;
+
+    return res.status(200).json({
+      success: true,
+      parseOnly: false,
+      message: 'AI sourcing completed successfully.',
+      parsedRequirements,
+      searchPlan: {
+        queries: searchQueries,
+        countries: targetCountries,
+        resultsPerCountry: resultsPerCountrySafe,
+        maxQueries: maxQueriesSafe,
+      },
+      candidates: formatted,
+      results: formatted,
+      totalFound: formatted.length,
+      enrichedCount,
+      countriesSearched: targetCountries,
+      summary: {
+        totalDiscovered: allResults.length,
+        totalExtracted: formatted.length,
+        totalEnriched: enrichedCount,
+        totalSaved: savedCount,
+        countriesSearched: targetCountries.length,
+        queryCount: searchQueries.length,
+        timeMs: totalTime,
+      },
       metadata: {
-        jobTitle: parsed.job_title?.main,
-        skills: parsed.must_have_skills || [],
+        jobTitle: parsedRequirements.jobTitle,
+        skills: parsedRequirements.requiredSkills,
         searchQueries: searchQueries.length,
         countriesSearched: targetCountries.length,
-        totalExtracted: candidates.length,
-        contactsEnriched: enrichContacts ? candidates.filter((c) => c.contact).length : 0,
-        timeMs: Date.now() - startTime,
+        totalExtracted: formatted.length,
+        contactsEnriched: enrichedCount,
+        timeMs: totalTime,
       },
     });
   } catch (error) {
-    logger.error(`Sourcing failed: ${error.message}`);
-    res.status(500).json({
-      error: 'Sourcing failed. Please try again later.',
+    logger.error(`AI sourcing failed: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to source candidates. Please try again.',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/ai-source/parse-query
+ * Parse free-text recruiter requirement into structured filters for AI Search.
+ */
+export const parseSearchQuery = async (req, res) => {
+  try {
+    const queryText = String(req.body?.queryText || '').trim();
+    if (!queryText) {
+      return res.status(400).json({ error: 'queryText is required' });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OPENAI_API_KEY not configured on server' });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        temperature: 0,
+        max_tokens: 240,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Extract precise recruiter filters from text. Return JSON only with keys: jobTitle, skills, location, experience, hasEmail, hasPhone, hasLinkedin. skills must be an array of strings. experience is minimum years as integer.',
+          },
+          { role: 'user', content: queryText },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} - ${errText}`);
+    }
+
+    const data = await response.json();
+    const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+    return res.status(200).json({
+      jobTitle: String(parsed.jobTitle || '').trim(),
+      skills: Array.isArray(parsed.skills)
+        ? parsed.skills.map((s) => String(s || '').trim()).filter(Boolean)
+        : [],
+      location: String(parsed.location || '').trim(),
+      experience: Number.isFinite(Number(parsed.experience)) ? Number(parsed.experience) : 0,
+      hasEmail: Boolean(parsed.hasEmail),
+      hasPhone: Boolean(parsed.hasPhone),
+      hasLinkedin: Boolean(parsed.hasLinkedin),
+    });
+  } catch (error) {
+    logger.error(`Failed to parse AI search query: ${error.message}`);
+    return res.status(500).json({
+      error: 'Failed to parse search query',
       message: error.message,
     });
   }
@@ -195,76 +425,89 @@ export const sourceCandidates = async (req, res) => {
 
 /**
  * POST /api/ai-source/save-candidate
- * Save a sourced candidate to database
+ * Save (or upsert) a sourced candidate manually.
  */
 export const saveSourcingResult = async (req, res) => {
+  const userId = req.user?._id;
   const {
     name,
+    fullName,
     linkedInUrl,
+    linkedinUrl,
     jobTitle,
+    title,
     company,
     location,
+    sourceCountry,
     contact,
-  } = req.body;
-  const userId = req.user._id;
+    email,
+    phone,
+  } = req.body || {};
 
   try {
-    if (!linkedInUrl || !name) {
+    const resolvedLinkedIn = linkedInUrl || linkedinUrl || null;
+    const resolvedName = fullName || name || null;
+
+    if (!resolvedLinkedIn || !resolvedName) {
       return res.status(400).json({
-        error: 'Missing required fields: name, linkedInUrl',
+        success: false,
+        error: 'Missing required fields: name/fullName and linkedInUrl/linkedinUrl',
       });
     }
 
-    // Check for duplicates (by LinkedIn URL)
-    const existing = await Candidate.findOne({ linkedInUrl });
-    if (existing) {
-      return res.status(409).json({
-        error: 'Candidate already exists in database',
-        duplicateId: existing._id,
-      });
+    const resolvedEmail = contact?.email || email || '';
+    const resolvedPhone = contact?.phone || phone || '';
+    const resolvedSource = contact?.source || '';
+    const resolvedConfidence = Number(contact?.confidence || 0);
+
+    const update = {
+      $set: {
+        fullName: resolvedName,
+        jobTitle: jobTitle || title || '',
+        company: company || '',
+        location: location || '',
+        linkedinUrl: resolvedLinkedIn,
+        source: 'AI_SOURCING',
+        sourceCountry: sourceCountry || '',
+        enrichmentStatus: resolvedEmail || resolvedPhone ? 'ENRICHED' : 'NEW',
+      },
+      $setOnInsert: {
+        createdBy: userId,
+      },
+    };
+
+    if (resolvedEmail) update.$set.email = resolvedEmail;
+    if (resolvedPhone) update.$set.phone = resolvedPhone;
+    if (resolvedSource || resolvedConfidence) {
+      update.$set.enrichmentMetadata = {
+        source: resolvedSource || 'unknown',
+        confidence: resolvedConfidence,
+        enrichedAt: new Date(),
+      };
     }
 
-    // Create new candidate
-    const newCandidate = await Candidate.create({
-      name,
-      linkedInUrl,
-      jobTitle,
-      company,
-      location,
-      email: contact?.email || null,
-      phone: contact?.phone || null,
-      linkedInId: linkedInUrl.split('/in/')[1]?.split('/')[0] || null,
-      source: 'AI_SOURCING',
-      enrichmentStatus: contact?.email || contact?.phone ? 'ENRICHED' : 'NEW',
-      createdBy: userId,
+    const saved = await Candidate.findOneAndUpdate({ linkedinUrl: resolvedLinkedIn }, update, {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
     });
 
-    // If contact was enriched, save enrichment metadata
-    if (contact?.source) {
-      newCandidate.enrichmentMetadata = {
-        enrichedAt: new Date(),
-        source: contact.source,
-        confidence: contact.confidence,
-      };
-      await newCandidate.save();
-    }
-
-    logger.info(`✅ Saved candidate: ${name}`);
-
-    res.status(201).json({
+    return res.status(200).json({
+      success: true,
       message: 'Candidate saved successfully',
-      candidateId: newCandidate._id,
+      candidateId: saved?._id,
       candidate: {
-        _id: newCandidate._id,
-        name: newCandidate.name,
-        linkedInUrl: newCandidate.linkedInUrl,
-        email: newCandidate.email,
-        phone: newCandidate.phone,
+        _id: saved?._id,
+        fullName: saved?.fullName,
+        linkedInUrl: saved?.linkedinUrl,
+        email: saved?.email || null,
+        phone: saved?.phone || null,
       },
     });
   } catch (error) {
     logger.error(`Failed to save sourced candidate: ${error.message}`);
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
       error: 'Failed to save candidate',
       message: error.message,
     });
@@ -273,38 +516,40 @@ export const saveSourcingResult = async (req, res) => {
 
 /**
  * GET /api/ai-source/history
- * List previous sourcing searches by user
  */
 export const getSourcingHistory = async (req, res) => {
-  const userId = req.user._id;
-  const { limit = 10, skip = 0 } = req.query;
+  const userId = req.user?._id;
+  const limit = clampNumber(req.query.limit, 1, 200, 10);
+  const skip = clampNumber(req.query.skip, 0, 10000, 0);
 
   try {
-    // Count candidates created by this user via AI sourcing
-    const total = await Candidate.countDocuments({
+    const query = {
       createdBy: userId,
       source: 'AI_SOURCING',
-    });
+      isDeleted: false,
+    };
 
-    // Get recent candidates
-    const candidates = await Candidate.find({
-      createdBy: userId,
-      source: 'AI_SOURCING',
-    })
-      .select('name jobTitle company email phone linkedInUrl createdAt enrichmentStatus')
+    const total = await Candidate.countDocuments(query);
+    const candidates = await Candidate.find(query)
+      .select(
+        'fullName jobTitle company location sourceCountry email phone linkedinUrl createdAt enrichmentStatus enrichmentMetadata'
+      )
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(skip));
+      .limit(limit)
+      .skip(skip)
+      .lean();
 
-    res.status(200).json({
+    return res.status(200).json({
+      success: true,
       total,
-      limit: parseInt(limit),
-      skip: parseInt(skip),
+      limit,
+      skip,
       candidates,
     });
   } catch (error) {
     logger.error(`Failed to get sourcing history: ${error.message}`);
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
       error: 'Failed to retrieve history',
       message: error.message,
     });
@@ -313,124 +558,102 @@ export const getSourcingHistory = async (req, res) => {
 
 /**
  * GET /api/ai-source/stats
- * Get sourcing statistics
  */
 export const getSourcingStats = async (req, res) => {
-  const userId = req.user._id;
+  const userId = req.user?._id;
 
   try {
-    const total = await Candidate.countDocuments({
+    const query = {
       createdBy: userId,
       source: 'AI_SOURCING',
-    });
-
+      isDeleted: false,
+    };
+    const total = await Candidate.countDocuments(query);
     const enriched = await Candidate.countDocuments({
-      createdBy: userId,
-      source: 'AI_SOURCING',
-      email: { $ne: null },
+      ...query,
+      $or: [{ email: { $nin: [null, ''] } }, { phone: { $nin: [null, ''] } }],
     });
 
     const byStatus = await Candidate.aggregate([
-      { $match: { createdBy: userId, source: 'AI_SOURCING' } },
+      { $match: query },
       { $group: { _id: '$enrichmentStatus', count: { $sum: 1 } } },
     ]);
 
-    res.status(200).json({
+    return res.status(200).json({
+      success: true,
       total,
       enrichedCount: enriched,
-      enrichmentRate: total > 0 ? ((enriched / total) * 100).toFixed(2) + '%' : '0%',
-      byStatus: Object.fromEntries(byStatus.map((s) => [s._id, s.count])),
+      enrichmentRate: total > 0 ? `${((enriched / total) * 100).toFixed(2)}%` : '0%',
+      byStatus: Object.fromEntries(byStatus.map((row) => [row._id || 'UNKNOWN', row.count])),
     });
   } catch (error) {
     logger.error(`Failed to get sourcing stats: ${error.message}`);
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
       error: 'Failed to retrieve stats',
       message: error.message,
     });
   }
 };
 
-/**
- * Helper function: Convert candidates array to CSV format
- */
 function convertToCSV(candidates) {
-  // Define CSV headers
   const headers = [
     'Name',
-    'LinkedIn URL',
-    'Job Title',
+    'Current Title',
     'Company',
-    'Level',
+    'Location',
+    'Source Country',
+    'LinkedIn URL',
     'Email',
     'Phone',
-    'Found In',
-    'Snippet Preview',
     'Enrichment Source',
-    'Contact Confidence',
     'Saved At',
   ];
 
-  // Convert rows
   const rows = candidates.map((c) => [
-    `"${(c.name || '').replace(/"/g, '""')}"`, // Escape quotes
-    `"${(c.linkedInUrl || '').replace(/"/g, '""')}"`,
-    `"${(c.jobTitle || '').replace(/"/g, '""')}"`,
-    `"${(c.company || '').replace(/"/g, '""')}"`,
-    `"${(c.level || '').replace(/"/g, '""')}"`,
-    `"${(c.email || '').replace(/"/g, '""')}"`,
-    `"${(c.phone || '').replace(/"/g, '""')}"`,
-    `"${(c.foundIn || '').replace(/"/g, '""')}"`,
-    `"${((c.snippet || '').substring(0, 100)).replace(/"/g, '""')}"`,
-    `"${(c.enrichmentMetadata?.source || '').replace(/"/g, '""')}"`,
-    `"${(c.enrichmentMetadata?.confidence || '').toString().replace(/"/g, '""')}"`,
-    `"${(c.createdAt || '').substring(0, 10)}"`,
+    `"${String(c.fullName || c.name || '').replace(/"/g, '""')}"`,
+    `"${String(c.jobTitle || c.title || '').replace(/"/g, '""')}"`,
+    `"${String(c.company || '').replace(/"/g, '""')}"`,
+    `"${String(c.location || '').replace(/"/g, '""')}"`,
+    `"${String(c.sourceCountry || c.foundIn || '').replace(/"/g, '""')}"`,
+    `"${String(c.linkedinUrl || c.linkedInUrl || '').replace(/"/g, '""')}"`,
+    `"${String(c.email || c.contact?.email || '').replace(/"/g, '""')}"`,
+    `"${String(c.phone || c.contact?.phone || '').replace(/"/g, '""')}"`,
+    `"${String(c.enrichmentMetadata?.source || c.enrichmentSource || '').replace(/"/g, '""')}"`,
+    `"${String(c.createdAt || '').substring(0, 10)}"`,
   ]);
 
-  // Combine headers and rows
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => row.join(',')),
-  ].join('\n');
-
-  return csvContent;
+  return [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
 }
 
 /**
  * GET /api/ai-source/export/csv
- * Export sourced candidates as CSV
  */
 export const exportSourcedCandidatesCSV = async (req, res) => {
-  const userId = req.user._id;
+  const userId = req.user?._id;
 
   try {
-    // Get all sourced candidates for this user
     const candidates = await Candidate.find({
       createdBy: userId,
       source: 'AI_SOURCING',
-    }).select('name linkedInUrl jobTitle company level email phone foundIn snippet enrichmentMetadata createdAt');
+      isDeleted: false,
+    })
+      .select(
+        'fullName jobTitle company location sourceCountry email phone linkedinUrl enrichmentMetadata createdAt'
+      )
+      .lean();
 
-    if (candidates.length === 0) {
-      return res.status(200).json({
-        message: 'No sourced candidates found to export',
-        csvContent: convertToCSV([]),
-      });
-    }
-
-    // Convert to CSV
     const csvContent = convertToCSV(candidates);
-
-    // Set response headers for file download
-    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const timestamp = new Date().toISOString().split('T')[0];
     const filename = `sourced-candidates-${timestamp}.csv`;
 
     res.setHeader('Content-Type', 'text/csv;charset=utf-8;');
     res.setHeader('Content-Disposition', `attachment;filename="${filename}"`);
-    res.status(200).send(csvContent);
-
-    logger.info(`✅ Exported ${candidates.length} candidates as CSV for user ${userId}`);
+    return res.status(200).send(csvContent);
   } catch (error) {
-    logger.error(`Failed to export candidates as CSV: ${error.message}`);
-    res.status(500).json({
+    logger.error(`Failed to export sourced candidates CSV: ${error.message}`);
+    return res.status(500).json({
+      success: false,
       error: 'Failed to export candidates',
       message: error.message,
     });
@@ -439,34 +662,29 @@ export const exportSourcedCandidatesCSV = async (req, res) => {
 
 /**
  * POST /api/ai-source/export/csv
- * Export specific candidates as CSV (from modal results)
  */
 export const exportCandidatesAsCSV = async (req, res) => {
-  const { candidates } = req.body;
-  const userId = req.user._id;
+  const { candidates } = req.body || {};
 
   try {
-    if (!candidates || !Array.isArray(candidates) || candidates.length === 0) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
       return res.status(400).json({
+        success: false,
         error: 'No candidates provided for export',
       });
     }
 
-    // Convert to CSV
     const csvContent = convertToCSV(candidates);
-
-    // Set response headers for file download
     const timestamp = new Date().toISOString().split('T')[0];
     const filename = `sourced-candidates-${timestamp}.csv`;
 
     res.setHeader('Content-Type', 'text/csv;charset=utf-8;');
     res.setHeader('Content-Disposition', `attachment;filename="${filename}"`);
-    res.status(200).send(csvContent);
-
-    logger.info(`✅ Exported ${candidates.length} candidates as CSV for user ${userId}`);
+    return res.status(200).send(csvContent);
   } catch (error) {
-    logger.error(`Failed to export candidates as CSV: ${error.message}`);
-    res.status(500).json({
+    logger.error(`Failed to export provided candidates CSV: ${error.message}`);
+    return res.status(500).json({
+      success: false,
       error: 'Failed to export candidates',
       message: error.message,
     });
@@ -475,10 +693,10 @@ export const exportCandidatesAsCSV = async (req, res) => {
 
 export default {
   sourceCandidates,
+  parseSearchQuery,
   saveSourcingResult,
   getSourcingHistory,
   getSourcingStats,
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
 };
-

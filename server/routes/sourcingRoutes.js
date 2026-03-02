@@ -2,6 +2,7 @@ import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
 import {
   sourceCandidates,
+  parseSearchQuery,
   saveSourcingResult,
   getSourcingHistory,
   getSourcingStats,
@@ -18,6 +19,9 @@ const router = express.Router();
 
 // Main sourcing endpoint - accepts job description and returns candidates
 router.post('/', protect, sourceCandidates);
+
+// Parse AI search text into structured filters
+router.post('/parse-query', protect, parseSearchQuery);
 
 // Save a sourced candidate to the database
 router.post('/save-candidate', protect, saveSourcingResult);

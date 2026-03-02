@@ -27,6 +27,22 @@ const candidateSchema = new mongoose.Schema(
 
     linkedinUrl: String,
     githubUrl: String,
+    source: {
+      type: String,
+      enum: ['UPLOAD', 'AI_SOURCING', 'MANUAL', 'API'],
+      default: 'UPLOAD',
+    },
+    sourceCountry: { type: String },
+    enrichmentStatus: {
+      type: String,
+      enum: ['NEW', 'ENRICHED', 'FAILED'],
+      default: 'NEW',
+    },
+    enrichmentMetadata: {
+      enrichedAt: Date,
+      source: String,
+      confidence: { type: Number, default: 0 },
+    },
     summary: String,
     availability: {
       type: String,
@@ -136,6 +152,7 @@ candidateSchema.index({ country: 1, createdAt: -1 }, { partialFilterExpression: 
 // 10. Filter: User/Admin Created By (As requested)
 // Ensure your schema has a 'createdBy' field for this to work.
 candidateSchema.index({ createdBy: 1 }, { partialFilterExpression: { isDeleted: false } });
+candidateSchema.index({ createdBy: 1, source: 1, createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
 
 // 11. Compound Filter Index (High Performance for Search Page)
 // Matches the common filter pattern: Job Title + Location + Skills + Sort by Date

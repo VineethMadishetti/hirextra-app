@@ -1,12 +1,7 @@
 import axios from 'axios';
 import logger from './logger.js';
 
-/**
- * Google Custom Search Engine (CSE) Service
- * Searches across 50-country network for LinkedIn profiles
- */
-
-// CSE IDs from existing Stucrow configuration (50 countries)
+// CSE IDs from existing Stucrow configuration.
 const COUNTRY_CSES = {
   india: '017007144926744970718:auveiwtwlu4',
   uk: '7856acfbbbfa9e1fc',
@@ -63,27 +58,25 @@ const COUNTRY_CSES = {
 
 class CSEService {
   constructor() {
-    this.googleApiKey = process.env.GOOGLE_CSE_API_KEY;
     this.baseUrl = 'https://www.googleapis.com/customsearch/v1';
   }
 
-  /**
-   * Check if API key is configured
-   */
-  isConfigured() {
-    return !!this.googleApiKey;
+  getGoogleApiKey() {
+    return String(process.env.GOOGLE_CSE_API_KEY || '').trim();
   }
 
-  /**
-   * Search a single country CSE
-   */
+  isConfigured() {
+    return Boolean(this.getGoogleApiKey());
+  }
+
   async searchCountry(query, country, maxResults = 10) {
-    if (!this.googleApiKey) {
-      logger.warn(`Google CSE API key not configured, skipping search`);
+    const googleApiKey = this.getGoogleApiKey();
+    if (!googleApiKey) {
+      logger.warn('Google CSE API key not configured, skipping search');
       return [];
     }
 
-    const cseId = COUNTRY_CSES[country.toLowerCase()];
+    const cseId = COUNTRY_CSES[String(country || '').toLowerCase()];
     if (!cseId) {
       logger.warn(`No CSE configured for country: ${country}`);
       return [];
@@ -92,18 +85,15 @@ class CSEService {
     try {
       const response = await axios.get(this.baseUrl, {
         params: {
-          key: this.googleApiKey,
+          key: googleApiKey,
           cx: cseId,
           q: query,
-          num: Math.min(maxResults, 10), // Max 10 per API call
+          num: Math.min(maxResults, 10),
         },
         timeout: 15000,
       });
 
-      if (!response.data.items) {
-        return [];
-      }
-
+      if (!Array.isArray(response?.data?.items)) return [];
       return response.data.items.map((item) => ({
         title: item.title,
         link: item.link,
@@ -115,7 +105,7 @@ class CSEService {
       if (error.response?.status === 429) {
         logger.warn(`Google CSE rate limit hit for ${country}`);
       } else if (error.response?.status === 403) {
-        logger.error(`Google CSE quota exceeded or API key invalid`);
+        logger.error('Google CSE quota exceeded or API key invalid');
       } else {
         logger.debug(`CSE search failed for ${country}: ${error.message}`);
       }
@@ -123,55 +113,37 @@ class CSEService {
     }
   }
 
-  /**
-   * Search multiple countries in parallel
-   * Returns flattened array of results
-   */
   async searchCountries(query, countries, resultsPerCountry = 5) {
     logger.info(
-      `🔍 Searching ${countries.length} countries for: "${query.substring(0, 50)}..."`
+      `Searching ${countries.length} countries for query: "${String(query).slice(0, 80)}"`
     );
 
-    // Create tasks for each country
-    const tasks = countries.map((country) => this.searchCountry(query, country, resultsPerCountry));
-
-    // Execute with concurrency limit (5 simultaneous)
-    const results = await this._executeConcurrent(tasks, 5);
-
-    // Flatten results
+    const taskFns = countries.map(
+      (country) => () => this.searchCountry(query, country, resultsPerCountry)
+    );
+    const results = await this.executeConcurrent(taskFns, 5);
     const flattened = results.flat().filter(Boolean);
-    logger.info(`✅ Search complete: ${flattened.length} results from ${countries.length} countries`);
 
+    logger.info(`CSE search complete: ${flattened.length} results`);
     return flattened;
   }
 
-  /**
-   * Execute tasks with concurrency limit
-   */
-  async _executeConcurrent(tasks, limit) {
+  async executeConcurrent(taskFns, limit) {
     const results = [];
-    for (let i = 0; i < tasks.length; i += limit) {
-      const batch = tasks.slice(i, i + limit);
-      const batchResults = await Promise.allSettled(batch);
-      results.push(
-        ...batchResults.map((r) => (r.status === 'fulfilled' ? r.value : []))
-      );
+    for (let i = 0; i < taskFns.length; i += limit) {
+      const batch = taskFns.slice(i, i + limit);
+      const batchResults = await Promise.allSettled(batch.map((fn) => fn()));
+      results.push(...batchResults.map((r) => (r.status === 'fulfilled' ? r.value : [])));
     }
     return results;
   }
 
-  /**
-   * Get list of all configured countries
-   */
   getConfiguredCountries() {
     return Object.keys(COUNTRY_CSES);
   }
 
-  /**
-   * Get CSE ID for a country
-   */
   getCseId(country) {
-    return COUNTRY_CSES[country.toLowerCase()] || null;
+    return COUNTRY_CSES[String(country || '').toLowerCase()] || null;
   }
 }
 

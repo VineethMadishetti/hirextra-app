@@ -455,12 +455,20 @@ const UserSearch = () => {
 		const toastId = toast.loading("AI is analyzing your requirements...");
 
 		try {
-			const { data: extracted } = await api.post("/candidates/analyze-search", {
-				query: aiQuery.trim(),
+			const { data: extracted } = await api.post("/ai-source/parse-query", {
+				queryText: aiQuery.trim(),
 			});
 
-			const nextFilters = normalizeAiFilterPayload(extracted || {});
-			const nextSearchInput = normalizeAiSearchText(extracted?.q || "");
+			// The new endpoint returns { jobTitle, skills, location } where skills is an array.
+			// The existing normalizeAiFilterPayload expects skills as a string.
+			const payloadForNormalizer = {
+				...extracted,
+				skills: Array.isArray(extracted.skills) ? extracted.skills.join(', ') : extracted.skills,
+			};
+
+			const nextFilters = normalizeAiFilterPayload(payloadForNormalizer || {});
+			// The new endpoint doesn't return a general query 'q'. We clear the main search input.
+			const nextSearchInput = "";
 			const hasAnyAiFilter = Object.values(nextFilters).some(
 				(v) => v !== "" && v !== false,
 			);
@@ -468,7 +476,7 @@ const UserSearch = () => {
 			setSearchInput(nextSearchInput);
 			setFilters(nextFilters);
 
-			// Apply search immediately with sanitized shape only
+			// Apply search immediately
 			setAppliedSearchInput(nextSearchInput);
 			setAppliedFilters(nextFilters);
 			setSelectedIds(new Set());

@@ -1,11 +1,6 @@
 import OpenAI from 'openai';
 import logger from './logger.js';
 
-/**
- * AI Service for parsing job descriptions
- * Uses OpenAI to extract structured candidate requirements
- */
-
 let openai = null;
 
 function getOpenAIClient() {
@@ -13,143 +8,172 @@ function getOpenAIClient() {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY not configured. Please set it in environment variables.');
     }
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
   return openai;
 }
 
+function normalizeSkillList(input, maxItems = 8) {
+  const list = Array.isArray(input) ? input : [];
+  const deduped = [];
+  const seen = new Set();
+
+  for (const item of list) {
+    const value = String(item || '').trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(value);
+    if (deduped.length >= maxItems) break;
+  }
+
+  return deduped;
+}
+
+function normalizeTitleObject(jobTitle) {
+  const main = String(jobTitle?.main || '').trim();
+  const synonyms = normalizeSkillList(jobTitle?.synonyms || [], 4).filter(
+    (s) => s.toLowerCase() !== main.toLowerCase()
+  );
+  return { main: main || 'Software Engineer', synonyms };
+}
+
 export const parseJobDescription = async (jobDescription) => {
-  if (!jobDescription || jobDescription.trim().length < 20) {
+  if (!jobDescription || String(jobDescription).trim().length < 20) {
     throw new Error('Job description must be at least 20 characters');
   }
 
   try {
-    logger.info(`🤖 Parsing job description (${jobDescription.length} chars)...`);
-
+    logger.info(`Parsing job description (${jobDescription.length} chars)`);
     const client = getOpenAIClient();
+
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini', // Cost-effective model
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are a recruitment AI. Extract key information from job descriptions and return ONLY valid JSON with these exact fields:
-- job_title: object with "main" (string) and "synonyms" (array of 2-3 strings)
-- skills: array of required technical skills (max 8, strings)
-- experience_years: minimum years required (number)
-- experience_level: "Junior" | "Mid" | "Senior" | "Lead" | "Executive" (string)
-- location: city/country mentioned, or "Remote" (string)
-- remote: boolean, true if remote/work from home/distributed mentioned
-- must_have_skills: array of critical skills (max 3, strings)
-- nice_to_have_skills: array of secondary skills (max 3, strings)
-- company_types: array of desired company types if mentioned (max 3, strings)
+          content: `You are a recruitment AI parser. Return ONLY valid JSON using this schema:
+{
+  "job_title": { "main": "string", "synonyms": ["string"] },
+  "skills": ["string"],
+  "must_have_skills": ["string"],
+  "nice_to_have_skills": ["string"],
+  "experience_years": number,
+  "experience_level": "Junior|Mid|Senior|Lead|Executive",
+  "location": "string",
+  "remote": boolean,
+  "company_types": ["string"]
+}
 
-Return ONLY the JSON object, no other text.`,
+Rules:
+- Extract concise values from text only. Do not invent.
+- Keep skills <= 10, must_have_skills <= 5, nice_to_have_skills <= 5.
+- If location missing, use "Unspecified".
+- If experience is missing, use 0.
+- Return JSON only.`,
         },
         {
           role: 'user',
-          content: `Extract from this job description:\n\n${jobDescription}`,
+          content: `Extract structured hiring requirements from this JD:\n\n${jobDescription}`,
         },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.1, // Deterministic output
-      max_tokens: 500,
+      temperature: 0.1,
+      max_tokens: 700,
     });
 
-    const content = response.choices[0].message.content;
-    const parsed = JSON.parse(content);
+    const parsedRaw = JSON.parse(response.choices?.[0]?.message?.content || '{}');
+    const job_title = normalizeTitleObject(parsedRaw.job_title || {});
+    const skills = normalizeSkillList(parsedRaw.skills, 10);
+    const must_have_skills = normalizeSkillList(parsedRaw.must_have_skills, 5);
+    const nice_to_have_skills = normalizeSkillList(parsedRaw.nice_to_have_skills, 5);
+    const experience_years = Math.max(0, Number(parsedRaw.experience_years || 0));
+    const experience_level = String(
+      parsedRaw.experience_level || (experience_years >= 8 ? 'Lead' : experience_years >= 4 ? 'Senior' : 'Mid')
+    ).trim();
+    const location = String(parsedRaw.location || 'Unspecified').trim() || 'Unspecified';
+    const remote = Boolean(parsedRaw.remote);
+    const company_types = normalizeSkillList(parsedRaw.company_types, 5);
 
-    // Validate required fields exist
-    const required = ['job_title', 'skills', 'experience_years', 'location', 'remote'];
-    for (const field of required) {
-      if (!(field in parsed)) {
-        parsed[field] = field === 'location' ? 'Unknown' : field === 'skills' ? [] : 0;
-      }
-    }
+    const parsed = {
+      job_title,
+      skills,
+      must_have_skills,
+      nice_to_have_skills,
+      experience_years,
+      experience_level,
+      location,
+      remote,
+      company_types,
+    };
 
-    // Ensure defaults for optional fields
-    if (!parsed.experience_level)
-      parsed.experience_level = parsed.experience_years >= 5 ? 'Senior' : 'Mid';
-    if (!parsed.must_have_skills) parsed.must_have_skills = [];
-    if (!parsed.nice_to_have_skills) parsed.nice_to_have_skills = [];
-    if (!parsed.company_types) parsed.company_types = [];
-
-    logger.info(`✅ JD Parsed successfully: ${parsed.job_title?.main || 'Unknown'}`);
-
+    logger.info(`JD parsed successfully: ${parsed.job_title.main}`);
     return parsed;
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      logger.error('❌ Invalid JSON from OpenAI:', error.message);
-      throw new Error('Failed to parse job description - invalid response format');
-    }
-    logger.error('❌ OpenAI API error:', error.message);
+    logger.error(`OpenAI parsing error: ${error.message}`);
     throw new Error(`Job description parsing failed: ${error.message}`);
   }
 };
 
-/**
- * Generate optimized search queries from parsed job description
- */
-export const generateSearchQueries = (parsed) => {
+export const generateSearchQueries = (parsed, maxQueries = 6) => {
+  const titleMain = parsed?.job_title?.main || 'Software Engineer';
+  const titleVariants = [titleMain, ...(parsed?.job_title?.synonyms || [])]
+    .map((t) => String(t || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const mustHave = normalizeSkillList(parsed?.must_have_skills || [], 4);
+  const fallbackSkills = normalizeSkillList(parsed?.skills || [], 4);
+  const skills = mustHave.length > 0 ? mustHave : fallbackSkills;
+
+  const location = String(parsed?.location || '').trim();
+  const includeLocation = Boolean(location && !/unspecified|unknown|remote/i.test(location));
+  const locationToken = includeLocation ? `("${location}")` : '';
+  const skillToken = skills.length > 0 ? `(${skills.map((s) => `"${s}"`).join(' OR ')})` : '';
+
   const queries = [];
-
-  const title = parsed.job_title?.main || 'Developer';
-  const synonyms = parsed.job_title?.synonyms || [];
-  const mustHaveSkills = parsed.must_have_skills || [];
-  const skills = parsed.skills || [];
-
-  // Build skill string for search
-  const searchSkills = mustHaveSkills.length > 0 ? mustHaveSkills : skills.slice(0, 3);
-  const skillStr = searchSkills.map((s) => `"${s}"`).join(' OR ');
-
-  // Query 1: Exact title + skills + LinkedIn
-  if (skillStr) {
-    queries.push(`"${title}" (${skillStr}) site:linkedin.com/in`);
-  } else {
-    queries.push(`"${title}" site:linkedin.com/in`);
+  for (const title of titleVariants) {
+    const baseParts = [`"${title}"`, skillToken, locationToken, 'site:linkedin.com/in'];
+    queries.push(baseParts.filter(Boolean).join(' '));
   }
 
-  // Query 2: Synonym titles
-  for (const syn of synonyms.slice(0, 2)) {
-    queries.push(`"${syn}" ${skillStr ? `(${skillStr})` : ''} site:linkedin.com/in`);
-  }
-
-  // Query 3: High-intent searchers
-  queries.push(
-    `"${title}" ("open to work" OR "actively looking" OR "seeking" OR "available") site:linkedin.com/in`
-  );
-
-  // Query 4: Senior/Lead specific (if applicable)
-  if (['Senior', 'Lead', 'Executive'].includes(parsed.experience_level)) {
+  if (skills.length > 0) {
     queries.push(
-      `("Senior ${title}" OR "Lead ${title}") ${skillStr ? `(${skillStr})` : ''} site:linkedin.com/in`
+      `("${titleVariants.join('" OR "')}") ${skillToken} ("open to work" OR "actively looking") site:linkedin.com/in`
     );
   }
 
-  return queries.filter(Boolean).slice(0, 4); // Max 4 queries to control costs
-};
-
-/**
- * Determine target countries based on location in JD
- */
-export const determineTargetCountries = (location, isRemote) => {
-  const location_lower = (location || '').toLowerCase();
-
-  // Remote jobs - search top talent markets
-  if (isRemote || location_lower.includes('remote') || location_lower.includes('anywhere')) {
-    return ['india', 'uk', 'us', 'canada', 'germany'];
+  if (['Senior', 'Lead', 'Executive'].includes(parsed?.experience_level)) {
+    queries.push(
+      `("Senior ${titleMain}" OR "Lead ${titleMain}" OR "Principal ${titleMain}") ${skillToken} site:linkedin.com/in`
+    );
   }
 
-  // Country mapping
+  if (parsed?.remote) {
+    queries.push(`"${titleMain}" ${skillToken} ("remote" OR "distributed") site:linkedin.com/in`);
+  }
+
+  return normalizeSkillList(queries, maxQueries);
+};
+
+export const determineTargetCountries = (location, isRemote) => {
+  const normalized = String(location || '').toLowerCase();
+
+  if (isRemote || normalized.includes('remote') || normalized.includes('anywhere')) {
+    return ['us', 'india', 'uk', 'canada', 'germany'];
+  }
+
   const countryMap = {
     india: ['india'],
     pune: ['india'],
     bangalore: ['india'],
-    mumbai: ['india'],
+    bengaluru: ['india'],
     hyderabad: ['india'],
+    mumbai: ['india'],
     chennai: ['india'],
     delhi: ['india'],
+    gurgaon: ['india'],
     uk: ['uk'],
     london: ['uk'],
     'united kingdom': ['uk'],
@@ -161,23 +185,20 @@ export const determineTargetCountries = (location, isRemote) => {
     singapore: ['singapore'],
     australia: ['australia'],
     sydney: ['australia'],
-    melbourne: ['australia'],
     canada: ['canada'],
     toronto: ['canada'],
-    vancouver: ['canada'],
     us: ['us'],
     usa: ['us'],
     'united states': ['us'],
+    california: ['us'],
+    'new york': ['us'],
   };
 
   for (const [key, countries] of Object.entries(countryMap)) {
-    if (location_lower.includes(key)) {
-      return countries;
-    }
+    if (normalized.includes(key)) return countries;
   }
 
-  // Default to India + UK for broad searches
-  return ['india', 'uk'];
+  return ['india', 'uk', 'us'];
 };
 
 export default {
