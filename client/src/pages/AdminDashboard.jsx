@@ -154,6 +154,7 @@ const AdminDashboard = () => {
 	// S3 File Path Mode
 	const [importMode, setImportMode] = useState("upload"); // 'upload', 's3-csv', 's3-resume'
 	const [s3FilePath, setS3FilePath] = useState("");
+	const [reparseAllResumes, setReparseAllResumes] = useState(false);
 	const [isLoadingHeaders, setIsLoadingHeaders] = useState(false);
 	const [isStartingResumeImport, setIsStartingResumeImport] = useState(false);
 
@@ -410,13 +411,15 @@ const AdminDashboard = () => {
 			toast.loading("Starting resume import...", { id: "resume-import" });
 			const { data } = await api.post("/candidates/import-resumes", {
 				folderPath: normalizedFolderPath,
-				skipExisting: true,
+				skipExisting: !reparseAllResumes,
+				forceReparse: reparseAllResumes,
 			});
 			toast.success(
 				`Import started. ${data.queuedCount ?? data.fileCount ?? 0} files queued${data.skippedExistingCount ? `, ${data.skippedExistingCount} skipped` : ""}.`,
 				{ id: "resume-import" },
 			);
 			setS3FilePath("");
+			setReparseAllResumes(false);
 			setActiveTab("history");
 			queryClient.invalidateQueries({ queryKey: ["history"] });
 		} catch (error) {
@@ -752,6 +755,20 @@ const AdminDashboard = () => {
 														<p className="text-xs text-slate-500">
 															Use folder prefix only, for example `Resumes/` or `Resumes/Batch-1/`.
 														</p>
+														<label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mt-2 cursor-pointer select-none">
+															<input
+																type="checkbox"
+																checked={reparseAllResumes}
+																onChange={(e) => setReparseAllResumes(e.target.checked)}
+																className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+															/>
+															<span>Re-parse all files (ignore previously parsed rows)</span>
+														</label>
+														{reparseAllResumes && (
+															<p className="text-[11px] text-amber-600 dark:text-amber-300">
+																This will reprocess every resume in the folder and consume RChilli credits for all files.
+															</p>
+														)}
 													</div>
 
 														<button

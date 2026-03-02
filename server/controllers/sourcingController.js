@@ -1,5 +1,5 @@
 import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
 import {
@@ -11,6 +11,21 @@ import {
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
+
+const require = createRequire(import.meta.url);
+
+let pdfParse = null;
+try {
+  const pdfModule = require('pdf-parse');
+  pdfParse =
+    typeof pdfModule === 'function'
+      ? pdfModule
+      : typeof pdfModule?.default === 'function'
+        ? pdfModule.default
+        : null;
+} catch (error) {
+  logger.warn(`PDF parser initialization failed: ${error.message}`);
+}
 
 function clampNumber(value, min, max, fallback) {
   const num = Number(value);
@@ -64,6 +79,9 @@ async function extractTextFromFile(file) {
   const mime = String(file.mimetype || '').toLowerCase();
 
   if (mime.includes('pdf') || name.endsWith('.pdf')) {
+    if (!pdfParse) {
+      throw new Error('PDF parsing is currently unavailable on server runtime');
+    }
     const parsed = await pdfParse(file.buffer);
     return String(parsed?.text || '').trim();
   }

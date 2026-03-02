@@ -709,7 +709,7 @@ export const importResumes = async (req, res) => {
 			creditWarning = `Warning: Could not verify RChilli credits (${creditError.message}). Import will proceed but may fail if credits are insufficient.`;
 		}
 
-		const allowReparse = String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "false").toLowerCase() === "true";
+		const allowReparse = String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "true").toLowerCase() !== "false";
 		const safeSkipExisting = forceReparse && allowReparse ? false : skipExisting !== false;
 		// Default to direct mode for resume imports to avoid Redis request caps on bulk folders.
 		// Set RESUME_IMPORT_USE_QUEUE=true only when you explicitly want BullMQ queueing.
@@ -1073,7 +1073,7 @@ export const resumeUploadJob = async (req, res) => {
 		// Resume bulk resume import jobs using the resume-folder pipeline
 		if (isResumeFolderJob) {
 			const allowReparse =
-				String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "false").toLowerCase() === "true";
+				String(process.env.RESUME_IMPORT_ALLOW_REPARSE || "true").toLowerCase() !== "false";
 			const skipExisting = forceReparse && allowReparse ? false : true;
 			const normalizedFolderPath = String(job.fileName || "").trim().replace(/^\/+/, "");
 			const s3Prefix = normalizedFolderPath.endsWith("/")
