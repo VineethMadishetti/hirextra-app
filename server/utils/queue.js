@@ -844,6 +844,7 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 	let fallbackData = {};
 	let insertedPartial = false;
 	let buffer = null; // Will be explicitly cleared in finally block
+	let shouldSkipProgressUpdate = false;
 
 	// Guard against stale Redis jobs: skip work when parent UploadJob is gone/inactive.
 	const parentJob = await UploadJob.findById(jobId).select("status isDeleted").lean();
@@ -910,10 +911,24 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 		}
 		fallbackData = extractFallbackFields(extractedText, s3Key);
 
+		// Re-check parent job status immediately before external parser call to avoid wasting credits
+		const latestJobState = await UploadJob.findById(jobId).select("status isDeleted").lean();
+		if (!latestJobState || latestJobState.isDeleted || !activeStatuses.has(String(latestJobState.status || ""))) {
+			shouldSkipProgressUpdate = true;
+			return;
+		}
+
 		// 3. RChilli Parse
 		const rchilliResult = await parseResumeWithRChilli(buffer, s3Key, fileExt, fallbackData);
 		if (!rchilliResult?.parsedData) {
 			throw new Error("RCHILLI_PARSE_FAILED: RChilli did not return parsed data.");
+		}
+
+		// Job may be deleted while parser call is in-flight; don't save if job is no longer active.
+		const afterParseJobState = await UploadJob.findById(jobId).select("status isDeleted").lean();
+		if (!afterParseJobState || afterParseJobState.isDeleted || !activeStatuses.has(String(afterParseJobState.status || ""))) {
+			shouldSkipProgressUpdate = true;
+			return;
 		}
 
 		const mergedCandidate = mergeResumeData({
@@ -972,6 +987,12 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 
 		// Best-effort partial insert so resume is not silently dropped.
 		try {
+			const beforePartialInsertJobState = await UploadJob.findById(jobId).select("status isDeleted").lean();
+			if (!beforePartialInsertJobState || beforePartialInsertJobState.isDeleted || !activeStatuses.has(String(beforePartialInsertJobState.status || ""))) {
+				shouldSkipProgressUpdate = true;
+				return;
+			}
+
 			if (!fallbackData || Object.keys(fallbackData).length === 0) {
 				fallbackData = extractFallbackFields(extractedText || "", s3Key);
 			}
@@ -1021,6 +1042,10 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 			} catch (e) {
 				// gc may not be enabled, that's ok
 			}
+		}
+
+		if (shouldSkipProgressUpdate) {
+			return;
 		}
 		
 		// This block is the single source of truth for updating job progress.
@@ -1853,5 +1878,64 @@ if (connection) {
 } else {
 	logger.warn("⚠️ Redis connection missing. CSV worker not started.");
 }
+
+// Best-effort cancellation of queued resume-import tasks for a specific UploadJob.
+// Active jobs cannot always be removed immediately, but pending/delayed jobs are removed.
+export const cancelQueuedResumeImports = async (uploadJobId) => {
+	const result = {
+		queueEnabled: !!importQueue,
+		scanned: 0,
+		matched: 0,
+		removed: 0,
+		activeOrLocked: 0,
+	};
+
+	if (!importQueue || !uploadJobId) {
+		return result;
+	}
+
+	try {
+		const queueJobs = await importQueue.getJobs(
+			["waiting", "delayed", "prioritized", "paused", "active"],
+			0,
+			-1,
+			false,
+		);
+
+		result.scanned = queueJobs.length;
+		const targetJobId = String(uploadJobId);
+
+		for (const queueJob of queueJobs) {
+			if (queueJob?.name !== "resume-import") continue;
+			if (String(queueJob?.data?.jobId || "") !== targetJobId) continue;
+
+			result.matched += 1;
+			try {
+				await queueJob.remove();
+				result.removed += 1;
+			} catch (removeError) {
+				const removeMsg = String(removeError?.message || removeError || "");
+				if (/active|locked|in progress/i.test(removeMsg)) {
+					result.activeOrLocked += 1;
+					try {
+						await queueJob.discard();
+					} catch (_) {
+						// best-effort only
+					}
+				} else {
+					logger.warn(
+						`Failed to remove queued resume task ${queueJob?.id} for uploadJob ${targetJobId}: ${removeMsg}`,
+					);
+				}
+			}
+		}
+	} catch (error) {
+		logger.warn(
+			`cancelQueuedResumeImports failed for uploadJob ${uploadJobId}: ${error?.message || error}`,
+		);
+	}
+
+	return result;
+};
 
 export default importQueue;

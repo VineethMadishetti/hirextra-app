@@ -1,4 +1,4 @@
-import importQueue, { processCsvJob, processResumeJob, processFolderJob } from "../utils/queue.js";
+import importQueue, { processCsvJob, processResumeJob, processFolderJob, cancelQueuedResumeImports } from "../utils/queue.js";
 import Candidate from "../models/Candidate.js";
 import UploadJob from "../models/UploadJob.js";
 import User from "../models/User.js";
@@ -1817,15 +1817,21 @@ export const deleteUploadJob = async (req, res) => {
 
 		const { id } = req.params;
 		const job = await UploadJob.findById(id);
+		if (!job) {
+			return res.status(404).json({ message: "Job not found" });
+		}
 
-		await Candidate.deleteMany({ uploadJobId: id });
+		// Mark deleted first so active workers can stop before external parser calls.
 		await UploadJob.findByIdAndUpdate(id, {
 			status: "DELETED",
-			successRows: 0,
-			failedRows: 0,
+			isDeleted: true,
 			deletedAt: new Date(),
-			deletedBy: req.user._id
+			deletedBy: req.user._id,
 		});
+
+		const queueCancelResult = await cancelQueuedResumeImports(id);
+		await Candidate.deleteMany({ uploadJobId: id });
+		await UploadJob.findByIdAndDelete(id);
 
 		if (job) {
 			await DeleteLog.create({
@@ -1835,7 +1841,10 @@ export const deleteUploadJob = async (req, res) => {
 			});
 		}
 
-		res.json({ message: "Job deleted successfully" });
+		res.json({
+			message: "Job deleted permanently",
+			queueCancelResult,
+		});
 	} catch (error) {
 		res.status(401).json({ message: error.message });
 	}

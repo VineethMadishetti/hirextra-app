@@ -1,6 +1,7 @@
 import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import DeleteLog from '../models/DeleteLog.js';
+import { cancelQueuedResumeImports } from '../utils/queue.js';
 
 export const resetDatabase = async (req, res) => {
   try {
@@ -27,6 +28,17 @@ export const deleteJob = async (req, res) => {
     try {
         // Fetch job details for logging before deletion
         const job = await UploadJob.findById(id);
+
+        // Mark as deleted first so any active resume worker can stop before charging parser credits
+        await UploadJob.findByIdAndUpdate(id, {
+            status: "DELETED",
+            isDeleted: true,
+            deletedAt: new Date(),
+            deletedBy: req.user?._id
+        }).catch(() => {});
+
+        const queueCancelResult = await cancelQueuedResumeImports(id);
+        console.log(`[deleteJob] Queue cancel summary for ${id}:`, queueCancelResult);
 
         // Count candidates before deletion for logging
         const candidateCount = await Candidate.countDocuments({ uploadJobId: id });
