@@ -138,8 +138,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           ...(extractedRequirements.dosa || {}),
         },
         availability: extractedRequirements.availability || extractedRequirements.dosa?.availability || '',
-        jobType: extractedRequirements.jobType || '',
-        salaryRange: extractedRequirements.salaryRange || '',
+        jobType: extractedRequirements.durationType || '',
+        salaryRange: extractedRequirements.salaryPackage || '',
         education: extractedRequirements.education || '',
       });
       setComposeStep('parsed');

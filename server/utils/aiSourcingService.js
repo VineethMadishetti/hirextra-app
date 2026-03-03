@@ -128,11 +128,11 @@ export function normalizeParsedRequirements(raw = {}) {
 
   const location = String(raw.location || 'Unspecified').trim() || 'Unspecified';
   const industry = String(raw.industry || 'Not Specified').trim() || 'Not Specified';
-  const duration_type = String(raw.duration_type || raw.durationType || 'Not Specified').trim();
+  const duration_type = String(raw.duration_type || raw.durationType || raw.jobType || 'Not Specified').trim();
   const organization_hierarchy = String(
     raw.organization_hierarchy || raw.organizationHierarchy || 'Not Specified'
   ).trim();
-  const salary_package = String(raw.salary_package || raw.salaryPackage || 'Not Specified').trim();
+  const salary_package = String(raw.salary_package || raw.salaryPackage || raw.salaryRange || 'Not Specified').trim();
   const availability = String(raw.availability || 'Not Specified').trim();
   const education = String(raw.education || 'Not Specified').trim();
   const company_types = uniqueStrings(raw.company_types || raw.companyTypes || [], 5);
@@ -368,15 +368,25 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
   const location = String(parsed.location || '').trim();
   const includeLocation = Boolean(location && !/unspecified|not specified|remote/i.test(location));
   const locationClause = includeLocation ? `("${location}")` : '';
+  const durationType = String(parsed.duration_type || '').trim();
+  const includeDuration = Boolean(durationType && !/not specified/i.test(durationType));
+  const durationClause = includeDuration ? `("${durationType}")` : '';
+  const salaryPackage = String(parsed.salary_package || '').trim();
+  const includeSalary = Boolean(salaryPackage && !/not specified/i.test(salaryPackage));
+  const salaryClause = includeSalary ? `("${salaryPackage}")` : '';
 
   const queries = [];
   for (const title of titles) {
-    queries.push([`"${title}"`, skillsClause, locationClause, 'site:linkedin.com/in'].filter(Boolean).join(' '));
+    queries.push(
+      [`"${title}"`, skillsClause, locationClause, durationClause, salaryClause, 'site:linkedin.com/in']
+        .filter(Boolean)
+        .join(' ')
+    );
   }
 
   if (titles.length) {
     queries.push(
-      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, '"open to work"', 'site:linkedin.com/in']
+      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, durationClause, salaryClause, '"open to work"', 'site:linkedin.com/in']
         .filter(Boolean)
         .join(' ')
     );
@@ -384,7 +394,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   if (parsed.remote) {
     queries.push(
-      [`"${parsed.job_title.main}"`, skillsClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
+      [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
         .filter(Boolean)
         .join(' ')
     );
@@ -392,7 +402,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   // Resume-oriented pass (still linked to LinkedIn profile results)
   queries.push(
-    [`"${parsed.job_title.main}"`, skillsClause, '("resume" OR "cv")', 'site:linkedin.com/in']
+    [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("resume" OR "cv")', 'site:linkedin.com/in']
       .filter(Boolean)
       .join(' ')
   );
