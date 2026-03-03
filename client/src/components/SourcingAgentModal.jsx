@@ -295,14 +295,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   return (
     <div className={outerShellClass} style={CARD_FONT}>
       <div className={contentShellClass}>
-        <div className="bg-[linear-gradient(110deg,#020617,#1a1440,#432DD7)] border-b border-slate-800 text-white px-6 py-5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Recruitment AI</p>
-            <h2 className="text-2xl md:text-3xl font-bold mt-1 inline-flex items-center gap-2">
-              AI Sourcing Agent
-              <Bot size={22} className="text-[#C8BFFF]" />
-            </h2>
-            <p className="text-sm text-slate-300 mt-1">JD upload, structured extraction, CSE sourcing, enrichment, and shortlist workflow.</p>
+        <div className="bg-[linear-gradient(110deg,#1a1440,#432DD7)] border-b border-slate-800 text-white px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <div className="bg-white/5 p-3 rounded-2xl border border-white/10 shadow-lg shrink-0">
+              <Bot size={36} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]" />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Recruitment AI</p>
+              <h2 className="text-2xl md:text-3xl font-bold mt-1">
+                AI Sourcing Agent
+              </h2>
+              <p className="text-sm text-slate-300 mt-1">JD upload, structured extraction, CSE sourcing, enrichment, and shortlist workflow.</p>
+            </div>
           </div>
         </div>
 
