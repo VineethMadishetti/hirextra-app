@@ -157,6 +157,36 @@ export function normalizeParsedRequirements(raw = {}) {
   };
 }
 
+function fallbackParse(jd) {
+  logger.warn('AI parsing failed, using regex-based fallback.');
+  const lowerJd = jd.toLowerCase();
+
+  // Extract years of experience
+  const yearsMatch = lowerJd.match(/(\d+)\+?\s*years?/);
+  const years = yearsMatch ? parseInt(yearsMatch[1], 10) : 3;
+
+  // Common skills list
+  const commonSkills = ['java', 'python', 'javascript', 'react', 'angular', 'node.js', 'aws', 'azure', 'docker', 'kubernetes', 'sql', 'mongodb', 'spring boot', 'microservices'];
+  const foundSkills = commonSkills.filter(skill => lowerJd.includes(skill));
+
+  // Extract job title (simple approach)
+  const titleMatch = lowerJd.match(/(?:position|role|job title|seeking a|hiring a)\s*([a-z\s]+)/);
+  let title = 'Developer';
+  if (titleMatch && titleMatch[1]) {
+      title = titleMatch[1].split('\n')[0].trim().replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // This is a simplified fallback, so we only populate the most critical fields
+  return {
+    job_title: { main: title, synonyms: [] },
+    required_skills: foundSkills.slice(0, 8),
+    experience_years: years,
+    location: 'Not Specified',
+    remote: /remote|work from home|wfh/i.test(lowerJd),
+    must_have_skills: foundSkills.slice(0, 3),
+  };
+}
+
 export async function parseJobDescription(jobDescription) {
   if (!jobDescription || String(jobDescription).trim().length < 20) {
     throw new Error('Job description must be at least 20 characters');
@@ -196,7 +226,28 @@ Extraction policy:
 - Extract from text only; do not invent.
 - Required skills <= 12, preferred skills <= 10, must-have <= 6.
 - If missing, use "Not Specified" for string fields and 0 for experience_years.
-- Return JSON only.`,
+- Return JSON only.
+
+Example:
+User Input: "Seeking a Senior Backend Engineer with 8+ years of experience in Java and Spring Boot for our fintech team in London. Must have strong knowledge of microservices and AWS. Kafka is a plus. This is a full-time permanent role."
+Your JSON Output:
+{
+  "job_title": { "main": "Senior Backend Engineer", "synonyms": ["Senior Java Developer", "Senior Software Engineer"] },
+  "industry": "Fintech",
+  "duration_type": "Full-time",
+  "location": "London",
+  "experience_years": 8,
+  "experience_level": "Senior",
+  "organization_hierarchy": "Not Specified",
+  "salary_package": "Not Specified",
+  "availability": "Not Specified",
+  "education": "Not Specified",
+  "required_skills": ["Java", "Spring Boot", "Microservices", "AWS"],
+  "preferred_skills": ["Kafka"],
+  "must_have_skills": ["Java", "Spring Boot", "Microservices", "AWS"],
+  "company_types": [],
+  "remote": false
+}`,
         },
         {
           role: 'user',
@@ -213,8 +264,9 @@ Extraction policy:
     logger.info(`JD parsed successfully: ${normalized.job_title.main}`);
     return normalized;
   } catch (error) {
-    logger.error(`OpenAI parsing error: ${error.message}`);
-    throw new Error(`Job description parsing failed: ${error.message}`);
+    logger.error(`OpenAI parsing error: ${error.message}. Falling back to basic extraction.`);
+    const fallbackResult = fallbackParse(jobDescription);
+    return normalizeParsedRequirements(fallbackResult);
   }
 }
 

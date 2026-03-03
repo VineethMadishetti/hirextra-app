@@ -137,6 +137,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         dosa: {
           ...(extractedRequirements.dosa || {}),
         },
+        availability: extractedRequirements.availability || extractedRequirements.dosa?.availability || '',
         jobType: extractedRequirements.jobType || '',
         salaryRange: extractedRequirements.salaryRange || '',
         education: extractedRequirements.education || '',
@@ -329,14 +330,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     <div className="w-20" />
                   )}
 
-                  <h3 className="text-xl font-bold text-white tracking-tight">
+                  <h3 className="text-xl font-bold tracking-tight uppercase text-[#5A45E5]">
                     {composeStep === 'input' ? 'Requirements Input' : 'Structured Filters'}
                   </h3>
 
                   {composeStep === 'input' ? (
                     <button
                       onClick={() => setComposeStep('parsed')}
-                      className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 cursor-pointer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
                     >
                       Next
                       <ChevronRight size={16} />
@@ -465,27 +466,29 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
-                    <div>
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Education</label>
-                      <input
-                        value={parsedDraft?.education || ''}
-                        onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), education: e.target.value }))}
-                        placeholder="e.g. Bachelor's in CS"
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Availability</label>
-                      <input
-                        value={parsedDraft?.dosa?.availability || ''}
-                        onChange={(e) =>
-                          setParsedDraft((prev) => ({
-                            ...(prev || {}),
-                            dosa: { ...(prev?.dosa || {}), availability: e.target.value },
-                          }))
-                        }
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
-                      />
+                    <div className="md:col-span-2 grid md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Education</label>
+                        <input
+                          value={parsedDraft?.education || ''}
+                          onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), education: e.target.value }))}
+                          placeholder="e.g. Bachelor's in CS"
+                          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Availability</label>
+                        <input
+                          value={parsedDraft?.availability || ''}
+                          onChange={(e) =>
+                            setParsedDraft((prev) => ({
+                              ...(prev || {}),
+                              availability: e.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                        />
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills (comma separated)</label>
