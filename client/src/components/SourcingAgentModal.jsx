@@ -137,6 +137,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         dosa: {
           ...(extractedRequirements.dosa || {}),
         },
+        jobType: extractedRequirements.jobType || '',
+        salaryRange: extractedRequirements.salaryRange || '',
+        education: extractedRequirements.education || '',
       });
       setComposeStep('parsed');
       toast.success('Structured requirements extracted.');
@@ -300,9 +303,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
             </h2>
             <p className="text-sm text-slate-300 mt-1">JD upload, structured extraction, CSE sourcing, enrichment, and shortlist workflow.</p>
           </div>
-          <button onClick={handleClose} className="p-2 rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer">
-            <X size={22} />
-          </button>
         </div>
 
         <div className="h-[calc(100%-102px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
@@ -316,33 +316,33 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           {view === 'compose' && (
             <div className="mx-auto max-w-6xl">
               {hasParsedDraft && (
-                <div className="mb-4 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 flex items-center justify-between">
+                <div className="mb-6 flex items-center justify-between px-1">
                   {composeStep === 'parsed' ? (
                     <button
                       onClick={() => setComposeStep('input')}
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-[#432DD7]/15 hover:text-white transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
                     >
                       <ChevronLeft size={16} />
                       Back
                     </button>
                   ) : (
-                    <span />
+                    <div className="w-20" />
                   )}
 
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  <h3 className="text-xl font-bold text-white tracking-tight">
                     {composeStep === 'input' ? 'Requirements Input' : 'Structured Filters'}
-                  </p>
+                  </h3>
 
                   {composeStep === 'input' ? (
                     <button
                       onClick={() => setComposeStep('parsed')}
-                      className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-[#432DD7]/15 hover:text-white transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 cursor-pointer"
                     >
                       Next
                       <ChevronRight size={16} />
                     </button>
                   ) : (
-                    <span />
+                    <div className="w-20" />
                   )}
                 </div>
               )}
@@ -444,6 +444,33 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         onChange={(e) =>
                           setParsedDraft((prev) => ({ ...(prev || {}), experienceYears: Math.max(0, Number(e.target.value) || 0) }))
                         }
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Job Type / Duration</label>
+                      <input
+                        value={parsedDraft?.jobType || ''}
+                        onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), jobType: e.target.value }))}
+                        placeholder="e.g. Full-time, Contract"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Salary Range</label>
+                      <input
+                        value={parsedDraft?.salaryRange || ''}
+                        onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), salaryRange: e.target.value }))}
+                        placeholder="e.g. $100k - $130k"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Education</label>
+                      <input
+                        value={parsedDraft?.education || ''}
+                        onChange={(e) => setParsedDraft((prev) => ({ ...(prev || {}), education: e.target.value }))}
+                        placeholder="e.g. Bachelor's in CS"
                         className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
