@@ -836,7 +836,7 @@ const mergeResumeData = ({ parsedData, fallbackData, s3Key, jobId, parseStatus, 
 	};
 };
 
-export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, skipAutoFinalize = false }) => {
+export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, skipAutoFinalize = false, updateCounters = true }) => {
 	let success = false;
 	let reason = 'UNKNOWN_ERROR';
 	let errorMessage = "";
@@ -1047,7 +1047,13 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 		if (shouldSkipProgressUpdate) {
 			return;
 		}
-		
+
+		// When updateCounters=false (retrying a PARTIAL record that was already counted
+		// in a previous run), skip counter updates to avoid double-counting.
+		if (!updateCounters) {
+			return;
+		}
+
 		// This block is the single source of truth for updating job progress.
 		try {
 			// Define the update operation based on success or failure
@@ -1166,7 +1172,19 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 					await Promise.race([processPromise, timeoutPromise]);
 					processedCount++;
 				} catch (error) {
-					logger.error(`Resume processing failed for ${s3Key}: ${error?.message || error}`);
+					const errorMessage = error?.message || String(error);
+					logger.error(`Resume processing failed for ${s3Key}: ${errorMessage}`);
+					try {
+						await UploadJob.updateOne(
+							{ _id: jobId },
+							{
+								$inc: { failedRows: 1, [`failureReasons.FILE_TIMEOUT`]: 1 },
+								$set: { [`failureReasonSample.FILE_TIMEOUT`]: `File processing timed out: ${s3Key}` }
+							}
+						);
+					} catch (updateError) {
+						logger.error(`Failed to update job progress for timeout on ${s3Key}:`, updateError);
+					}
 					processedCount++;
 				}
 			})().finally(() => running.delete(task));

@@ -122,8 +122,14 @@ export default function ResumeImportMonitor({ jobId, onComplete, onError }) {
 				...prev,
 				job: { ...prev.job, status: 'PROCESSING' }
 			}));
+			// Restart polling so the UI updates as the resumed job progresses
 			setIsPolling(true);
-			toast.success('Import resumed');
+			if (pollingRef.current) clearInterval(pollingRef.current);
+			pollingRef.current = setInterval(() => {
+				pollJobStatus();
+				if (Math.random() < 0.2) checkRChilliCredits();
+			}, 2000);
+			toast.success('Import resumed — processing remaining files');
 		} catch (error) {
 			toast.error('Failed to resume import');
 		}
@@ -265,7 +271,7 @@ export default function ResumeImportMonitor({ jobId, onComplete, onError }) {
 			)}
 
 			{/* Action Buttons */}
-			{(isProcessing || isPaused) && (
+			{(isProcessing || isPaused || isFailed) && (
 				<div className="flex gap-2">
 					{isProcessing && (
 						<button
@@ -281,6 +287,14 @@ export default function ResumeImportMonitor({ jobId, onComplete, onError }) {
 							className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm font-medium"
 						>
 							Resume Import
+						</button>
+					)}
+					{isFailed && (
+						<button
+							onClick={handleResume}
+							className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition text-sm font-semibold shadow-sm"
+						>
+							Resume from Checkpoint
 						</button>
 					)}
 				</div>

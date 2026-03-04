@@ -13,6 +13,7 @@ import {
 	XCircle,
 	Loader,
 	ChevronDown,
+	Play,
 } from "lucide-react";
 import ResumeIcon from "../assets/resume-folder.svg"; // You might need to add this or reuse existing
 import ExistingFilesIcon from "../assets/existing-files.svg";
@@ -964,23 +965,28 @@ const AdminDashboard = () => {
 														</div>
 
 														{/* Actions */}
-														<div className="flex gap-2">
-															{isFolderImport && (
+														<div className="flex items-center gap-2">
+															{isFolderImport && job.status === "FAILED" && (
 																<button
 																	onClick={() => handleResumeStuckJob(job._id)}
-																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
-																	hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400
-																	transition cursor-pointer"
-																	title="Resume Import (Process Remaining)">
+																	className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-sm"
+																	title="Resume import from checkpoint — skips already-processed files">
+																	<Play size={12} />
+																	Resume
+																</button>
+															)}
+															{isFolderImport && job.status !== "FAILED" && job.status !== "COMPLETED" && (
+																<button
+																	onClick={() => handleResumeStuckJob(job._id)}
+																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
+																	title="Resume / retry import (process remaining files)">
 																	<RefreshCw size={16} />
 																</button>
 															)}
 															<button
 																onClick={() => initiateAction("deleteJob", job._id)}
-																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
-                               hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400
-                               transition cursor-pointer"
-															    title="Delete Job & Data">
+																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 transition cursor-pointer"
+																title="Delete Job & Data">
 																<Trash2 size={16} />
 															</button>
 														</div>

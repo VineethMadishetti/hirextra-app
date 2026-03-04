@@ -23,6 +23,7 @@ const uploadJobSchema = new mongoose.Schema({
     type: Map,
     of: String,
   },
+  error: { type: String, default: null }, // Last error message (for FAILED jobs)
   mapping: Object, // Store what mapping was used
   headers: [String], // ✅ Store the exact headers used for processing
   startedAt: Date,

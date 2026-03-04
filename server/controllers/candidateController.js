@@ -543,7 +543,11 @@ export const uploadChunk = async (req, res) => {
 };
 
 // --- BULK RESUME IMPORT (S3 Folder) ---
-const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) => {
+// reprocessPartial: when true (used on resume), PARTIAL records are retried via RChilli
+//   but their counters are NOT re-incremented (they were already counted in the previous run).
+//   Only files with parseStatus:"PARSED" are skipped. Brand-new files (not in DB) are fully
+//   processed and counted normally.
+const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, reprocessPartial = false }) => {
 	const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
 	const scanBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_SCAN_BATCH || 1000));
 	const directConcurrency = Math.max(
@@ -561,13 +565,15 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) =
 	let sawAnyResumeFile = false;
 
 	const running = new Set();
-	const schedule = async (s3Key) => {
+	// isPartialRetry=true: file was already in DB as PARTIAL – re-parse but don't double-count
+	const schedule = async (s3Key, isPartialRetry = false) => {
 		const task = Promise.race([
 			processResumeJob({
 				jobId,
 				s3Key,
 				skipAutoFinalize: true,
-				skipIfExists: !!skipExisting,
+				skipIfExists: false,          // Batch already filtered; no per-file re-check needed
+				updateCounters: !isPartialRetry, // Don't double-count PARTIAL retries
 			}),
 			new Promise((_, reject) =>
 				setTimeout(
@@ -576,8 +582,23 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) =
 				),
 			),
 		])
-			.catch((error) => {
-				console.error(`Direct resume processing failed for ${s3Key}:`, error?.message || error);
+			.catch(async (error) => {
+				const errorMessage = error?.message || String(error);
+				console.error(`Direct resume processing failed for ${s3Key}:`, errorMessage);
+				if (!isPartialRetry) {
+					// Only increment failedRows for brand-new files (not PARTIAL retries)
+					try {
+						await UploadJob.updateOne(
+							{ _id: jobId },
+							{
+								$inc: { failedRows: 1, [`failureReasons.FILE_TIMEOUT`]: 1 },
+								$set: { [`failureReasonSample.FILE_TIMEOUT`]: `File processing timed out: ${s3Key}` }
+							}
+						);
+					} catch (updateError) {
+						console.error(`Failed to update job progress for timeout on ${s3Key}:`, updateError);
+					}
+				}
 			})
 			.finally(() => running.delete(task));
 
@@ -606,27 +627,58 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) =
 			if (chunk.length === 0) continue;
 
 			let filesToProcess = chunk;
+			// partialKeys: files already in DB as PARTIAL — re-parse but skip counter increments
+			let partialKeys = new Set();
+
 			if (skipExisting) {
 				const chunkKeys = chunk.map((f) => f.Key);
-				const existingRows = await Candidate.find({
-					sourceFile: { $in: chunkKeys },
-					isDeleted: false,
-				})
-					.select("sourceFile -_id")
-					.lean();
 
-				const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
-				filesToProcess = chunk.filter((f) => !existingKeys.has(f.Key));
-				skippedExistingCount += chunk.length - filesToProcess.length;
+				if (reprocessPartial) {
+					// Fetch existing records WITH parseStatus to distinguish parsed (skip) from partial (retry)
+					const existingRows = await Candidate.find({
+						sourceFile: { $in: chunkKeys },
+						isDeleted: false,
+					})
+						.select("sourceFile parseStatus -_id")
+						.lean();
+
+					const parsedKeys = new Set(
+						existingRows.filter((r) => r.parseStatus === "PARSED").map((r) => r.sourceFile)
+					);
+					partialKeys = new Set(
+						existingRows.filter((r) => r.parseStatus !== "PARSED").map((r) => r.sourceFile)
+					);
+
+					// Skip only fully-parsed files; PARTIAL files are included for a re-parse attempt
+					filesToProcess = chunk.filter((f) => !parsedKeys.has(f.Key));
+					skippedExistingCount += chunk.length - filesToProcess.length;
+				} else {
+					// Default: skip ALL records already in DB
+					const existingRows = await Candidate.find({
+						sourceFile: { $in: chunkKeys },
+						isDeleted: false,
+					})
+						.select("sourceFile -_id")
+						.lean();
+
+					const existingKeys = new Set(existingRows.map((row) => row.sourceFile));
+					filesToProcess = chunk.filter((f) => !existingKeys.has(f.Key));
+					skippedExistingCount += chunk.length - filesToProcess.length;
+				}
 			}
+
+			// Update totalRows with DISCOVERED count (all files), not queuedCount
+			await UploadJob.findByIdAndUpdate(jobId, { totalRows: discoveredCount, status: "PROCESSING" });
 
 			if (filesToProcess.length === 0) continue;
 
-			queuedCount += filesToProcess.length;
-			await UploadJob.findByIdAndUpdate(jobId, { totalRows: queuedCount, status: "PROCESSING" });
+			// Only brand-new files (not previously partial) count toward queuedCount
+			const brandNewFiles = filesToProcess.filter((f) => !partialKeys.has(f.Key));
+			queuedCount += brandNewFiles.length;
 
 			for (const file of filesToProcess) {
-				await schedule(file.Key);
+				const isPartialRetry = partialKeys.has(file.Key);
+				await schedule(file.Key, isPartialRetry);
 			}
 		}
 	}
@@ -649,9 +701,7 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true }) =
 	if (queuedCount === 0) {
 		await UploadJob.findByIdAndUpdate(jobId, {
 			status: "COMPLETED",
-			totalRows: 0,
-			successRows: 0,
-			failedRows: 0,
+			totalRows: discoveredCount,
 			completedAt: new Date(),
 		});
 		return {
@@ -1063,16 +1113,21 @@ export const resumeUploadJob = async (req, res) => {
 				completedAt: null,
 			});
 
+			// reprocessPartial=true: retry PARTIAL records (RChilli-failed files from previous run)
+			// without double-counting them. forceReparse=true: retry ALL records including PARSED.
+			const reprocessPartial = !forceReparse;
+
 			setImmediate(async () => {
 				try {
 					await runDirectResumeImport({
 						jobId: job._id,
 						s3Prefix,
 						skipExisting,
+						reprocessPartial,
 					});
 				} catch (err) {
 					const errorMsg = err?.message || String(err) || "Resume import restart failed";
-					console.error(`❌ Resume-folder restart failed for job ${id}:`, err);
+					console.error(`Resume-folder restart failed for job ${id}:`, err);
 					await UploadJob.findByIdAndUpdate(id, {
 						status: "FAILED",
 						error: "Resume import restart failed: " + errorMsg,
@@ -1084,6 +1139,7 @@ export const resumeUploadJob = async (req, res) => {
 				message: "Resume-folder job restart triggered",
 				jobId: id,
 				skipExisting,
+				reprocessPartial,
 				forceReparse: !!(forceReparse && allowReparse),
 			});
 		}
@@ -1146,10 +1202,11 @@ export const processResumeFolder = async (req, res) => {
 		const s3Prefix = normalizedPath.endsWith('/') ? normalizedPath : `${normalizedPath}/`;
 
 		// Check if a job already exists for this folder
+		// Find the most recent job for this folder path (sort by createdAt desc)
 		let existingJob = await UploadJob.findOne({
 			fileName: s3Prefix,
 			isDeleted: false
-		}).lean();
+		}).sort({ createdAt: -1 }).lean();
 
 		if (!existingJob) {
 			// Create new job record
@@ -1173,14 +1230,17 @@ export const processResumeFolder = async (req, res) => {
 		}
 
 		// Start processing asynchronously in background
-		// Don't await - return response immediately
+		// reprocessPartial=true: retry PARTIAL records without double-counting
+		const skipExisting = forceReparse ? false : true;
+		const reprocessPartial = !forceReparse;
+
 		setImmediate(async () => {
 			try {
-				const skipExisting = forceReparse ? false : true;
 				await runDirectResumeImport({
 					jobId: existingJob._id,
 					s3Prefix,
-					skipExisting
+					skipExisting,
+					reprocessPartial,
 				});
 			} catch (err) {
 				console.error(`Resume folder processing failed: ${err?.message || err}`);
@@ -1195,7 +1255,8 @@ export const processResumeFolder = async (req, res) => {
 			message: "Resume folder processing started",
 			jobId: existingJob._id,
 			folderPath: s3Prefix,
-			skipExisting: forceReparse ? false : true,
+			skipExisting,
+			reprocessPartial,
 			checkStatusUrl: `/api/candidates/job/${existingJob._id}/status`
 		});
 	} catch (error) {
