@@ -410,8 +410,7 @@ const AdminDashboard = () => {
 			toast.loading("Starting resume import...", { id: "resume-import" });
 			const { data } = await api.post("/candidates/import-resumes", {
 				folderPath: normalizedFolderPath,
-				skipExisting: false,
-				forceReparse: true,
+				skipExisting: true,
 			});
 			toast.success(
 				`Import started. ${data.queuedCount ?? data.fileCount ?? 0} files queued${data.skippedExistingCount ? `, ${data.skippedExistingCount} skipped` : ""}.`,
@@ -848,6 +847,8 @@ const AdminDashboard = () => {
 
 											const isCurrentlyProcessing = job.status === 'PROCESSING' && processingJobId === job._id;
 
+											const isFolderImport = job.fileName?.endsWith('/') || job.originalName?.startsWith('Bulk Import');
+
 											return (
 												<div
 													key={job._id}
@@ -946,6 +947,25 @@ const AdminDashboard = () => {
 
 														{/* Actions */}
 														<div className="flex gap-2">
+															{isFolderImport && (
+																<button
+																	onClick={() => {
+																		setImportMode("s3-resume");
+																		setS3FilePath(job.fileName);
+																		setActiveTab("upload");
+																		toast("Settings loaded. Click 'Start Resume Import' to process remaining files.", {
+																			icon: "🔄",
+																			duration: 5000
+																		});
+																		window.scrollTo({ top: 0, behavior: 'smooth' });
+																	}}
+																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
+																	hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400
+																	transition cursor-pointer"
+																	title="Resume Import (Process Remaining)">
+																	<RefreshCw size={16} />
+																</button>
+															)}
 															<button
 																onClick={() => initiateAction("deleteJob", job._id)}
 																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
@@ -1096,5 +1116,3 @@ const AdminDashboard = () => {
 	);
 };
 export default AdminDashboard;
-
-
