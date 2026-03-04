@@ -1295,9 +1295,10 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 			return;
 		}
 
-		// 🔍 MEMORY FIX: Reuse jobDoc to avoid extra fetch
-		const successCount = (jobDoc?.successRows || 0);
-		const failCount = (jobDoc?.failedRows || 0);
+		// Re-fetch the job document to get the most up-to-date progress counts after processing
+		const finalJobDoc = await UploadJob.findById(jobId).lean();
+		const successCount = (finalJobDoc?.successRows || 0);
+		const failCount = (finalJobDoc?.failedRows || 0);
 		const totalProcessed = successCount + failCount;
 
 		logger.info(`📊 Job Progress: ${totalProcessed}/${queuedCount} files processed (${successCount} success, ${failCount} failed)`);
@@ -1319,7 +1320,7 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 			logger.info(`⏳ Folder Job ${jobId} continuing in background. Progress: ${percentage}% (${totalProcessed}/${queuedCount}). Discovered: ${discoveredCount}, Skipped: ${skippedExistingCount}`);
 			// Update with current progress but don't finalize yet (use updateOne to save memory)
 			await UploadJob.updateOne({ _id: jobId }, {
-				status: "PROCESSING",
+				status: "PROCESSING", // Keep it as processing
 				totalRows: queuedCount,
 			});
 		}
