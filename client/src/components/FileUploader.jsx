@@ -98,7 +98,7 @@ const FileUploader = ({ onUploadComplete, fileId = null }) => {
 
   return (
     <div
-      className={`relative border-2 border-dashed rounded-2xl p-12 transition-all duration-300 ease-in-out
+      className={`relative border-2 border-dashed rounded-2xl p-6 transition-all duration-300 ease-in-out
         ${dragActive ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20 scale-[1.02] shadow-lg' : 'border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 hover:border-indigo-400 dark:hover:border-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800'}
       `}
       onDragEnter={handleDrag}
