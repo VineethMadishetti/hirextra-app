@@ -1,3 +1,4 @@
+									</div>
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/axios";
@@ -658,6 +659,7 @@ const AdminDashboard = () => {
 										</button>
 									</div>
 
+									<div className="min-h-[380px] flex flex-col justify-center">
 									{importMode === "s3-csv" && (
 										<div className="bg-white dark:bg-slate-800/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
 											<div className="flex flex-col md:flex-row items-center gap-8">
@@ -798,6 +800,7 @@ const AdminDashboard = () => {
 										/* REGULAR FILE UPLOADER */
 										<FileUploader onUploadComplete={setUploadData} />
 									)}
+									</div>
 								</div>
 							)}
 						</div>
