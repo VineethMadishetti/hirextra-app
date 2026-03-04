@@ -362,6 +362,24 @@ const AdminDashboard = () => {
 		}
 	};
 
+	// Handle Resuming a Stuck Job (Same ID)
+	const handleResumeStuckJob = async (jobId) => {
+		try {
+			toast.loading("Resuming existing job...", { id: "resume-job" });
+			const { data } = await api.post(`/candidates/${jobId}/resume`);
+
+			toast.success("Job resumed successfully. Checking for remaining files...", { id: "resume-job" });
+
+			// Update local state to track this job immediately
+			setProcessingJobId(jobId);
+			startProgressPolling(jobId);
+			queryClient.invalidateQueries({ queryKey: ["history"] });
+		} catch (error) {
+			console.error("Resume error:", error);
+			toast.error(error.response?.data?.message || "Failed to resume job", { id: "resume-job" });
+		}
+	};
+
 	// Load headers from S3 file path
 	const handleLoadS3File = async () => {
 		if (!s3FilePath.trim()) {
@@ -949,16 +967,7 @@ const AdminDashboard = () => {
 														<div className="flex gap-2">
 															{isFolderImport && (
 																<button
-																	onClick={() => {
-																		setImportMode("s3-resume");
-																		setS3FilePath(job.fileName);
-																		setActiveTab("upload");
-																		toast("Settings loaded. Click 'Start Resume Import' to process remaining files.", {
-																			icon: "🔄",
-																			duration: 5000
-																		});
-																		window.scrollTo({ top: 0, behavior: 'smooth' });
-																	}}
+																	onClick={() => handleResumeStuckJob(job._id)}
 																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40
 																	hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400
 																	transition cursor-pointer"

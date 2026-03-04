@@ -1286,10 +1286,7 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 		if (queuedCount === 0) {
 			logger.info(`✅ All files in folder already exist in database. No new processing needed.`);
 			await UploadJob.findByIdAndUpdate(jobId, {
-				status: "COMPLETED",
-				totalRows: 0,
-				successRows: 0,
-				failedRows: 0,
+				status: "COMPLETED", // Mark as complete, but preserve existing counts
 				completedAt: new Date(),
 			});
 			return;
@@ -1320,8 +1317,7 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 			logger.info(`⏳ Folder Job ${jobId} continuing in background. Progress: ${percentage}% (${totalProcessed}/${queuedCount}). Discovered: ${discoveredCount}, Skipped: ${skippedExistingCount}`);
 			// Update with current progress but don't finalize yet (use updateOne to save memory)
 			await UploadJob.updateOne({ _id: jobId }, {
-				status: "PROCESSING", // Keep it as processing
-				totalRows: queuedCount,
+				status: "PROCESSING" // Keep it as processing, do not overwrite totalRows
 			});
 		}
 
