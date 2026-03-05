@@ -9,6 +9,7 @@ import React, {
 import { useInView } from "react-intersection-observer";
 import {
 	useInfiniteQuery,
+	useQuery,
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ import {
 	Linkedin,
 	RefreshCw,
 	Sparkles,
+	Database,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import FilterImage from "../assets/filtering.svg";
@@ -343,6 +345,26 @@ const UserSearch = () => {
 		return !!(searchInput || hasFilters);
 	});
 
+	// Database source: 'peoplefinder' | 'my-db' | 'all'
+	const [dbSource, setDbSource] = useState('peoplefinder');
+	const [selectedPrivateDbId, setSelectedPrivateDbId] = useState('');
+	const [appliedDbSource, setAppliedDbSource] = useState('peoplefinder');
+	const [appliedPrivateDbId, setAppliedPrivateDbId] = useState('');
+
+	// Fetch user's private databases for the toggle dropdown
+	const { data: privateDbs = [] } = useQuery({
+		queryKey: ['private-dbs'],
+		queryFn: async () => {
+			const { data } = await api.get('/private-db');
+			return data;
+		},
+		staleTime: 60 * 1000,
+	});
+	const privateDbsMap = useMemo(
+		() => new Map(privateDbs.map((db) => [db._id, db.name])),
+		[privateDbs],
+	);
+
 	// Ensure applied state syncs with initial localStorage load
 	useEffect(() => {
 		setAppliedSearchInput(searchInput);
@@ -442,9 +464,11 @@ const UserSearch = () => {
 	const handleTriggerSearch = useCallback(() => {
 		setAppliedSearchInput(searchInput);
 		setAppliedFilters(filters);
+		setAppliedDbSource(dbSource);
+		setAppliedPrivateDbId(selectedPrivateDbId);
 		setSelectedIds(new Set());
 		setIsSearchApplied(true);
-	}, [searchInput, filters]);
+	}, [searchInput, filters, dbSource, selectedPrivateDbId]);
 
 	// Handle AI Search
 	const handleAiSearch = async (e) => {
@@ -513,8 +537,15 @@ const UserSearch = () => {
 			hasEmail: appliedFilters.hasEmail,
 			hasPhone: appliedFilters.hasPhone,
 			hasLinkedin: appliedFilters.hasLinkedin,
+			...(appliedDbSource === 'my-db' && appliedPrivateDbId
+				? { privateDbId: appliedPrivateDbId }
+				: appliedDbSource === 'my-db'
+				? { includePrivate: 'true' }
+				: appliedDbSource === 'all'
+				? { includePrivate: 'true' }
+				: {}),
 		}),
-		[appliedSearchInput, appliedFilters, appliedLocationForApi],
+		[appliedSearchInput, appliedFilters, appliedLocationForApi, appliedDbSource, appliedPrivateDbId],
 	);
 
 	const queryKey = useMemo(() => ["candidates", queryFilters], [queryFilters]);
@@ -633,6 +664,10 @@ const UserSearch = () => {
 		setFilters(DEFAULT_SEARCH_FILTERS);
 		setAppliedSearchInput("");
 		setAppliedFilters(DEFAULT_SEARCH_FILTERS);
+		setDbSource('peoplefinder');
+		setSelectedPrivateDbId('');
+		setAppliedDbSource('peoplefinder');
+		setAppliedPrivateDbId('');
 		setSelectedIds(new Set());
 		setIsSearchApplied(false);
 	}, []);
@@ -931,6 +966,44 @@ const UserSearch = () => {
 								</button>
 							</div>
 						</div>
+					</div>
+
+					{/* Database Source Toggle */}
+					<div className="px-2 py-1.5 md:px-4 flex items-center gap-2 flex-wrap border-b border-slate-100 dark:border-slate-800/60">
+						<Database size={13} className="text-slate-400 shrink-0" />
+						<span className="text-[11px] text-slate-400 font-medium shrink-0">Search in:</span>
+						<div className="flex items-center gap-1">
+							{[
+								{ value: 'peoplefinder', label: 'PeopleFinder' },
+								{ value: 'my-db', label: 'My Databases' },
+								{ value: 'all', label: 'All' },
+							].map(({ value, label }) => (
+								<button
+									key={value}
+									onClick={() => {
+										setDbSource(value);
+										if (value !== 'my-db') setSelectedPrivateDbId('');
+									}}
+									className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all border ${
+										dbSource === value
+											? 'bg-indigo-600 text-white border-indigo-600'
+											: 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+									}`}>
+										{label}
+								</button>
+							))}
+						</div>
+						{dbSource === 'my-db' && (
+							<select
+								value={selectedPrivateDbId}
+								onChange={(e) => setSelectedPrivateDbId(e.target.value)}
+								className="text-[11px] px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-slate-600 dark:text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer">
+									<option value="">All my databases</option>
+									{privateDbs.map((db) => (
+										<option key={db._id} value={db._id}>{db.name}</option>
+									))}
+							</select>
+						)}
 					</div>
 
 					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
@@ -1251,6 +1324,8 @@ const UserSearch = () => {
 															deleteCandidate.isPending &&
 															deleteCandidate.variables === candidate._id
 														}
+														privateDbsMap={privateDbsMap}
+														showSourceBadge={appliedDbSource === "all"}
 													/>
 												))}
 
@@ -1366,8 +1441,17 @@ const CandidateRow = React.memo(
 		onDelete,
 		isAdmin,
 		isDeleting,
+		privateDbsMap,
+		showSourceBadge,
 	}) => {
 		const val = (v) => (v && v.trim() !== "" ? v : "-");
+		const isPrivate = !!candidate.privateDbId;
+		const privateDbName = isPrivate ? (privateDbsMap?.get(candidate.privateDbId) || 'My DB') : null;
+		const sourceBadge = isPrivate
+			? { label: privateDbName, cls: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' }
+			: showSourceBadge
+			? { label: 'PeopleFinder', cls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' }
+			: null;
 
 		return (
 			<tr
@@ -1404,6 +1488,11 @@ const CandidateRow = React.memo(
 								<div className="text-slate-500 dark:text-slate-400 font-medium text-sm leading-snug">
 									{val(candidate.jobTitle)}
 								</div>
+								{sourceBadge && (
+									<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 inline-block ${sourceBadge.cls}`}>
+										{sourceBadge.label}
+									</span>
+								)}
 							</div>
 						</div>
 						<div className="flex justify-end gap-0 -mr-2">
@@ -1433,6 +1522,11 @@ const CandidateRow = React.memo(
 				{/* Name (Desktop) */}
 				<td className="w-48 px-3 py-4 align-top hidden md:table-cell">
 					<div className="font-semibold text-slate-900 dark:text-slate-100 break-words leading-tight">{val(candidate.fullName)}</div>
+					{sourceBadge && (
+						<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-1 inline-block ${sourceBadge.cls}`}>
+							{sourceBadge.label}
+						</span>
+					)}
 				</td>
 
 				{/* Job Title (Desktop) */}
