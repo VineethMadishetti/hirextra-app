@@ -172,7 +172,7 @@ function DatabaseView({ db, onBack }) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-4 mb-6">
         <button
           onClick={onBack}
           className="p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -180,55 +180,50 @@ function DatabaseView({ db, onBack }) {
           <ArrowLeft size={18} />
         </button>
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
-            <Database size={18} className="text-white" />
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+            <Database size={20} className="text-white" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white truncate">{db.name}</h2>
-            <p className="text-xs text-slate-400 flex items-center gap-1.5">
-              <Users size={11} />
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate">{db.name}</h2>
+            <p className="text-sm text-slate-400 flex items-center gap-1.5 mt-0.5">
+              <Users size={13} className="text-indigo-400" />
               {db.candidateCount ?? total} resume{(db.candidateCount ?? total) !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
       </div>
 
-      {/* 2-col layout: upload left, candidates right */}
-      <div className="flex flex-col lg:flex-row gap-8 flex-1 min-h-0">
+      {/* Upload Resume — full width row */}
+      <div className="mb-6">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Upload Resume</p>
+        <DropZone dbId={db._id} onSuccess={onUploadSuccess} />
+      </div>
 
-        {/* Left: Upload panel */}
-        <div className="lg:w-80 xl:w-96 shrink-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Upload Resume</p>
-          <DropZone dbId={db._id} onSuccess={onUploadSuccess} />
-        </div>
+      {/* Candidates — full width */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Candidates</span>
+        <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800" />
+        {total > 0 && <span className="text-xs text-slate-400 tabular-nums shrink-0">{total} total</span>}
+      </div>
 
-        {/* Right: Search + Candidates */}
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Section label */}
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Candidates</span>
-            <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800" />
-            {total > 0 && <span className="text-xs text-slate-400 shrink-0 tabular-nums">{total} total</span>}
-          </div>
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+          placeholder="Search by name, title, skills…"
+          value={searchQ}
+          onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
+        />
+        {searchQ && (
+          <button onClick={() => setSearchQ('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={14} />
+          </button>
+        )}
+      </div>
 
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
-              placeholder="Search by name, title, skills…"
-              value={searchQ}
-              onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
-            />
-            {searchQ && (
-              <button onClick={() => setSearchQ('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Results */}
-          <div className="flex-1 overflow-y-auto space-y-2 pb-4">
+      {/* Candidate list */}
+      <div className="flex-1 overflow-y-auto space-y-2 pb-4">
         {isFetching && !data && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="animate-spin text-indigo-500" size={24} />
@@ -253,28 +248,31 @@ function DatabaseView({ db, onBack }) {
         )}
 
         {candidates.map((c) => (
-          <div key={c._id} className="group flex items-center gap-4 p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 hover:border-indigo-200 dark:hover:border-indigo-700/50 hover:shadow-sm transition-all">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-500/15 dark:to-purple-500/15 flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+          <div key={c._id} className="group flex items-center gap-4 px-5 py-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 hover:border-indigo-200 dark:hover:border-indigo-700/50 hover:shadow-sm transition-all">
+            {/* Avatar */}
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-500/15 dark:to-purple-500/15 flex items-center justify-center shrink-0">
+              <span className="text-base font-bold text-indigo-600 dark:text-indigo-400">
                 {(c.fullName || '?').charAt(0).toUpperCase()}
               </span>
             </div>
+            {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-slate-900 dark:text-white truncate">{c.fullName || 'Unknown'}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+              <p className="font-bold text-base text-slate-900 dark:text-white truncate">{c.fullName || 'Unknown'}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
                 {[c.jobTitle, c.company].filter(Boolean).join(' · ') || 'No title'}
               </p>
               {c.skills && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{c.skills.slice(0, 90)}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-1">{c.skills.slice(0, 120)}</p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Right badges */}
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
               {c.experience && (
-                <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full hidden sm:block">
+                <span className="text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/70 px-3 py-1 rounded-full">
                   {c.experience}
                 </span>
               )}
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
                 c.parseStatus === 'PARSED'
                   ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
                   : 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400'
@@ -301,8 +299,6 @@ function DatabaseView({ db, onBack }) {
             >Next →</button>
           </div>
         )}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -359,36 +355,25 @@ const PrivateDatabases = () => {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* Page Header */}
-      <div className="sticky top-0 z-30 border-b border-slate-200/70 dark:border-slate-800/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-5 md:px-10 py-4">
-        <div className="flex items-center justify-between gap-4 max-w-5xl mx-auto">
-          <div className="flex items-center gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/25 shrink-0">
-              <Database size={16} className="text-white" />
+      {/* Page Header — AI-Sourcing-Agent style */}
+      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 px-5 md:px-10 py-6 border-b border-indigo-800/20">
+        <div className="flex items-center justify-between gap-5 max-w-5xl mx-auto">
+          <div className="flex items-center gap-5">
+            <div className="bg-white/10 p-3.5 rounded-2xl border border-white/20 shadow-lg shrink-0">
+              <Database size={32} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">My Databases</h1>
-                {databases.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-medium">
-                      {databases.length} db{databases.length !== 1 ? 's' : ''}
-                    </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-medium">
-                      {totalResumes} resume{totalResumes !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Private talent pools built from your own resume uploads</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-200 font-medium">Private Database</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 tracking-tight">My Databases</h1>
+              <p className="text-sm text-indigo-200 mt-1 leading-relaxed">Build private talent pools from your own resume collection. Upload, parse &amp; search instantly.</p>
             </div>
           </div>
           <button
             onClick={() => setShowCreate((v) => !v)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-all shrink-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
               showCreate
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-indigo-500/20'
+                ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                : 'bg-white text-indigo-700 hover:bg-indigo-50 shadow-md'
             }`}
           >
             {showCreate ? <X size={15} /> : <Plus size={15} />}
@@ -428,6 +413,30 @@ const PrivateDatabases = () => {
           </form>
         )}
 
+        {/* Stats row — shown when databases exist */}
+        {!isLoading && databases.length > 0 && (
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-4 py-3 rounded-xl">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
+                <Database size={15} className="text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-indigo-400 dark:text-indigo-500 uppercase tracking-wide leading-none mb-0.5">Databases</p>
+                <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 leading-none">{databases.length}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-4 py-3 rounded-xl">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+                <Users size={15} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-emerald-500 dark:text-emerald-600 uppercase tracking-wide leading-none mb-0.5">Resumes</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-none">{totalResumes}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -463,61 +472,59 @@ const PrivateDatabases = () => {
           </div>
         )}
 
-        {/* Database list */}
+        {/* Database list — compact horizontal cards */}
         {!isLoading && databases.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="space-y-2.5">
             {databases.map((db) => (
-              <button
+              <div
                 key={db._id}
-                className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 dark:hover:shadow-indigo-900/10 hover:border-indigo-300 dark:hover:border-indigo-600/50 transition-all duration-300 text-left cursor-pointer overflow-hidden"
                 onClick={() => setActiveDb(db._id)}
+                className="group flex items-center gap-3 px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 hover:border-indigo-300 dark:hover:border-indigo-600/50 hover:shadow-md hover:shadow-indigo-500/5 transition-all duration-200 cursor-pointer"
               >
-                {/* corner accent */}
-                <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-indigo-100/60 dark:from-indigo-500/8 to-transparent rounded-bl-full pointer-events-none" />
-
-                {/* Header row: icon + delete */}
-                <div className="flex items-start justify-between w-full gap-2">
-                  <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors shrink-0">
-                    <Database size={22} className="text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`Delete "${db.name}" and all its resumes?`)) deleteMutation.mutate(db._id);
-                    }}
-                    className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                    title="Delete database"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                {/* Icon */}
+                <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors shrink-0">
+                  <Database size={16} className="text-indigo-600 dark:text-indigo-400" />
                 </div>
 
-                {/* Body */}
-                <div className="flex-1 w-full">
-                  <h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">{db.name}</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    {db.candidateCount > 0
-                      ? <>{db.candidateCount} resume{db.candidateCount !== 1 ? 's' : ''} &middot; Created {new Date(db.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
-                      : <>No resumes yet &middot; Created {new Date(db.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
-                    }
-                  </p>
-                </div>
+                {/* Name */}
+                <p className="font-semibold text-sm text-slate-900 dark:text-white truncate flex-1 min-w-0">{db.name}</p>
 
-                {/* Footer */}
-                <div className="flex items-center justify-between w-full">
-                  {db.candidateCount > 0 ? (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full">
-                      <Sparkles size={10} />
-                      Active
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 rounded-full">
-                      Empty
-                    </span>
-                  )}
-                  <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all" />
-                </div>
-              </button>
+                {/* Created */}
+                <span className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                  <Calendar size={11} className="text-slate-300 dark:text-slate-600" />
+                  {new Date(db.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+
+                {/* Resumes */}
+                <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                  <Users size={12} className="text-indigo-400" />
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{db.candidateCount}</span>
+                  <span className="hidden sm:inline">resume{db.candidateCount !== 1 ? 's' : ''}</span>
+                </span>
+
+                {/* Status */}
+                {db.candidateCount > 0 ? (
+                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full shrink-0">
+                    <Sparkles size={9} />Active
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 rounded-full shrink-0">
+                    Empty
+                  </span>
+                )}
+
+                {/* Delete */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm(`Delete "${db.name}" and all its resumes?`)) deleteMutation.mutate(db._id);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                  title="Delete database"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             ))}
           </div>
         )}
