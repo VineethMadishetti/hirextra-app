@@ -464,19 +464,19 @@ const PrivateDatabases = () => {
 
         {/* Database list */}
         {!isLoading && databases.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-5">
             {databases.map((db) => (
               <div
                 key={db._id}
-                className="group relative flex flex-col gap-4 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 hover:border-indigo-300 dark:hover:border-indigo-600/50 hover:shadow-lg hover:shadow-indigo-500/5 dark:hover:shadow-none transition-all duration-200 cursor-pointer overflow-hidden"
+                className="group relative flex flex-col gap-5 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800/50 hover:border-indigo-300 dark:hover:border-indigo-600/50 hover:shadow-xl hover:shadow-indigo-500/5 dark:hover:shadow-none transition-all duration-200 cursor-pointer overflow-hidden"
                 onClick={() => setActiveDb(db._id)}
               >
                 {/* subtle gradient top edge */}
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                 <div className="flex items-start justify-between gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-500/15 dark:to-purple-500/15 flex items-center justify-center shrink-0 shadow-sm">
-                    <Database size={20} className="text-indigo-500 dark:text-indigo-400" />
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-500/15 dark:to-purple-500/15 flex items-center justify-center shrink-0 shadow-sm">
+                    <Database size={26} className="text-indigo-500 dark:text-indigo-400" />
                   </div>
                   <button
                     onClick={(e) => {
@@ -491,7 +491,7 @@ const PrivateDatabases = () => {
                 </div>
 
                 <div className="flex-1">
-                  <p className="font-bold text-slate-900 dark:text-white text-sm leading-snug">{db.name}</p>
+                  <p className="font-bold text-slate-900 dark:text-white text-base leading-snug">{db.name}</p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                       <Users size={11} className="text-indigo-400" />
