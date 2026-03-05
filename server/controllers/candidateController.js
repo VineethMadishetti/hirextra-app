@@ -547,7 +547,22 @@ export const uploadChunk = async (req, res) => {
 //   but their counters are NOT re-incremented (they were already counted in the previous run).
 //   Only files with parseStatus:"PARSED" are skipped. Brand-new files (not in DB) are fully
 //   processed and counted normally.
+const activeDirectResumeImports = new Set();
+
 const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, reprocessPartial = false }) => {
+	const lockKey = String(jobId);
+	if (activeDirectResumeImports.has(lockKey)) {
+		logger.warn(`Skipping duplicate direct import trigger for job ${lockKey} (already running in this process)`);
+		return {
+			fileCount: 0,
+			queuedCount: 0,
+			skippedExistingCount: 0,
+			status: "SKIPPED_ALREADY_RUNNING",
+		};
+	}
+
+	activeDirectResumeImports.add(lockKey);
+	try {
 	const s3ListPageSize = Math.max(100, Number(process.env.S3_LIST_PAGE_SIZE || 1000));
 	const scanBatchSize = Math.max(100, Number(process.env.RESUME_IMPORT_SCAN_BATCH || 1000));
 	const directConcurrency = Math.max(
@@ -563,17 +578,17 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 	let queuedCount = 0;
 	let skippedExistingCount = 0;
 	let sawAnyResumeFile = false;
+	const activeJobStatuses = ["PROCESSING", "MAPPING_PENDING"];
 
 	const running = new Set();
-	// isPartialRetry=true: file was already in DB as PARTIAL – re-parse but don't double-count
-	const schedule = async (s3Key, isPartialRetry = false) => {
+	const schedule = async (s3Key) => {
 		const task = Promise.race([
 			processResumeJob({
 				jobId,
 				s3Key,
 				skipAutoFinalize: true,
-				skipIfExists: false,          // Batch already filtered; no per-file re-check needed
-				updateCounters: !isPartialRetry, // Don't double-count PARTIAL retries
+				skipIfExists: false,  // Batch already filtered; no per-file re-check needed
+				updateCounters: true, // Always increment — successRows was reset to parsedCount before this run
 			}),
 			new Promise((_, reject) =>
 				setTimeout(
@@ -585,19 +600,16 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 			.catch(async (error) => {
 				const errorMessage = error?.message || String(error);
 				console.error(`Direct resume processing failed for ${s3Key}:`, errorMessage);
-				if (!isPartialRetry) {
-					// Only increment failedRows for brand-new files (not PARTIAL retries)
-					try {
-						await UploadJob.updateOne(
-							{ _id: jobId },
-							{
-								$inc: { failedRows: 1, [`failureReasons.FILE_TIMEOUT`]: 1 },
-								$set: { [`failureReasonSample.FILE_TIMEOUT`]: `File processing timed out: ${s3Key}` }
-							}
-						);
-					} catch (updateError) {
-						console.error(`Failed to update job progress for timeout on ${s3Key}:`, updateError);
-					}
+				try {
+					await UploadJob.updateOne(
+						{ _id: jobId },
+						{
+							$inc: { failedRows: 1, [`failureReasons.FILE_TIMEOUT`]: 1 },
+							$set: { [`failureReasonSample.FILE_TIMEOUT`]: `File processing timed out: ${s3Key}` }
+						}
+					);
+				} catch (updateError) {
+					console.error(`Failed to update job progress for timeout on ${s3Key}:`, updateError);
 				}
 			})
 			.finally(() => running.delete(task));
@@ -627,8 +639,6 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 			if (chunk.length === 0) continue;
 
 			let filesToProcess = chunk;
-			// partialKeys: files already in DB as PARTIAL — re-parse but skip counter increments
-			let partialKeys = new Set();
 
 			if (skipExisting) {
 				const chunkKeys = chunk.map((f) => f.Key);
@@ -644,9 +654,6 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 
 					const parsedKeys = new Set(
 						existingRows.filter((r) => r.parseStatus === "PARSED").map((r) => r.sourceFile)
-					);
-					partialKeys = new Set(
-						existingRows.filter((r) => r.parseStatus !== "PARSED").map((r) => r.sourceFile)
 					);
 
 					// Skip only fully-parsed files; PARTIAL files are included for a re-parse attempt
@@ -667,18 +674,19 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 				}
 			}
 
-			// Update totalRows with DISCOVERED count (all files), not queuedCount
-			await UploadJob.findByIdAndUpdate(jobId, { totalRows: discoveredCount, status: "PROCESSING" });
+			// Keep totalRows monotonic and avoid downgrading terminal statuses in overlapping runs.
+			await UploadJob.updateOne(
+				{ _id: jobId, status: { $in: activeJobStatuses } },
+				{ $max: { totalRows: discoveredCount } },
+			);
 
 			if (filesToProcess.length === 0) continue;
 
-			// Only brand-new files (not previously partial) count toward queuedCount
-			const brandNewFiles = filesToProcess.filter((f) => !partialKeys.has(f.Key));
-			queuedCount += brandNewFiles.length;
+			// All files that will be processed (PARTIAL retries + brand-new) count toward queuedCount
+			queuedCount += filesToProcess.length;
 
 			for (const file of filesToProcess) {
-				const isPartialRetry = partialKeys.has(file.Key);
-				await schedule(file.Key, isPartialRetry);
+				await schedule(file.Key);
 			}
 		}
 	}
@@ -698,9 +706,18 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 		};
 	}
 
+	// Recalculate successRows from DB so resume runs (where PARTIAL retries skip counter
+	// increments) always produce an accurate final count.
+	const [parsedCount, partialCount] = await Promise.all([
+		Candidate.countDocuments({ uploadJobId: jobId, parseStatus: "PARSED", isDeleted: false }),
+		Candidate.countDocuments({ uploadJobId: jobId, parseStatus: "PARTIAL", isDeleted: false }),
+	]);
+	const accurateSuccessRows = parsedCount + partialCount;
+
 	if (queuedCount === 0) {
 		await UploadJob.findByIdAndUpdate(jobId, {
 			status: "COMPLETED",
+			successRows: accurateSuccessRows,
 			totalRows: discoveredCount,
 			completedAt: new Date(),
 		});
@@ -712,11 +729,11 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 		};
 	}
 
-	const updatedJob = await UploadJob.findById(jobId).select("successRows failedRows").lean();
-	const finalStatus = (updatedJob?.successRows || 0) > 0 ? "COMPLETED" : "FAILED";
+	const finalStatus = accurateSuccessRows > 0 ? "COMPLETED" : "FAILED";
 
 	await UploadJob.findByIdAndUpdate(jobId, {
 		status: finalStatus,
+		successRows: accurateSuccessRows,
 		completedAt: new Date(),
 	});
 
@@ -726,6 +743,9 @@ const runDirectResumeImport = async ({ jobId, s3Prefix, skipExisting = true, rep
 		skippedExistingCount,
 		status: finalStatus,
 	};
+	} finally {
+		activeDirectResumeImports.delete(lockKey);
+	}
 };
 
 export const importResumes = async (req, res) => {
@@ -1086,7 +1106,7 @@ export const processFile = async (req, res) => {
 export const resumeUploadJob = async (req, res) => {
 	try {
 		const { id } = req.params;
-		const { forceReparse = false } = req.body || {};
+		const { forceReparse = false, retryPartial = false } = req.body || {};
 		const job = await UploadJob.findById(id);
 
 		if (!job) {
@@ -1107,15 +1127,25 @@ export const resumeUploadJob = async (req, res) => {
 				? normalizedFolderPath
 				: `${normalizedFolderPath}/`;
 
+			// Reset successRows to only PARSED count so each PARTIAL retry increments from a
+			// clean baseline — avoids double-counting while giving real-time progress visibility.
+			const parsedBaseline = await Candidate.countDocuments({
+				uploadJobId: id,
+				parseStatus: "PARSED",
+				isDeleted: false,
+			});
+
 			await UploadJob.findByIdAndUpdate(id, {
 				status: "PROCESSING",
+				successRows: parsedBaseline,
 				error: null,
 				completedAt: null,
 			});
 
-			// reprocessPartial=true: retry PARTIAL records (RChilli-failed files from previous run)
-			// without double-counting them. forceReparse=true: retry ALL records including PARSED.
-			const reprocessPartial = !forceReparse;
+			// Default behavior: do NOT retry known PARTIAL failures on resume.
+			// retryPartial=true can be passed explicitly when needed.
+			// forceReparse=true still retries all records including PARSED.
+			const reprocessPartial = forceReparse ? false : !!retryPartial;
 
 			setImmediate(async () => {
 				try {
@@ -1141,6 +1171,7 @@ export const resumeUploadJob = async (req, res) => {
 				skipExisting,
 				reprocessPartial,
 				forceReparse: !!(forceReparse && allowReparse),
+				retryPartial: !!retryPartial,
 			});
 		}
 
@@ -1189,7 +1220,7 @@ export const processResumeFolder = async (req, res) => {
 		// No need to manually set headers - credentials and origin whitelisting are already configured
 		
 		const { folderPath } = req.body;
-		const { forceReparse = false } = req.body || {};
+		const { forceReparse = false, retryPartial = false } = req.body || {};
 
 		if (!folderPath || !String(folderPath).includes('/')) {
 			return res.status(400).json({
@@ -1230,9 +1261,9 @@ export const processResumeFolder = async (req, res) => {
 		}
 
 		// Start processing asynchronously in background
-		// reprocessPartial=true: retry PARTIAL records without double-counting
+		// Default behavior: process remaining/new files; PARTIAL retries are opt-in.
 		const skipExisting = forceReparse ? false : true;
-		const reprocessPartial = !forceReparse;
+		const reprocessPartial = forceReparse ? false : !!retryPartial;
 
 		setImmediate(async () => {
 			try {
@@ -1257,6 +1288,7 @@ export const processResumeFolder = async (req, res) => {
 			folderPath: s3Prefix,
 			skipExisting,
 			reprocessPartial,
+			retryPartial: !!retryPartial,
 			checkStatusUrl: `/api/candidates/job/${existingJob._id}/status`
 		});
 	} catch (error) {
@@ -1306,7 +1338,16 @@ export const getDeleteHistory = async (req, res) => {
 export const getUploadHistory = async (req, res) => {
 	try {
 		// Optimized query: only fetch essential fields, limit to recent 100 jobs
-		const jobs = await UploadJob.find()
+		const jobs = await UploadJob.find({
+			$or: [
+				{ isDeleted: { $ne: true } }, // Show jobs that are not soft-deleted
+				{ 
+					status: "PROCESSING",
+					error: { $not: /^Merged into/ } // Hide processing jobs if they are merged
+				},
+				{ status: "MAPPING_PENDING" }
+			]
+		})
 			.select(
 				"fileName originalName uploadedBy status totalRows successRows failedRows error mapping createdAt updatedAt completedAt",
 			)
@@ -1387,7 +1428,9 @@ export const searchCandidates = async (req, res) => {
             page = 1,
             limit = 20,
             lastCreatedAt,
-            lastId
+            lastId,
+            privateDbId,
+            includePrivate,
         } = req.query;
 
         // Allow larger limits (up to 5000) to support "View All"
@@ -1400,6 +1443,18 @@ export const searchCandidates = async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
 
         let query = { isDeleted: false };
+
+        // Private DB filtering:
+        // - privateDbId=<id>  → search only within that private DB
+        // - includePrivate=true → search both global + user's private DBs
+        // - default → global only (privateDbId must be null)
+        if (privateDbId) {
+            query.privateDbId = privateDbId;
+        } else if (includePrivate === 'true') {
+            // no filter: returns both global and private candidates visible to this user
+        } else {
+            query.privateDbId = null; // global PeopleFinder DB only
+        }
         const andConditions = [];
         let locationHintIndex = null;
         let useTextSearch = false;
@@ -1620,7 +1675,7 @@ export const searchCandidates = async (req, res) => {
 
         try {
             const baseSelect =
-                "fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt score";
+                "fullName jobTitle skills company experience phone email linkedinUrl locality location country industry summary parseStatus parseWarnings createdAt score privateDbId";
             const buildFindQuery = ({ withHint = true, customQuery = query } = {}) => {
                 let findQuery = Candidate.find(customQuery)
                     .select(baseSelect)
@@ -3750,5 +3805,179 @@ Output rules:
 	} catch (error) {
 		console.error("AI Search Error:", error);
 		return res.status(500).json({ message: error.message || "Failed to analyze search query" });
+	}
+};
+
+// ---------------------------------------------------------------------------
+// Startup recovery: re-trigger any resume-folder jobs stuck in PROCESSING
+// (e.g., after a server crash or OOM kill). Called once on server start.
+// ---------------------------------------------------------------------------
+export const recoverStuckJobs = async () => {
+	try {
+		// Jobs not updated in more than 5 minutes are considered stuck
+		const stuckThreshold = new Date(Date.now() - 5 * 60 * 1000);
+		const stuckJobs = await UploadJob.find({
+			status: "PROCESSING",
+			updatedAt: { $lt: stuckThreshold },
+			isDeleted: { $ne: true },
+		}).lean();
+
+		if (stuckJobs.length === 0) return;
+
+		logger.info(`🔄 Startup: found ${stuckJobs.length} stuck PROCESSING job(s) — triggering auto-recovery`);
+
+		for (const job of stuckJobs) {
+			const isResumeFolderJob =
+				String(job.fileName || "").endsWith("/") ||
+				(Array.isArray(job.headers) && job.headers.includes("Resume Import"));
+
+			if (!isResumeFolderJob) continue;
+
+			// If the job already processed all expected files, just mark it COMPLETED
+			// (server crashed after last file but before finalization code ran)
+			if (job.totalRows > 0) {
+				const [parsedCount, partialCount, candidateCount] = await Promise.all([
+					Candidate.countDocuments({ uploadJobId: job._id, parseStatus: "PARSED", isDeleted: false }),
+					Candidate.countDocuments({ uploadJobId: job._id, parseStatus: "PARTIAL", isDeleted: false }),
+					Candidate.countDocuments({ uploadJobId: job._id, isDeleted: false }),
+				]);
+				const successCount = parsedCount + partialCount;
+				const processedByCounters = (job.successRows + job.failedRows) >= job.totalRows;
+				const processedByDatabase = candidateCount >= job.totalRows;
+
+				if (processedByCounters || processedByDatabase) {
+					const normalizedFailed = Math.max(0, candidateCount - successCount);
+				await UploadJob.findByIdAndUpdate(job._id, {
+					status: "COMPLETED",
+					successRows: successCount,
+					failedRows: normalizedFailed,
+					completedAt: new Date(),
+				}).catch(() => {});
+				logger.info(`✅ Auto-completed job ${job._id} (all ${job.totalRows} files already processed)`);
+				continue;
+				}
+			}
+
+			const normalizedFolderPath = String(job.fileName || "").trim().replace(/^\/+/, "");
+			const s3Prefix = normalizedFolderPath.endsWith("/")
+				? normalizedFolderPath
+				: `${normalizedFolderPath}/`;
+
+			logger.info(`🔄 Auto-recovering stuck job ${job._id} — ${job.successRows}/${job.totalRows} done (${s3Prefix})`);
+
+			// Do NOT reset successRows — resume from current position.
+			// Use reprocessPartial=false so only brand-new (unprocessed) files are scheduled.
+			// This avoids re-processing the thousands of files already in the DB.
+			const claimedJob = await UploadJob.findOneAndUpdate(
+				{
+					_id: job._id,
+					status: "PROCESSING",
+					isDeleted: { $ne: true },
+					updatedAt: job.updatedAt,
+				},
+				{
+					$set: { error: null },
+				},
+				{ new: true }
+			)
+				.lean()
+				.catch(() => null);
+
+			if (!claimedJob) {
+				logger.info(`⏭️ Skipping auto-recovery for job ${job._id} (already recovered by another process)`);
+				continue;
+			}
+
+			setImmediate(async () => {
+				try {
+					await runDirectResumeImport({
+						jobId: job._id,
+						s3Prefix,
+						skipExisting: true,
+						reprocessPartial: false, // Skip PARTIAL files already in DB — only new files
+					});
+				} catch (err) {
+					logger.error(`Auto-recovery failed for job ${job._id}:`, err);
+					await UploadJob.findByIdAndUpdate(job._id, {
+						status: "FAILED",
+						error: "Auto-recovery failed: " + (err?.message || String(err)),
+					}).catch(() => {});
+				}
+			});
+		}
+	} catch (err) {
+		logger.error("recoverStuckJobs error:", err);
+	}
+};
+
+// --- SYNC & CONSOLIDATE JOB ---
+// Fixes incorrect counts and merges duplicate folder jobs
+export const syncJobStatus = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { consolidate = true, forceComplete = false } = req.body;
+		
+		let job = await UploadJob.findById(id);
+		if (!job) return res.status(404).json({ message: "Job not found" });
+
+		// Resurrect job if it was erroneously deleted but we are syncing it
+		if (job.isDeleted) {
+			job = await UploadJob.findByIdAndUpdate(id, { isDeleted: false }, { new: true });
+		}
+
+		const normalizedFolderPath = String(job.fileName).trim().replace(/^\/+/, "");
+		const s3Prefix = normalizedFolderPath.endsWith("/") ? normalizedFolderPath : `${normalizedFolderPath}/`;
+
+		// 1. Consolidate: Merge other jobs for the same folder into this one
+		if (consolidate) {
+			const otherJobs = await UploadJob.find({
+				fileName: job.fileName,
+				_id: { $ne: job._id },
+				// Find ALL duplicates, even deleted ones, to ensure they are merged/hidden
+			}).select('_id');
+
+			if (otherJobs.length > 0) {
+				const otherIds = otherJobs.map(j => j._id);
+				// Move candidates to the main job
+				await Candidate.updateMany(
+					{ uploadJobId: { $in: otherIds } },
+					{ $set: { uploadJobId: job._id } }
+				);
+				// Mark other jobs as merged/deleted
+				await UploadJob.updateMany(
+					{ _id: { $in: otherIds } },
+					{ $set: { status: "MERGED", isDeleted: true, error: `Merged into ${job._id}` } }
+				);
+				logger.info(`Merged ${otherIds.length} duplicate jobs into ${job._id}`);
+			}
+		}
+
+		// 2. Re-scan S3 for TRUE total count
+		let s3Count = 0;
+		const s3ListPageSize = 1000;
+		for await (const filesPage of listS3FilesByPage(s3Prefix, s3ListPageSize)) {
+			const resumeFiles = filesPage.filter((f) =>
+				f?.Key && /\.(pdf|docx|doc)$/i.test(f.Key)
+			);
+			s3Count += resumeFiles.length;
+		}
+
+		// 3. Count actual DB successes
+		const successCount = await Candidate.countDocuments({ uploadJobId: id, isDeleted: false });
+		const failedCount = job.failedRows || 0; // Keep existing failure count
+
+		// 4. Update Job
+		let status = (s3Count > 0 && successCount + failedCount >= s3Count) ? "COMPLETED" : "PROCESSING";
+		if (forceComplete) {
+			status = "COMPLETED";
+		}
+
+		const updates = { totalRows: s3Count, successRows: successCount, status, isDeleted: false, error: null };
+		if (status === "COMPLETED" && !job.completedAt) updates.completedAt = new Date();
+
+		const updatedJob = await UploadJob.findByIdAndUpdate(id, updates, { new: true });
+		res.json({ message: "Job synced", job: updatedJob });
+	} catch (error) {
+		res.status(500).json({ message: error.message });
 	}
 };

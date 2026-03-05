@@ -285,11 +285,11 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   if (!inline && !isOpen) return null;
 
   const outerShellClass = inline
-    ? 'h-full w-full bg-transparent'
+    ? 'h-full w-full bg-transparent px-4 pt-4 pb-4 overflow-y-auto'
     : 'fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-[2px]';
 
   const contentShellClass = inline
-    ? 'mx-auto h-full max-w-7xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-950'
+    ? 'mx-auto max-w-7xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-950'
     : 'mx-auto h-full max-w-7xl overflow-hidden rounded-t-2xl border border-slate-800 bg-slate-950';
 
   return (

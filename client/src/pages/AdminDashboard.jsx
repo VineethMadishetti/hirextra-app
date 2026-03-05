@@ -14,6 +14,8 @@ import {
 	Loader,
 	ChevronDown,
 	Play,
+	Database,
+	Square,
 } from "lucide-react";
 import ResumeIcon from "../assets/resume-folder.svg"; // You might need to add this or reuse existing
 import ExistingFilesIcon from "../assets/existing-files.svg";
@@ -378,6 +380,19 @@ const AdminDashboard = () => {
 		} catch (error) {
 			console.error("Resume error:", error);
 			toast.error(error.response?.data?.message || "Failed to resume job", { id: "resume-job" });
+		}
+	};
+
+	// Handle Sync/Merge Job
+	const handleSyncJob = async (jobId, forceComplete = false) => {
+		try {
+			const loadingMsg = forceComplete ? "Stopping & Finalizing..." : "Syncing counts & merging duplicates...";
+			toast.loading(loadingMsg, { id: "sync-job" });
+			const { data } = await api.post(`/candidates/${jobId}/sync`, { consolidate: true, forceComplete });
+			toast.success(`Synced! Total: ${data.job.totalRows}, Success: ${data.job.successRows}`, { id: "sync-job" });
+			queryClient.invalidateQueries({ queryKey: ["history"] });
+		} catch (error) {
+			toast.error(error.response?.data?.message || "Failed to sync job", { id: "sync-job" });
 		}
 	};
 
@@ -887,7 +902,7 @@ const AdminDashboard = () => {
 															<p className="text-xs text-slate-500 dark:text-slate-400">
 																{formatDate(job.createdAt)}
 															</p>
-															{job.error && (
+															{job.error && !job.error.startsWith("Merged into") && (
 																<p className="text-xs text-rose-500 mt-1 truncate max-w-[250px]" title={job.error}>
 																	Error: {job.error}
 																</p>
@@ -973,6 +988,22 @@ const AdminDashboard = () => {
 																	title="Resume import from checkpoint — skips already-processed files">
 																	<Play size={12} />
 																	Resume
+																</button>
+															)}
+															{isFolderImport && (
+																<button
+																	onClick={() => handleSyncJob(job._id, false)}
+																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
+																	title="Sync Counts & Merge Duplicates">
+																	<Database size={16} />
+																</button>
+															)}
+															{isFolderImport && job.status === 'PROCESSING' && (
+																<button
+																	onClick={() => handleSyncJob(job._id, true)}
+																	className="p-2 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-600 transition cursor-pointer"
+																	title="Stop Processing & Mark Complete">
+																	<Square size={16} fill="currentColor" />
 																</button>
 															)}
 															{isFolderImport && job.status !== "FAILED" && job.status !== "COMPLETED" && (

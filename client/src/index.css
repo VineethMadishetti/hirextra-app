@@ -24,6 +24,12 @@ html.dark {
   --text-secondary: rgb(15 23 42);
 }
 
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(20deg); }
+  75% { transform: rotate(-10deg); }
+}
+
 @layer utilities {
   .line-clamp-1 {
     display: -webkit-box;

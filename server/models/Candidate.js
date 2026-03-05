@@ -115,6 +115,13 @@ const candidateSchema = new mongoose.Schema(
       ref: 'UploadJob',
     },
 
+    // Private database reference (null = global PeopleFinder DB)
+    privateDbId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PrivateDatabase',
+      default: null,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -168,6 +175,7 @@ candidateSchema.index({ country: 1, createdAt: -1 }, { partialFilterExpression: 
 
 // 10. Filter: User/Admin Created By (As requested)
 // Ensure your schema has a 'createdBy' field for this to work.
+candidateSchema.index({ privateDbId: 1, isDeleted: 1 });
 candidateSchema.index({ createdBy: 1 }, { partialFilterExpression: { isDeleted: false } });
 candidateSchema.index({ createdBy: 1, source: 1, createdAt: -1 }, { partialFilterExpression: { isDeleted: false } });
 candidateSchema.index(

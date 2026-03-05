@@ -284,7 +284,11 @@ const extractTextFromFile = async (buffer, fileExt) => {
 	try {
 		if (fileExt === 'docx') {
 			try {
-				const result = await mammoth.extractRawText({ buffer });
+				const extractPromise = mammoth.extractRawText({ buffer });
+				const timeoutPromise = new Promise((_, reject) =>
+					setTimeout(() => reject(new Error('DOCX_TIMEOUT: DOCX extraction timed out after 15 seconds')), 15000)
+				);
+				const result = await Promise.race([extractPromise, timeoutPromise]);
 				return result.value;
 			} catch (e) {
 				throw new Error(`DOCX_EXTRACT_ERROR: ${e.message}`);
@@ -771,14 +775,23 @@ const parseResumeWithRChilli = async (buffer, s3Key, fileExt, fallbackData = {})
 				const hasErrorFlag = Boolean(
 					pickFirstValue(responseJson, ["isError", "error", "HasError", "hasError"]),
 				);
-				if (hasErrorFlag || statusText === "error" || statusText === "failed") {
+				// Extract error code and message from all known RChilli response shapes
+				const rchilliErrorCode = pickFirstValue(responseJson, [
+					"error.errorcode", "error.ErrorCode", "error.code",
+					"ResumeParserData.ErrorCode", "ErrorCode",
+				]);
+				const isNumericErrorCode = rchilliErrorCode && !isNaN(Number(rchilliErrorCode)) && Number(rchilliErrorCode) > 0;
+				if (hasErrorFlag || isNumericErrorCode || statusText === "error" || statusText === "failed") {
 					const msg = pickFirstValue(responseJson, [
-						"Message",
-						"message",
-						"ErrorMessage",
+						"error.errormessage", "error.ErrorMessage", "error.message",
+						"Message", "message", "ErrorMessage",
 						"ResumeParserData.ErrorMessage",
 					]) || "RChilli parsing failed";
-					throw new Error(`RCHILLI_PARSE_FAILED: ${msg}`);
+					const codeStr = rchilliErrorCode ? ` [code ${rchilliErrorCode}]` : "";
+					const errorType = Number(rchilliErrorCode) === 1018
+						? "RCHILLI_FILE_TOO_LARGE"
+						: "RCHILLI_PARSE_FAILED";
+					throw new Error(`${errorType}:${codeStr} ${msg}`);
 				}
 
 				const mapped = extractRChilliStructuredData(responseJson, fallbackData);
@@ -963,6 +976,12 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 		// Determine reason from the specific error message we threw
 		if (error.message.startsWith('TEXT_EXTRACTION_FAILED') || error.message.startsWith('DOCX_EXTRACT') || error.message.startsWith('PDF_EXTRACT')) {
 			reason = 'TEXT_EXTRACTION_FAILED';
+		} else if (error.message.startsWith('RCHILLI_FILE_TOO_LARGE') || error.message.includes('[code 1018]')) {
+			reason = 'FILE_TOO_LARGE';
+		} else if (error.message.includes('[code 1014]')) {
+			reason = 'CORRUPTED_FILE';
+		} else if (error.message.includes('[code 1021]')) {
+			reason = 'CONVERSION_ERROR';
 		} else if (error.message.startsWith('RCHILLI_PARSE_FAILED') || error.message.startsWith('RCHILLI_API_ERROR') || error.message.startsWith('RCHILLI_INVALID_RESPONSE')) {
 			reason = 'RCHILLI_PARSE_FAILED';
 		} else if (error.message.startsWith('RCHILLI_CONFIG_MISSING')) {
@@ -1050,7 +1069,15 @@ export const processResumeJob = async ({ jobId, s3Key, skipIfExists = false, ski
 
 		// When updateCounters=false (retrying a PARTIAL record that was already counted
 		// in a previous run), skip counter updates to avoid double-counting.
+		// Exception: if this retry fully parsed the file (PARTIAL → PARSED), count the improvement.
 		if (!updateCounters) {
+			if (success && !insertedPartial) {
+				try {
+					await UploadJob.updateOne({ _id: jobId }, { $inc: { successRows: 1 } });
+				} catch (e) {
+					logger.error(`Failed to update successRows for partial→parsed upgrade on job ${jobId}:`, e);
+				}
+			}
 			return;
 		}
 

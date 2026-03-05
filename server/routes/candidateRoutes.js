@@ -17,7 +17,8 @@ import {
   analyzeSearchQuery,
   processResumeFolder,
   checkRChilliStatus,
-  getJobDetails
+  getJobDetails,
+  syncJobStatus
 } from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -56,6 +57,7 @@ router.delete('/:id', protect, adminOnly, softDeleteCandidate);
 router.put('/:id/restore', protect, adminOnly, undoDeleteCandidate);
 router.post('/:id/resume', protect, adminOnly, resumeUploadJob);
 router.post('/:id/pause', protect, adminOnly, pauseUploadJob);
+router.post('/:id/sync', protect, adminOnly, syncJobStatus);
 
 router.post('/import-resumes', protect, adminOnly, importResumes);
 router.post('/analyze-search', protect, analyzeSearchQuery);

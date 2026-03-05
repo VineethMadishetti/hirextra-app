@@ -30,6 +30,7 @@ import candidateRoutes from './routes/candidateRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import enrichmentRoutes from './routes/enrichmentRoutes.js';
 import sourcingRoutes from './routes/sourcingRoutes.js';
+import privateDbRoutes from './routes/privateDbRoutes.js';
 
 // Define __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -188,7 +189,7 @@ app.options('/cors-diagnostic', cors(corsOptions)); // Enable CORS for this endp
 app.get('/cors-diagnostic', (req, res) => {
   const origin = req.get('origin') || 'No origin header';
   const isOriginAllowed = allowedOrigins.includes(origin);
-  
+
   res.json({
     message: 'CORS Diagnostic Information',
     requestOrigin: origin,
@@ -200,7 +201,7 @@ app.get('/cors-diagnostic', (req, res) => {
       'Access-Control-Allow-Methods': res.get('Access-Control-Allow-Methods'),
       'Access-Control-Allow-Headers': res.get('Access-Control-Allow-Headers')
     },
-    recommendation: isOriginAllowed 
+    recommendation: isOriginAllowed
       ? '✅ Origin is allowed. CORS should work.'
       : '❌ Origin is not in allowedOrigins. Add it to server.js with process.env.CLIENT_URL'
   });
@@ -214,6 +215,7 @@ app.use('/api/candidates', requestCache(30), candidateRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/enrich-contact', enrichmentRoutes);
 app.use('/api/ai-source', sourcingRoutes);
+app.use('/api/private-db', privateDbRoutes);
 
 /* ---------------------------------------------------
    GLOBAL ERROR HANDLER
