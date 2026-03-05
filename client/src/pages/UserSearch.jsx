@@ -944,66 +944,73 @@ const UserSearch = () => {
 					
 					{/* AI Smart Search Bar */}
 					<div className="px-2 pt-3 md:px-4">
-						<div className="relative group w-full">
-							<div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-30 group-hover:opacity-100 focus-within:opacity-100 blur transition duration-500"></div>
-							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl shadow-sm h-full">
-								<div className="pl-4 pr-2 text-indigo-500">
-									<Sparkles size={16} className={isAiProcessing ? "animate-spin" : ""} />
-								</div>
-								<input 
-									type="text"
-									placeholder="Ask AI: 'Java dev in Hyderabad...'"
-									className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 py-2.5"
-									value={aiQuery}
-									onChange={(e) => setAiQuery(e.target.value)}
-									onKeyDown={(e) => e.key === 'Enter' && handleAiSearch(e)}
-								/>
-								<button 
-									onClick={handleAiSearch}
-									disabled={isAiProcessing || !aiQuery.trim()}
-									className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-r-xl text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 self-stretch">
-									{isAiProcessing ? 'Thinking...' : 'AI Search'}
-								</button>
+						<div className="flex items-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-700/70 shadow-sm hover:border-slate-300 dark:hover:border-slate-600 focus-within:border-indigo-400 dark:focus-within:border-indigo-500/70 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] transition-all duration-200">
+							<div className="pl-3.5 pr-2 text-indigo-500/80">
+								<Sparkles size={15} className={isAiProcessing ? "animate-spin" : ""} />
 							</div>
+							<input
+								type="text"
+								placeholder="Ask AI: 'Java developer in Hyderabad with 5+ years…'"
+								className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 py-2.5"
+								value={aiQuery}
+								onChange={(e) => setAiQuery(e.target.value)}
+								onKeyDown={(e) => e.key === 'Enter' && handleAiSearch(e)}
+							/>
+							<button
+								onClick={handleAiSearch}
+								disabled={isAiProcessing || !aiQuery.trim()}
+								className="m-1 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg text-xs font-semibold tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0">
+									<Sparkles size={12} className={isAiProcessing ? 'animate-spin' : ''} />
+									{isAiProcessing ? 'Thinking…' : 'AI Search'}
+								</button>
 						</div>
 					</div>
 
 					{/* Database Source Toggle */}
-					<div className="px-2 py-1.5 md:px-4 flex items-center gap-2 flex-wrap border-b border-slate-100 dark:border-slate-800/60">
+					<div className="px-2 py-1.5 md:px-4 flex items-center justify-center gap-2 flex-wrap border-b border-slate-100 dark:border-slate-800/60">
 						<Database size={13} className="text-slate-400 shrink-0" />
 						<span className="text-[11px] text-slate-400 font-medium shrink-0">Search in:</span>
-						<div className="flex items-center gap-1">
-							{[
-								{ value: 'peoplefinder', label: 'PeopleFinder' },
-								{ value: 'my-db', label: 'My Databases' },
-								{ value: 'all', label: 'All' },
-							].map(({ value, label }) => (
+						<div className="flex items-center">
+							{/* All */}
+							<button
+								onClick={() => { setDbSource('all'); setSelectedPrivateDbId(''); }}
+								className={`px-2.5 py-0.5 rounded-l-full text-[11px] font-medium transition-all border-y border-l ${
+									dbSource === 'all'
+										? 'bg-indigo-600 text-white border-indigo-600'
+										: 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+								}`}>All</button>
+							{/* PeopleFinder */}
+							<button
+								onClick={() => { setDbSource('peoplefinder'); setSelectedPrivateDbId(''); }}
+								className={`px-2.5 py-0.5 text-[11px] font-medium transition-all border ${
+									dbSource === 'peoplefinder'
+										? 'bg-indigo-600 text-white border-indigo-600'
+										: 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+								}`}>PeopleFinder</button>
+							{/* My Databases — joined with optional inline select */}
+							<div className="flex items-center">
 								<button
-									key={value}
-									onClick={() => {
-										setDbSource(value);
-										if (value !== 'my-db') setSelectedPrivateDbId('');
-									}}
-									className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all border ${
-										dbSource === value
+									onClick={() => setDbSource('my-db')}
+									className={`px-2.5 py-0.5 text-[11px] font-medium transition-all border-y border-l ${
+										dbSource === 'my-db'
 											? 'bg-indigo-600 text-white border-indigo-600'
 											: 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
-									}`}>
-										{label}
-								</button>
-							))}
+									} ${
+										dbSource === 'my-db' ? 'rounded-l-full' : 'rounded-r-full border-r'
+									}`}>My Databases</button>
+								{dbSource === 'my-db' && (
+									<select
+										value={selectedPrivateDbId}
+										onChange={(e) => setSelectedPrivateDbId(e.target.value)}
+										className="text-[11px] pl-2 pr-5 py-0.5 bg-indigo-600 border border-indigo-600 rounded-r-full text-white focus:outline-none cursor-pointer appearance-none">
+											<option value="">All</option>
+											{privateDbs.map((db) => (
+												<option key={db._id} value={db._id}>{db.name}</option>
+											))}
+									</select>
+								)}
+							</div>
 						</div>
-						{dbSource === 'my-db' && (
-							<select
-								value={selectedPrivateDbId}
-								onChange={(e) => setSelectedPrivateDbId(e.target.value)}
-								className="text-[11px] px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-slate-600 dark:text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer">
-									<option value="">All my databases</option>
-									{privateDbs.map((db) => (
-										<option key={db._id} value={db._id}>{db.name}</option>
-									))}
-							</select>
-						)}
 					</div>
 
 					<div className="flex flex-col md:flex-row items-center justify-between px-2 py-2 md:px-4 md:py-3 gap-2 md:gap-3">
