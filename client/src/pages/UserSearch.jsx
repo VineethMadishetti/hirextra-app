@@ -946,7 +946,7 @@ const UserSearch = () => {
 					<div className="px-2 pt-3 md:px-4">
 						<div className="relative group/ai">
 							<div className="absolute -inset-[3px] rounded-[14px] bg-gradient-to-r from-indigo-500/20 via-violet-500/15 to-indigo-500/20 blur-[8px] opacity-60 group-focus-within/ai:opacity-100 transition-opacity duration-300 pointer-events-none" />
-							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-700/70 shadow-sm hover:border-indigo-300 dark:hover:border-indigo-600/70 focus-within:border-indigo-400 dark:focus-within:border-indigo-500/70 transition-all duration-200">
+							<div className="relative flex items-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-700/70 shadow-sm hover:border-indigo-300 dark:hover:border-indigo-600/70 transition-all duration-200">
 								<div className="pl-3.5 pr-2 text-indigo-500/80">
 									<Sparkles size={15} className={isAiProcessing ? "animate-spin" : ""} />
 								</div>
@@ -961,8 +961,7 @@ const UserSearch = () => {
 								<button
 									onClick={handleAiSearch}
 									disabled={isAiProcessing || !aiQuery.trim()}
-									className={`m-1 px-4 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 shrink-0 ${isAiProcessing || !aiQuery.trim() ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-sm shadow-indigo-500/30'}`}>
-										<Sparkles size={12} className={isAiProcessing ? 'animate-spin' : ''} />
+									className={`px-5 rounded-r-xl text-xs font-semibold tracking-wide transition-all self-stretch flex items-center shrink-0 ${isAiProcessing || !aiQuery.trim() ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white'}`}>
 										{isAiProcessing ? 'Thinking…' : 'AI Search'}
 									</button>
 							</div>
@@ -972,38 +971,42 @@ const UserSearch = () => {
 					{/* Database Source Toggle */}
 					<div className="px-2 py-2 md:px-4 flex items-center justify-center gap-3 border-b border-slate-100 dark:border-slate-800/60">
 						<span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">Search in:</span>
-						<div className="flex items-center rounded-full border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800/50">
-							{/* All */}
-							<button
-								onClick={() => { setDbSource('all'); setSelectedPrivateDbId(''); }}
-								className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${dbSource === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>All</button>
-							<div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
-							{/* PeopleFinder */}
-							<button
-								onClick={() => { setDbSource('peoplefinder'); setSelectedPrivateDbId(''); }}
-								className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${dbSource === 'peoplefinder' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>PeopleFinder</button>
-							<div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
-							{/* My Databases */}
-							<div className="flex items-center">
+						<div className="flex items-center">
+							{/* All + PeopleFinder pill */}
+							<div className="flex items-center rounded-l-full border border-r-0 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden">
 								<button
-									onClick={() => setDbSource('my-db')}
-									className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold transition-all ${dbSource === 'my-db' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>
+									onClick={() => { setDbSource('all'); setSelectedPrivateDbId(''); }}
+									className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${dbSource === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>All</button>
+								<div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+								<button
+									onClick={() => { setDbSource('peoplefinder'); setSelectedPrivateDbId(''); }}
+									className={`px-3.5 py-1.5 text-xs font-semibold transition-all ${dbSource === 'peoplefinder' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>PeopleFinder</button>
+							</div>
+							{/* My Databases - separate with dropdown */}
+							<div className="relative">
+								<button
+									onClick={() => setDbSource(dbSource === 'my-db' ? 'peoplefinder' : 'my-db')}
+									className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-r-full border border-slate-200 dark:border-slate-700 transition-all ${dbSource === 'my-db' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>
 									My Databases
 									<ChevronDown size={12} className={`transition-transform duration-200 ${dbSource === 'my-db' ? 'rotate-180' : ''}`} />
 								</button>
 								{dbSource === 'my-db' && (
-									<>
-										<div className="w-px h-5 bg-indigo-500/40 shrink-0" />
-										<select
-                      value={selectedPrivateDbId}
-                      onChange={(e) => setSelectedPrivateDbId(e.target.value)}
-                      className="text-xs pl-2.5 pr-6 py-1.5 bg-indigo-600 text-white focus:outline-none cursor-pointer appearance-none font-medium">
-                        <option value="">All my databases</option>
-                        {privateDbs.map((db) => (
-                          <option key={db._id} value={db._id}>{db.name}</option>
-                        ))}
-                      </select>
-									</>
+									<div className="absolute top-full right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xl shadow-slate-200/60 dark:shadow-black/30 z-50 overflow-hidden py-1">
+										<button
+											onClick={() => setSelectedPrivateDbId('')}
+											className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${!selectedPrivateDbId ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-500/10 font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
+											All my databases
+										</button>
+										{privateDbs.length > 0 && <div className="mx-3 h-px bg-slate-100 dark:bg-slate-800 my-1" />}
+										{privateDbs.map((db) => (
+											<button
+												key={db._id}
+												onClick={() => setSelectedPrivateDbId(db._id)}
+												className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${selectedPrivateDbId === db._id ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-500/10 font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
+												{db.name}
+											</button>
+										))}
+									</div>
 								)}
 							</div>
 						</div>
