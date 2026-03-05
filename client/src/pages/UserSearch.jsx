@@ -540,7 +540,7 @@ const UserSearch = () => {
 			...(appliedDbSource === 'my-db' && appliedPrivateDbId
 				? { privateDbId: appliedPrivateDbId }
 				: appliedDbSource === 'my-db'
-				? { includePrivate: 'true' }
+				? { privateDbOnly: 'true' }
 				: appliedDbSource === 'all'
 				? { includePrivate: 'true' }
 				: {}),

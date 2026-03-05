@@ -1431,6 +1431,7 @@ export const searchCandidates = async (req, res) => {
             lastId,
             privateDbId,
             includePrivate,
+            privateDbOnly,
         } = req.query;
 
         // Allow larger limits (up to 5000) to support "View All"
@@ -1450,6 +1451,8 @@ export const searchCandidates = async (req, res) => {
         // - default → global only (privateDbId must be null)
         if (privateDbId) {
             query.privateDbId = privateDbId;
+        } else if (privateDbOnly === 'true') {
+            query.privateDbId = { $ne: null }; // only candidates in any private DB
         } else if (includePrivate === 'true') {
             // no filter: returns both global and private candidates visible to this user
         } else {

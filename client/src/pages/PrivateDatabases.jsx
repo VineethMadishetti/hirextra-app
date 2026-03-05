@@ -355,30 +355,49 @@ const PrivateDatabases = () => {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* Page Header — AI-Sourcing-Agent style */}
-      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 px-5 md:px-10 py-6 border-b border-indigo-800/20">
-        <div className="flex items-center justify-between gap-5 max-w-5xl mx-auto">
+      {/* Page Header — matches AI Sourcing Agent gradient */}
+      <div className="bg-[linear-gradient(110deg,#1a1440,#432DD7)] px-5 md:px-10 py-6 border-b border-slate-800/30">
+        <div className="flex items-start justify-between gap-5 max-w-5xl mx-auto">
+          {/* Left: icon + title + subtitle */}
           <div className="flex items-center gap-5">
-            <div className="bg-white/10 p-3.5 rounded-2xl border border-white/20 shadow-lg shrink-0">
-              <Database size={32} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]" />
+            <div className="bg-white/5 p-3.5 rounded-2xl border border-white/10 shadow-lg shrink-0">
+              <Database size={36} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-200 font-medium">Private Database</p>
-              <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 tracking-tight">My Databases</h1>
-              <p className="text-sm text-indigo-200 mt-1 leading-relaxed">Build private talent pools from your own resume collection. Upload, parse &amp; search instantly.</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300 font-medium">Private Database</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-white mt-1 tracking-tight">My Databases</h1>
+              <p className="text-sm text-slate-300 mt-1 leading-relaxed">Build private talent pools from your own resume collection.</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowCreate((v) => !v)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
-              showCreate
-                ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
-                : 'bg-white text-indigo-700 hover:bg-indigo-50 shadow-md'
-            }`}
-          >
-            {showCreate ? <X size={15} /> : <Plus size={15} />}
-            {showCreate ? 'Cancel' : 'New Database'}
-          </button>
+          {/* Right: button stacked above stats */}
+          <div className="flex flex-col items-end gap-2.5 shrink-0">
+            <button
+              onClick={() => setShowCreate((v) => !v)}
+              className={`cursor-pointer flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                showCreate
+                  ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20'
+                  : 'bg-white text-[#1a1440] hover:bg-slate-100 shadow-md hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/25'
+              }`}
+            >
+              {showCreate ? <X size={15} /> : <Plus size={15} />}
+              {showCreate ? 'Cancel' : 'New Database'}
+            </button>
+            {databases.length > 0 && (
+              <div className="flex items-center gap-3 text-sm text-slate-300">
+                <span className="flex items-center gap-1.5">
+                  <Database size={12} className="text-indigo-300" />
+                  <span className="font-semibold text-white">{databases.length}</span>
+                  <span className="text-slate-400">DB{databases.length !== 1 ? 's' : ''}</span>
+                </span>
+                <span className="text-slate-600">·</span>
+                <span className="flex items-center gap-1.5">
+                  <Users size={12} className="text-emerald-400" />
+                  <span className="font-semibold text-white">{totalResumes}</span>
+                  <span className="text-slate-400">Resume{totalResumes !== 1 ? 's' : ''}</span>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="px-5 md:px-10 py-6 max-w-5xl mx-auto w-full">
@@ -411,30 +430,6 @@ const PrivateDatabases = () => {
               </button>
             </div>
           </form>
-        )}
-
-        {/* Stats row — shown when databases exist */}
-        {!isLoading && databases.length > 0 && (
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-4 py-3 rounded-xl">
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
-                <Database size={15} className="text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-[11px] font-medium text-indigo-400 dark:text-indigo-500 uppercase tracking-wide leading-none mb-0.5">Databases</p>
-                <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 leading-none">{databases.length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-4 py-3 rounded-xl">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
-                <Users size={15} className="text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-[11px] font-medium text-emerald-500 dark:text-emerald-600 uppercase tracking-wide leading-none mb-0.5">Resumes</p>
-                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 leading-none">{totalResumes}</p>
-              </div>
-            </div>
-          </div>
         )}
 
         {/* Loading */}
@@ -472,59 +467,78 @@ const PrivateDatabases = () => {
           </div>
         )}
 
-        {/* Database list — compact horizontal cards */}
+        {/* Database list — nav-card style with database container icon */}
         {!isLoading && databases.length > 0 && (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {databases.map((db) => (
-              <div
+              <button
                 key={db._id}
                 onClick={() => setActiveDb(db._id)}
-                className="group flex items-center gap-3 px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 hover:border-indigo-300 dark:hover:border-indigo-600/50 hover:shadow-md hover:shadow-indigo-500/5 transition-all duration-200 cursor-pointer"
+                className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-indigo-100/60 dark:hover:shadow-indigo-900/20 hover:border-indigo-300 dark:hover:border-indigo-600/50 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left overflow-hidden"
               >
-                {/* Icon */}
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors shrink-0">
-                  <Database size={16} className="text-indigo-600 dark:text-indigo-400" />
+                {/* Subtle corner gradient accent */}
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-indigo-100/70 dark:from-indigo-500/8 to-transparent rounded-bl-full pointer-events-none" />
+
+                {/* Top row: stacked-layer database icon + delete */}
+                <div className="flex items-start justify-between w-full gap-2">
+                  {/* Database container icon — stacked layers = database drum */}
+                  <div className="relative shrink-0">
+                    {/* Layer 3 (back) */}
+                    <div className="absolute top-1.5 left-1.5 w-11 h-11 rounded-xl bg-indigo-200/50 dark:bg-indigo-600/20" />
+                    {/* Layer 2 (middle) */}
+                    <div className="absolute top-0.5 left-0.5 w-11 h-11 rounded-xl bg-indigo-300/40 dark:bg-indigo-500/25" />
+                    {/* Layer 1 (front) */}
+                    <div className="relative w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors border border-indigo-100/80 dark:border-indigo-500/20">
+                      <Database size={20} className="text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                  </div>
+
+                  {/* Delete button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Delete "${db.name}" and all its resumes?`)) deleteMutation.mutate(db._id);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0 relative z-10"
+                    title="Delete database"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
 
-                {/* Name */}
-                <p className="font-semibold text-sm text-slate-900 dark:text-white truncate flex-1 min-w-0">{db.name}</p>
+                {/* Body: name + meta */}
+                <div className="flex-1 w-full mt-1">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base mb-1.5 truncate">{db.name}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <Users size={12} className="text-indigo-400 shrink-0" />
+                        <span className="font-medium text-slate-600 dark:text-slate-300">{db.candidateCount}</span>
+                        <span>resume{db.candidateCount !== 1 ? 's' : ''}</span>
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar size={11} className="text-slate-400 shrink-0" />
+                        {new Date(db.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </span>
+                  </p>
+                </div>
 
-                {/* Created */}
-                <span className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
-                  <Calendar size={11} className="text-slate-300 dark:text-slate-600" />
-                  {new Date(db.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-
-                {/* Resumes */}
-                <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 shrink-0">
-                  <Users size={12} className="text-indigo-400" />
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">{db.candidateCount}</span>
-                  <span className="hidden sm:inline">resume{db.candidateCount !== 1 ? 's' : ''}</span>
-                </span>
-
-                {/* Status */}
-                {db.candidateCount > 0 ? (
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full shrink-0">
-                    <Sparkles size={9} />Active
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 rounded-full shrink-0">
-                    Empty
-                  </span>
-                )}
-
-                {/* Delete */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`Delete "${db.name}" and all its resumes?`)) deleteMutation.mutate(db._id);
-                  }}
-                  className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                  title="Delete database"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
+                {/* Footer: status + arrow */}
+                <div className="flex items-center justify-between w-full">
+                  {db.candidateCount > 0 ? (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                      <Sparkles size={9} />Active
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 rounded-full">
+                      Empty
+                    </span>
+                  )}
+                  <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </button>
             ))}
           </div>
         )}

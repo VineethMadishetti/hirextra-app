@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node fix_final.mjs)"
+      "Bash(node fix_final.mjs)",
+      "Bash(node -e \":*)"
     ]
   }
 }
