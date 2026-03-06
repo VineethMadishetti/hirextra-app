@@ -75,6 +75,7 @@ class CSEService {
       logger.warn('Google CSE API key not configured, skipping search');
       return [];
     }
+    logger.info(`[CSE] Using key: ${googleApiKey.slice(0,8)}...${googleApiKey.slice(-4)} (len=${googleApiKey.length})`);
 
     const cseId = COUNTRY_CSES[String(country || '').toLowerCase()];
     if (!cseId) {
