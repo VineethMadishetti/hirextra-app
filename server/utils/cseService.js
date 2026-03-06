@@ -82,6 +82,7 @@ class CSEService {
       return [];
     }
 
+    logger.info(`[CSE] Searching country=${country} cx=${cseId} query="${String(query).slice(0,80)}"`);
     try {
       const response = await axios.get(this.baseUrl, {
         params: {
@@ -102,12 +103,17 @@ class CSEService {
         country,
       }));
     } catch (error) {
-      if (error.response?.status === 429) {
-        logger.warn(`Google CSE rate limit hit for ${country}`);
-      } else if (error.response?.status === 403) {
-        logger.error('Google CSE quota exceeded or API key invalid');
+      const status = error.response?.status;
+      const errData = error.response?.data;
+      const errMsg = errData?.error?.message || error.message;
+      if (status === 429) {
+        logger.warn(`[CSE] Rate limit hit for country=${country}`);
+      } else if (status === 403) {
+        logger.error(`[CSE] 403 Forbidden for country=${country} query="${String(query).slice(0,60)}" — ${errMsg}`);
+      } else if (status) {
+        logger.warn(`[CSE] HTTP ${status} for country=${country} — ${errMsg}`);
       } else {
-        logger.debug(`CSE search failed for ${country}: ${error.message}`);
+        logger.warn(`[CSE] Request failed for country=${country}: ${error.message}`);
       }
       return [];
     }

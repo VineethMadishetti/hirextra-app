@@ -21,8 +21,6 @@ import logger from './utils/logger.js';
 import { requestCache } from './requestCache.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import https from 'https';
-import fs from 'fs';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -88,16 +86,8 @@ const app = express();
 app.set('trust proxy', 1);
 
 /* ---------------------------------------------------
-   SECURITY
---------------------------------------------------- */
-app.use(
-  helmet({
-    crossOriginResourcePolicy: false,
-  })
-);
-
-/* ---------------------------------------------------
-   CORS (STABLE – DO NOT OVER-ENGINEER)
+   CORS — defined first so allowedOrigins is available
+   to the manual middleware below
 --------------------------------------------------- */
 
 const allowedOrigins = [
@@ -111,27 +101,51 @@ const allowedOrigins = [
   .filter(Boolean)
   .map(origin => origin.replace(/\/$/, "")); // Remove trailing slash
 
+/* ---------------------------------------------------
+   MANUAL CORS — must be FIRST middleware, before helmet.
+   Phusion Passenger can intercept OPTIONS before Express
+   runs app.use(cors()), so we answer OPTIONS immediately
+   here before any other processing.
+--------------------------------------------------- */
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Vary', 'Origin');
+  }
+  // Answer preflight immediately — no further middleware needed
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
+/* ---------------------------------------------------
+   SECURITY
+--------------------------------------------------- */
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+
 const corsOptions = {
   origin: function (origin, callback) {
-    // allow server-to-server, curl, Postman
     if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
+    if (allowedOrigins.includes(origin)) return callback(null, true);
     console.log(`[CORS] Blocked origin: ${origin}`);
     return callback(new Error("CORS not allowed"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+  optionsSuccessStatus: 204,
 };
 
 app.use(cors(corsOptions));
-
-// handle preflight explicitly
 app.options("*", cors(corsOptions));
 
 /* ---------------------------------------------------
@@ -252,25 +266,13 @@ app.use('*', (req, res) => {
 
 /* ---------------------------------------------------
    SERVER START
+   Apache handles SSL termination — Node runs plain HTTP
 --------------------------------------------------- */
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
-let server;
-
-// Check if SSL paths are provided for standalone HTTPS (No Nginx)
-if (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH) {
-  const httpsOptions = {
-    key: fs.readFileSync(process.env.SSL_KEY_PATH),
-    cert: fs.readFileSync(process.env.SSL_CERT_PATH),
-  };
-  server = https.createServer(httpsOptions, app).listen(PORT, () => {
-    logger.info(`🚀 Secure Server (HTTPS) running on port ${PORT}`);
-  });
-} else {
-  server = app.listen(PORT, () => {
-    logger.info(`🚀 Server (HTTP) running on port ${PORT}`);
-  });
-}
+const server = app.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+});
 
 /* ---------------------------------------------------
    GRACEFUL SHUTDOWN

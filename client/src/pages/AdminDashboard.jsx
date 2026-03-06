@@ -47,8 +47,14 @@ class ErrorBoundary extends React.Component {
 					<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
 						Something went wrong
 					</h3>
-					<p className="text-slate-500 dark:text-slate-400 mb-4">Unable to load this section.</p>
-					<button onClick={() => window.location.reload()} className="text-indigo-600 hover:underline">Refresh Page</button>
+					<p className="text-slate-500 dark:text-slate-400 mb-4">
+						Unable to load this section.
+					</p>
+					<button
+						onClick={() => window.location.reload()}
+						className="text-indigo-600 hover:underline">
+						Refresh Page
+					</button>
 				</div>
 			);
 		}
@@ -99,37 +105,39 @@ const MappingSelect = ({ value, onChange, options }) => {
 				className="w-full bg-slate-100 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700
                            rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-white
                            focus:ring-2 focus:ring-indigo-500/40
-                           cursor-pointer transition flex justify-between items-center h-[42px]"
-			>
+                           cursor-pointer transition flex justify-between items-center h-[42px]">
 				<span className="truncate block mr-2">{value || "Ignore"}</span>
-				<ChevronDown size={14} className={`text-slate-500 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+				<ChevronDown
+					size={14}
+					className={`text-slate-500 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+				/>
 			</div>
 			{isOpen && (
 				<div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full">
 					<div
-						className={`px-3 py-2 text-sm cursor-pointer transition-colors ${!value
+						className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+							!value
 								? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium"
 								: "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-							}`}
+						}`}
 						onClick={() => {
 							onChange({ target: { value: "" } });
 							setIsOpen(false);
-						}}
-					>
+						}}>
 						Ignore
 					</div>
 					{options.map((h, i) => (
 						<div
 							key={i}
-							className={`px-3 py-2 text-sm cursor-pointer transition-colors truncate ${value === h
+							className={`px-3 py-2 text-sm cursor-pointer transition-colors truncate ${
+								value === h
 									? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium"
 									: "text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-								}`}
+							}`}
 							onClick={() => {
 								onChange({ target: { value: h } });
 								setIsOpen(false);
-							}}
-						>
+							}}>
 							{h}
 						</div>
 					))}
@@ -171,17 +179,20 @@ const AdminDashboard = () => {
 			const { data } = await api.get("/candidates/history");
 			return Array.isArray(data) ? data : [];
 		},
-		refetchInterval: activeTab === 'history' && !processingJobId ? 60000 : false,
+		refetchInterval:
+			activeTab === "history" && !processingJobId ? 60000 : false,
 	});
 
-	const { data: deleteLogs = [], isLoading: isDeleteHistoryLoading } = useQuery({
-		queryKey: ["deleteHistory"],
-		queryFn: async () => {
-			const { data } = await api.get("/candidates/delete-history");
-			return Array.isArray(data) ? data : [];
+	const { data: deleteLogs = [], isLoading: isDeleteHistoryLoading } = useQuery(
+		{
+			queryKey: ["deleteHistory"],
+			queryFn: async () => {
+				const { data } = await api.get("/candidates/delete-history");
+				return Array.isArray(data) ? data : [];
+			},
+			refetchInterval: activeTab === "history" ? 60000 : false,
 		},
-		refetchInterval: activeTab === 'history' ? 60000 : false,
-	});
+	);
 
 	const { data: statsData } = useQuery({
 		queryKey: ["candidateStats"],
@@ -192,8 +203,6 @@ const AdminDashboard = () => {
 		},
 		staleTime: 60000, // 1 minute
 	});
-
-
 
 	const fields = [
 		"fullName",
@@ -254,7 +263,7 @@ const AdminDashboard = () => {
 		pollingIntervalRef.current = setInterval(async () => {
 			try {
 				const { data } = await api.get(`/candidates/job/${jobId}/status`);
-				setProcessingProgress(prev => ({
+				setProcessingProgress((prev) => ({
 					...prev,
 					successRows: data.successRows || 0,
 					failedRows: data.failedRows || 0,
@@ -262,10 +271,8 @@ const AdminDashboard = () => {
 				}));
 
 				// Optimistically update the job in the query cache
-				queryClient.setQueryData(['history'], (oldData = []) =>
-					oldData.map(job =>
-						job._id === jobId ? { ...job, ...data } : job
-					)
+				queryClient.setQueryData(["history"], (oldData = []) =>
+					oldData.map((job) => (job._id === jobId ? { ...job, ...data } : job)),
 				);
 
 				// Refresh candidates table DURING processing (every 1000 rows or every 15 seconds)
@@ -295,7 +302,8 @@ const AdminDashboard = () => {
 
 					if (data.status === "COMPLETED") {
 						toast.success(
-							`Processing completed! ${data.successRows || 0
+							`Processing completed! ${
+								data.successRows || 0
 							} records imported. Refreshing table...`,
 						);
 						// Immediately invalidate and refetch candidates table
@@ -371,7 +379,10 @@ const AdminDashboard = () => {
 			toast.loading("Resuming existing job...", { id: "resume-job" });
 			const { data } = await api.post(`/candidates/${jobId}/resume`);
 
-			toast.success("Job resumed successfully. Checking for remaining files...", { id: "resume-job" });
+			toast.success(
+				"Job resumed successfully. Checking for remaining files...",
+				{ id: "resume-job" },
+			);
 
 			// Update local state to track this job immediately
 			setProcessingJobId(jobId);
@@ -379,20 +390,32 @@ const AdminDashboard = () => {
 			queryClient.invalidateQueries({ queryKey: ["history"] });
 		} catch (error) {
 			console.error("Resume error:", error);
-			toast.error(error.response?.data?.message || "Failed to resume job", { id: "resume-job" });
+			toast.error(error.response?.data?.message || "Failed to resume job", {
+				id: "resume-job",
+			});
 		}
 	};
 
 	// Handle Sync/Merge Job
 	const handleSyncJob = async (jobId, forceComplete = false) => {
 		try {
-			const loadingMsg = forceComplete ? "Stopping & Finalizing..." : "Syncing counts & merging duplicates...";
+			const loadingMsg = forceComplete
+				? "Stopping & Finalizing..."
+				: "Syncing counts & merging duplicates...";
 			toast.loading(loadingMsg, { id: "sync-job" });
-			const { data } = await api.post(`/candidates/${jobId}/sync`, { consolidate: true, forceComplete });
-			toast.success(`Synced! Total: ${data.job.totalRows}, Success: ${data.job.successRows}`, { id: "sync-job" });
+			const { data } = await api.post(`/candidates/${jobId}/sync`, {
+				consolidate: true,
+				forceComplete,
+			});
+			toast.success(
+				`Synced! Total: ${data.job.totalRows}, Success: ${data.job.successRows}`,
+				{ id: "sync-job" },
+			);
 			queryClient.invalidateQueries({ queryKey: ["history"] });
 		} catch (error) {
-			toast.error(error.response?.data?.message || "Failed to sync job", { id: "sync-job" });
+			toast.error(error.response?.data?.message || "Failed to sync job", {
+				id: "sync-job",
+			});
 		}
 	};
 
@@ -407,22 +430,25 @@ const AdminDashboard = () => {
 		try {
 			toast.loading("Loading file headers from S3...", { id: "s3load" });
 			const { data } = await api.post("/candidates/headers", {
-				filePath: s3FilePath.trim()
+				filePath: s3FilePath.trim(),
 			});
 
 			if (data.headers && data.headers.length > 0) {
 				setUploadData({
 					filePath: s3FilePath.trim(),
-					headers: data.headers
+					headers: data.headers,
 				});
-				toast.success("File headers loaded! Map your columns below.", { id: "s3load" });
+				toast.success("File headers loaded! Map your columns below.", {
+					id: "s3load",
+				});
 				setS3FilePath("");
 			} else {
 				toast.error("Could not read headers from file", { id: "s3load" });
 			}
 		} catch (error) {
 			console.error("S3 file load error:", error);
-			const errorMessage = error.response?.data?.message ||
+			const errorMessage =
+				error.response?.data?.message ||
 				error.response?.data?.error ||
 				"Failed to load file from S3. Check if the file path is correct.";
 			toast.error(errorMessage, { id: "s3load" });
@@ -455,7 +481,9 @@ const AdminDashboard = () => {
 			queryClient.invalidateQueries({ queryKey: ["history"] });
 		} catch (error) {
 			console.error("Resume import error:", error);
-			toast.error(error.response?.data?.message || "Failed to start import", { id: "resume-import" });
+			toast.error(error.response?.data?.message || "Failed to start import", {
+				id: "resume-import",
+			});
 		} finally {
 			setIsStartingResumeImport(false);
 		}
@@ -534,20 +562,22 @@ const AdminDashboard = () => {
 								<button
 									onClick={() => setActiveTab("upload")}
 									className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
-          ${activeTab === "upload"
-											? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
-											: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
-										}`}>
+          ${
+						activeTab === "upload"
+							? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
+							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
+					}`}>
 									Upload & Map
 								</button>
 
 								<button
 									onClick={() => setActiveTab("history")}
 									className={`px-6 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm
-          ${activeTab === "history"
-											? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
-											: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
-										}`}>
+          ${
+						activeTab === "history"
+							? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-white shadow-md"
+							: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/60 shadow-none"
+					}`}>
 									History
 								</button>
 							</div>
@@ -592,7 +622,7 @@ const AdminDashboard = () => {
 											onClick={() => {
 												setUploadData(null);
 												setMapping({});
-													setImportMode("upload");
+												setImportMode("upload");
 												setS3FilePath("");
 											}}
 											className="px-6 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-800 rounded-xl shadow-md transition-all duration-300 ease-out cursor-pointer">
@@ -609,7 +639,9 @@ const AdminDashboard = () => {
 
 												<MappingSelect
 													value={mapping[field]}
-													onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
+													onChange={(e) =>
+														setMapping({ ...mapping, [field]: e.target.value })
+													}
 													options={uploadData.headers}
 												/>
 											</div>
@@ -620,10 +652,11 @@ const AdminDashboard = () => {
 										onClick={handleProcess}
 										disabled={isProcessing}
 										className={`mt-8 w-full text-white py-3 rounded-xl font-medium
-            shadow-lg transition ${isProcessing
-												? "bg-indigo-400 cursor-not-allowed"
-												: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-											}`}>
+            shadow-lg transition ${
+							isProcessing
+								? "bg-indigo-400 cursor-not-allowed"
+								: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+						}`}>
 										{isProcessing ? (
 											<span className="flex items-center justify-center gap-2">
 												<RefreshCw className="w-4 h-4 animate-spin" />
@@ -643,10 +676,11 @@ const AdminDashboard = () => {
 												setImportMode("upload");
 												setS3FilePath("");
 											}}
-											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${importMode === "upload"
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+												importMode === "upload"
 													? "bg-indigo-600 text-white"
 													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-												}`}>
+											}`}>
 											Upload New File
 										</button>
 										<button
@@ -654,10 +688,11 @@ const AdminDashboard = () => {
 												setImportMode("s3-csv");
 												setUploadData(null);
 											}}
-											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${importMode === "s3-csv"
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+												importMode === "s3-csv"
 													? "bg-indigo-600 text-white"
 													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-												}`}>
+											}`}>
 											Use Existing S3 File
 										</button>
 										<button
@@ -665,10 +700,11 @@ const AdminDashboard = () => {
 												setImportMode("s3-resume");
 												setUploadData(null);
 											}}
-											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${importMode === "s3-resume"
+											className={`cursor-pointer flex-1 px-4 py-2 rounded-lg text-sm font-medium transition ${
+												importMode === "s3-resume"
 													? "bg-indigo-600 text-white"
 													: "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-												}`}>
+											}`}>
 											Import Resumes (S3)
 										</button>
 									</div>
@@ -692,7 +728,8 @@ const AdminDashboard = () => {
 															Process File from S3
 														</h3>
 														<p className="text-sm text-slate-500 dark:text-slate-400">
-															Enter the S3 key of your CSV file (e.g., "India.csv")
+															Enter the S3 key of your CSV file (e.g.,
+															"India.csv")
 														</p>
 													</div>
 
@@ -713,17 +750,19 @@ const AdminDashboard = () => {
 															}}
 														/>
 														<p className="text-xs text-slate-500">
-															💡 Use just the S3 key (e.g., "India.csv"), not the full URL.
+															💡 Use just the S3 key (e.g., "India.csv"), not
+															the full URL.
 														</p>
 													</div>
 
 													<button
 														onClick={handleLoadS3File}
 														disabled={isLoadingHeaders || !s3FilePath.trim()}
-														className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${isLoadingHeaders || !s3FilePath.trim()
+														className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${
+															isLoadingHeaders || !s3FilePath.trim()
 																? "bg-indigo-400 cursor-not-allowed"
 																: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-															}`}>
+														}`}>
 														{isLoadingHeaders ? (
 															<span className="flex items-center justify-center gap-2">
 																<RefreshCw className="w-4 h-4 animate-spin" />
@@ -738,17 +777,17 @@ const AdminDashboard = () => {
 										</div>
 									)}
 
-										{importMode === "s3-resume" && (
-											<div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
-												<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_52%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(129,140,248,0.16),transparent_55%)]" />
-												<div className="relative flex flex-col md:flex-row items-center gap-8">
+									{importMode === "s3-resume" && (
+										<div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
+											<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_52%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(129,140,248,0.16),transparent_55%)]" />
+											<div className="relative flex flex-col md:flex-row items-center gap-8">
 												{/* Left: Image */}
 												<div className="w-full md:w-1/3 flex justify-center">
-														<img
-															src={ResumeIcon}
-															alt="Bulk resume import"
-															className="w-48 md:w-full max-w-xs dark:invert-[.85] drop-shadow-sm"
-														/>
+													<img
+														src={ResumeIcon}
+														alt="Bulk resume import"
+														className="w-48 md:w-full max-w-xs dark:invert-[.85] drop-shadow-sm"
+													/>
 												</div>
 
 												{/* Right: Content */}
@@ -757,53 +796,68 @@ const AdminDashboard = () => {
 														<h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
 															Bulk Resume Import
 														</h3>
-															<p className="text-sm text-slate-500 dark:text-slate-400">
-																Process an S3 folder of PDF, DOCX, and DOC resumes with background queue processing.
-															</p>
-															<div className="mt-2 flex flex-wrap gap-2">
-																<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">Batch Import</span>
-																<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">Queue + Retry</span>
-																<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">RChilli Parsing</span>
-															</div>
+														<p className="text-sm text-slate-500 dark:text-slate-400">
+															Process an S3 folder of PDF, DOCX, and DOC resumes
+															with background queue processing.
+														</p>
+														<div className="mt-2 flex flex-wrap gap-2">
+															<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">
+																Batch Import
+															</span>
+															<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">
+																Queue + Retry
+															</span>
+															<span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-200">
+																RChilli Parsing
+															</span>
 														</div>
+													</div>
 
 													<div className="space-y-2">
 														<label className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
 															S3 Folder Path
 														</label>
-															<input
-																type="text"
-																value={s3FilePath}
-																onChange={(e) => setS3FilePath(e.target.value)}
-																placeholder="Resumes/"
-																className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
-																onKeyDown={(e) => {
-																	if (e.key === "Enter" && !isStartingResumeImport && s3FilePath.trim()) {
-																		handleResumeImport();
-																	}
-																}}
-															/>
+														<input
+															type="text"
+															value={s3FilePath}
+															onChange={(e) => setS3FilePath(e.target.value)}
+															placeholder="Resumes/"
+															className="w-full bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none transition"
+															onKeyDown={(e) => {
+																if (
+																	e.key === "Enter" &&
+																	!isStartingResumeImport &&
+																	s3FilePath.trim()
+																) {
+																	handleResumeImport();
+																}
+															}}
+														/>
 														<p className="text-xs text-slate-500">
-															Use folder prefix only, for example `Resumes/` or `Resumes/Batch-1/`.
+															Use folder prefix only, for example `Resumes/` or
+															`Resumes/Batch-1/`.
 														</p>
 													</div>
 
-														<button
-															onClick={handleResumeImport}
-															disabled={!s3FilePath.trim() || isStartingResumeImport}
-															className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${!s3FilePath.trim() || isStartingResumeImport
-																	? "bg-indigo-400 cursor-not-allowed"
-																	: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
-																}`}>
-															{isStartingResumeImport ? (
-																<span className="flex items-center justify-center gap-2">
-																	<RefreshCw className="w-4 h-4 animate-spin" />
-																	Queueing Import...
-																</span>
-															) : (
-																"Start Resume Import"
-															)}
-														</button>
+													<button
+														onClick={handleResumeImport}
+														disabled={
+															!s3FilePath.trim() || isStartingResumeImport
+														}
+														className={`w-full text-white py-3 rounded-xl font-medium shadow-lg transition ${
+															!s3FilePath.trim() || isStartingResumeImport
+																? "bg-indigo-400 cursor-not-allowed"
+																: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-500/30 cursor-pointer"
+														}`}>
+														{isStartingResumeImport ? (
+															<span className="flex items-center justify-center gap-2">
+																<RefreshCw className="w-4 h-4 animate-spin" />
+																Queueing Import...
+															</span>
+														) : (
+															"Start Resume Import"
+														)}
+													</button>
 												</div>
 											</div>
 										</div>
@@ -824,11 +878,11 @@ const AdminDashboard = () => {
 							<div className="bg-white dark:bg-slate-900/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 animate-fade-in">
 								{/* Header */}
 								<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-										<div>
-											<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-												<CloudUpload className="w-5 h-5 text-blue-600 inline-block mr-2" />
-												Upload History
-											</h3>
+									<div>
+										<h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+											<CloudUpload className="w-5 h-5 text-blue-600 inline-block mr-2" />
+											Upload History
+										</h3>
 										<p className="text-sm text-slate-400 mt-1">
 											View and manage processed files
 										</p>
@@ -847,7 +901,9 @@ const AdminDashboard = () => {
 
 								{isHistoryLoading ? (
 									<div className="p-4 space-y-3">
-										{[...Array(5)].map((_, i) => <HistorySkeleton key={i} />)}
+										{[...Array(5)].map((_, i) => (
+											<HistorySkeleton key={i} />
+										))}
 									</div>
 								) : jobs.length === 0 ? (
 									<div className="p-12 text-center">
@@ -879,9 +935,13 @@ const AdminDashboard = () => {
 												}
 											};
 
-											const isCurrentlyProcessing = job.status === 'PROCESSING' && processingJobId === job._id;
+											const isCurrentlyProcessing =
+												job.status === "PROCESSING" &&
+												processingJobId === job._id;
 
-											const isFolderImport = job.fileName?.endsWith('/') || job.originalName?.startsWith('Bulk Import');
+											const isFolderImport =
+												job.fileName?.endsWith("/") ||
+												job.originalName?.startsWith("Bulk Import");
 
 											return (
 												<div
@@ -902,11 +962,14 @@ const AdminDashboard = () => {
 															<p className="text-xs text-slate-500 dark:text-slate-400">
 																{formatDate(job.createdAt)}
 															</p>
-															{job.error && !job.error.startsWith("Merged into") && (
-																<p className="text-xs text-rose-500 mt-1 truncate max-w-[250px]" title={job.error}>
-																	Error: {job.error}
-																</p>
-															)}
+															{job.error &&
+																!job.error.startsWith("Merged into") && (
+																	<p
+																		className="text-xs text-rose-500 mt-1 truncate max-w-[250px]"
+																		title={job.error}>
+																		Error: {job.error}
+																	</p>
+																)}
 														</div>
 													</div>
 
@@ -921,53 +984,70 @@ const AdminDashboard = () => {
 														<div className="text-sm text-slate-700 dark:text-slate-300 min-w-[110px] text-right">
 															{(job.status === "PROCESSING" ||
 																job.status === "MAPPING_PENDING") &&
-																processingJobId === job._id ? (
+															processingJobId === job._id ? (
 																<div className="flex flex-col items-end w-full">
 																	<div className="flex items-center gap-2 justify-end w-full">
 																		<Loader className="w-3 h-3 animate-spin text-indigo-400" />
 																		{processingProgress?.failedRows > 0 && (
 																			<span className="text-xs text-rose-500 font-medium">
-																				{processingProgress.failedRows.toLocaleString()}!
+																				{processingProgress.failedRows.toLocaleString()}
+																				!
 																			</span>
 																		)}
 																		<span className="font-semibold text-emerald-600">
-																			{(processingProgress?.successRows || 0).toLocaleString()}
+																			{(
+																				processingProgress?.successRows || 0
+																			).toLocaleString()}
 																		</span>
 																		<span className="text-xs text-slate-500 dark:text-slate-400">
 																			/{" "}
-																			{(processingProgress?.totalRows || 0).toLocaleString()}
+																			{(
+																				processingProgress?.totalRows || 0
+																			).toLocaleString()}
 																		</span>
 																	</div>
 																	<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1 flex overflow-hidden">
 																		<div
 																			className="bg-emerald-500 h-1.5 transition-all duration-500"
 																			style={{
-																				width: `${(processingProgress?.totalRows || 0) > 0
-																						? ((processingProgress?.successRows || 0) /
-																							(processingProgress?.totalRows || 1)) *
-																						100
+																				width: `${
+																					(processingProgress?.totalRows || 0) >
+																					0
+																						? ((processingProgress?.successRows ||
+																								0) /
+																								(processingProgress?.totalRows ||
+																									1)) *
+																							100
 																						: 0
-																					}%`,
+																				}%`,
 																			}}
 																		/>
 																		<div
 																			className="bg-rose-400 h-1.5 transition-all duration-500"
 																			style={{
-																				width: `${(processingProgress?.totalRows || 0) > 0
-																						? ((processingProgress?.failedRows || 0) /
-																							(processingProgress?.totalRows || 1)) *
-																						100
+																				width: `${
+																					(processingProgress?.totalRows || 0) >
+																					0
+																						? ((processingProgress?.failedRows ||
+																								0) /
+																								(processingProgress?.totalRows ||
+																									1)) *
+																							100
 																						: 0
-																					}%`,
+																				}%`,
 																			}}
 																		/>
 																	</div>
 																</div>
 															) : (
 																<div className="flex flex-col items-end gap-0.5">
-																	<div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400" title="Successful Records">
+																	<div
+																		className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400"
+																		title="Successful Records">
 																		<CheckCircle size={12} />
-																		<span className="font-semibold">{job.successRows?.toLocaleString() || "0"}</span>
+																		<span className="font-semibold">
+																			{job.successRows?.toLocaleString() || "0"}
+																		</span>
 																	</div>
 																	{/* {(job.failedRows > 0 || job.status === 'FAILED') && (
 																<div className="flex items-center gap-1.5 text-rose-500 dark:text-rose-400" title="Failed Records">
@@ -990,7 +1070,7 @@ const AdminDashboard = () => {
 																	Resume
 																</button>
 															)}
-															{isFolderImport && (
+															{isFolderImport && job.status !== "COMPLETED" && (
 																<button
 																	onClick={() => handleSyncJob(job._id, false)}
 																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
@@ -998,24 +1078,31 @@ const AdminDashboard = () => {
 																	<Database size={16} />
 																</button>
 															)}
-															{isFolderImport && job.status === 'PROCESSING' && (
-																<button
-																	onClick={() => handleSyncJob(job._id, true)}
-																	className="p-2 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-600 transition cursor-pointer"
-																	title="Stop Processing & Mark Complete">
-																	<Square size={16} fill="currentColor" />
-																</button>
-															)}
-															{isFolderImport && job.status !== "FAILED" && job.status !== "COMPLETED" && (
-																<button
-																	onClick={() => handleResumeStuckJob(job._id)}
-																	className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
-																	title="Resume / retry import (process remaining files)">
-																	<RefreshCw size={16} />
-																</button>
-															)}
+															{isFolderImport &&
+																job.status === "PROCESSING" && (
+																	<button
+																		onClick={() => handleSyncJob(job._id, true)}
+																		className="p-2 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-600 transition cursor-pointer"
+																		title="Stop Processing & Mark Complete">
+																		<Square size={16} fill="currentColor" />
+																	</button>
+																)}
+															{isFolderImport &&
+																job.status !== "FAILED" &&
+																job.status !== "COMPLETED" && (
+																	<button
+																		onClick={() =>
+																			handleResumeStuckJob(job._id)
+																		}
+																		className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
+																		title="Resume / retry import (process remaining files)">
+																		<RefreshCw size={16} />
+																	</button>
+																)}
 															<button
-																onClick={() => initiateAction("deleteJob", job._id)}
+																onClick={() =>
+																	initiateAction("deleteJob", job._id)
+																}
 																className="p-2 rounded-lg bg-slate-200 dark:bg-slate-700/40 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 transition cursor-pointer"
 																title="Delete Job & Data">
 																<Trash2 size={16} />
@@ -1062,20 +1149,24 @@ const AdminDashboard = () => {
 											</thead>
 											<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
 												{deleteLogs.map((log) => (
-													<tr key={log._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+													<tr
+														key={log._id}
+														className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
 														<td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
 															{log.entityName}
 														</td>
 														<td className="px-6 py-4">
-															<span className={`px-2 py-1 rounded text-xs font-bold ${log.entityType === 'DATABASE'
-																	? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'
-																	: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+															<span
+																className={`px-2 py-1 rounded text-xs font-bold ${
+																	log.entityType === "DATABASE"
+																		? "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400"
+																		: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
 																}`}>
 																{log.entityType}
 															</span>
 														</td>
 														<td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-															{log.deletedBy?.name || 'Unknown'}
+															{log.deletedBy?.name || "Unknown"}
 														</td>
 														<td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
 															{formatDate(log.deletedAt)}
@@ -1140,12 +1231,13 @@ const AdminDashboard = () => {
 										onClick={confirmAction}
 										disabled={isConfirming}
 										className={`px-5 py-2 rounded-xl text-white transition
-    ${isConfirming
-												? "cursor-not-allowed bg-red-400"
-												: confirmActionType === "RESET"
-													? "bg-red-700 hover:bg-red-600"
-													: "bg-rose-600 hover:bg-rose-500"
-											}`}>
+    ${
+			isConfirming
+				? "cursor-not-allowed bg-red-400"
+				: confirmActionType === "RESET"
+					? "bg-red-700 hover:bg-red-600"
+					: "bg-rose-600 hover:bg-rose-500"
+		}`}>
 										{isConfirming
 											? confirmActionType === "RESET"
 												? "Resetting..."
