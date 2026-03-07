@@ -184,7 +184,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       setView('results');
 
       if (data?.parseOnly) {
-        toast('Requirements parsed. Add GOOGLE_CSE_API_KEY to enable candidate discovery.', { icon: 'i' });
+        toast('Requirements parsed. Add SERPER_API_KEY to enable candidate discovery.', { icon: 'i' });
       } else {
         toast.success(`Sourcing complete. ${data?.summary?.totalExtracted || 0} candidates found.`);
       }
@@ -536,7 +536,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
               <p className="mt-4 text-lg font-semibold text-slate-100">Sourcing Pipeline Running</p>
               <p className="text-sm text-slate-400 mt-1">
-                Parsing aliases, generating CSE queries, extracting profiles, enriching contacts, and saving results.
+                Generating search queries, extracting profiles, enriching contacts, and saving results.
               </p>
             </div>
           )}
