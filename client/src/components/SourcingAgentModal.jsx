@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   Briefcase,
@@ -15,8 +15,6 @@ import {
   Save,
   Search,
   UploadCloud,
-  UserRoundCheck,
-  X,
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
@@ -49,6 +47,8 @@ const stageMeta = {
   SHORTLISTED: { label: 'Shortlisted', className: 'bg-emerald-950/45 text-emerald-200 border-emerald-700/50' },
 };
 
+const AI_SOURCE_STATE_KEY = 'hirextra_ai_source_state';
+
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
   const [view, setView] = useState('compose'); // compose | sourcing | results
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
@@ -61,8 +61,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [responseData, setResponseData] = useState(null);
   const [error, setError] = useState('');
   const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
+  const [contactLoadingUrl, setContactLoadingUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
-  const [stageUpdatingUrl, setStageUpdatingUrl] = useState(null);
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || responseData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim());
@@ -74,10 +74,45 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const parseOnly = Boolean(responseData?.parseOnly);
   const summary = responseData?.summary || {};
 
-  const shortlistedCount = useMemo(
-    () => candidates.filter((c) => c.pipelineStage === 'SHORTLISTED').length,
-    [candidates]
-  );
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AI_SOURCE_STATE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+
+      if (parsed?.view) {
+        // Never re-enter a stale loading screen on restore
+        setView(parsed.view === 'sourcing' ? 'results' : parsed.view);
+      }
+      if (parsed?.composeStep) setComposeStep(parsed.composeStep);
+      if (typeof parsed?.jobDescription === 'string') setJobDescription(parsed.jobDescription);
+      if (parsed?.bundle) setBundle(parsed.bundle);
+      if (parsed?.parsedDraft) setParsedDraft(parsed.parsedDraft);
+      if (parsed?.responseData) setResponseData(parsed.responseData);
+      if (Array.isArray(parsed?.savedCandidates)) {
+        setSavedCandidates(new Set(parsed.savedCandidates));
+      }
+    } catch {
+      // Ignore restore errors; start fresh
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const snapshot = {
+        view,
+        composeStep,
+        jobDescription,
+        bundle,
+        parsedDraft,
+        responseData,
+        savedCandidates: Array.from(savedCandidates),
+      };
+      localStorage.setItem(AI_SOURCE_STATE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Ignore persistence errors
+    }
+  }, [view, composeStep, jobDescription, bundle, parsedDraft, responseData, savedCandidates]);
 
   const handleClose = () => {
     setView('compose');
@@ -91,7 +126,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     setResponseData(null);
     setError('');
     setSavedCandidates(new Set());
-    setStageUpdatingUrl(null);
+    setContactLoadingUrl(null);
     onClose();
   };
 
@@ -169,8 +204,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         maxCandidates: 60,
         maxQueries: 6,
         resultsPerCountry: 3,
-        enrichContacts: true,
-        enrichTopN: 20,
+        enrichContacts: false,
+        enrichTopN: 0,
         autoSave: true,
       });
 
@@ -200,41 +235,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
   const handleSaveCandidate = async (candidate) => {
     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-    if (!linkedInUrl) return;
+    if (!linkedInUrl) return null;
 
     setSavingCandidateUrl(linkedInUrl);
     try {
       const { data } = await api.post('/ai-source/save-candidate', candidate);
       if (data?.success) {
+        const savedId = data?.candidateId || data?.candidate?._id || null;
         setSavedCandidates((prev) => new Set([...prev, linkedInUrl]));
-        toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
-      } else {
-        toast.error(data?.error || 'Could not save candidate.');
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save candidate');
-    } finally {
-      setSavingCandidateUrl(null);
-    }
-  };
-
-  const handleStageUpdate = async (candidate, stage) => {
-    const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-    if (!linkedInUrl) return;
-    setStageUpdatingUrl(linkedInUrl);
-
-    try {
-      const { data } = await api.post('/ai-source/candidate-stage', {
-        linkedInUrl,
-        stage,
-        name: candidate.name,
-        company: candidate.company,
-        title: candidate.title || candidate.jobTitle,
-        location: candidate.location,
-        sourceCountry: candidate.sourceCountry,
-      });
-
-      if (data?.success) {
         setResponseData((prev) => {
           if (!prev) return prev;
           const nextCandidates = (prev.candidates || prev.results || []).map((row) => {
@@ -242,9 +250,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
             if (rowLinkedin !== linkedInUrl) return row;
             return {
               ...row,
-              pipelineStage: data.stage,
-              sequenceStatus: data.sequenceStatus,
-              callStatus: data.callStatus,
+              savedToDatabase: true,
+              savedCandidateId: savedId || row.savedCandidateId || null,
             };
           });
           return {
@@ -253,12 +260,78 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
             results: nextCandidates,
           };
         });
-        toast.success(`Updated: ${stageMeta[data.stage]?.label || data.stage}`);
+        toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
+        return savedId;
+      } else {
+        toast.error(data?.error || 'Could not save candidate.');
+        return null;
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to update candidate stage.');
+      toast.error(err.response?.data?.error || 'Failed to save candidate');
+      return null;
     } finally {
-      setStageUpdatingUrl(null);
+      setSavingCandidateUrl(null);
+    }
+  };
+
+  const handleGetContact = async (candidate) => {
+    const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
+    if (!linkedInUrl) {
+      toast.error('LinkedIn URL missing for this candidate.');
+      return;
+    }
+
+    setContactLoadingUrl(linkedInUrl);
+    try {
+      let candidateId = candidate.savedCandidateId || null;
+      if (!candidateId) {
+        candidateId = await handleSaveCandidate(candidate);
+      }
+
+      if (!candidateId) {
+        toast.error('Could not prepare candidate for enrichment.');
+        return;
+      }
+
+      const { data } = await api.get(`/enrich-contact/${candidateId}`);
+      const enriched = data?.data || null;
+      const hasContact = Boolean(enriched?.email || enriched?.phone);
+
+      if (!data?.success || !hasContact) {
+        toast.error(enriched?.error || 'No contact found for this candidate.');
+        return;
+      }
+
+      setResponseData((prev) => {
+        if (!prev) return prev;
+        const nextCandidates = (prev.candidates || prev.results || []).map((row) => {
+          const rowLinkedin = row.linkedinUrl || row.linkedInUrl;
+          if (rowLinkedin !== linkedInUrl) return row;
+          return {
+            ...row,
+            savedCandidateId: candidateId,
+            savedToDatabase: true,
+            email: enriched.email || row.email || null,
+            phone: enriched.phone || row.phone || null,
+            enrichmentSource: enriched.source || row.enrichmentSource || null,
+            enrichmentConfidence:
+              Number.isFinite(Number(enriched.confidence))
+                ? Number(enriched.confidence)
+                : row.enrichmentConfidence || null,
+            pipelineStage: 'CONTACT_ENRICHED',
+          };
+        });
+        return {
+          ...prev,
+          candidates: nextCandidates,
+          results: nextCandidates,
+        };
+      });
+      toast.success('Contact enriched successfully.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to fetch contact.');
+    } finally {
+      setContactLoadingUrl(null);
     }
   };
 
@@ -305,7 +378,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               <h2 className="text-2xl md:text-3xl font-bold mt-1">
                 AI Sourcing Agent
               </h2>
-              <p className="text-sm text-slate-300 mt-1">JD upload, structured extraction, CSE sourcing, enrichment, and shortlist workflow.</p>
+              <p className="text-sm text-slate-300 mt-1">Fast candidate discovery from JD with immediate results.</p>
             </div>
           </div>
         </div>
@@ -391,10 +464,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
                       <div className="mt-4 text-xs text-slate-400 space-y-1.5">
                         <p className="font-semibold text-slate-300">How it works:</p>
-                        <p>✓ AI parses your job description</p>
-                        <p>✓ Generates LinkedIn search queries</p>
-                        <p>✓ Searches across 50+ countries</p>
-                        <p>✓ Extracts & enriches candidates with contact info</p>
+                        <p>AI parses your job description</p>
+                        <p>Generates LinkedIn search queries</p>
+                        <p>Searches across 50+ countries</p>
+                        <p>Extracts candidates immediately (contact enrichment can be run later)</p>
                       </div>
                     </div>
                   </div>
@@ -536,18 +609,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
               <p className="mt-4 text-lg font-semibold text-slate-100">Sourcing Pipeline Running</p>
               <p className="text-sm text-slate-400 mt-1">
-                Generating search queries, extracting profiles, enriching contacts, and saving results.
+                Generating search queries, extracting profiles, and returning candidates.
               </p>
             </div>
           )}
 
           {view === 'results' && (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="Extracted" value={summary.totalExtracted || 0} icon={<Search size={14} />} tone="blue" />
                 <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />
                 <StatCard label="Saved" value={summary.totalSaved || 0} icon={<Save size={14} />} tone="amber" />
-                <StatCard label="Shortlisted" value={shortlistedCount} icon={<UserRoundCheck size={14} />} tone="slate" />
                 <StatCard label="Countries" value={summary.countriesSearched || 0} icon={<Globe2 size={14} />} tone="slate" />
               </div>
 
@@ -562,10 +634,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                   {candidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
                     const isSaving = savingCandidateUrl === linkedInUrl;
+                    const isContactLoading = contactLoadingUrl === linkedInUrl;
                     const isSaved = savedCandidates.has(linkedInUrl) || candidate.savedToDatabase;
                     const stage = candidate.pipelineStage || 'DISCOVERED';
                     const stageStyle = stageMeta[stage] || stageMeta.DISCOVERED;
-                    const isUpdatingStage = stageUpdatingUrl === linkedInUrl;
 
                     return (
                       <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
@@ -614,6 +686,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                             <span className="text-sm text-slate-500">LinkedIn unavailable</span>
                           )}
 
+                          {!candidate.email && !candidate.phone && (
+                            <button
+                              onClick={() => handleGetContact(candidate)}
+                              disabled={!linkedInUrl || isContactLoading}
+                              className="rounded-lg border border-indigo-700/50 bg-indigo-950/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-900/50 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+                            >
+                              {isContactLoading ? <Loader2 size={13} className="animate-spin inline mr-1" /> : <Mail size={13} className="inline mr-1" />}
+                              Get Contact
+                            </button>
+                          )}
+
                           <button
                             onClick={() => handleSaveCandidate(candidate)}
                             disabled={!linkedInUrl || isSaving || isSaved}
@@ -628,30 +711,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           </button>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            onClick={() => handleStageUpdate(candidate, 'SEQUENCED')}
-                            disabled={isUpdatingStage}
-                            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-                          >
-                            {isUpdatingStage ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
-                            Add to Sequence
-                          </button>
-                          <button
-                            onClick={() => handleStageUpdate(candidate, 'CALL_QUEUED')}
-                            disabled={isUpdatingStage}
-                            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-                          >
-                            Queue for Call
-                          </button>
-                          <button
-                            onClick={() => handleStageUpdate(candidate, 'SHORTLISTED')}
-                            disabled={isUpdatingStage}
-                            className="rounded-lg border border-emerald-700/50 bg-emerald-950/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-                          >
-                            Shortlist
-                          </button>
-                        </div>
                       </div>
                     );
                   })}
@@ -690,3 +749,4 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     </div>
   );
 }
+

@@ -269,8 +269,8 @@ export const sourceCandidates = async (req, res) => {
     maxCandidates = 50,
     maxQueries = 6,
     resultsPerCountry = 3,
-    enrichContacts = true,
-    enrichTopN = 15,
+    enrichContacts = false,
+    enrichTopN = 0,
     autoSave = true,
   } = req.body || {};
 

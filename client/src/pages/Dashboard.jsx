@@ -171,6 +171,7 @@ const Dashboard = () => {
 		localStorage.removeItem("hirextra_selectedIds");
 		localStorage.removeItem("hirextra_searchInput");
 		localStorage.removeItem("hirextra_filters");
+		localStorage.removeItem("hirextra_ai_source_state");
 		logout();
 		navigate("/");
 	};
