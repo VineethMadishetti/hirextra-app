@@ -31,9 +31,9 @@ export const enrichContact = async (req, res) => {
 
     if (enrichedContact) {
       const hasCachedContact = Boolean(enrichedContact.email || enrichedContact.phone);
-      const isFailureCache = !hasCachedContact;
 
-      if (!(forceRefresh && isFailureCache)) {
+      // Only serve cache when it has real contact data AND no force refresh requested
+      if (hasCachedContact && !forceRefresh) {
         logger.info(`Cache hit for candidate ${candidateId}`);
         return res.json({
           success: true,
@@ -44,14 +44,15 @@ export const enrichContact = async (req, res) => {
             linkedinUrl: enrichedContact.linkedinUrl,
             confidence: enrichedContact.confidence,
             source: enrichedContact.source,
-            error: enrichedContact.lastError || null,
+            error: null,
             verifiedAt: enrichedContact.verifiedAt,
             cachedAt: enrichedContact.createdAt,
           },
         });
       }
 
-      logger.info(`Bypassing failure cache for candidate ${candidateId} (force=true)`);
+      // Failure cache or force refresh → always retry provider
+      logger.info(`Retrying provider for candidate ${candidateId} (cached failure or force)`);
     }
 
     // Not in cache, run enrichment

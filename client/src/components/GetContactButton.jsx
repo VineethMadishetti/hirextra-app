@@ -1,151 +1,126 @@
-import React, { useState, useCallback } from 'react';
-import { Mail, Phone, Linkedin, Loader, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Mail, Phone, Loader, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 
-/**
- * GetContactButton Component
- * Enriches candidate contact info (email/phone) using cascade APIs
- * Shows contact details when found, caches results for 30 days
- */
 const GetContactButton = ({ candidateId, candidate, onContactFound }) => {
   const [loading, setLoading] = useState(false);
   const [contact, setContact] = useState(candidate?.enrichedContact || null);
-  const [error, setError] = useState(null);
-  const [noContactFound, setNoContactFound] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const handleEnrich = useCallback(async (forceRefresh = false) => {
     if (!candidateId) return;
 
     setLoading(true);
-    setError(null);
-    setNoContactFound(false);
+    setNotFound(false);
+    setErrorMsg(null);
 
     try {
-      const querySuffix = forceRefresh ? '?force=true' : '';
-      const response = await api.get(`/enrich-contact/${candidateId}${querySuffix}`);
+      const qs = forceRefresh ? '?force=true' : '';
+      const response = await api.get(`/enrich-contact/${candidateId}${qs}`);
+      const enrichedData = response.data?.data;
 
-      if (response.data.success && response.data.data) {
-        const enrichedData = response.data.data;
-
-        // Show success message
-        if (enrichedData.email || enrichedData.phone) {
-          // Update local state
-          setContact(enrichedData);
-          setError(null);
-          setNoContactFound(false);
-
-          // Notify parent if callback provided
-          if (onContactFound) {
-            onContactFound(enrichedData);
-          }
-
-          toast.success(`Contact found via ${enrichedData.source}!`, {
-            duration: 3000,
-          });
-        } else {
-          setContact(null);
-          setNoContactFound(true);
-          setError(enrichedData.error || 'No contact information found for this candidate.');
-
-          if (forceRefresh) {
-            toast.error(enrichedData.error || 'No contact information found for this candidate.');
-          } else {
-            toast('No cached contact found. Use Retry Live to re-check provider.', {
-              icon: 'i',
-              duration: 3500,
-            });
-          }
-        }
+      if (response.data?.success && enrichedData && (enrichedData.email || enrichedData.phone)) {
+        setContact(enrichedData);
+        setNotFound(false);
+        if (onContactFound) onContactFound(enrichedData);
+        toast.success(`Contact found via ${enrichedData.source}!`, { duration: 3000 });
       } else {
         setContact(null);
-        setNoContactFound(false);
-        setError('Enrichment failed');
-        toast.error('Failed to enrich contact information.');
+        setNotFound(true);
+        const msg = enrichedData?.error || 'No contact found for this candidate.';
+        setErrorMsg(msg);
+        toast.error(msg, { duration: 3000 });
       }
     } catch (err) {
-      console.error('Enrichment error:', err);
       setContact(null);
-      setNoContactFound(false);
-      setError(err.response?.data?.error || 'Enrichment failed');
-      toast.error(err.response?.data?.message || 'Failed to fetch contact information.');
+      setNotFound(false);
+      const msg = err.response?.data?.message || 'Failed to fetch contact. Check server logs.';
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   }, [candidateId, onContactFound]);
 
-  // Loading state
+  // Loading
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
         <Loader size={16} className="animate-spin" />
-        <span className="text-xs whitespace-nowrap">Finding...</span>
+        <span className="text-xs whitespace-nowrap">Looking up...</span>
       </div>
     );
   }
 
-  // Error state
-  if (error && !contact) {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="group relative">
-          <AlertCircle size={16} className="text-amber-500" />
-          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-50">
-            {error}
-          </div>
-        </div>
-        <button
-          onClick={() => handleEnrich(noContactFound)}
-          className="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded transition-colors">
-          {noContactFound ? 'Retry Live' : 'Retry'}
-        </button>
-      </div>
-    );
-  }
-
-  // Has contact data - display it
+  // Has contact — display email/phone
   if (contact && (contact.email || contact.phone)) {
     return (
       <div className="flex flex-col gap-1.5 max-w-[220px]">
-        {/* Email */}
         {contact.email && (
           <a
             href={`mailto:${contact.email}`}
-            className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs no-underline group"
+            className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs no-underline"
             title={contact.email}>
             <Mail size={12} className="flex-shrink-0" />
             <span className="truncate">{contact.email}</span>
           </a>
         )}
-
-        {/* Phone */}
         {contact.phone && (
           <a
             href={`tel:${contact.phone}`}
-            className="flex items-center gap-1.5 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 text-xs no-underline group"
+            className="flex items-center gap-1.5 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 text-xs no-underline"
             title={contact.phone}>
             <Phone size={12} className="flex-shrink-0" />
             <span className="truncate">{contact.phone}</span>
           </a>
         )}
-
-        {/* Source Badge */}
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
-          <CheckCircle2 size={10} className="text-green-500 flex-shrink-0" />
-          <span className="capitalize">{contact.source}</span>
+        <div className="flex items-center justify-between pt-0.5">
+          <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+            <CheckCircle2 size={10} className="text-green-500 flex-shrink-0" />
+            <span className="capitalize">{contact.source}</span>
+          </div>
+          <button
+            onClick={() => handleEnrich(true)}
+            className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-0.5 transition-colors"
+            title="Refresh contact">
+            <RefreshCw size={10} />
+            Refresh
+          </button>
         </div>
       </div>
     );
   }
 
-  // No contact found - show button
+  // Not found after attempt
+  if (notFound) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="group relative">
+          <AlertCircle size={14} className="text-slate-400" />
+          {errorMsg && (
+            <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-50 max-w-[200px] break-words">
+              {errorMsg}
+            </div>
+          )}
+        </div>
+        <span className="text-xs text-slate-400">Not found</span>
+        <button
+          onClick={() => handleEnrich(false)}
+          className="text-xs text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Default — show Get Contact button
   return (
     <button
       onClick={() => handleEnrich(false)}
-      className="inline-flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-2.5 py-1.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md font-medium group whitespace-nowrap"
-      title="Enrich contact information (email/phone)"
-      disabled={loading}>
-      {/* <Linkedin size={12} className="flex-shrink-0" /> */}
+      className="inline-flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-2.5 py-1.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md font-medium whitespace-nowrap"
+      title="Find email & phone via Skrapp">
       <span>Get Contact</span>
     </button>
   );
