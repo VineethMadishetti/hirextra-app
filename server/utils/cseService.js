@@ -2,73 +2,70 @@ import axios from 'axios';
 import logger from './logger.js';
 
 /**
- * Using a single user-owned CSE that is confirmed to return 200 OK
- * with the current GOOGLE_CSE_API_KEY. Searches the entire web.
+ * Country name → Serper.dev gl (geolocation) code.
+ * Serper searches real Google results, no CSE/PSE restrictions.
  */
-const USER_CSE = '906f22435e83c4b53';
-const FALLBACK_CX = USER_CSE;
-
-const COUNTRY_CSES = {
-  india:          USER_CSE,
-  uk:             USER_CSE,
-  germany:        USER_CSE,
-  austria:        USER_CSE,
-  belgium:        USER_CSE,
-  czech_republic: USER_CSE,
-  denmark:        USER_CSE,
-  estonia:        USER_CSE,
-  finland:        USER_CSE,
-  greece:         USER_CSE,
-  hungary:        USER_CSE,
-  iceland:        USER_CSE,
-  italy:          USER_CSE,
-  latvia:         USER_CSE,
-  lithuania:      USER_CSE,
-  luxembourg:     USER_CSE,
-  malta:          USER_CSE,
-  netherlands:    USER_CSE,
-  norway:         USER_CSE,
-  poland:         USER_CSE,
-  portugal:       USER_CSE,
-  romania:        USER_CSE,
-  slovakia:       USER_CSE,
-  slovenia:       USER_CSE,
-  spain:          USER_CSE,
-  sweden:         USER_CSE,
-  switzerland:    USER_CSE,
-  france:         USER_CSE,
-  singapore:      USER_CSE,
-  australia:      USER_CSE,
-  canada:         USER_CSE,
-  us:             USER_CSE,
-  japan:          USER_CSE,
-  south_korea:    USER_CSE,
-  thailand:       USER_CSE,
-  vietnam:        USER_CSE,
-  philippines:    USER_CSE,
-  indonesia:      USER_CSE,
-  malaysia:       USER_CSE,
-  pakistan:       USER_CSE,
-  bangladesh:     USER_CSE,
-  sri_lanka:      USER_CSE,
-  uae:            USER_CSE,
-  saudi_arabia:   USER_CSE,
-  mexico:         USER_CSE,
-  brazil:         USER_CSE,
-  argentina:      USER_CSE,
-  chile:          USER_CSE,
-  south_africa:   USER_CSE,
-  egypt:          USER_CSE,
-  new_zealand:    USER_CSE,
+const COUNTRY_GL = {
+  india:          'in',
+  uk:             'gb',
+  germany:        'de',
+  austria:        'at',
+  belgium:        'be',
+  czech_republic: 'cz',
+  denmark:        'dk',
+  estonia:        'ee',
+  finland:        'fi',
+  france:         'fr',
+  greece:         'gr',
+  hungary:        'hu',
+  iceland:        'is',
+  italy:          'it',
+  latvia:         'lv',
+  lithuania:      'lt',
+  luxembourg:     'lu',
+  malta:          'mt',
+  netherlands:    'nl',
+  norway:         'no',
+  poland:         'pl',
+  portugal:       'pt',
+  romania:        'ro',
+  slovakia:       'sk',
+  slovenia:       'si',
+  spain:          'es',
+  sweden:         'se',
+  switzerland:    'ch',
+  singapore:      'sg',
+  australia:      'au',
+  canada:         'ca',
+  us:             'us',
+  japan:          'jp',
+  south_korea:    'kr',
+  thailand:       'th',
+  vietnam:        'vn',
+  philippines:    'ph',
+  indonesia:      'id',
+  malaysia:       'my',
+  pakistan:       'pk',
+  bangladesh:     'bd',
+  sri_lanka:      'lk',
+  uae:            'ae',
+  saudi_arabia:   'sa',
+  mexico:         'mx',
+  brazil:         'br',
+  argentina:      'ar',
+  chile:          'cl',
+  south_africa:   'za',
+  egypt:          'eg',
+  new_zealand:    'nz',
 };
 
 class CSEService {
   constructor() {
-    this.baseUrl = 'https://www.googleapis.com/customsearch/v1';
+    this.baseUrl = 'https://google.serper.dev/search';
   }
 
   getApiKey() {
-    return String(process.env.GOOGLE_CSE_API_KEY || '').trim();
+    return String(process.env.SERPER_API_KEY || '').trim();
   }
 
   isConfigured() {
@@ -78,29 +75,31 @@ class CSEService {
   async searchCountry(query, country, maxResults = 10) {
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      logger.warn('GOOGLE_CSE_API_KEY not configured, skipping search');
+      logger.warn('SERPER_API_KEY not configured, skipping search');
       return [];
     }
 
     const countryKey = String(country || '').toLowerCase();
-    const cseId = COUNTRY_CSES[countryKey] || FALLBACK_CX;
+    const gl = COUNTRY_GL[countryKey] || 'us';
 
-    logger.info(`[CSE] country=${country} cx=${cseId.slice(-8)} query="${String(query).slice(0, 80)}"`);
+    logger.info(`[Serper] country=${country} gl=${gl} query="${String(query).slice(0, 80)}"`);
 
     try {
-      const response = await axios.get(this.baseUrl, {
-        params: {
-          key: apiKey,
-          cx: cseId,
-          q: query,
-          num: Math.min(maxResults, 10), // Google CSE max is 10
-        },
-        timeout: 15000,
-      });
+      const response = await axios.post(
+        this.baseUrl,
+        { q: query, num: Math.min(maxResults, 10), gl },
+        {
+          headers: {
+            'X-API-KEY': apiKey,
+            'Content-Type': 'application/json',
+          },
+          timeout: 15000,
+        }
+      );
 
-      const items = response?.data?.items;
+      const items = response?.data?.organic;
       if (!Array.isArray(items) || items.length === 0) {
-        logger.info(`[CSE] 0 results for country=${country}`);
+        logger.info(`[Serper] 0 results for country=${country}`);
         return [];
       }
 
@@ -108,20 +107,20 @@ class CSEService {
         title:       item.title,
         link:        item.link,
         snippet:     item.snippet,
-        displayLink: item.displayLink,
+        displayLink: item.displayLink || '',
         country,
       }));
     } catch (error) {
       const status = error.response?.status;
-      const errMsg = error.response?.data?.error?.message || error.message;
+      const errMsg = error.response?.data?.message || error.message;
       if (status === 429) {
-        logger.warn(`[CSE] Quota exceeded for country=${country}`);
+        logger.warn(`[Serper] Quota exceeded for country=${country}`);
       } else if (status === 403) {
-        logger.error(`[CSE] 403 for country=${country} — ${errMsg}`);
+        logger.error(`[Serper] 403 for country=${country} — ${errMsg}`);
       } else if (status) {
-        logger.warn(`[CSE] HTTP ${status} for country=${country} — ${errMsg}`);
+        logger.warn(`[Serper] HTTP ${status} for country=${country} — ${errMsg}`);
       } else {
-        logger.warn(`[CSE] Request failed for country=${country}: ${error.message}`);
+        logger.warn(`[Serper] Request failed for country=${country}: ${error.message}`);
       }
       return [];
     }
@@ -136,7 +135,7 @@ class CSEService {
     const results = await this.executeConcurrent(taskFns, 5);
     const flattened = results.flat().filter(Boolean);
 
-    logger.info(`CSE search complete: ${flattened.length} results across ${countries.length} countries`);
+    logger.info(`Serper search complete: ${flattened.length} results across ${countries.length} countries`);
     return flattened;
   }
 
@@ -151,11 +150,11 @@ class CSEService {
   }
 
   getConfiguredCountries() {
-    return Object.keys(COUNTRY_CSES);
+    return Object.keys(COUNTRY_GL);
   }
 
   getCseId(country) {
-    return COUNTRY_CSES[String(country || '').toLowerCase()] || FALLBACK_CX;
+    return COUNTRY_GL[String(country || '').toLowerCase()] || 'us';
   }
 }
 
