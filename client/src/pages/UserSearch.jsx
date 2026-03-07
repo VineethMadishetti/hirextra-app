@@ -470,6 +470,18 @@ const UserSearch = () => {
 		setIsSearchApplied(true);
 	}, [searchInput, filters, dbSource, selectedPrivateDbId]);
 
+	// Auto-search when switching source tab
+	const triggerSearchWithSource = useCallback((newSource, newPrivateDbId = '') => {
+		setDbSource(newSource);
+		setSelectedPrivateDbId(newPrivateDbId);
+		setAppliedSearchInput(searchInput);
+		setAppliedFilters(filters);
+		setAppliedDbSource(newSource);
+		setAppliedPrivateDbId(newPrivateDbId);
+		setSelectedIds(new Set());
+		setIsSearchApplied(true);
+	}, [searchInput, filters]);
+
 	// Handle AI Search
 	const handleAiSearch = async (e) => {
 		e?.preventDefault();
@@ -976,16 +988,16 @@ const UserSearch = () => {
 								{/* All + PeopleFinder */}
 								<div className="flex items-center rounded-l-full border border-r-0 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden">
 									<button
-										onClick={() => { setDbSource('all'); setSelectedPrivateDbId(''); }}
+										onClick={() => triggerSearchWithSource('all', '')}
 										className={`px-3 py-1.5 text-xs font-semibold transition-all ${dbSource === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>All</button>
 									<div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
 									<button
-										onClick={() => { setDbSource('peoplefinder'); setSelectedPrivateDbId(''); }}
+										onClick={() => triggerSearchWithSource('peoplefinder', '')}
 										className={`px-3 py-1.5 text-xs font-semibold transition-all ${dbSource === 'peoplefinder' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>PeopleFinder</button>
 								</div>
 								{/* My Databases — no dropdown, always all */}
 								<button
-									onClick={() => setDbSource(dbSource === 'my-db' ? 'peoplefinder' : 'my-db')}
+									onClick={() => triggerSearchWithSource('my-db', '')}
 									className={`px-3 py-1.5 text-xs font-semibold rounded-r-full border border-slate-200 dark:border-slate-700 transition-all ${dbSource === 'my-db' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>
 									My Database
 								</button>

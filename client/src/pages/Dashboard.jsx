@@ -32,7 +32,7 @@ const WelcomePage = ({ user, onNavigate }) => (
 		</p>
 
 		{/* Action Cards */}
-		<div className="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full max-w-3xl">
+		<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-5xl">
 			{/* Search People Card */}
 			<button
 				onClick={() => onNavigate("search")}
@@ -51,6 +51,23 @@ const WelcomePage = ({ user, onNavigate }) => (
 
 			{/* AI Search Card */}
 			<button
+				onClick={() => onNavigate("search")}
+				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
+				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-violet-100/50 dark:hover:shadow-violet-900/20
+				hover:border-violet-300 dark:hover:border-violet-600/50 transition-all duration-300 text-left cursor-pointer overflow-hidden">
+				<div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-violet-100/60 dark:from-violet-500/10 to-transparent rounded-bl-full pointer-events-none" />
+				<div className="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-100 dark:group-hover:bg-violet-500/20 transition-colors">
+					<Sparkles size={22} className="text-violet-600 dark:text-violet-400" />
+				</div>
+				<div className="flex-1">
+					<h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">AI Search</h3>
+					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Ask AI to find candidates by describing what you need in plain English.</p>
+				</div>
+				<ArrowRight size={18} className="text-slate-300 group-hover:text-violet-500 group-hover:translate-x-1 transition-all" />
+			</button>
+
+			{/* AI Sourcing Agent Card */}
+			<button
 				onClick={() => onNavigate("ai-source")}
 				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
 				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 dark:hover:shadow-indigo-900/20
@@ -61,10 +78,10 @@ const WelcomePage = ({ user, onNavigate }) => (
 				</div>
 				<div className="flex-1">
 					<div className="flex items-center gap-2 mb-1">
-						<h3 className="font-bold text-slate-900 dark:text-white text-base">AI Search</h3>
+						<h3 className="font-bold text-slate-900 dark:text-white text-base">AI Sourcing Agent</h3>
 						<span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full">New</span>
 					</div>
-					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Describe your ideal candidate in plain English — let AI do the sourcing.</p>
+					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Paste a job description — let AI discover matching candidates globally.</p>
 				</div>
 				<ArrowRight size={18} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
 			</button>
@@ -190,6 +207,12 @@ const Dashboard = () => {
 								Search People
 							</button>
 							<button
+								onClick={() => setCurrentView("search")}
+								className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+								<Sparkles size={16} />
+								AI Search
+							</button>
+							<button
 								onClick={() => setCurrentView("ai-source")}
 								className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
 								${currentView === "ai-source"
@@ -197,7 +220,7 @@ const Dashboard = () => {
 									: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
 								}`}>
 								<Zap size={16} />
-								AI Search
+								AI Sourcing Agent
 							</button>
 							<button
 								onClick={() => setCurrentView("my-databases")}
@@ -368,6 +391,12 @@ const Dashboard = () => {
 					Search People
 				</button>
 				<button
+					onClick={() => setCurrentView("search")}
+					className="flex-1 py-3 text-sm font-medium text-center flex items-center justify-center gap-1.5 text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+					<Sparkles size={14} />
+					AI Search
+				</button>
+				<button
 					onClick={() => setCurrentView("ai-source")}
 					className={`flex-1 py-3 text-sm font-medium text-center flex items-center justify-center gap-1.5 ${
 						currentView === "ai-source"
@@ -375,7 +404,7 @@ const Dashboard = () => {
 							: "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
 					}`}>
 					<Zap size={14} />
-					AI Search
+					Sourcing Agent
 				</button>
 				<button
 					onClick={() => setCurrentView("my-databases")}

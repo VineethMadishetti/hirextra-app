@@ -19,6 +19,8 @@ import {
   ChevronRight,
   Calendar,
   Sparkles,
+  Eye,
+  Download,
 } from 'lucide-react';
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
@@ -150,9 +152,81 @@ function DropZone({ dbId, onSuccess }) {
 }
 
 // ─── DatabaseView ─────────────────────────────────────────────────────────────
+function CandidateViewModal({ candidate, onClose }) {
+  if (!candidate) return null;
+  const fields = [
+    { label: 'Full Name', value: candidate.fullName },
+    { label: 'Job Title', value: candidate.jobTitle },
+    { label: 'Company', value: candidate.company },
+    { label: 'Location', value: candidate.location },
+    { label: 'Experience', value: candidate.experience },
+    { label: 'Skills', value: candidate.skills },
+    { label: 'Education', value: candidate.education },
+    { label: 'Email', value: candidate.email },
+    { label: 'Phone', value: candidate.phone },
+    { label: 'LinkedIn', value: candidate.linkedinUrl },
+    { label: 'Parse Status', value: candidate.parseStatus },
+  ].filter((f) => f.value);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-500/15 dark:to-purple-500/15 flex items-center justify-center">
+              <span className="text-base font-bold text-indigo-600 dark:text-indigo-400">
+                {(candidate.fullName || '?').charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 dark:text-white">{candidate.fullName || 'Unknown'}</p>
+              <p className="text-xs text-slate-400">{candidate.jobTitle || 'No title'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-4 space-y-3">
+          {fields.map(({ label, value }) => (
+            <div key={label} className="flex flex-col gap-0.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+              <span className="text-sm text-slate-800 dark:text-slate-100 break-words">{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function downloadCandidate(candidate) {
+  const lines = [
+    `Name: ${candidate.fullName || ''}`,
+    `Job Title: ${candidate.jobTitle || ''}`,
+    `Company: ${candidate.company || ''}`,
+    `Location: ${candidate.location || ''}`,
+    `Experience: ${candidate.experience || ''}`,
+    `Skills: ${candidate.skills || ''}`,
+    `Education: ${candidate.education || ''}`,
+    `Email: ${candidate.email || ''}`,
+    `Phone: ${candidate.phone || ''}`,
+    `LinkedIn: ${candidate.linkedinUrl || ''}`,
+    `Parse Status: ${candidate.parseStatus || ''}`,
+  ].filter((l) => !l.endsWith(': '));
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(candidate.fullName || 'candidate').replace(/\s+/g, '_')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function DatabaseView({ db, onBack }) {
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
+  const [viewingCandidate, setViewingCandidate] = useState(null);
   const qc = useQueryClient();
 
   const { data, isFetching, refetch } = useQuery({
@@ -171,6 +245,7 @@ function DatabaseView({ db, onBack }) {
 
   return (
     <div className="flex flex-col h-full">
+      <CandidateViewModal candidate={viewingCandidate} onClose={() => setViewingCandidate(null)} />
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <button
@@ -265,7 +340,7 @@ function DatabaseView({ db, onBack }) {
                 <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-1">{c.skills.slice(0, 120)}</p>
               )}
             </div>
-            {/* Right badges */}
+            {/* Right badges + actions */}
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               {c.experience && (
                 <span className="text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/70 px-3 py-1 rounded-full">
@@ -279,6 +354,22 @@ function DatabaseView({ db, onBack }) {
               }`}>
                 {c.parseStatus}
               </span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <button
+                  onClick={() => setViewingCandidate(c)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                  title="View parsed resume">
+                  <Eye size={12} />
+                  View
+                </button>
+                <button
+                  onClick={() => downloadCandidate(c)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/70 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  title="Download candidate info">
+                  <Download size={12} />
+                  Download
+                </button>
+              </div>
             </div>
           </div>
         ))}

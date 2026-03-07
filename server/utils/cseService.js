@@ -1,120 +1,126 @@
 import axios from 'axios';
 import logger from './logger.js';
 
-// CSE IDs from existing Stucrow configuration.
-const COUNTRY_CSES = {
-  india: '017007144926744970718:auveiwtwlu4',
-  uk: '7856acfbbbfa9e1fc',
-  germany: '017007144926744970718:-aagbo27gso',
-  austria: '017007144926744970718:atq64kyfupy',
-  belgium: '017007144926744970718:rnu7nffzls4',
-  czech_republic: '017007144926744970718:ndhk0eeqp74',
-  denmark: '052a82679c22147de',
-  estonia: '017007144926744970718:qclk5bzomcw',
-  finland: '017007144926744970718:bu_nzan44yw',
-  greece: '017007144926744970718:g0-jiitr250',
-  hungary: '017007144926744970718:8_z_ntpgxp4',
-  iceland: '017007144926744970718:zaectnah11s',
-  italy: 'd1cb148e17ddae2ef',
-  latvia: '017007144926744970718:9sdb2mziooc',
-  lithuania: '017007144926744970718:d9_51lvnppc',
-  luxembourg: '72c5005461a103be7',
-  malta: '017007144926744970718:ze40dycyqji',
-  netherlands: '017007144926744970718:3_w50grmndy',
-  norway: '017007144926744970718:opzf_kqniws',
-  poland: 'c3e4d3b4defe045b9',
-  portugal: '017007144926744970718:hghyo91e4_s',
-  romania: '017007144926744970718:_7qjp3uvcoa',
-  slovakia: '017007144926744970718:tdsf_on64vq',
-  slovenia: '017007144926744970718:mwp19bsrstm',
-  spain: '017007144926744970718:7yb1n4skdyy',
-  sweden: '017007144926744970718:_z-o1j8afeu',
-  switzerland: '017007144926744970718:lgyf-6ghtvu',
-  france: '017007144926744970718:7yb1n4skdyy',
-  singapore: '017007144926744970718:mmxkvzia178',
-  australia: '017007144926744970718:jei0f9zdakm',
-  canada: '017007144926744970718:ihlly5ilxxq',
-  us: '017007144926744970718:ih8i99z9hdg',
-  japan: '017007144926744970718:z5ch_7nv8fq',
-  south_korea: '017007144926744970718:3ekk8yq3fru',
-  thailand: '017007144926744970718:rk-u0l5xwbm',
-  vietnam: '017007144926744970718:wxwlr9wy1kk',
-  philippines: '017007144926744970718:ux6pq3g-a5s',
-  indonesia: '017007144926744970718:-7cxm5tdzym',
-  malaysia: '017007144926744970718:e0qpx-i5lvy',
-  pakistan: '017007144926744970718:w5xm9-ky-io',
-  bangladesh: '017007144926744970718:z-yzpcf_jvi',
-  sri_lanka: '017007144926744970718:4oyyzmfg-0c',
-  uae: '017007144926744970718:hhilnq_vbza',
-  saudi_arabia: '017007144926744970718:1y-k8jfq8yw',
-  mexico: '017007144926744970718:crrg7ijmw8w',
-  brazil: '017007144926744970718:cul_hn7xzno',
-  argentina: '017007144926744970718:d6nfcdq0bvw',
-  chile: '017007144926744970718:yqnl0swxapu',
-  south_africa: '017007144926744970718:vdm8lpxtmsy',
-  egypt: '017007144926744970718:q5exgzffzxg',
-  new_zealand: '017007144926744970718:3n5u0mf-tyy',
+// Bing market codes per country for geo-targeted search results
+const COUNTRY_MARKETS = {
+  india:          'en-IN',
+  uk:             'en-GB',
+  germany:        'de-DE',
+  austria:        'de-AT',
+  belgium:        'fr-BE',
+  czech_republic: 'cs-CZ',
+  denmark:        'da-DK',
+  estonia:        'et-EE',
+  finland:        'fi-FI',
+  greece:         'el-GR',
+  hungary:        'hu-HU',
+  iceland:        'is-IS',
+  italy:          'it-IT',
+  latvia:         'lv-LV',
+  lithuania:      'lt-LT',
+  luxembourg:     'fr-LU',
+  malta:          'en-MT',
+  netherlands:    'nl-NL',
+  norway:         'nb-NO',
+  poland:         'pl-PL',
+  portugal:       'pt-PT',
+  romania:        'ro-RO',
+  slovakia:       'sk-SK',
+  slovenia:       'sl-SI',
+  spain:          'es-ES',
+  sweden:         'sv-SE',
+  switzerland:    'de-CH',
+  france:         'fr-FR',
+  singapore:      'en-SG',
+  australia:      'en-AU',
+  canada:         'en-CA',
+  us:             'en-US',
+  japan:          'ja-JP',
+  south_korea:    'ko-KR',
+  thailand:       'th-TH',
+  vietnam:        'vi-VN',
+  philippines:    'en-PH',
+  indonesia:      'id-ID',
+  malaysia:       'ms-MY',
+  pakistan:       'en-PK',
+  bangladesh:     'en-BD',
+  sri_lanka:      'en-LK',
+  uae:            'ar-AE',
+  saudi_arabia:   'ar-SA',
+  mexico:         'es-MX',
+  brazil:         'pt-BR',
+  argentina:      'es-AR',
+  chile:          'es-CL',
+  south_africa:   'en-ZA',
+  egypt:          'ar-EG',
+  new_zealand:    'en-NZ',
 };
 
 class CSEService {
   constructor() {
-    this.baseUrl = 'https://www.googleapis.com/customsearch/v1';
+    this.baseUrl = 'https://api.bing.microsoft.com/v7.0/search';
   }
 
-  getGoogleApiKey() {
-    return String(process.env.GOOGLE_CSE_API_KEY || '').trim();
+  getBingApiKey() {
+    return String(process.env.BING_SEARCH_API_KEY || '').trim();
   }
 
   isConfigured() {
-    return Boolean(this.getGoogleApiKey());
+    return Boolean(this.getBingApiKey());
   }
 
   async searchCountry(query, country, maxResults = 10) {
-    const googleApiKey = this.getGoogleApiKey();
-    if (!googleApiKey) {
-      logger.warn('Google CSE API key not configured, skipping search');
-      return [];
-    }
-    logger.info(`[CSE] Using key: ${googleApiKey.slice(0,8)}...${googleApiKey.slice(-4)} (len=${googleApiKey.length})`);
-
-    const cseId = COUNTRY_CSES[String(country || '').toLowerCase()];
-    if (!cseId) {
-      logger.warn(`No CSE configured for country: ${country}`);
+    const apiKey = this.getBingApiKey();
+    if (!apiKey) {
+      logger.warn('Bing Search API key not configured, skipping search');
       return [];
     }
 
-    logger.info(`[CSE] Searching country=${country} cx=${cseId} query="${String(query).slice(0,80)}"`);
+    const countryKey = String(country || '').toLowerCase();
+    const mkt = COUNTRY_MARKETS[countryKey];
+    if (!mkt) {
+      logger.warn(`No market configured for country: ${country}`);
+      return [];
+    }
+
+    logger.info(`[Bing] Searching country=${country} mkt=${mkt} query="${String(query).slice(0, 80)}"`);
+
     try {
       const response = await axios.get(this.baseUrl, {
+        headers: {
+          'Ocp-Apim-Subscription-Key': apiKey,
+        },
         params: {
-          key: googleApiKey,
-          cx: cseId,
           q: query,
-          num: Math.min(maxResults, 10),
+          count: Math.min(maxResults, 50),
+          mkt,
+          responseFilter: 'Webpages',
+          safeSearch: 'Off',
         },
         timeout: 15000,
       });
 
-      if (!Array.isArray(response?.data?.items)) return [];
-      return response.data.items.map((item) => ({
-        title: item.title,
-        link: item.link,
+      const items = response?.data?.webPages?.value;
+      if (!Array.isArray(items)) return [];
+
+      return items.map((item) => ({
+        title: item.name,
+        link: item.url,
         snippet: item.snippet,
-        displayLink: item.displayLink,
+        displayLink: item.displayUrl,
         country,
       }));
     } catch (error) {
       const status = error.response?.status;
-      const errData = error.response?.data;
-      const errMsg = errData?.error?.message || error.message;
+      const errMsg = error.response?.data?.error?.message || error.message;
       if (status === 429) {
-        logger.warn(`[CSE] Rate limit hit for country=${country}`);
-      } else if (status === 403) {
-        logger.error(`[CSE] 403 Forbidden for country=${country} query="${String(query).slice(0,60)}" — ${errMsg}`);
+        logger.warn(`[Bing] Rate limit hit for country=${country}`);
+      } else if (status === 401 || status === 403) {
+        logger.error(`[Bing] Auth error for country=${country} — ${errMsg}`);
       } else if (status) {
-        logger.warn(`[CSE] HTTP ${status} for country=${country} — ${errMsg}`);
+        logger.warn(`[Bing] HTTP ${status} for country=${country} — ${errMsg}`);
       } else {
-        logger.warn(`[CSE] Request failed for country=${country}: ${error.message}`);
+        logger.warn(`[Bing] Request failed for country=${country}: ${error.message}`);
       }
       return [];
     }
@@ -131,7 +137,7 @@ class CSEService {
     const results = await this.executeConcurrent(taskFns, 5);
     const flattened = results.flat().filter(Boolean);
 
-    logger.info(`CSE search complete: ${flattened.length} results`);
+    logger.info(`Bing search complete: ${flattened.length} results`);
     return flattened;
   }
 
@@ -146,11 +152,11 @@ class CSEService {
   }
 
   getConfiguredCountries() {
-    return Object.keys(COUNTRY_CSES);
+    return Object.keys(COUNTRY_MARKETS);
   }
 
   getCseId(country) {
-    return COUNTRY_CSES[String(country || '').toLowerCase()] || null;
+    return COUNTRY_MARKETS[String(country || '').toLowerCase()] || null;
   }
 }
 
