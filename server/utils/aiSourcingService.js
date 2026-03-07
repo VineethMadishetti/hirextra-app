@@ -301,7 +301,7 @@ export function buildBooleanQueries(parsed) {
     ? `(${uniqueStrings(parsed?.preferred_skills || [], 6).map((s) => `"${s}"`).join(' OR ')})`
     : '';
   const locationClause = includeLocation ? `("${location}")` : '';
-  const linkedinClause = 'site:linkedin.com/in';
+  const linkedinClause = '"linkedin.com/in"';
 
   const requiredBoolean = [titleClause, requiredClause, locationClause, linkedinClause]
     .filter(Boolean)
@@ -378,7 +378,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
   const queries = [];
   for (const title of titles) {
     queries.push(
-      [`"${title}"`, skillsClause, locationClause, durationClause, salaryClause, 'site:linkedin.com/in']
+      [`"${title}"`, skillsClause, locationClause, durationClause, salaryClause, '"linkedin.com/in"']
         .filter(Boolean)
         .join(' ')
     );
@@ -386,7 +386,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   if (titles.length) {
     queries.push(
-      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, durationClause, salaryClause, '"open to work"', 'site:linkedin.com/in']
+      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, durationClause, salaryClause, '"open to work"', '"linkedin.com/in"']
         .filter(Boolean)
         .join(' ')
     );
@@ -394,7 +394,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   if (parsed.remote) {
     queries.push(
-      [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
+      [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("remote" OR "distributed")', '"linkedin.com/in"']
         .filter(Boolean)
         .join(' ')
     );
@@ -402,7 +402,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   // Resume-oriented pass (still linked to LinkedIn profile results)
   queries.push(
-    [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("resume" OR "cv")', 'site:linkedin.com/in']
+    [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("resume" OR "cv")', '"linkedin.com/in"']
       .filter(Boolean)
       .join(' ')
   );

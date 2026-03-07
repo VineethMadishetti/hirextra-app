@@ -304,7 +304,7 @@ export const sourceCandidates = async (req, res) => {
         success: true,
         parseOnly: true,
         message:
-          'Requirements extracted and search plan generated. Add BING_SEARCH_API_KEY to run candidate discovery.',
+          'Requirements extracted and search plan generated. Add GOOGLE_CSE_API_KEY to run candidate discovery.',
         parsedRequirements: structured,
         searchPlan: {
           queries: searchQueries,

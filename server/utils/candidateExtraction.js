@@ -5,13 +5,24 @@ import logger from './logger.js';
  */
 
 /**
- * Extract LinkedIn profile URL from search result link.
+ * Extract LinkedIn profile URL from result link, snippet, or title text.
+ * Strategy 1: result.link is already a linkedin.com/in/ URL
+ * Strategy 2: snippet or title text contains a linkedin.com/in/username pattern
  */
-export function extractLinkedInUrl(link) {
-  if (!link) return null;
-  if (!link.includes('linkedin.com')) return null;
-  if (!link.includes('/in/')) return null;
-  return link.split('?')[0];
+export function extractLinkedInUrl(link, snippet, title) {
+  // Strategy 1: direct link
+  if (link && link.includes('linkedin.com') && link.includes('/in/')) {
+    return link.split('?')[0];
+  }
+
+  // Strategy 2: extract from snippet/title text
+  const text = `${snippet || ''} ${title || ''}`;
+  const match = text.match(/linkedin\.com\/in\/([A-Za-z0-9_%-]{3,60})/i);
+  if (match) {
+    return `https://www.linkedin.com/in/${match[1]}`.split('?')[0];
+  }
+
+  return null;
 }
 
 /**
@@ -121,7 +132,7 @@ export function extractCandidates(searchResults) {
 
   for (const result of searchResults) {
     try {
-      const linkedInUrl = extractLinkedInUrl(result.link);
+      const linkedInUrl = extractLinkedInUrl(result.link, result.snippet, result.title);
       if (!linkedInUrl) continue;
 
       const normalizedUrl = normalizeUrl(linkedInUrl);
