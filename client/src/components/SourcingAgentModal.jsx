@@ -12,7 +12,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  Save,
   Search,
   UploadCloud,
 } from 'lucide-react';
@@ -206,7 +205,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         resultsPerCountry: 3,
         enrichContacts: false,
         enrichTopN: 0,
-        autoSave: true,
+        autoSave: false,
       });
 
       setResponseData(data);
@@ -619,7 +618,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="Extracted" value={summary.totalExtracted || 0} icon={<Search size={14} />} tone="blue" />
                 <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />
-                <StatCard label="Saved" value={summary.totalSaved || 0} icon={<Save size={14} />} tone="amber" />
                 <StatCard label="Countries" value={summary.countriesSearched || 0} icon={<Globe2 size={14} />} tone="slate" />
               </div>
 
@@ -633,11 +631,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 <div className="space-y-3">
                   {candidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-                    const isSaving = savingCandidateUrl === linkedInUrl;
                     const isContactLoading = contactLoadingUrl === linkedInUrl;
-                    const isSaved = savedCandidates.has(linkedInUrl) || candidate.savedToDatabase;
-                    const stage = candidate.pipelineStage || 'DISCOVERED';
-                    const stageStyle = stageMeta[stage] || stageMeta.DISCOVERED;
 
                     return (
                       <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
@@ -647,9 +641,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               <h4 className="text-base font-bold text-slate-100">
                                 {candidate.name || candidate.fullName || 'Unknown'}
                               </h4>
-                              <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${stageStyle.className}`}>
-                                {stageStyle.label}
-                              </span>
                             </div>
                             <p className="text-sm text-slate-300 mt-1 inline-flex items-center gap-2">
                               <Briefcase size={14} />
@@ -696,19 +687,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               Get Contact
                             </button>
                           )}
-
-                          <button
-                            onClick={() => handleSaveCandidate(candidate)}
-                            disabled={!linkedInUrl || isSaving || isSaved}
-                            className={`ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold border transition-colors ${
-                              isSaved
-                                ? 'bg-emerald-950/45 text-emerald-200 border-emerald-700/50'
-                                : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
-                            } disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed`}
-                          >
-                            {isSaving ? <Loader2 size={13} className="animate-spin inline mr-1" /> : <Save size={13} className="inline mr-1" />}
-                            {isSaved ? 'Saved' : 'Save'}
-                          </button>
                         </div>
 
                       </div>
