@@ -7,12 +7,13 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ['ADMIN', 'USER'], default: 'USER' },
 
-  // ✅ ADD THIS
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null,
   },
+
+  lastLoginAt: { type: Date, default: null },
 
 }, { timestamps: true });
 

@@ -12,8 +12,11 @@ import {
 	Eye,
 	EyeOff,
 	ChevronDown,
+	Database,
+	Users,
+	Upload,
+	Clock,
 } from "lucide-react";
-import UserManagementImage from "../assets/user-management2.svg";
 import toast from 'react-hot-toast';
 
 // Custom Select Component for Role
@@ -86,6 +89,13 @@ const UserManagement = () => {
 		queryFn: async () => {
 			const { data } = await api.get("/auth/users");
 			return Array.isArray(data) ? data : [];
+		},
+	});
+	const { data: userStats = {} } = useQuery({
+		queryKey: ["user-stats"],
+		queryFn: async () => {
+			const { data } = await api.get("/admin/user-stats");
+			return data;
 		},
 	});
 	const [showCreateModal, setShowCreateModal] = useState(false);
@@ -180,6 +190,21 @@ const [userToDelete, setUserToDelete] = useState(null);
 		return `${day}-${month}-${year}`;
 	};
 
+	const formatLastLogin = (dateString) => {
+		if (!dateString) return "Never";
+		const date = new Date(dateString);
+		const now = new Date();
+		const diffMs = now - date;
+		const diffMins = Math.floor(diffMs / 60000);
+		if (diffMins < 1) return "Just now";
+		if (diffMins < 60) return `${diffMins}m ago`;
+		const diffHrs = Math.floor(diffMins / 60);
+		if (diffHrs < 24) return `${diffHrs}h ago`;
+		const diffDays = Math.floor(diffHrs / 24);
+		if (diffDays < 7) return `${diffDays}d ago`;
+		return formatDate(dateString);
+	};
+
 	return (
 		<div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white p-4 md:p-6">
 			<div className="max-w-7xl mx-auto h-full flex flex-col">
@@ -209,10 +234,19 @@ const [userToDelete, setUserToDelete] = useState(null);
 					</div>
 				</div>
 
-				<div className="flex-1 flex flex-row gap-8 overflow-hidden ">
-					{/* Users Table */}
-					<div className="w-full lg:w-2/3 flex flex-col">
+				<div className="flex-1 flex flex-col overflow-hidden">
+					<div className="w-full flex flex-col flex-1">
 						<div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
+							<div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+								<div className="col-span-3">User</div>
+								<div className="col-span-2">Last Login</div>
+								<div className="col-span-1 text-center">Candidates</div>
+								<div className="col-span-1 text-center">Databases</div>
+								<div className="col-span-1 text-center">Uploads</div>
+								<div className="col-span-2">Joined</div>
+								<div className="col-span-1 text-center">Role</div>
+								<div className="col-span-1 text-center">Action</div>
+							</div>
 							{loading ? (
 								<div className="p-12 text-center">
 									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
@@ -223,71 +257,79 @@ const [userToDelete, setUserToDelete] = useState(null);
 									<p className="text-slate-500 dark:text-slate-400 font-medium">No users found</p>
 								</div>
 							) : (
-								<div className="p-4 space-y-3">
-									{users.map((user) => (
-										<div
-											key={user._id}
-											className="bg-white dark:bg-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-x-6 gap-y-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition border border-slate-200 dark:border-slate-700">
-											{/* User Info */}
-											<div className="flex items-center gap-4 md:w-2/5">
-												<div className="bg-indigo-100 dark:bg-indigo-500/20 p-2 rounded-lg">
-													<User size={18} className="text-indigo-500 dark:text-indigo-400" />
+								<div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+									{users.map((user) => {
+										const uid = String(user._id);
+										const candidateCount = userStats?.candidates?.[uid] ?? 0;
+										const dbCount = userStats?.databases?.[uid] ?? 0;
+										const uploadCount = userStats?.uploads?.[uid] ?? 0;
+										return (
+											<div
+												key={user._id}
+												className="grid grid-cols-1 md:grid-cols-12 gap-4 px-5 py-4 items-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+												{/* User Info */}
+												<div className="md:col-span-3 flex items-center gap-3 min-w-0">
+													<div className="bg-indigo-100 dark:bg-indigo-500/20 p-2 rounded-lg shrink-0">
+														<User size={16} className="text-indigo-500 dark:text-indigo-400" />
+													</div>
+													<div className="min-w-0">
+														<p className="font-medium text-slate-800 dark:text-white truncate">{user.name}</p>
+														<p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 truncate">
+															<Mail size={11} />
+															<span className="truncate">{user.email}</span>
+														</p>
+													</div>
 												</div>
-												<div className="flex-1 min-w-0">
-													<p className="font-medium text-slate-800 dark:text-white">{user.name}</p>
-													<p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate">
-														<Mail size={12} />
-														<span className="truncate">{user.email}</span>
-													</p>
-													<p className="md:hidden text-xs text-slate-500 dark:text-slate-400 mt-1">
-														Created {formatDate(user.createdAt)}
-														{" • "} by {user.createdBy?.name || "System"}
-													</p>
+												{/* Last Login */}
+												<div className="md:col-span-2 flex items-center gap-1.5 text-sm">
+													<Clock size={13} className="text-slate-400 shrink-0" />
+													<span className={user.lastLoginAt ? "text-slate-700 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}>
+														{formatLastLogin(user.lastLoginAt)}
+													</span>
+												</div>
+												{/* Candidates */}
+												<div className="md:col-span-1 flex justify-center">
+													<span className="text-lg font-semibold text-slate-800 dark:text-white">{candidateCount}</span>
+												</div>
+												{/* Databases */}
+												<div className="md:col-span-1 flex justify-center">
+													<span className="text-lg font-semibold text-slate-800 dark:text-white">{dbCount}</span>
+												</div>
+												{/* Uploads */}
+												<div className="md:col-span-1 flex justify-center">
+													<span className="text-lg font-semibold text-slate-800 dark:text-white">{uploadCount}</span>
+												</div>
+												{/* Joined */}
+												<div className="md:col-span-2 text-sm text-slate-500 dark:text-slate-400">
+													<p className="text-slate-700 dark:text-slate-300">{formatDate(user.createdAt)}</p>
+													<p className="text-xs">by {user.createdBy?.name || "System"}</p>
+												</div>
+												{/* Role */}
+												<div className="md:col-span-1 flex justify-center">
+												<span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
+														<Shield size={11} />
+														{user.role}
+													</span>
+												</div>
+												{/* Action */}
+												<div className="md:col-span-1 flex justify-center">
+													<button
+														onClick={() => {
+															setUserToDelete(user);
+															setPasswordInput("");
+															setPasswordError("");
+															setShowPasswordModal(true);
+														}}
+														className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 hover:bg-rose-100 dark:hover:bg-rose-500/10 text-rose-500 transition cursor-pointer">
+															<Trash2 size={15} />
+													</button>
 												</div>
 											</div>
-
-											{/* Created At - Desktop */}
-											<div className="hidden md:block text-sm text-slate-500 dark:text-slate-400 md:w-2/5">
-												<p className="text-slate-700 dark:text-slate-300">
-													Created {formatDate(user.createdAt)}
-												</p>
-												<p className="text-xs text-slate-500 dark:text-slate-400">
-													by {user.createdBy?.name || "System"}
-												</p>
-											</div>
-
-											{/* Role & Actions */}
-											<div className="w-full md:w-1/5 flex items-center justify-between md:justify-end gap-4 pt-4 md:pt-0 border-t border-slate-200 dark:border-slate-700 md:border-none">
-												<span
-													className={`px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
-													<Shield size={12} />
-													{user.role}
-												</span>
-												<button
-													onClick={() => {
-														setUserToDelete(user);
-														setPasswordInput("");
-														setPasswordError("");
-														setShowPasswordModal(true);
-													}}
-													className="p-2 rounded-lg
-                       bg-slate-200 dark:bg-slate-700/40
-                       hover:bg-rose-100 
-                       text-rose-500 
-											transition cursor-pointer">
-													<Trash2 size={16} />
-												</button>
-											</div>
-										</div>
-									))}
+										);
+									})}
 								</div>
 							)}
 						</div>
-					</div>
-
-					{/* Right side static image */}
-					<div className="hidden lg:flex w-1/3 items-center justify-center p-4">
-						<img src={UserManagementImage} alt="User Management" className="w-48 md:w-full max-w-[10rem] dark:invert-[.85]" />
 					</div>
 				</div>
 

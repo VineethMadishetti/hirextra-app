@@ -1,7 +1,41 @@
 import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import DeleteLog from '../models/DeleteLog.js';
+import PrivateDatabase from '../models/PrivateDatabase.js';
+import User from '../models/User.js';
 import { cancelQueuedResumeImports } from '../utils/queue.js';
+
+export const getUserStats = async (req, res) => {
+  try {
+    const [candidateCounts, databaseCounts, uploadCounts] = await Promise.all([
+      Candidate.aggregate([
+        { $group: { _id: '$createdBy', count: { $sum: 1 } } },
+      ]),
+      PrivateDatabase.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
+        { $group: { _id: '$owner', count: { $sum: 1 } } },
+      ]),
+      UploadJob.aggregate([
+        { $group: { _id: '$uploadedBy', count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const toMap = (arr) =>
+      arr.reduce((m, { _id, count }) => {
+        if (_id) m[String(_id)] = count;
+        return m;
+      }, {});
+
+    res.json({
+      candidates: toMap(candidateCounts),
+      databases: toMap(databaseCounts),
+      uploads: toMap(uploadCounts),
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({ message: 'Failed to fetch user stats' });
+  }
+};
 
 export const resetDatabase = async (req, res) => {
   try {

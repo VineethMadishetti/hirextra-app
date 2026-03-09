@@ -127,6 +127,8 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
+
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
