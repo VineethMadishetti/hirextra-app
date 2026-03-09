@@ -11,18 +11,21 @@ class ContactEnricher {
     this.skrappKey = null;
     this.pdlKey = null;
     this.lushaKey = null;
+    this.proxycurlKey = null;
 
     // API endpoints
     this.skrappEndpoint = 'https://api.skrapp.io/api/v2/find';
     this.skrappLegacyEndpoint = 'https://api.skrapp.io/api/v2/accounts/find';
     this.pdlEndpoint = 'https://api.peopledatalabs.com/v5/person/enrich';
     this.lushaEndpoint = 'https://api.lusha.co/prospecting/social/linkedin';
+    this.proxycurlEndpoint = 'https://nubela.co/proxycurl/api/v2/linkedin';
 
     // Cost tracking (approximate)
     this.costs = {
       skrapp: 0.049,
       pdl: 0.040,
       lusha: 0.156,
+      proxycurl: 0.03,
     };
   }
 
@@ -60,6 +63,7 @@ class ContactEnricher {
     );
     this.pdlKey = this._readEnvKey('PDL_API_KEY', 'PDL_KEY', 'VITE_PDL_API_KEY');
     this.lushaKey = this._readEnvKey('LUSHA_API_KEY', 'LUSHA_KEY', 'VITE_LUSHA_API_KEY');
+    this.proxycurlKey = this._readEnvKey('PROXYCURL_API_KEY', 'PROXYCURL_KEY', 'PROXYURL_API_KEY');
   }
 
   /**
@@ -77,14 +81,14 @@ class ContactEnricher {
     const linkedinUrl = candidate.linkedinUrl || candidate.linkedInUrl || candidate.linkedin_url;
     const fullName = candidate.fullName || candidate.name;
     const company = candidate.company || candidate.company_name;
-    const hasAnyProvider = Boolean(this.skrappKey || this.pdlKey || this.lushaKey);
+    const hasAnyProvider = Boolean(this.skrappKey || this.pdlKey || this.lushaKey || this.proxycurlKey);
 
     logger.info(`🔍 Starting enrichment cascade for candidate ${candidateId}`);
 
     try {
       if (!hasAnyProvider) {
         const errorMessage =
-          'No contact enrichment providers configured on backend runtime. Checked SKRAPP_API_KEY/SKRAPP_KEY/SKRAPP_API_LEY, PDL_API_KEY/PDL_KEY, LUSHA_API_KEY/LUSHA_KEY.';
+          'No contact enrichment providers configured. Add PROXYCURL_API_KEY, SKRAPP_API_KEY, PDL_API_KEY, or LUSHA_API_KEY to server .env.';
         logger.error(errorMessage);
         return {
           email: null,
@@ -95,9 +99,23 @@ class ContactEnricher {
         };
       }
 
-      // 1. Try Skrapp first (current API: name+company/domain, with legacy LinkedIn fallback)
+      // 1. Proxycurl — best for LinkedIn-sourced candidates (works with just LinkedIn URL)
+      if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl) && this.proxycurlKey) {
+        logger.debug(`  → Step 1/4: Trying Proxycurl enrichment`);
+        const proxycurlResult = await this._proxycurlLookup(linkedinUrl);
+        if (proxycurlResult && (proxycurlResult.email || proxycurlResult.phone)) {
+          logger.info(`  ✅ Proxycurl found contact for ${candidateId}`);
+          return {
+            ...proxycurlResult,
+            source: 'proxycurl',
+            confidence: 0.90,
+          };
+        }
+      }
+
+      // 2. Try Skrapp (name + company/domain)
       if (fullName || linkedinUrl) {
-        logger.debug(`  → Step 1/3: Trying Skrapp enrichment`);
+        logger.debug(`  → Step 2/4: Trying Skrapp enrichment`);
         const skrappResult = await this._skrappLookup({
           linkedinUrl,
           fullName,
@@ -113,9 +131,9 @@ class ContactEnricher {
         }
       }
 
-      // 2. Fallback to PDL (name + company match)
+      // 3. Fallback to PDL (name + company match)
       if (fullName && company) {
-        logger.debug(`  → Step 2/3: Trying PDL for ${fullName} at ${company}`);
+        logger.debug(`  → Step 3/4: Trying PDL for ${fullName} at ${company}`);
         const pdlResult = await this._pdlLookup(fullName, company);
         if (pdlResult && pdlResult.email) {
           logger.info(`  ✅ PDL found email for ${candidateId}`);
@@ -127,9 +145,9 @@ class ContactEnricher {
         }
       }
 
-      // 3. Last resort: Lusha for phone numbers
+      // 4. Last resort: Lusha for phone numbers
       if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
-        logger.debug(`  → Step 3/3: Trying Lusha for ${linkedinUrl}`);
+        logger.debug(`  → Step 4/4: Trying Lusha for ${linkedinUrl}`);
         const lushaResult = await this._lushaLookup(linkedinUrl);
         if (lushaResult && (lushaResult.phone || lushaResult.email)) {
           logger.info(`  ✅ Lusha found contact for ${candidateId}`);
@@ -160,6 +178,58 @@ class ContactEnricher {
         confidence: 0,
         error: error.message,
       };
+    }
+  }
+
+  /**
+   * Proxycurl API - LinkedIn profile scraper with email/phone
+   * Cost: ~$0.03 per lookup
+   * Accuracy: 90%+
+   */
+  async _proxycurlLookup(linkedinUrl) {
+    if (!this.proxycurlKey) return null;
+
+    try {
+      const response = await axios.get(this.proxycurlEndpoint, {
+        headers: { Authorization: `Bearer ${this.proxycurlKey}` },
+        params: {
+          linkedin_profile_url: linkedinUrl,
+          personal_email: 'include',
+          personal_contact_number: 'include',
+          use_cache: 'if-present',
+        },
+        timeout: 15000,
+      });
+
+      const data = response?.data;
+      if (!data) return null;
+
+      const email =
+        (Array.isArray(data.personal_emails) ? data.personal_emails[0] : null) ||
+        data.email ||
+        null;
+      const phone =
+        (Array.isArray(data.personal_numbers) ? data.personal_numbers[0] : null) ||
+        data.personal_contact_number ||
+        null;
+
+      if (!email && !phone) return null;
+
+      return {
+        email,
+        phone: phone || null,
+        linkedinUrl,
+        verifiedAt: new Date(),
+      };
+    } catch (error) {
+      if (error.response?.status === 404) {
+        logger.debug('Proxycurl: Profile not found');
+      } else if (error.response?.status === 429) {
+        logger.warn('Proxycurl rate limit hit');
+      } else {
+        logger.error(`Proxycurl API error: ${error.response?.status || error.message}`);
+      }
+      return null;
     }
   }
 

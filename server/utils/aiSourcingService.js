@@ -386,7 +386,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   if (titles.length) {
     queries.push(
-      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, durationClause, salaryClause, '"open to work"', 'site:linkedin.com/in']
+      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, locationClause, '"open to work"', 'site:linkedin.com/in']
         .filter(Boolean)
         .join(' ')
     );
@@ -394,7 +394,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   if (parsed.remote) {
     queries.push(
-      [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
+      [`"${parsed.job_title.main}"`, skillsClause, locationClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
         .filter(Boolean)
         .join(' ')
     );
@@ -402,7 +402,7 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 
   // Resume-oriented pass (still linked to LinkedIn profile results)
   queries.push(
-    [`"${parsed.job_title.main}"`, skillsClause, durationClause, salaryClause, '("resume" OR "cv")', 'site:linkedin.com/in']
+    [`"${parsed.job_title.main}"`, skillsClause, locationClause, '("resume" OR "cv")', 'site:linkedin.com/in']
       .filter(Boolean)
       .join(' ')
   );
