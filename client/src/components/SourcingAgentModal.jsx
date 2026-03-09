@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   FileSearch,
+  GraduationCap,
   Loader2,
   Mail,
   MapPin,
