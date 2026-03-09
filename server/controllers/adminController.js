@@ -2,20 +2,17 @@ import Candidate from '../models/Candidate.js';
 import UploadJob from '../models/UploadJob.js';
 import DeleteLog from '../models/DeleteLog.js';
 import PrivateDatabase from '../models/PrivateDatabase.js';
-import User from '../models/User.js';
 import { cancelQueuedResumeImports } from '../utils/queue.js';
 
 export const getUserStats = async (req, res) => {
   try {
-    const [candidateCounts, databaseCounts, uploadCounts] = await Promise.all([
-      Candidate.aggregate([
-        { $group: { _id: '$createdBy', count: { $sum: 1 } } },
-      ]),
+    const [databaseCounts, uploadCounts] = await Promise.all([
       PrivateDatabase.aggregate([
         { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$owner', count: { $sum: 1 } } },
       ]),
       UploadJob.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$uploadedBy', count: { $sum: 1 } } },
       ]),
     ]);
@@ -27,7 +24,6 @@ export const getUserStats = async (req, res) => {
       }, {});
 
     res.json({
-      candidates: toMap(candidateCounts),
       databases: toMap(databaseCounts),
       uploads: toMap(uploadCounts),
     });
