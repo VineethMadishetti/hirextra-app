@@ -667,7 +667,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <StatCard label="Extracted" value={summary.totalExtracted || 0} icon={<Search size={14} />} tone="blue" />
-                <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />} tone="slate" />
+                <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />
               </div>
 
               {parseOnly && (

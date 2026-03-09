@@ -198,7 +198,7 @@ class ContactEnricher {
           personal_contact_number: 'include',
           use_cache: 'if-present',
         },
-        timeout: 15000,
+        timeout: 8000,
       });
 
       const data = response?.data;
@@ -254,8 +254,9 @@ class ContactEnricher {
     const companyDomain = this._extractDomain(company);
 
     try {
-      // Preferred/current endpoint: /api/v2/find using firstName + lastName + company/domain
-      if (parsedName.firstName && parsedName.lastName && (company || companyDomain)) {
+      // Preferred endpoint: /api/v2/find using firstName + lastName + company/domain
+      const canUsePrimary = parsedName.firstName && parsedName.lastName && (company || companyDomain);
+      if (canUsePrimary) {
         const response = await axios.get(this.skrappEndpoint, {
           headers,
           params: {
@@ -264,7 +265,7 @@ class ContactEnricher {
             company: company || undefined,
             domain: companyDomain || undefined,
           },
-          timeout: 10000,
+          timeout: 7000,
         });
 
         const email =
@@ -273,24 +274,20 @@ class ContactEnricher {
           response?.data?.result?.email ||
           null;
 
-        if (email) {
-          return {
-            email,
-            phone: null,
-            linkedinUrl: linkedinUrl || null,
-            verifiedAt: new Date(),
-          };
-        }
+        // Return immediately (success or not) — never double-call Skrapp
+        return email
+          ? { email, phone: null, linkedinUrl: linkedinUrl || null, verifiedAt: new Date() }
+          : null;
       }
 
-      // Legacy fallback: /api/v2/accounts/find with linkedin_url
+      // Legacy fallback: /api/v2/accounts/find with linkedin_url (only when primary conditions not met)
       if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
         const legacyResponse = await axios.post(
           this.skrappLegacyEndpoint,
           { linkedin_url: linkedinUrl },
           {
             headers,
-            timeout: 10000,
+            timeout: 7000,
           }
         );
 
@@ -344,7 +341,7 @@ class ContactEnricher {
           name: fullName,
           company: company,
         },
-        timeout: 10000,
+        timeout: 7000,
       });
 
       if (response.status === 200 && response.data) {
@@ -404,7 +401,7 @@ class ContactEnricher {
         params: {
           linkedinUrl: linkedinUrl,
         },
-        timeout: 10000,
+        timeout: 7000,
       });
 
       if (response.status === 200 && response.data) {

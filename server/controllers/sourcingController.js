@@ -364,6 +364,21 @@ export const sourceCandidates = async (req, res) => {
     let candidates = extractCandidates(allResults, targetCountries, searchQueries);
     candidates = deduplicateCandidates(candidates);
     candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
+
+    // Boost candidates whose snippet/location explicitly mentions the required location
+    const requiredLocation = parsed.location || '';
+    if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
+      const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
+      candidates = candidates.map((c) => {
+        const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
+        if (text.includes(locLower)) {
+          return { ...c, relevanceScore: (c.relevanceScore || 0) + 10 };
+        }
+        return c;
+      });
+      candidates.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    }
+
     candidates = candidates.slice(0, maxCandidatesSafe);
 
     if (enrichContacts) {

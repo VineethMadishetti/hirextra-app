@@ -300,7 +300,10 @@ export function buildBooleanQueries(parsed) {
   const preferredClause = uniqueStrings(parsed?.preferred_skills || [], 6).length
     ? `(${uniqueStrings(parsed?.preferred_skills || [], 6).map((s) => `"${s}"`).join(' OR ')})`
     : '';
-  const locationClause = includeLocation ? `("${location}")` : '';
+  const cityName = location.split(',')[0].trim();
+  const locationClause = includeLocation
+    ? `("${location}" OR "Greater ${cityName} Area" OR "${cityName}")`
+    : '';
   const linkedinClause = 'site:linkedin.com/in';
 
   const requiredBoolean = [titleClause, requiredClause, locationClause, linkedinClause]
@@ -367,7 +370,10 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
   const skillsClause = coreSkills.length ? `(${coreSkills.map((s) => `"${s}"`).join(' OR ')})` : '';
   const location = String(parsed.location || '').trim();
   const includeLocation = Boolean(location && !/unspecified|not specified|remote/i.test(location));
-  const locationClause = includeLocation ? `("${location}")` : '';
+  const cityName = location.split(',')[0].trim();
+  const locationClause = includeLocation
+    ? `("${location}" OR "Greater ${cityName} Area" OR "${cityName}")`
+    : '';
   const durationType = String(parsed.duration_type || '').trim();
   const includeDuration = Boolean(durationType && !/not specified/i.test(durationType));
   const durationClause = includeDuration ? `("${durationType}")` : '';

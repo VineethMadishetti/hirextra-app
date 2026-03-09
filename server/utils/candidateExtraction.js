@@ -50,7 +50,8 @@ export function extractJobInfo(title, snippet) {
   };
 
   const cleanedTitle = String(title || '')
-    .replace(/\s*\|\s*LinkedIn.*$/i, '')
+    .replace(/\s*\|\s*LinkedIn.*$/i, '') // remove "| LinkedIn..."
+    .replace(/\s*[·•]\s*.+$/, '')        // remove " · Location" suffix (middle dot)
     .trim();
 
   // Strip leading name portion: "Name - ..."
@@ -60,11 +61,13 @@ export function extractJobInfo(title, snippet) {
   const roleAtCompany = titleWithoutName.match(/^(.*?)\s+(?:at|@)\s+(.+)$/i);
   if (roleAtCompany) {
     jobInfo.jobTitle = roleAtCompany[1]?.trim() || null;
-    jobInfo.company = roleAtCompany[2]?.trim() || null;
+    // Strip trailing "| City" from company name
+    const companyRaw = roleAtCompany[2]?.trim() || null;
+    jobInfo.company = companyRaw ? companyRaw.split(/\s*[|·•]\s*/)[0].trim() : null;
   } else {
     // Fallback format: "Role | Company"
     const parts = titleWithoutName
-      .split(/\s*[|:-]\s*/)
+      .split(/\s*[|:·•-]\s*/)
       .map((p) => p.trim())
       .filter(Boolean);
 
@@ -97,9 +100,30 @@ export function extractJobInfo(title, snippet) {
  * Best-effort location extraction from title/snippet text.
  */
 export function extractLocation(title, snippet) {
-  const text = `${title || ''} ${snippet || ''}`.replace(/\s+/g, ' ').trim();
-  if (!text) return null;
+  // Strategy 1: LinkedIn puts "· City, State, Country" in title
+  // e.g. "Name - Role at Company · Hyderabad, Telangana, India | LinkedIn"
+  const titleRaw = String(title || '').replace(/\s*\|\s*LinkedIn.*$/i, '');
+  const dotMatch = titleRaw.match(/[·•]\s*([A-Za-z][A-Za-z .'-]+(?:,\s*[A-Za-z][A-Za-z .'-]+){0,2})/);
+  if (dotMatch?.[1]) {
+    const loc = dotMatch[1].trim();
+    if (loc.length >= 3 && loc.length <= 80) return loc;
+  }
 
+  // Strategy 2: "Greater X Area" — LinkedIn's standard metro format
+  const fullText = `${title || ''} ${snippet || ''}`;
+  const greaterArea = fullText.match(/\b(Greater\s+[A-Za-z]+(?:\s+[A-Za-z]+)?\s+Area)\b/i);
+  if (greaterArea?.[1]) return greaterArea[1].trim();
+
+  // Strategy 3: LinkedIn snippet starts with "City, State · connections"
+  const snippetText = String(snippet || '');
+  const cityState = snippetText.match(/^([A-Za-z][A-Za-z .'-]{2,30},\s*[A-Za-z][A-Za-z .'-]{2,30}(?:,\s*[A-Za-z][A-Za-z .'-]{2,30})?)\s*[·•]/);
+  if (cityState?.[1]) {
+    const loc = cityState[1].trim();
+    if (loc.length >= 5 && loc.length <= 80) return loc;
+  }
+
+  // Strategy 4: explicit location phrases
+  const text = fullText.replace(/\s+/g, ' ').trim();
   const patterns = [
     /\b(?:based in|located in|location[:\s]+)\s*([A-Za-z .'-]+(?:,\s*[A-Za-z .'-]+){0,2})/i,
     /\bin\s+([A-Za-z .'-]+,\s*[A-Za-z .'-]+(?:,\s*[A-Za-z .'-]+)?)/i,
@@ -108,7 +132,6 @@ export function extractLocation(title, snippet) {
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (!match?.[1]) continue;
-
     const location = match[1].trim().replace(/\s{2,}/g, ' ');
     if (location.length >= 3 && location.length <= 80) return location;
   }
