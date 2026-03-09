@@ -202,7 +202,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         parsedRequirements: parsedRequirements,
         maxCandidates: 60,
         maxQueries: 6,
-        resultsPerCountry: 3,
+        resultsPerCountry: 10,
         enrichContacts: false,
         enrichTopN: 0,
         autoSave: false,
@@ -418,6 +418,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       Next
                       <ChevronRight size={16} />
                     </button>
+                  ) : responseData ? (
+                    <button
+                      onClick={() => setView('results')}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
+                    >
+                      Results
+                      <ChevronRight size={16} />
+                    </button>
                   ) : (
                     <div className="w-20" />
                   )}
@@ -615,7 +623,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
           {view === 'results' && (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="flex items-center justify-between px-1">
+                <button
+                  onClick={() => setView('compose')}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </button>
+                <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates found</p>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <StatCard label="Extracted" value={summary.totalExtracted || 0} icon={<Search size={14} />} tone="blue" />
                 <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />
                 <StatCard label="Countries" value={summary.countriesSearched || 0} icon={<Globe2 size={14} />} tone="slate" />
