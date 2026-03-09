@@ -184,12 +184,13 @@ class ContactEnricher {
     const companyDomain = this._extractDomain(company);
 
     try {
-      // Preferred/current endpoint: /api/v2/find using fullName + company/domain
-      if (parsedName.fullName && (company || companyDomain)) {
+      // Preferred/current endpoint: /api/v2/find using firstName + lastName + company/domain
+      if (parsedName.firstName && parsedName.lastName && (company || companyDomain)) {
         const response = await axios.get(this.skrappEndpoint, {
           headers,
           params: {
-            fullName: parsedName.fullName,
+            firstName: parsedName.firstName,
+            lastName: parsedName.lastName,
             company: company || undefined,
             domain: companyDomain || undefined,
           },

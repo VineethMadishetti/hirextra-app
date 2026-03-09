@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Download,
   FileSearch,
-  Globe2,
   Loader2,
   Mail,
   MapPin,
@@ -17,6 +16,37 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+
+// ── Snippet extraction helpers ──────────────────────────────────────────────
+const SKILL_RE = /\b(React|Angular|Vue|Node\.js|Python|Java(?:Script)?|TypeScript|AWS|Azure|GCP|Docker|Kubernetes|SQL|MongoDB|PostgreSQL|MySQL|Redis|Git|Linux|REST|GraphQL|Spring|Django|FastAPI|TensorFlow|PyTorch|Scala|Go|Rust|Swift|Kotlin|Flutter|React Native|HTML|CSS|Next\.js|Express|NestJS|Machine Learning|Deep Learning|NLP|DevOps|CI\/CD|Agile|Scrum|C\+\+|C#|\.NET|PHP|Ruby|Rails|Terraform|Spark|Power BI|Tableau|Salesforce|SAP)\b/gi;
+
+function extractSkillsFromSnippet(snippet, jobTitle) {
+  const text = `${snippet || ''} ${jobTitle || ''}`;
+  return [...new Set((text.match(SKILL_RE) || []).map(s => s.trim()))].slice(0, 6);
+}
+
+function extractExperienceFromSnippet(snippet) {
+  if (!snippet) return null;
+  const m = snippet.match(/(\d+\+?)\s*(?:-|to)?\s*(?:\d+)?\s*(?:years?|yrs?)\s*(?:of\s+)?(?:experience|exp)?/i);
+  return m ? m[0].trim() : null;
+}
+
+function extractEducationFromSnippet(snippet) {
+  if (!snippet) return null;
+  const m = snippet.match(/\b(Ph\.?D\.?|M\.?Tech\.?|B\.?Tech\.?|MBA|M\.?S\.?|B\.?E\.?|Bachelor'?s?|Master'?s?|Computer Science|Information Technology|IIT|IIM|NIT)\b/i);
+  return m ? m[0] : null;
+}
+
+function extractAvailabilityFromSnippet(snippet) {
+  if (!snippet) return null;
+  const l = snippet.toLowerCase();
+  if (l.includes('open to work') || l.includes('open to opportunities') || l.includes('#opentowork')) return 'Open to Work';
+  if (l.includes('actively seek') || l.includes('actively look') || l.includes('job seeker')) return 'Actively Seeking';
+  if (l.includes('available for') || l.includes('available from')) return 'Available';
+  return null;
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 
 const CARD_FONT = { fontFamily: '"Plus Jakarta Sans","Segoe UI",sans-serif' };
 
@@ -636,8 +666,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <StatCard label="Extracted" value={summary.totalExtracted || 0} icon={<Search size={14} />} tone="blue" />
-                <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />
-                <StatCard label="Countries" value={summary.countriesSearched || 0} icon={<Globe2 size={14} />} tone="slate" />
+                <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />} tone="slate" />
               </div>
 
               {parseOnly && (
@@ -652,55 +681,93 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
                     const isContactLoading = contactLoadingUrl === linkedInUrl;
 
+                    const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
+                    const experience = extractExperienceFromSnippet(candidate.snippet);
+                    const education = extractEducationFromSnippet(candidate.snippet);
+                    const availability = extractAvailabilityFromSnippet(candidate.snippet);
+
                     return (
                       <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                          <div>
+                        {/* Row 1: Name + contact badges */}
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="text-base font-bold text-slate-100">
                                 {candidate.name || candidate.fullName || 'Unknown'}
                               </h4>
+                              {availability && (
+                                <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-emerald-700/50 bg-emerald-950/35 text-emerald-300 px-2 py-0.5 font-semibold">
+                                  {availability}
+                                </span>
+                              )}
                             </div>
-                            <p className="text-sm text-slate-300 mt-1 inline-flex items-center gap-2">
-                              <Briefcase size={14} />
-                              {(candidate.title || candidate.jobTitle || 'Unknown role')}
-                              {candidate.company ? ` @ ${candidate.company}` : ''}
+                            <p className="text-sm text-slate-300 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <Briefcase size={13} className="shrink-0" />
+                              <span>{candidate.title || candidate.jobTitle || 'Unknown role'}</span>
+                              {candidate.company && <span className="text-slate-400">@ {candidate.company}</span>}
                             </p>
-                            <p className="text-sm text-slate-400 mt-1 inline-flex items-center gap-2">
-                              <MapPin size={14} />
-                              {candidate.location || 'Location N/A'}
-                              {candidate.sourceCountry ? ` | ${candidate.sourceCountry.toUpperCase()}` : ''}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-slate-400">
+                              {(candidate.location || candidate.sourceCountry) && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin size={11} />
+                                  {candidate.location || ''}
+                                  {candidate.sourceCountry ? ` (${candidate.sourceCountry.toUpperCase()})` : ''}
+                                </span>
+                              )}
+                              {experience && (
+                                <span className="flex items-center gap-1">
+                                  <Briefcase size={11} />
+                                  {experience}
+                                </span>
+                              )}
+                              {education && (
+                                <span className="flex items-center gap-1">
+                                  <GraduationCap size={11} />
+                                  {education}
+                                </span>
+                              )}
+                            </div>
                           </div>
-
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
                             {candidate.email && (
                               <span className="inline-flex items-center gap-1 text-xs rounded-lg border border-emerald-700/50 bg-emerald-950/35 text-emerald-200 px-2 py-1">
-                                <Mail size={12} /> {candidate.email}
+                                <Mail size={11} /> {candidate.email}
                               </span>
                             )}
                             {candidate.phone && (
                               <span className="inline-flex items-center gap-1 text-xs rounded-lg border border-[#6B5AF0]/50 bg-[#432DD7]/25 text-[#E3DEFF] px-2 py-1">
-                                <Phone size={12} /> {candidate.phone}
+                                <Phone size={11} /> {candidate.phone}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {/* Skills row */}
+                        {skills.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {skills.map((skill) => (
+                              <span key={skill} className="text-[11px] rounded-md border border-slate-600 bg-slate-800 text-slate-300 px-2 py-0.5">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Bottom row: LinkedIn URL + Get Contact */}
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-700/50 pt-2.5">
                           {linkedInUrl ? (
-                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-sm text-[#B9AEFF] hover:text-white hover:underline">
-                              View LinkedIn
+                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium">
+                              🔗 View Profile
                             </a>
                           ) : (
-                            <span className="text-sm text-slate-500">LinkedIn unavailable</span>
+                            <span className="text-xs text-slate-500">Profile URL unavailable</span>
                           )}
 
                           {!candidate.email && !candidate.phone && (
                             <button
                               onClick={() => handleGetContact(candidate)}
                               disabled={!linkedInUrl || isContactLoading}
-                              className="rounded-lg border border-indigo-700/50 bg-indigo-950/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-900/50 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+                              className="ml-auto rounded-lg border border-indigo-700/50 bg-indigo-950/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-900/50 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
                             >
                               {isContactLoading ? <Loader2 size={13} className="animate-spin inline mr-1" /> : <Mail size={13} className="inline mr-1" />}
                               Get Contact

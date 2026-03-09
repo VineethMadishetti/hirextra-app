@@ -11,9 +11,10 @@ export const getUserStats = async (req, res) => {
         { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$owner', count: { $sum: 1 } } },
       ]),
-      UploadJob.aggregate([
-        { $match: { isDeleted: { $ne: true } } },
-        { $group: { _id: '$uploadedBy', count: { $sum: 1 } } },
+      // Count resume files uploaded to private databases (each upload = 1 Candidate with source UPLOAD)
+      Candidate.aggregate([
+        { $match: { source: 'UPLOAD' } },
+        { $group: { _id: '$createdBy', count: { $sum: 1 } } },
       ]),
     ]);
 
