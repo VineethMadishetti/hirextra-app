@@ -334,7 +334,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         resultsPerCountry: 10,
         enrichContacts: false,
         enrichTopN: 0,
-        autoSave: true,
+        autoSave: false,
       });
 
       setResponseData(data);
@@ -346,6 +346,42 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       );
       setSavedCandidates(preSaved);
       setView('results');
+
+      // Background-save all candidates so Get Contact is instant when clicked.
+      // Fires after the UI renders — non-blocking, batches of 4.
+      const toSave = (data?.candidates || []).filter(
+        (c) => !c.savedCandidateId && (c.linkedinUrl || c.linkedInUrl)
+      );
+      if (toSave.length > 0) {
+        (async () => {
+          const BATCH = 4;
+          for (let i = 0; i < toSave.length; i += BATCH) {
+            const batch = toSave.slice(i, i + BATCH);
+            await Promise.allSettled(
+              batch.map(async (c) => {
+                try {
+                  const { data: saved } = await api.post('/ai-source/save-candidate', c);
+                  if (saved?.success) {
+                    const savedId = saved?.candidateId || saved?.candidate?._id;
+                    const url = c.linkedinUrl || c.linkedInUrl;
+                    if (savedId && url) {
+                      setResponseData((prev) => {
+                        if (!prev) return prev;
+                        const next = (prev.candidates || prev.results || []).map((row) =>
+                          (row.linkedinUrl || row.linkedInUrl) === url
+                            ? { ...row, savedCandidateId: savedId, savedToDatabase: true }
+                            : row
+                        );
+                        return { ...prev, candidates: next, results: next };
+                      });
+                    }
+                  }
+                } catch { /* ignore background save errors */ }
+              })
+            );
+          }
+        })();
+      }
 
       if (data?.parseOnly) {
         toast('Requirements parsed. Add SERPER_API_KEY to enable candidate discovery.', { icon: 'i' });
