@@ -747,8 +747,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           {(candidate.location || candidate.sourceCountry) && (
                             <span className="flex items-center gap-1">
                               <MapPin size={11} />
-                              {candidate.location || ''}
-                              {candidate.sourceCountry ? ` · ${candidate.sourceCountry.toUpperCase()}` : ''}
+                              {[candidate.location, candidate.sourceCountry?.toUpperCase()].filter(Boolean).join(' · ')}
                             </span>
                           )}
                           {experience && (

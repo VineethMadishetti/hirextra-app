@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
@@ -38,113 +38,216 @@ const searchDb = (dbId, q, page) =>
   api.get(`/private-db/${dbId}/search`, { params: { q, page, limit: 50 } }).then((r) => r.data);
 
 // ─── DropZone ────────────────────────────────────────────────────────────────
+const ALLOWED_EXTS = new Set(['pdf', 'doc', 'docx', 'txt']);
+
+/** Recursively collect all files from a FileSystemEntry (file or directory). */
+async function collectFromEntry(entry) {
+  if (!entry) return [];
+  if (entry.isFile) {
+    return new Promise((resolve) => entry.file((f) => resolve([f]), () => resolve([])));
+  }
+  if (!entry.isDirectory) return [];
+  return new Promise((resolve) => {
+    const files = [];
+    const reader = entry.createReader();
+    const readBatch = () => {
+      reader.readEntries(async (entries) => {
+        if (!entries.length) { resolve(files); return; }
+        for (const e of entries) {
+          const sub = await collectFromEntry(e);
+          files.push(...sub);
+        }
+        readBatch();
+      }, () => resolve(files));
+    };
+    readBatch();
+  });
+}
+
 function DropZone({ dbId, onSuccess }) {
   const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState(null);
-  const inputRef = useRef(null);
+  const [queue, setQueue] = useState([]);
+  const processingRef = useRef(false);
+  const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
 
-  const handleFile = useCallback(async (file) => {
-    if (!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['pdf', 'doc', 'docx', 'txt'].includes(ext)) {
-      toast.error('Only PDF, DOC, DOCX, TXT files are supported');
+  // Add validated files to the queue
+  const enqueueFiles = useCallback((fileList) => {
+    const valid = Array.from(fileList).filter((f) => {
+      const ext = f.name.split('.').pop().toLowerCase();
+      return ALLOWED_EXTS.has(ext);
+    });
+    if (!valid.length) {
+      toast.error('No valid files found. Supported: PDF, DOC, DOCX, TXT');
       return;
     }
-    setUploading(true);
-    setResult(null);
-    try {
-      const data = await uploadResume(dbId, file);
-      setResult({ ok: true, candidate: data.candidate });
-      onSuccess?.();
-      toast.success(`Added: ${data.candidate?.fullName || file.name}`);
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Upload failed';
-      setResult({ ok: false, message: msg });
-      toast.error(msg);
-    } finally {
-      setUploading(false);
-    }
-  }, [dbId, onSuccess]);
+    setQueue((prev) => [
+      ...prev,
+      ...valid.map((file) => ({
+        id: Math.random().toString(36).slice(2),
+        file,
+        status: 'pending',
+        candidate: null,
+        errorMsg: null,
+      })),
+    ]);
+  }, []);
 
-  const onDrop = useCallback((e) => {
+  // Handle folder/file drop
+  const onDrop = useCallback(async (e) => {
     e.preventDefault();
     setDragging(false);
-    handleFile(e.dataTransfer.files[0]);
-  }, [handleFile]);
+    const items = e.dataTransfer?.items;
+    if (items) {
+      const allFiles = [];
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry?.();
+        if (entry) {
+          const sub = await collectFromEntry(entry);
+          allFiles.push(...sub);
+        }
+      }
+      if (allFiles.length) enqueueFiles(allFiles);
+    } else {
+      enqueueFiles(e.dataTransfer.files);
+    }
+  }, [enqueueFiles]);
+
+  // Process queue items one at a time (sequential — avoids overwhelming parse API)
+  useEffect(() => {
+    if (processingRef.current) return;
+    const idx = queue.findIndex((q) => q.status === 'pending');
+    if (idx === -1) return;
+
+    processingRef.current = true;
+    const item = queue[idx];
+
+    setQueue((prev) =>
+      prev.map((q) => (q.id === item.id ? { ...q, status: 'uploading' } : q))
+    );
+
+    uploadResume(dbId, item.file)
+      .then((data) => {
+        setQueue((prev) =>
+          prev.map((q) =>
+            q.id === item.id ? { ...q, status: 'done', candidate: data.candidate } : q
+          )
+        );
+        onSuccess?.();
+        toast.success(`Added: ${data.candidate?.fullName || item.file.name}`);
+      })
+      .catch((err) => {
+        const msg = err.response?.data?.message || 'Upload failed';
+        setQueue((prev) =>
+          prev.map((q) => (q.id === item.id ? { ...q, status: 'error', errorMsg: msg } : q))
+        );
+        toast.error(`${item.file.name}: ${msg}`);
+      })
+      .finally(() => {
+        processingRef.current = false;
+      });
+  }, [queue, dbId, onSuccess]);
+
+  const doneCount = queue.filter((q) => q.status === 'done').length;
+  const hasFinished = queue.some((q) => q.status === 'done' || q.status === 'error');
 
   return (
     <div className="space-y-3">
+      {/* Drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
         onDrop={onDrop}
-        onClick={() => !uploading && inputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-3 py-10 px-6 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 overflow-hidden
+        className={`relative flex flex-col items-center justify-center gap-3 py-8 px-6 rounded-2xl border-2 border-dashed transition-all duration-200 overflow-hidden
           ${dragging
             ? 'border-indigo-400 bg-indigo-50/80 dark:bg-indigo-500/10 scale-[1.01]'
-            : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600/70 bg-slate-50/50 dark:bg-slate-800/30'}
-          ${uploading ? 'pointer-events-none' : ''}`}
+            : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600/70 bg-slate-50/50 dark:bg-slate-800/30'}`}
       >
-        {/* subtle bg pattern */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.04),transparent_70%)] pointer-events-none" />
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.doc,.docx,.txt"
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files[0])}
-        />
-        {uploading ? (
-          <>
-            <div className="w-14 h-14 rounded-2xl bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center">
-              <Loader2 size={24} className="text-indigo-500 animate-spin" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Parsing resume…</p>
-              <p className="text-xs text-slate-400 mt-0.5">Extracting candidate details</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${dragging ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-100 dark:bg-slate-700/60'}`}>
-              <CloudUpload size={24} className={dragging ? 'text-indigo-500' : 'text-slate-400'} />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                Drop resume here or{' '}
-                <span className="text-indigo-600 dark:text-indigo-400">browse files</span>
-              </p>
-              <p className="text-xs text-slate-400 mt-1">PDF · DOC · DOCX · TXT &nbsp;·&nbsp; Max 20 MB</p>
-            </div>
-          </>
-        )}
+        {/* Hidden inputs */}
+        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" multiple className="hidden"
+          onChange={(e) => { enqueueFiles(e.target.files); e.target.value = ''; }} />
+        <input ref={folderInputRef} type="file" webkitdirectory="" multiple className="hidden"
+          onChange={(e) => { enqueueFiles(e.target.files); e.target.value = ''; }} />
+
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${dragging ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-100 dark:bg-slate-700/60'}`}>
+          <CloudUpload size={24} className={dragging ? 'text-indigo-500' : 'text-slate-400'} />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Drop files or a folder here
+          </p>
+          <p className="text-xs text-slate-400 mt-1">PDF · DOC · DOCX · TXT &nbsp;·&nbsp; Max 20 MB per file</p>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-500/20"
+          >
+            Browse Files
+          </button>
+          <button
+            type="button"
+            onClick={() => folderInputRef.current?.click()}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+          >
+            Browse Folder
+          </button>
+        </div>
       </div>
 
-      {result && (
-        <div className={`flex items-start gap-3 p-4 rounded-xl border text-sm ${
-          result.ok
-            ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
-            : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-800 dark:text-red-300'
-        }`}>
-          {result.ok
-            ? <CheckCircle size={16} className="shrink-0 mt-0.5 text-emerald-500" />
-            : <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-500" />}
-          <div>
-            {result.ok ? (
-              <>
-                <p className="font-semibold">Successfully parsed &amp; added</p>
-                {result.candidate?.fullName && (
-                  <p className="text-xs opacity-80 mt-0.5">
-                    {result.candidate.fullName}
-                    {result.candidate.jobTitle && <> · {result.candidate.jobTitle}</>}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="font-semibold">{result.message}</p>
+      {/* Upload queue */}
+      {queue.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Queue &nbsp;·&nbsp; {doneCount}/{queue.length} done
+            </span>
+            {hasFinished && (
+              <button
+                onClick={() => setQueue((prev) => prev.filter((q) => q.status === 'pending' || q.status === 'uploading'))}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              >
+                Clear completed
+              </button>
             )}
           </div>
+          {queue.map((item) => (
+            <div key={item.id} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-sm ${
+              item.status === 'done'     ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20' :
+              item.status === 'error'    ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20' :
+              item.status === 'uploading'? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20' :
+                                           'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60'
+            }`}>
+              {item.status === 'uploading' && <Loader2 size={14} className="text-indigo-500 animate-spin shrink-0" />}
+              {item.status === 'done'      && <CheckCircle size={14} className="text-emerald-500 shrink-0" />}
+              {item.status === 'error'     && <AlertCircle size={14} className="text-red-500 shrink-0" />}
+              {item.status === 'pending'   && <FileText size={14} className="text-slate-400 shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate text-slate-700 dark:text-slate-200">
+                  {item.status === 'done' && item.candidate?.fullName ? item.candidate.fullName : item.file.name}
+                </p>
+                {item.status === 'done' && item.candidate?.jobTitle && (
+                  <p className="text-xs text-slate-400 truncate">{item.candidate.jobTitle}</p>
+                )}
+                {item.status === 'error' && (
+                  <p className="text-xs text-red-500 truncate">{item.errorMsg}</p>
+                )}
+                {item.status === 'uploading' && (
+                  <p className="text-xs text-indigo-400">Parsing resume…</p>
+                )}
+              </div>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                item.status === 'done'      ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' :
+                item.status === 'error'     ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400' :
+                item.status === 'uploading' ? 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-400' :
+                                              'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+              }`}>
+                {item.status === 'uploading' ? 'Parsing' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

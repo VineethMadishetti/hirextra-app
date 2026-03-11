@@ -52,17 +52,32 @@ const TECH_KEYWORDS = new Set([
 
 function _isTechKeyword(str) {
   if (!str) return false;
-  return TECH_KEYWORDS.has(str.toLowerCase().trim());
+  const lower = str.toLowerCase().trim();
+  // Exact match (single keyword like "react.js")
+  if (TECH_KEYWORDS.has(lower)) return true;
+  // Multi-word string like "Vue.Js React.Js" — if every space-separated word is a tech keyword, it's a skill list
+  const words = lower.split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.every(w => TECH_KEYWORDS.has(w));
 }
 
 function _extractCompanyFromSnippet(snippet) {
   if (!snippet) return null;
-  // LinkedIn snippets often contain "at Company Name" — stop at sentence boundary
-  const m = snippet.match(/\b(?:at|@)\s+([A-Z][A-Za-z0-9 &()'-]{2,50})(?=\s*[·.|,\n]|\s*$)/);
-  if (m?.[1]) {
-    const company = m[1].trim().replace(/[.,]$/, '');
-    if (!_isTechKeyword(company) && company.split(' ').length <= 6) return company;
+
+  // Pattern 1: "at Company Name" or "@ Company Name" before a sentence boundary
+  const atMatch = snippet.match(/\b(?:at|@)\s+([A-Z][A-Za-z0-9 &()'-]{2,50})(?=\s*[·.|,\n]|\s*$)/);
+  if (atMatch?.[1]) {
+    const c = atMatch[1].trim().replace(/[.,]$/, '');
+    if (!_isTechKeyword(c) && c.split(' ').length <= 6) return c;
   }
+
+  // Pattern 2: Formal company name (contains Pvt/Ltd/Corp/Inc/Solutions/etc.)
+  // Matches ". Cyrrup Solutions Pvt Ltd" or "Cyrrup Solutions Pvt Ltd" after period
+  const formalMatch = snippet.match(/(?:^|\.\s+)([A-Z][A-Za-z0-9 &()-]{2,60}?\s+(?:Pvt\.?\s*Ltd\.?|Ltd\.?|Corp\.?|Inc\.?|LLC|LLP|Solutions|Technologies|Systems|Services|Consulting|Group|Software|Infotech|Infosystems))\b/);
+  if (formalMatch?.[1]) {
+    const c = formalMatch[1].trim().replace(/\.$/, '');
+    if (!_isTechKeyword(c) && c.split(' ').length <= 8) return c;
+  }
+
   return null;
 }
 
@@ -170,6 +185,16 @@ export function extractLocation(title, snippet) {
     if (!match?.[1]) continue;
     const location = match[1].trim().replace(/\s{2,}/g, ' ');
     if (location.length >= 3 && location.length <= 80) return location;
+  }
+
+  // Strategy 5: City name appearing at the end of snippet (common LinkedIn pattern: "... Hyderabad ...")
+  const trailingCity = snippetText.match(/\.\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?(?:,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)?)\s*(?:\.{2,}|…)?\s*$/);
+  if (trailingCity?.[1]) {
+    const loc = trailingCity[1].trim();
+    // Reject strings that look like institution/company names (contain "Ltd", "Pvt", "Inc", "University", etc.)
+    if (loc.length >= 3 && loc.length <= 60 && !/\b(Ltd|Pvt|Inc|Corp|University|College|Institute|School|Technologies|Solutions|Services)\b/i.test(loc)) {
+      return loc;
+    }
   }
 
   return null;
