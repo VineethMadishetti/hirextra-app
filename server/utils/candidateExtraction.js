@@ -443,9 +443,16 @@ export function rankCandidates(candidates, targetSkills = []) {
       if (Array.isArray(targetSkills) && targetSkills.length > 0) {
         const snippetLower = String(candidate.snippet || '').toLowerCase();
         const titleLower = String(candidate.jobTitle || '').toLowerCase();
+        // Also check AI-extracted skills array for accurate matching
+        const candidateSkillsLower = (Array.isArray(candidate.skills) ? candidate.skills : [])
+          .map((s) => String(s).toLowerCase());
         const skillMatches = targetSkills.filter((skill) => {
           const s = String(skill || '').toLowerCase();
-          return s && (snippetLower.includes(s) || titleLower.includes(s));
+          return s && (
+            snippetLower.includes(s) ||
+            titleLower.includes(s) ||
+            candidateSkillsLower.some((cs) => cs.includes(s) || s.includes(cs))
+          );
         }).length;
         score += skillMatches * 2;
       }
@@ -486,6 +493,8 @@ export function formatCandidates(candidates) {
     location: c.location || null,
     level: c.level || null,
     education: c.education || null,
+    skills: Array.isArray(c.skills) ? c.skills : [],
+    totalExperience: c.totalExperience || null,
     email: c.contact?.email || null,
     phone: c.contact?.phone || null,
     enrichmentSource: c.contact?.source || null,

@@ -6,6 +6,7 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Download,
   FileSearch,
   GraduationCap,
@@ -764,9 +765,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                   {pageCandidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
                     const globalIndex = (currentPage - 1) * CANDIDATES_PER_PAGE + index + 1;
-                    const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
-                    // Prefer server-extracted education; fall back to client-side snippet parse
+                    // Prefer server-extracted skills (AI); fall back to client-side regex
+                    const skills = (candidate.skills?.length > 0)
+                      ? candidate.skills
+                      : extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
+                    // Prefer server-extracted education (AI); fall back to client-side snippet parse
                     const education = candidate.education || extractEducationFromSnippet(candidate.snippet);
+                    const totalExperience = candidate.totalExperience || null;
                     const badges = extractBadgesFromSnippet(candidate.snippet);
                     const snippetFull = candidate.snippet ? candidate.snippet.replace(/\s+/g, ' ').trim() : null;
                     const score = candidate.relevanceScore || 0;
@@ -820,12 +825,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           </span>
                         </div>
 
-                        {/* Row 2: Location · Education */}
+                        {/* Row 2: Location · Experience · Education */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
                           {candidate.location && (
                             <span className="flex items-center gap-1">
                               <MapPin size={11} className="text-slate-500" />
                               {candidate.location}
+                            </span>
+                          )}
+                          {totalExperience && (
+                            <span className="flex items-center gap-1">
+                              <Clock size={11} className="text-slate-500" />
+                              {totalExperience}
                             </span>
                           )}
                           {education && (

@@ -8,6 +8,7 @@ import {
   deduplicateCandidates,
   formatCandidates,
 } from '../utils/candidateExtraction.js';
+import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
@@ -363,6 +364,28 @@ export const sourceCandidates = async (req, res) => {
 
     let candidates = extractCandidates(allResults, targetCountries, searchQueries);
     candidates = deduplicateCandidates(candidates);
+
+    // AI enrichment: use OpenAI to extract accurate structured fields from raw Serper data.
+    // Falls back gracefully when OPENAI_API_KEY is not set.
+    const aiMap = await aiEnrichCandidates(allResults);
+    if (aiMap && aiMap.size > 0) {
+      candidates = candidates.map((c) => {
+        const ai = aiMap.get(c.normalizedUrl);
+        if (!ai) return c;
+        return {
+          ...c,
+          name: (ai.name?.trim()) || c.name,
+          jobTitle: (ai.jobTitle?.trim()) || c.jobTitle,
+          company: (ai.company?.trim()) || c.company,
+          location: (ai.location?.trim()) || c.location,
+          education: (ai.education?.trim()) || c.education,
+          skills: Array.isArray(ai.skills) ? ai.skills.filter(Boolean).slice(0, 8) : (c.skills || []),
+          totalExperience: ai.totalExperience || c.totalExperience || null,
+        };
+      });
+      logger.info(`AI enriched ${aiMap.size} candidates`);
+    }
+
     candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
 
     // Filter + boost by required location
