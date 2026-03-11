@@ -14,7 +14,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  Search,
   UploadCloud,
 } from 'lucide-react';
 import api from '../api/axios';
@@ -75,23 +74,6 @@ function extractBadgesFromSnippet(snippet) {
 
 const CARD_FONT = { fontFamily: '"Plus Jakarta Sans","Segoe UI",sans-serif' };
 
-function StatCard({ label, value, icon, tone = 'blue' }) {
-  const tones = {
-    blue: 'bg-[#432DD7]/30 border-[#6B5AF0]/40 text-[#E3DEFF]',
-    teal: 'bg-teal-950/35 border-teal-700/40 text-teal-100',
-    amber: 'bg-amber-950/35 border-amber-700/40 text-amber-100',
-    slate: 'bg-slate-900/80 border-slate-700 text-slate-100',
-  };
-  return (
-    <div className={`rounded-2xl border p-4 ${tones[tone]}`}>
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] font-semibold opacity-75">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-    </div>
-  );
-}
 
 const stageMeta = {
   DISCOVERED: { label: 'Discovered', className: 'bg-slate-800 text-slate-200 border-slate-700' },
@@ -204,7 +186,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     [responseData]
   );
   const parseOnly = Boolean(responseData?.parseOnly);
-  const summary = responseData?.summary || {};
 
   const CANDIDATES_PER_PAGE = 10;
   const totalPages = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
@@ -749,11 +730,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates found</p>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                <StatCard label="Extracted" value={summary.totalExtracted || 0} icon={<Search size={14} />} tone="blue" />
-                <StatCard label="With Contact" value={summary.totalEnriched || 0} icon={<Mail size={14} />} tone="teal" />
-              </div>
-
               {parseOnly && (
                 <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-200">
                   Candidate discovery is paused because `GOOGLE_CSE_API_KEY` is missing. Requirement extraction is complete.
@@ -773,7 +749,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const education = candidate.education || extractEducationFromSnippet(candidate.snippet);
                     const totalExperience = candidate.totalExperience || null;
                     const badges = extractBadgesFromSnippet(candidate.snippet);
-                    const snippetFull = candidate.snippet ? candidate.snippet.replace(/\s+/g, ' ').trim() : null;
                     const score = candidate.relevanceScore || 0;
 
                     return (
@@ -854,24 +829,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           )}
                         </div>
 
-                        {/* Full snippet */}
-                        {snippetFull && (
-                          <p className="mt-2.5 text-[12px] text-slate-400 leading-relaxed line-clamp-4 border-l-2 border-slate-700/80 pl-2.5 italic">
-                            {snippetFull}
-                          </p>
-                        )}
-
                         {/* Skills */}
                         {skills.length > 0 && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {skills.slice(0, 8).map((skill) => (
+                            {skills.map((skill) => (
                               <span key={skill} className="text-[11px] rounded-md border border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF] px-2 py-0.5">
                                 {skill}
                               </span>
                             ))}
-                            {skills.length > 8 && (
-                              <span className="text-[11px] text-slate-500 self-center">+{skills.length - 8} more</span>
-                            )}
                           </div>
                         )}
 
