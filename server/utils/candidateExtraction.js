@@ -66,13 +66,17 @@ function _extractCompanyFromSnippet(snippet) {
   // Pattern 1: "at Company Name" or "@ Company Name" before a sentence boundary
   const atMatch = snippet.match(/\b(?:at|@)\s+([A-Z][A-Za-z0-9 &()'-]{2,50})(?=\s*[·.|,\n]|\s*$)/);
   if (atMatch?.[1]) {
-    const c = atMatch[1].trim().replace(/[.,]$/, '');
+    // Strip trailing temporal phrases like "since 2020", "from Jan 2021", "for 3 years"
+    const c = atMatch[1].trim()
+      .replace(/[.,]$/, '')
+      .replace(/\s+(?:since|from|for|until|till|as\s+of)\s+.*/i, '')
+      .trim();
     if (!_isTechKeyword(c) && c.split(' ').length <= 6) return c;
   }
 
   // Pattern 2: Formal company name (contains Pvt/Ltd/Corp/Inc/Solutions/etc.)
   // Matches ". Cyrrup Solutions Pvt Ltd" or "Cyrrup Solutions Pvt Ltd" after period
-  const formalMatch = snippet.match(/(?:^|\.\s+)([A-Z][A-Za-z0-9 &()-]{2,60}?\s+(?:Pvt\.?\s*Ltd\.?|Ltd\.?|Corp\.?|Inc\.?|LLC|LLP|Solutions|Technologies|Systems|Services|Consulting|Group|Software|Infotech|Infosystems))\b/);
+  const formalMatch = snippet.match(/(?:^|\.\s+)([A-Z][A-Za-z0-9 &()-]{2,60}?\s+(?:Pvt\.?\s*Ltd\.?|Ltd\.?|Corp\.?|Inc\.?|LLC|LLP|Limited|Solutions|Technologies|Systems|Services|Consulting|Group|Software|Infotech|Infosystems))\b/);
   if (formalMatch?.[1]) {
     const c = formalMatch[1].trim().replace(/\.$/, '');
     if (!_isTechKeyword(c) && c.split(' ').length <= 8) return c;
@@ -105,7 +109,9 @@ export function extractJobInfo(title, snippet) {
     jobInfo.jobTitle = roleAtCompany[1]?.trim() || null;
     // Strip trailing "| City" from company name
     const companyRaw = roleAtCompany[2]?.trim() || null;
-    jobInfo.company = companyRaw ? companyRaw.split(/\s*[|·•]\s*/)[0].trim() : null;
+    const companyPart = companyRaw ? companyRaw.split(/\s*[|·•]\s*/)[0].trim() : null;
+    // Apply tech-keyword filter (same as fallback path)
+    jobInfo.company = (companyPart && !_isTechKeyword(companyPart)) ? companyPart : null;
   } else {
     // Fallback format: "Role | Company"
     // Note: do NOT split on '-' — it breaks hyphenated titles like "Front-End Developer"
@@ -200,6 +206,30 @@ export function extractLocation(title, snippet) {
   return null;
 }
 
+/**
+ * Extract education info from title + snippet text.
+ * Prioritises premium Indian institutes (IIT/IIM/BITS/NIT/IIIT/IISC).
+ * Falls back to degree keywords found in the snippet.
+ */
+export function extractEducationFromText(title, snippet) {
+  const fullText = `${title || ''} ${snippet || ''}`;
+
+  // Priority 1: Well-known premium Indian institutes
+  const premiumMatch = fullText.match(
+    /\b(IIT(?:\s+(?:Bombay|Delhi|Madras|Kanpur|Kharagpur|Roorkee|Guwahati|Hyderabad|Varanasi|BHU|ISM|Jodhpur|Indore|Mandi|Patna|Bhubaneswar|Tirupati|Jammu|Palakkad|Dharwad|Bhilai|Dhanbad))?|IIM(?:\s+(?:Ahmedabad|Bangalore|Calcutta|Lucknow|Kozhikode|Indore|Shillong|Udaipur|Raipur|Rohtak|Trichy|Kashipur|Amritsar|Nagpur))?|IISC(?:\s+Bangalore)?|BITS(?:\s+(?:Pilani|Goa|Hyderabad))?|NIT(?:\s+(?:Trichy|Warangal|Surathkal|Calicut|Allahabad|Rourkela|Durgapur|Jamshedpur|Silchar|Kurukshetra|Hamirpur|Srinagar|Jalandhar|Patna|Raipur|Goa|Delhi|Puducherry))?|IIIT(?:\s+(?:Hyderabad|Allahabad|Delhi|Bangalore|Gwalior))?)\b/i
+  );
+  if (premiumMatch?.[0]) return premiumMatch[0].trim().replace(/\s+/g, ' ');
+
+  // Priority 2: Degree keywords in snippet (not title, to avoid false-matches)
+  const snippetText = String(snippet || '');
+  const degreeMatch = snippetText.match(
+    /\b(Ph\.?D\.?(?:\s+in\s+[A-Za-z\s]{3,30})?|M\.?Tech\.?(?:\s+in\s+[A-Za-z\s]{3,30})?|B\.?Tech\.?(?:\s+in\s+[A-Za-z\s]{3,30})?|MBA|M\.?S\.?(?:\s+in\s+[A-Za-z\s]{3,30})?|B\.?E\.?(?:\s+in\s+[A-Za-z\s]{3,30})?|Bachelor(?:'s)?(?:\s+(?:of|in)\s+[A-Za-z\s]{3,30})?|Master(?:'s)?(?:\s+(?:of|in)\s+[A-Za-z\s]{3,30})?)\b/i
+  );
+  if (degreeMatch?.[0]) return degreeMatch[0].trim();
+
+  return null;
+}
+
 function normalizeUrl(url) {
   if (!url) return null;
   return url.split('?')[0].replace(/\/$/, '').toLowerCase();
@@ -225,6 +255,7 @@ export function extractCandidates(searchResults) {
 
       const jobInfo = extractJobInfo(result.title, result.snippet);
       const location = extractLocation(result.title, result.snippet);
+      const education = extractEducationFromText(result.title, result.snippet);
 
       const candidate = {
         linkedInUrl,
@@ -234,6 +265,7 @@ export function extractCandidates(searchResults) {
         company: jobInfo.company,
         location,
         level: jobInfo.level,
+        education,
         snippet: result.snippet || '',
         foundIn: result.country || '',
         sourceCountry: result.country || '',
@@ -366,6 +398,7 @@ export function formatCandidates(candidates) {
     company: c.company || null,
     location: c.location || null,
     level: c.level || null,
+    education: c.education || null,
     email: c.contact?.email || null,
     phone: c.contact?.phone || null,
     enrichmentSource: c.contact?.source || null,
@@ -388,6 +421,7 @@ export default {
   extractJobInfo,
   extractLocation,
   extractLinkedInUrl,
+  extractEducationFromText,
   filterCandidates,
   rankCandidates,
   deduplicateCandidates,

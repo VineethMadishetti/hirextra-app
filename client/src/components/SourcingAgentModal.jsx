@@ -35,10 +35,17 @@ function extractExperienceFromSnippet(snippet) {
 }
 
 // Returns education text; flags premium institutes (IIT/IIM/NIT/BITS/IISC)
+// Used as a client-side fallback when the server didn't extract education.
 function extractEducationFromSnippet(snippet) {
   if (!snippet) return null;
-  const m = snippet.match(/\b(IIT[\s\w]*?(?=\s*[,.|·]|$)|IIM[\s\w]*?(?=\s*[,.|·]|$)|IISC[\s\w]*?(?=\s*[,.|·]|$)|BITS[\s\w]*?(?=\s*[,.|·]|$)|NIT[\s\w]*?(?=\s*[,.|·]|$)|Ph\.?D\.?|M\.?Tech\.?|B\.?Tech\.?|MBA|M\.?S\.?|B\.?E\.?|Bachelor'?s?|Master'?s?|Computer Science|Information Technology)\b/i);
-  return m ? m[0].trim() : null;
+  // Priority 1: Premium institutes (no separator required — just find the name)
+  const premiumMatch = snippet.match(
+    /\b(IIT(?:\s+(?:Bombay|Delhi|Madras|Kanpur|Kharagpur|Roorkee|Guwahati|Hyderabad|Varanasi|BHU|ISM|Jodhpur|Indore|Mandi|Patna|Bhubaneswar|Tirupati|Jammu|Palakkad|Dharwad|Bhilai|Dhanbad))?|IIM(?:\s+(?:Ahmedabad|Bangalore|Calcutta|Lucknow|Kozhikode|Indore|Shillong|Udaipur|Raipur|Rohtak|Trichy|Kashipur|Amritsar|Nagpur))?|IISC(?:\s+Bangalore)?|BITS(?:\s+(?:Pilani|Goa|Hyderabad))?|NIT(?:\s+(?:Trichy|Warangal|Surathkal|Calicut|Allahabad|Rourkela|Durgapur|Jamshedpur|Silchar|Kurukshetra|Hamirpur|Srinagar|Jalandhar|Patna|Raipur|Goa|Delhi|Puducherry))?|IIIT(?:\s+(?:Hyderabad|Allahabad|Delhi|Bangalore|Gwalior))?)\b/i
+  );
+  if (premiumMatch?.[0]) return premiumMatch[0].trim().replace(/\s+/g, ' ');
+  // Priority 2: Degree keywords
+  const degreeMatch = snippet.match(/\b(Ph\.?D\.?|M\.?Tech\.?|B\.?Tech\.?|MBA|M\.?S\.?\b|B\.?E\.?\b|Bachelor(?:'s)?|Master(?:'s)?)\b/i);
+  return degreeMatch ? degreeMatch[0].trim() : null;
 }
 
 const PREMIUM_INSTITUTES = /^(IIT|IIM|IISC|BITS|NIT)/i;
@@ -766,7 +773,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const globalIndex = (currentPage - 1) * CANDIDATES_PER_PAGE + index + 1;
                     const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
                     const experience = extractExperienceFromSnippet(candidate.snippet);
-                    const education = extractEducationFromSnippet(candidate.snippet);
+                    // Prefer server-extracted education; fall back to client-side snippet parse
+                    const education = candidate.education || extractEducationFromSnippet(candidate.snippet);
                     const badges = extractBadgesFromSnippet(candidate.snippet);
                     const snippetFull = candidate.snippet ? candidate.snippet.replace(/\s+/g, ' ').trim() : null;
                     const score = candidate.relevanceScore || 0;
