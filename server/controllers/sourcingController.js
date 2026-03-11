@@ -365,10 +365,12 @@ export const sourceCandidates = async (req, res) => {
     candidates = deduplicateCandidates(candidates);
     candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
 
-    // Boost candidates whose snippet/location explicitly mentions the required location
+    // Filter + boost by required location
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
+
+      // Boost candidates that mention the location
       candidates = candidates.map((c) => {
         const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
         if (text.includes(locLower)) {
@@ -377,6 +379,23 @@ export const sourceCandidates = async (req, res) => {
         return c;
       });
       candidates.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+      // Filter: keep only candidates who match the location OR have no location info
+      const locationMatched = candidates.filter((c) => {
+        const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
+        return text.includes(locLower);
+      });
+      const noLocationInfo = candidates.filter((c) => {
+        const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
+        return !c.location && !text.includes(locLower);
+      });
+
+      // Prefer location matches; supplement with no-location candidates only if < 10 matches
+      if (locationMatched.length >= 10) {
+        candidates = locationMatched;
+      } else {
+        candidates = [...locationMatched, ...noLocationInfo];
+      }
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);

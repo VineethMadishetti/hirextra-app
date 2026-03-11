@@ -697,89 +697,115 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 <div className="space-y-3">
                   {pageCandidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-
+                    const globalIndex = (currentPage - 1) * CANDIDATES_PER_PAGE + index + 1;
                     const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
                     const experience = extractExperienceFromSnippet(candidate.snippet);
                     const education = extractEducationFromSnippet(candidate.snippet);
                     const availability = extractAvailabilityFromSnippet(candidate.snippet);
+                    const snippetPreview = candidate.snippet ? candidate.snippet.replace(/\s+/g, ' ').trim().substring(0, 200) : null;
+                    const score = candidate.relevanceScore || 0;
 
                     return (
                       <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
-                        {/* Row 1: Name + contact badges */}
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-base font-bold text-slate-100">
-                                {candidate.name || candidate.fullName || 'Unknown'}
-                              </h4>
-                              {availability && (
-                                <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-emerald-700/50 bg-emerald-950/35 text-emerald-300 px-2 py-0.5 font-semibold">
-                                  {availability}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-slate-300 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                              <Briefcase size={13} className="shrink-0" />
-                              <span>{candidate.title || candidate.jobTitle || 'Unknown role'}</span>
-                              {candidate.company && <span className="text-slate-400">@ {candidate.company}</span>}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-slate-400">
-                              {(candidate.location || candidate.sourceCountry) && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin size={11} />
-                                  {candidate.location || ''}
-                                  {candidate.sourceCountry ? ` (${candidate.sourceCountry.toUpperCase()})` : ''}
-                                </span>
-                              )}
-                              {experience && (
-                                <span className="flex items-center gap-1">
-                                  <Briefcase size={11} />
-                                  {experience}
-                                </span>
-                              )}
-                              {education && (
-                                <span className="flex items-center gap-1">
-                                  <GraduationCap size={11} />
-                                  {education}
-                                </span>
-                              )}
+
+                        {/* Row 1: Rank + Name + Badges + Score */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400">
+                              {globalIndex}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <h4 className="text-base font-bold text-slate-100 leading-tight">
+                                  {candidate.name || candidate.fullName || 'Unknown'}
+                                </h4>
+                                {availability && (
+                                  <span className="inline-flex items-center text-[10px] rounded-full border border-emerald-700/50 bg-emerald-950/35 text-emerald-300 px-2 py-0.5 font-semibold">
+                                    {availability}
+                                  </span>
+                                )}
+                                {candidate.level && (
+                                  <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold capitalize">
+                                    {candidate.level}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-300 mt-0.5">
+                                <Briefcase size={12} className="inline mr-1 text-slate-500" />
+                                <span className="font-medium">{candidate.title || candidate.jobTitle || 'Unknown role'}</span>
+                                {candidate.company && <span className="text-slate-400"> @ {candidate.company}</span>}
+                              </p>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            {candidate.email && (
-                              <span className="inline-flex items-center gap-1 text-xs rounded-lg border border-emerald-700/50 bg-emerald-950/35 text-emerald-200 px-2 py-1">
-                                <Mail size={11} /> {candidate.email}
-                              </span>
-                            )}
-                            {candidate.phone && (
-                              <span className="inline-flex items-center gap-1 text-xs rounded-lg border border-[#6B5AF0]/50 bg-[#432DD7]/25 text-[#E3DEFF] px-2 py-1">
-                                <Phone size={11} /> {candidate.phone}
-                              </span>
-                            )}
-                          </div>
+                          <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border ${score >= 10 ? 'border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#B9AEFF]' : 'border-slate-700 bg-slate-800/60 text-slate-500'}`}>
+                            ★ {score}
+                          </span>
                         </div>
 
-                        {/* Skills row */}
+                        {/* Row 2: Location · Experience · Education */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
+                          {(candidate.location || candidate.sourceCountry) && (
+                            <span className="flex items-center gap-1">
+                              <MapPin size={11} />
+                              {candidate.location || ''}
+                              {candidate.sourceCountry ? ` · ${candidate.sourceCountry.toUpperCase()}` : ''}
+                            </span>
+                          )}
+                          {experience && (
+                            <span className="flex items-center gap-1">
+                              <Briefcase size={11} />
+                              {experience}
+                            </span>
+                          )}
+                          {education && (
+                            <span className="flex items-center gap-1">
+                              <GraduationCap size={11} />
+                              {education}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Snippet preview */}
+                        {snippetPreview && (
+                          <p className="mt-2.5 text-[12px] text-slate-400 leading-relaxed line-clamp-2 border-l-2 border-slate-700/80 pl-2.5 italic">
+                            {snippetPreview}{candidate.snippet.length > 200 ? '…' : ''}
+                          </p>
+                        )}
+
+                        {/* Skills */}
                         {skills.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {skills.map((skill) => (
-                              <span key={skill} className="text-[11px] rounded-md border border-slate-600 bg-slate-800 text-slate-300 px-2 py-0.5">
+                          <div className="mt-2.5 flex flex-wrap gap-1.5">
+                            {skills.slice(0, 8).map((skill) => (
+                              <span key={skill} className="text-[11px] rounded-md border border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF] px-2 py-0.5">
                                 {skill}
                               </span>
                             ))}
+                            {skills.length > 8 && (
+                              <span className="text-[11px] text-slate-500 self-center">+{skills.length - 8} more</span>
+                            )}
                           </div>
                         )}
 
-                        {/* Bottom row: LinkedIn URL + Get Contact */}
-                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-700/50 pt-2.5">
+                        {/* Footer: LinkedIn + Contact info + Get Contact */}
+                        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-700/50 pt-2.5">
                           {linkedInUrl ? (
-                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium">
+                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
                               🔗 View Profile
                             </a>
                           ) : (
-                            <span className="text-xs text-slate-500">Profile URL unavailable</span>
+                            <span className="text-xs text-slate-600">No profile URL</span>
                           )}
-
+                          {candidate.email && (
+                            <a href={`mailto:${candidate.email}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 min-w-0">
+                              <Mail size={11} className="shrink-0" />
+                              <span className="truncate max-w-[200px]">{candidate.email}</span>
+                            </a>
+                          )}
+                          {candidate.phone && (
+                            <a href={`tel:${candidate.phone}`} className="flex items-center gap-1 text-xs text-[#C4B8FF] hover:text-white shrink-0">
+                              <Phone size={11} />{candidate.phone}
+                            </a>
+                          )}
                           {!candidate.email && !candidate.phone && (
                             <CandidateGetContact
                               candidate={candidate}

@@ -99,35 +99,31 @@ class ContactEnricher {
         };
       }
 
-      // 1. Proxycurl — best for LinkedIn-sourced candidates (works with just LinkedIn URL)
-      if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl) && this.proxycurlKey) {
-        logger.debug(`  → Step 1/4: Trying Proxycurl enrichment`);
-        const proxycurlResult = await this._proxycurlLookup(linkedinUrl);
-        if (proxycurlResult && (proxycurlResult.email || proxycurlResult.phone)) {
-          logger.info(`  ✅ Proxycurl found contact for ${candidateId}`);
-          return {
-            ...proxycurlResult,
-            source: 'proxycurl',
-            confidence: 0.90,
-          };
+      // 1+2. Proxycurl and Skrapp run in parallel — take whichever finds contact first
+      {
+        const parallelProviders = [];
+        if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl) && this.proxycurlKey) {
+          logger.debug(`  → Trying Proxycurl (parallel)`);
+          parallelProviders.push(
+            this._proxycurlLookup(linkedinUrl)
+              .then((r) => (r && (r.email || r.phone) ? { ...r, source: 'proxycurl', confidence: 0.90 } : null))
+              .catch(() => null)
+          );
         }
-      }
-
-      // 2. Try Skrapp (name + company/domain)
-      if (fullName || linkedinUrl) {
-        logger.debug(`  → Step 2/4: Trying Skrapp enrichment`);
-        const skrappResult = await this._skrappLookup({
-          linkedinUrl,
-          fullName,
-          company,
-        });
-        if (skrappResult && skrappResult.email) {
-          logger.info(`  ✅ Skrapp found email for ${candidateId}`);
-          return {
-            ...skrappResult,
-            source: 'skrapp',
-            confidence: 0.85,
-          };
+        if (fullName || linkedinUrl) {
+          logger.debug(`  → Trying Skrapp (parallel)`);
+          parallelProviders.push(
+            this._skrappLookup({ linkedinUrl, fullName, company })
+              .then((r) => (r && r.email ? { ...r, source: 'skrapp', confidence: 0.85 } : null))
+              .catch(() => null)
+          );
+        }
+        if (parallelProviders.length > 0) {
+          const parallelResult = await this._firstSuccess(parallelProviders);
+          if (parallelResult) {
+            logger.info(`  ✅ ${parallelResult.source} found contact for ${candidateId}`);
+            return parallelResult;
+          }
         }
       }
 
@@ -424,6 +420,30 @@ class ContactEnricher {
       }
       return null;
     }
+  }
+
+  /**
+   * Resolves with the first promise result that has email or phone.
+   * Resolves null only if all promises fail/return null.
+   */
+  _firstSuccess(promises) {
+    return new Promise((resolve) => {
+      let remaining = promises.length;
+      if (remaining === 0) { resolve(null); return; }
+      for (const p of promises) {
+        p.then((result) => {
+          if (result && (result.email || result.phone)) {
+            resolve(result);
+          } else {
+            remaining -= 1;
+            if (remaining === 0) resolve(null);
+          }
+        }).catch(() => {
+          remaining -= 1;
+          if (remaining === 0) resolve(null);
+        });
+      }
+    });
   }
 
   /**
