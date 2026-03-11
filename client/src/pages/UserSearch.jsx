@@ -278,15 +278,23 @@ const SearchLoading = () => (
 	</div>
 );
 
-const UserSearch = () => {
+const UserSearch = ({ focusAiSearch = false }) => {
 	const { user } = useContext(AuthContext);
 	const queryClient = useQueryClient();
 	const [selectedProfile, setSelectedProfile] = useState(null);
 	const tableContainerRef = useRef(null);
 	const searchInputRef = useRef(null);
+	const aiSearchInputRef = useRef(null);
 	const [showBackToTop, setShowBackToTop] = useState(false);
 	const [aiQuery, setAiQuery] = useState("");
 	const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+	useEffect(() => {
+		if (focusAiSearch) {
+			const t = setTimeout(() => aiSearchInputRef.current?.focus(), 120);
+			return () => clearTimeout(t);
+		}
+	}, [focusAiSearch]);
 
 	// Scroll handler for Back to Top button
 	const handleScroll = useCallback((e) => {
@@ -965,6 +973,7 @@ const UserSearch = () => {
 									<Sparkles size={15} className={isAiProcessing ? "animate-spin" : ""} />
 								</div>
 								<input
+									ref={aiSearchInputRef}
 									type="text"
 									placeholder="Ask AI: 'Java developer in Hyderabad with 5+ years…'"
 									className="w-full bg-transparent border-none outline-none focus:ring-0 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 py-2.5"

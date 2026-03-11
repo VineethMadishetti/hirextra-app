@@ -51,7 +51,7 @@ const WelcomePage = ({ user, onNavigate }) => (
 
 			{/* AI Search Card */}
 			<button
-				onClick={() => onNavigate("search")}
+				onClick={() => onNavigate("ai-search")}
 				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
 				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-violet-100/50 dark:hover:shadow-violet-900/20
 				hover:border-violet-300 dark:hover:border-violet-600/50 transition-all duration-300 text-left cursor-pointer overflow-hidden">
@@ -208,8 +208,8 @@ const Dashboard = () => {
 								Search People
 							</button>
 							<button
-								onClick={() => setCurrentView("search")}
-								className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+								onClick={() => setCurrentView("ai-search")}
+								className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${currentView === "ai-search" ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
 								<Sparkles size={16} />
 								AI Search
 							</button>
@@ -392,8 +392,8 @@ const Dashboard = () => {
 					Search People
 				</button>
 				<button
-					onClick={() => setCurrentView("search")}
-					className="flex-1 py-3 text-sm font-medium text-center flex items-center justify-center gap-1.5 text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+					onClick={() => setCurrentView("ai-search")}
+					className={`flex-1 py-3 text-sm font-medium text-center flex items-center justify-center gap-1.5 ${currentView === "ai-search" ? "text-violet-600 border-b-2 border-violet-600" : "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}`}>
 					<Sparkles size={14} />
 					AI Search
 				</button>
@@ -484,6 +484,8 @@ const Dashboard = () => {
 						<Enrich />
 					) : currentView === "ai-source" ? (
 						<SourcingAgentModal inline={true} onClose={() => setCurrentView(user?.role === "ADMIN" ? "admin" : "welcome")} />
+					) : currentView === "ai-search" ? (
+						<UserSearch focusAiSearch={true} />
 					) : (
 						<UserSearch />
 					)}

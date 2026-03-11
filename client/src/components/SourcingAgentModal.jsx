@@ -93,6 +93,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
   const [contactLoadingUrl, setContactLoadingUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || responseData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim());
@@ -103,6 +104,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   );
   const parseOnly = Boolean(responseData?.parseOnly);
   const summary = responseData?.summary || {};
+
+  const CANDIDATES_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
+  const pageCandidates = candidates.slice(
+    (currentPage - 1) * CANDIDATES_PER_PAGE,
+    currentPage * CANDIDATES_PER_PAGE
+  );
 
   useEffect(() => {
     try {
@@ -240,6 +248,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       });
 
       setResponseData(data);
+      setCurrentPage(1);
       const preSaved = new Set(
         (data?.candidates || [])
           .filter((c) => c.savedToDatabase && (c.linkedinUrl || c.linkedInUrl))
@@ -263,7 +272,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  const handleSaveCandidate = async (candidate) => {
+  const handleSaveCandidate = async (candidate, { silent = false } = {}) => {
     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
     if (!linkedInUrl) return null;
 
@@ -290,14 +299,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
             results: nextCandidates,
           };
         });
-        toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
+        if (!silent) toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
         return savedId;
       } else {
-        toast.error(data?.error || 'Could not save candidate.');
+        if (!silent) toast.error(data?.error || 'Could not save candidate.');
         return null;
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save candidate');
+      if (!silent) toast.error(err.response?.data?.error || 'Failed to save candidate');
       return null;
     } finally {
       setSavingCandidateUrl(null);
@@ -312,14 +321,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
 
     setContactLoadingUrl(linkedInUrl);
+    const toastId = `get-contact-${linkedInUrl}`;
+    toast.loading('Looking up contact...', { id: toastId });
     try {
       let candidateId = candidate.savedCandidateId || null;
       if (!candidateId) {
-        candidateId = await handleSaveCandidate(candidate);
+        candidateId = await handleSaveCandidate(candidate, { silent: true });
       }
 
       if (!candidateId) {
-        toast.error('Could not prepare candidate for enrichment.');
+        toast.error('Could not prepare candidate for enrichment.', { id: toastId });
         return;
       }
 
@@ -328,7 +339,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       const hasContact = Boolean(enriched?.email || enriched?.phone);
 
       if (!data?.success || !hasContact) {
-        toast.error(enriched?.error || 'No contact found for this candidate.');
+        toast.error(enriched?.error || 'No contact found for this candidate.', { id: toastId });
         return;
       }
 
@@ -357,9 +368,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           results: nextCandidates,
         };
       });
-      toast.success('Contact enriched successfully.');
+      toast.success(enriched.email || enriched.phone || 'Contact found.', { id: toastId });
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to fetch contact.');
+      toast.error(err.response?.data?.message || 'Failed to fetch contact.', { id: toastId });
     } finally {
       setContactLoadingUrl(null);
     }
@@ -678,7 +689,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
               {!parseOnly && candidates.length > 0 && (
                 <div className="space-y-3">
-                  {candidates.map((candidate, index) => {
+                  {pageCandidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
                     const isContactLoading = contactLoadingUrl === linkedInUrl;
 
@@ -784,6 +795,50 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
               {!parseOnly && candidates.length === 0 && (
                 <div className="py-8 text-center text-slate-400">No candidates found for this requirement set.</div>
+              )}
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .reduce((acc, p, idx, arr) => {
+                      if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === '…' ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-slate-500 text-sm">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => setCurrentPage(item)}
+                          className={`min-w-[32px] rounded-lg border px-2.5 py-1.5 text-sm font-semibold cursor-pointer transition-colors ${
+                            currentPage === item
+                              ? 'border-[#6B5AF0] bg-[#432DD7] text-white'
+                              : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                  <span className="text-xs text-slate-500 ml-1">Page {currentPage} of {totalPages}</span>
+                </div>
               )}
 
               <div className="pt-4 border-t border-slate-700 flex flex-col md:flex-row gap-3">
