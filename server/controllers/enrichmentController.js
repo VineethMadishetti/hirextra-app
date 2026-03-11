@@ -60,7 +60,17 @@ export const enrichContact = async (req, res) => {
     const result = await contactEnrichmentService.enrichCandidate(candidate);
 
     if (result.source === 'error' && !result.email && !result.phone) {
-      throw new Error(result.error || 'Contact enrichment provider unavailable');
+      // Configuration error — don't cache this, just return the reason clearly
+      return res.json({
+        success: false,
+        data: {
+          candidateId,
+          email: null,
+          phone: null,
+          source: 'error',
+          error: result.error || 'Contact enrichment providers not configured. Add PROXYCURL_API_KEY, SKRAPP_API_KEY, PDL_API_KEY, or LUSHA_API_KEY to server .env',
+        },
+      });
     }
 
     // Save to cache (including failed lookups)

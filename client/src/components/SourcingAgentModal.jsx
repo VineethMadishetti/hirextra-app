@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   Briefcase,
+  Building2,
   Bot,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Download,
   FileSearch,
   GraduationCap,
@@ -123,11 +125,18 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
         onContactFound?.(linkedInUrl, enriched, candidateId);
       } else {
         setNotFound(true);
-        toast.error(enriched?.error || 'No contact found.', { duration: 3000 });
+        const errMsg = enriched?.error || data?.error || 'No contact found for this candidate.';
+        // Only toast config errors once; suppress repetitive "not found" toasts
+        if (errMsg.toLowerCase().includes('not configured') || errMsg.toLowerCase().includes('api_key')) {
+          toast.error('Enrichment API keys not configured. Check server .env', { id: 'enrich-config', duration: 5000 });
+        } else {
+          toast('No contact found.', { icon: '🔍', duration: 2000 });
+        }
       }
     } catch (err) {
       setNotFound(true);
-      toast.error(err.response?.data?.message || 'Failed to fetch contact.', { duration: 3000 });
+      const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to fetch contact.';
+      toast.error(msg, { id: 'enrich-err', duration: 4000 });
     } finally {
       setLoading(false);
     }
@@ -792,11 +801,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                   </span>
                                 )}
                               </div>
-                              <p className="text-sm text-slate-300 mt-0.5">
-                                <Briefcase size={12} className="inline mr-1 text-slate-500" />
-                                <span className="font-medium">{candidate.title || candidate.jobTitle || 'Unknown role'}</span>
-                                {candidate.company && <span className="text-slate-400"> @ {candidate.company}</span>}
-                              </p>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                                <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
+                                  <Briefcase size={11} className="text-[#8B7FE8] shrink-0" />
+                                  {candidate.title || candidate.jobTitle || 'Unknown role'}
+                                </span>
+                                {candidate.company && (
+                                  <span className="flex items-center gap-1 text-sm text-slate-400">
+                                    <Building2 size={11} className="text-slate-500 shrink-0" />
+                                    {candidate.company}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border ${score >= 10 ? 'border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#B9AEFF]' : 'border-slate-700 bg-slate-800/60 text-slate-500'}`}>
@@ -806,15 +822,15 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
                         {/* Row 2: Location · Experience · Education */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
-                          {(candidate.location || candidate.sourceCountry) && (
+                          {candidate.location && (
                             <span className="flex items-center gap-1">
-                              <MapPin size={11} />
-                              {[candidate.location, candidate.sourceCountry?.toUpperCase()].filter(Boolean).join(' · ')}
+                              <MapPin size={11} className="text-slate-500" />
+                              {candidate.location}
                             </span>
                           )}
                           {experience && (
                             <span className="flex items-center gap-1">
-                              <Briefcase size={11} />
+                              <Clock size={11} className="text-slate-500" />
                               {experience}
                             </span>
                           )}
