@@ -60,6 +60,60 @@ function _isTechKeyword(str) {
   return words.length > 0 && words.every(w => TECH_KEYWORDS.has(w));
 }
 
+/**
+ * Parse LinkedIn's structured Google snippet format.
+ * LinkedIn often produces snippets like:
+ *   "Python developer, Hyderabad · Experience: Josh Software, Inc. · Education: CVR College of Engineering · Location: 500009"
+ *
+ * Returns { jobTitleHint, company, education, location } — any field may be undefined.
+ */
+function parseStructuredSnippet(snippet) {
+  if (!snippet) return {};
+  const result = {};
+
+  const parts = snippet.split(/\s*[·•]\s*/);
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i].trim();
+    if (!part) continue;
+
+    const colonIdx = part.indexOf(':');
+    if (colonIdx === -1) {
+      // First unlabeled part is typically "Role, City"
+      if (i === 0) result.jobTitleHint = part;
+      continue;
+    }
+
+    const label = part.substring(0, colonIdx).trim().toLowerCase();
+    const value = part.substring(colonIdx + 1).trim();
+    if (!value) continue;
+
+    if (label === 'experience') {
+      result.company = value;
+    } else if (label === 'education') {
+      result.education = value;
+    } else if (label === 'location') {
+      // Skip pure pin codes (e.g., "500009")
+      if (!/^\d{4,10}$/.test(value)) result.location = value;
+    }
+  }
+
+  // If Location was a pin code (missing), try to pull city from jobTitleHint suffix
+  // e.g. "Python developer, Hyderabad" → location = "Hyderabad"
+  if (!result.location && result.jobTitleHint) {
+    const titleParts = result.jobTitleHint.split(',').map((p) => p.trim());
+    if (titleParts.length >= 2) {
+      const lastPart = titleParts[titleParts.length - 1];
+      // City-like: 1-3 properly-cased words, no digits
+      if (/^[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2}$/.test(lastPart)) {
+        result.location = lastPart;
+      }
+    }
+  }
+
+  return result;
+}
+
 function _extractCompanyFromSnippet(snippet) {
   if (!snippet) return null;
 
@@ -95,6 +149,9 @@ export function extractJobInfo(title, snippet) {
     level: null,
   };
 
+  // Parse structured LinkedIn snippet first — highest accuracy source
+  const structured = parseStructuredSnippet(snippet);
+
   const cleanedTitle = String(title || '')
     .replace(/\s*\|\s*LinkedIn.*$/i, '') // remove "| LinkedIn..."
     .replace(/\s*[·•]\s*.+$/, '')        // remove " · Location" suffix (middle dot)
@@ -127,9 +184,32 @@ export function extractJobInfo(title, snippet) {
     }
   }
 
-  // If company is still null, try to extract from snippet ("at Company Name")
+  // Fall back to snippet "at Company" pattern extraction
   if (!jobInfo.company && snippet) {
     jobInfo.company = _extractCompanyFromSnippet(snippet);
+  }
+
+  // Final fallback: use structured snippet's Experience: field (most reliable for LinkedIn cards)
+  if (!jobInfo.company && structured.company) {
+    jobInfo.company = structured.company;
+  }
+
+  // Clean job title: strip trailing ", City" when we know the city from structured snippet
+  if (jobInfo.jobTitle && structured.location) {
+    const escapedLoc = structured.location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    jobInfo.jobTitle = jobInfo.jobTitle
+      .replace(new RegExp(',?\\s*' + escapedLoc + '\\s*$', 'i'), '')
+      .trim();
+  }
+
+  // If job title is still null, derive from structured jobTitleHint (e.g., "Python developer, Hyderabad")
+  if (!jobInfo.jobTitle && structured.jobTitleHint) {
+    let hint = structured.jobTitleHint;
+    if (structured.location) {
+      const escapedLoc = structured.location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      hint = hint.replace(new RegExp(',?\\s*' + escapedLoc + '\\s*$', 'i'), '').trim();
+    }
+    jobInfo.jobTitle = hint || null;
   }
 
   const levelKeywords = [
@@ -157,6 +237,10 @@ export function extractJobInfo(title, snippet) {
  * Best-effort location extraction from title/snippet text.
  */
 export function extractLocation(title, snippet) {
+  // Strategy 0: Structured LinkedIn snippet "Location:" field (highest priority)
+  const structured = parseStructuredSnippet(snippet);
+  if (structured.location) return structured.location;
+
   // Strategy 1: LinkedIn puts "· City, State, Country" in title
   // e.g. "Name - Role at Company · Hyderabad, Telangana, India | LinkedIn"
   const titleRaw = String(title || '').replace(/\s*\|\s*LinkedIn.*$/i, '');
@@ -208,10 +292,13 @@ export function extractLocation(title, snippet) {
 
 /**
  * Extract education info from title + snippet text.
- * Prioritises premium Indian institutes (IIT/IIM/BITS/NIT/IIIT/IISC).
- * Falls back to degree keywords found in the snippet.
+ * Prioritises structured LinkedIn snippet "Education:" field, then premium institutes, then degree keywords.
  */
 export function extractEducationFromText(title, snippet) {
+  // Priority 0: Structured LinkedIn snippet "Education:" field (highest accuracy)
+  const structured = parseStructuredSnippet(snippet);
+  if (structured.education) return structured.education;
+
   const fullText = `${title || ''} ${snippet || ''}`;
 
   // Priority 1: Well-known premium Indian institutes

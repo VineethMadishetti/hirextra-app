@@ -6,7 +6,6 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Download,
   FileSearch,
   GraduationCap,
@@ -26,12 +25,6 @@ const SKILL_RE = /\b(React|Angular|Vue|Node\.js|Python|Java(?:Script)?|TypeScrip
 function extractSkillsFromSnippet(snippet, jobTitle) {
   const text = `${snippet || ''} ${jobTitle || ''}`;
   return [...new Set((text.match(SKILL_RE) || []).map(s => s.trim()))].slice(0, 6);
-}
-
-function extractExperienceFromSnippet(snippet) {
-  if (!snippet) return null;
-  const m = snippet.match(/(\d+\+?)\s*(?:-|to)?\s*(?:\d+)?\s*(?:years?|yrs?)\s*(?:of\s+)?(?:experience|exp)?/i);
-  return m ? m[0].trim() : null;
 }
 
 // Returns education text; flags premium institutes (IIT/IIM/NIT/BITS/IISC)
@@ -772,7 +765,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
                     const globalIndex = (currentPage - 1) * CANDIDATES_PER_PAGE + index + 1;
                     const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
-                    const experience = extractExperienceFromSnippet(candidate.snippet);
                     // Prefer server-extracted education; fall back to client-side snippet parse
                     const education = candidate.education || extractEducationFromSnippet(candidate.snippet);
                     const badges = extractBadgesFromSnippet(candidate.snippet);
@@ -828,18 +820,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           </span>
                         </div>
 
-                        {/* Row 2: Location · Experience · Education */}
+                        {/* Row 2: Location · Education */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
                           {candidate.location && (
                             <span className="flex items-center gap-1">
                               <MapPin size={11} className="text-slate-500" />
                               {candidate.location}
-                            </span>
-                          )}
-                          {experience && (
-                            <span className="flex items-center gap-1">
-                              <Clock size={11} className="text-slate-500" />
-                              {experience}
                             </span>
                           )}
                           {education && (
