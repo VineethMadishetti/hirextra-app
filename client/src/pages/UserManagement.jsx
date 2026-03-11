@@ -90,13 +90,15 @@ const UserManagement = () => {
 			const { data } = await api.get("/auth/users");
 			return Array.isArray(data) ? data : [];
 		},
+		staleTime: 0,
 	});
-	const { data: userStats = {} } = useQuery({
+	const { data: userStats = {}, isLoading: statsLoading } = useQuery({
 		queryKey: ["user-stats"],
 		queryFn: async () => {
 			const { data } = await api.get("/admin/user-stats");
 			return data;
 		},
+		staleTime: 0,
 	});
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -239,7 +241,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 						<div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
 							<div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
 								<div className="col-span-3">User</div>
-								<div className="col-span-2">Last Login</div>
+								<div className="col-span-2">Last Active</div>
 								<div className="col-span-2 text-center">Databases</div>
 								<div className="col-span-2 text-center">Uploads</div>
 								<div className="col-span-1">Joined</div>
@@ -259,8 +261,8 @@ const [userToDelete, setUserToDelete] = useState(null);
 								<div className="divide-y divide-slate-100 dark:divide-slate-700/50">
 									{users.map((user) => {
 										const uid = String(user._id);
-										const dbCount = userStats?.databases?.[uid] ?? 0;
-										const uploadCount = userStats?.uploads?.[uid] ?? 0;
+										const dbCount = statsLoading ? null : (userStats?.databases?.[uid] ?? 0);
+										const uploadCount = statsLoading ? null : (userStats?.uploads?.[uid] ?? 0);
 										return (
 											<div
 												key={user._id}
@@ -287,11 +289,11 @@ const [userToDelete, setUserToDelete] = useState(null);
 												</div>
 											{/* Databases */}
 											<div className="md:col-span-2 flex flex-col items-center">
-													<span className="text-lg font-semibold text-slate-800 dark:text-white">{dbCount}</span>
+													<span className="text-lg font-semibold text-slate-800 dark:text-white">{dbCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : dbCount}</span>
 												</div>
 												{/* Uploads */}
 												<div className="md:col-span-2 flex flex-col items-center">
-													<span className="text-lg font-semibold text-slate-800 dark:text-white">{uploadCount}</span>
+													<span className="text-lg font-semibold text-slate-800 dark:text-white">{uploadCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : uploadCount}</span>
 												</div>
 												{/* Joined */}
 												<div className="md:col-span-1 text-sm text-slate-500 dark:text-slate-400">

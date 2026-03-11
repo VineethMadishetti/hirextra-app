@@ -7,14 +7,15 @@ import { cancelQueuedResumeImports } from '../utils/queue.js';
 export const getUserStats = async (req, res) => {
   try {
     const [databaseCounts, uploadCounts] = await Promise.all([
+      // Count active private databases per owner
       PrivateDatabase.aggregate([
         { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$owner', count: { $sum: 1 } } },
       ]),
-      // Count resume files uploaded to private databases (each upload = 1 Candidate with source UPLOAD)
-      Candidate.aggregate([
-        { $match: { source: 'UPLOAD' } },
-        { $group: { _id: '$createdBy', count: { $sum: 1 } } },
+      // Count uploaded files (UploadJob) per user — uploadedBy is always set
+      UploadJob.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
+        { $group: { _id: '$uploadedBy', count: { $sum: 1 } } },
       ]),
     ]);
 

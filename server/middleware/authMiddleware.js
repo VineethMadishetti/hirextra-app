@@ -26,6 +26,15 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    // 4️⃣ Track last active time — throttled to once every 5 minutes to avoid
+    //    a DB write on every single API call. Fire-and-forget (no await).
+    const now = new Date();
+    const lastActive = req.user.lastLoginAt;
+    if (!lastActive || (now - lastActive) > 5 * 60 * 1000) {
+      User.findByIdAndUpdate(req.user._id, { lastLoginAt: now }).catch(() => {});
+      req.user.lastLoginAt = now;
+    }
+
     next();
   } catch (error) {
     // 4️⃣ Token expired → frontend should refresh
