@@ -382,8 +382,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  };
-
   const handleExportCSV = async () => {
     if (!candidates.length) return;
     try {
