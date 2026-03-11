@@ -39,6 +39,33 @@ export function extractName(title) {
   return firstPart.length > 1 ? firstPart : null;
 }
 
+// Tech skill keywords that should never be treated as company names
+const TECH_KEYWORDS = new Set([
+  'react', 'react.js', 'reactjs', 'javascript', 'js', 'typescript', 'ts',
+  'node.js', 'nodejs', 'node', 'python', 'java', 'angular', 'vue', 'vue.js',
+  'vuejs', 'html', 'css', 'php', 'ruby', 'swift', 'kotlin', 'flutter', 'dart',
+  'golang', 'go', 'rust', 'c++', 'c#', '.net', 'dotnet', 'aws', 'azure', 'gcp',
+  'docker', 'kubernetes', 'sql', 'mongodb', 'postgres', 'postgresql', 'mysql',
+  'redis', 'graphql', 'django', 'flask', 'spring', 'laravel', 'rails',
+  'jquery', 'bootstrap', 'tailwind', 'sass', 'less', 'webpack', 'vite',
+]);
+
+function _isTechKeyword(str) {
+  if (!str) return false;
+  return TECH_KEYWORDS.has(str.toLowerCase().trim());
+}
+
+function _extractCompanyFromSnippet(snippet) {
+  if (!snippet) return null;
+  // LinkedIn snippets often contain "at Company Name" — stop at sentence boundary
+  const m = snippet.match(/\b(?:at|@)\s+([A-Z][A-Za-z0-9 &()'-]{2,50})(?=\s*[·.|,\n]|\s*$)/);
+  if (m?.[1]) {
+    const company = m[1].trim().replace(/[.,]$/, '');
+    if (!_isTechKeyword(company) && company.split(' ').length <= 6) return company;
+  }
+  return null;
+}
+
 /**
  * Extract job title / company / level from title + snippet.
  */
@@ -66,13 +93,22 @@ export function extractJobInfo(title, snippet) {
     jobInfo.company = companyRaw ? companyRaw.split(/\s*[|·•]\s*/)[0].trim() : null;
   } else {
     // Fallback format: "Role | Company"
+    // Note: do NOT split on '-' — it breaks hyphenated titles like "Front-End Developer"
     const parts = titleWithoutName
-      .split(/\s*[|:·•-]\s*/)
+      .split(/\s*[|:·•]\s*/)
       .map((p) => p.trim())
       .filter(Boolean);
 
     if (parts.length > 0) jobInfo.jobTitle = parts[0];
-    if (parts.length > 1) jobInfo.company = parts[1];
+    // Only use the second part as company if it doesn't look like a tech skill/keyword
+    if (parts.length > 1 && !_isTechKeyword(parts[1])) {
+      jobInfo.company = parts[1];
+    }
+  }
+
+  // If company is still null, try to extract from snippet ("at Company Name")
+  if (!jobInfo.company && snippet) {
+    jobInfo.company = _extractCompanyFromSnippet(snippet);
   }
 
   const levelKeywords = [

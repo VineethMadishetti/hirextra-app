@@ -79,6 +79,77 @@ const stageMeta = {
 
 const AI_SOURCE_STATE_KEY = 'hirextra_ai_source_state';
 
+// ── Per-candidate inline Get Contact component ──────────────────────────────
+function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
+  const [loading, setLoading] = useState(false);
+  const [contact, setContact] = useState(null);
+  const [notFound, setNotFound] = useState(false);
+
+  const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
+
+  const handleClick = async () => {
+    if (!linkedInUrl) return;
+    setLoading(true);
+    setNotFound(false);
+    try {
+      let candidateId = candidate.savedCandidateId;
+      if (!candidateId) candidateId = await onSaveCandidate(candidate, { silent: true });
+      if (!candidateId) { setNotFound(true); return; }
+      const { data } = await api.get(`/enrich-contact/${candidateId}`);
+      const enriched = data?.data;
+      if (data?.success && (enriched?.email || enriched?.phone)) {
+        setContact(enriched);
+        onContactFound?.(linkedInUrl, enriched, candidateId);
+      } else {
+        setNotFound(true);
+        toast.error(enriched?.error || 'No contact found.', { duration: 3000 });
+      }
+    } catch (err) {
+      setNotFound(true);
+      toast.error(err.response?.data?.message || 'Failed to fetch contact.', { duration: 3000 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
+      <Loader2 size={13} className="animate-spin" />
+      Looking up contact…
+    </div>
+  );
+
+  if (contact && (contact.email || contact.phone)) return (
+    <div className="ml-auto flex flex-wrap gap-x-3 gap-y-1">
+      {contact.email && (
+        <a href={`mailto:${contact.email}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 break-all">
+          <Mail size={11} className="shrink-0" />{contact.email}
+        </a>
+      )}
+      {contact.phone && (
+        <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-xs text-[#C4B8FF] hover:text-white">
+          <Phone size={11} className="shrink-0" />{contact.phone}
+        </a>
+      )}
+    </div>
+  );
+
+  if (notFound) return (
+    <span className="ml-auto text-xs text-slate-500 italic">Not found</span>
+  );
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={!linkedInUrl}
+      className="ml-auto rounded-lg border border-indigo-700/50 bg-indigo-950/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-900/50 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+    >
+      <Mail size={13} className="inline mr-1" />
+      Get Contact
+    </button>
+  );
+}
+
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
   const [view, setView] = useState('compose'); // compose | sourcing | results
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
@@ -91,7 +162,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [responseData, setResponseData] = useState(null);
   const [error, setError] = useState('');
   const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
-  const [contactLoadingUrl, setContactLoadingUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -164,7 +234,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     setResponseData(null);
     setError('');
     setSavedCandidates(new Set());
-    setContactLoadingUrl(null);
     onClose();
   };
 
@@ -313,67 +382,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  const handleGetContact = async (candidate) => {
-    const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-    if (!linkedInUrl) {
-      toast.error('LinkedIn URL missing for this candidate.');
-      return;
-    }
-
-    setContactLoadingUrl(linkedInUrl);
-    const toastId = `get-contact-${linkedInUrl}`;
-    toast.loading('Looking up contact...', { id: toastId });
-    try {
-      let candidateId = candidate.savedCandidateId || null;
-      if (!candidateId) {
-        candidateId = await handleSaveCandidate(candidate, { silent: true });
-      }
-
-      if (!candidateId) {
-        toast.error('Could not prepare candidate for enrichment.', { id: toastId });
-        return;
-      }
-
-      const { data } = await api.get(`/enrich-contact/${candidateId}`);
-      const enriched = data?.data || null;
-      const hasContact = Boolean(enriched?.email || enriched?.phone);
-
-      if (!data?.success || !hasContact) {
-        toast.error(enriched?.error || 'No contact found for this candidate.', { id: toastId });
-        return;
-      }
-
-      setResponseData((prev) => {
-        if (!prev) return prev;
-        const nextCandidates = (prev.candidates || prev.results || []).map((row) => {
-          const rowLinkedin = row.linkedinUrl || row.linkedInUrl;
-          if (rowLinkedin !== linkedInUrl) return row;
-          return {
-            ...row,
-            savedCandidateId: candidateId,
-            savedToDatabase: true,
-            email: enriched.email || row.email || null,
-            phone: enriched.phone || row.phone || null,
-            enrichmentSource: enriched.source || row.enrichmentSource || null,
-            enrichmentConfidence:
-              Number.isFinite(Number(enriched.confidence))
-                ? Number(enriched.confidence)
-                : row.enrichmentConfidence || null,
-            pipelineStage: 'CONTACT_ENRICHED',
-          };
-        });
-        return {
-          ...prev,
-          candidates: nextCandidates,
-          results: nextCandidates,
-        };
-      });
-      toast.success(enriched.email || enriched.phone || 'Contact found.', { id: toastId });
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to fetch contact.', { id: toastId });
-    } finally {
-      setContactLoadingUrl(null);
-    }
   };
 
   const handleExportCSV = async () => {
@@ -691,7 +699,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 <div className="space-y-3">
                   {pageCandidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-                    const isContactLoading = contactLoadingUrl === linkedInUrl;
 
                     const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
                     const experience = extractExperienceFromSnippet(candidate.snippet);
@@ -776,14 +783,20 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           )}
 
                           {!candidate.email && !candidate.phone && (
-                            <button
-                              onClick={() => handleGetContact(candidate)}
-                              disabled={!linkedInUrl || isContactLoading}
-                              className="ml-auto rounded-lg border border-indigo-700/50 bg-indigo-950/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-900/50 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-                            >
-                              {isContactLoading ? <Loader2 size={13} className="animate-spin inline mr-1" /> : <Mail size={13} className="inline mr-1" />}
-                              Get Contact
-                            </button>
+                            <CandidateGetContact
+                              candidate={candidate}
+                              onSaveCandidate={handleSaveCandidate}
+                              onContactFound={(linkedInUrl, enriched, candidateId) => {
+                                setResponseData((prev) => {
+                                  if (!prev) return prev;
+                                  const nextCandidates = (prev.candidates || prev.results || []).map((row) => {
+                                    if ((row.linkedinUrl || row.linkedInUrl) !== linkedInUrl) return row;
+                                    return { ...row, savedCandidateId: candidateId, savedToDatabase: true, email: enriched.email || null, phone: enriched.phone || null };
+                                  });
+                                  return { ...prev, candidates: nextCandidates, results: nextCandidates };
+                                });
+                              }}
+                            />
                           )}
                         </div>
 
