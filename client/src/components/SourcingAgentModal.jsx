@@ -32,19 +32,40 @@ function extractExperienceFromSnippet(snippet) {
   return m ? m[0].trim() : null;
 }
 
+// Returns education text; flags premium institutes (IIT/IIM/NIT/BITS/IISC)
 function extractEducationFromSnippet(snippet) {
   if (!snippet) return null;
-  const m = snippet.match(/\b(Ph\.?D\.?|M\.?Tech\.?|B\.?Tech\.?|MBA|M\.?S\.?|B\.?E\.?|Bachelor'?s?|Master'?s?|Computer Science|Information Technology|IIT|IIM|NIT)\b/i);
-  return m ? m[0] : null;
+  const m = snippet.match(/\b(IIT[\s\w]*?(?=\s*[,.|·]|$)|IIM[\s\w]*?(?=\s*[,.|·]|$)|IISC[\s\w]*?(?=\s*[,.|·]|$)|BITS[\s\w]*?(?=\s*[,.|·]|$)|NIT[\s\w]*?(?=\s*[,.|·]|$)|Ph\.?D\.?|M\.?Tech\.?|B\.?Tech\.?|MBA|M\.?S\.?|B\.?E\.?|Bachelor'?s?|Master'?s?|Computer Science|Information Technology)\b/i);
+  return m ? m[0].trim() : null;
 }
 
-function extractAvailabilityFromSnippet(snippet) {
-  if (!snippet) return null;
+const PREMIUM_INSTITUTES = /^(IIT|IIM|IISC|BITS|NIT)/i;
+const isPremiumInstitute = (edu) => edu && PREMIUM_INSTITUTES.test(edu.trim());
+
+/**
+ * Returns array of status/availability badges from snippet.
+ * Each badge: { label: string, type: 'availability'|'immediate'|'fresher' }
+ */
+function extractBadgesFromSnippet(snippet) {
+  if (!snippet) return [];
+  const badges = [];
   const l = snippet.toLowerCase();
-  if (l.includes('open to work') || l.includes('open to opportunities') || l.includes('#opentowork')) return 'Open to Work';
-  if (l.includes('actively seek') || l.includes('actively look') || l.includes('job seeker')) return 'Actively Seeking';
-  if (l.includes('available for') || l.includes('available from')) return 'Available';
-  return null;
+
+  if (l.includes('open to work') || l.includes('#opentowork') || l.includes('open to opportunities')) {
+    badges.push({ label: 'Open to Work', type: 'availability' });
+  } else if (/immediate\s*joiner|immediately\s*available|can\s*join\s*immediately|notice.*?immediate|available\s*immediately|joining\s*immediately/i.test(snippet)) {
+    badges.push({ label: 'Immediate Joiner', type: 'immediate' });
+  } else if (l.includes('actively seek') || l.includes('actively look') || l.includes('job seeker')) {
+    badges.push({ label: 'Actively Seeking', type: 'availability' });
+  } else if (l.includes('available for') || l.includes('currently available')) {
+    badges.push({ label: 'Available', type: 'availability' });
+  }
+
+  if (/\bfresher\b|fresh\s*graduate|recent\s*graduate/i.test(snippet)) {
+    badges.push({ label: 'Fresher', type: 'fresher' });
+  }
+
+  return badges;
 }
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -313,7 +334,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         resultsPerCountry: 10,
         enrichContacts: false,
         enrichTopN: 0,
-        autoSave: false,
+        autoSave: true,
       });
 
       setResponseData(data);
@@ -701,8 +722,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const skills = extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
                     const experience = extractExperienceFromSnippet(candidate.snippet);
                     const education = extractEducationFromSnippet(candidate.snippet);
-                    const availability = extractAvailabilityFromSnippet(candidate.snippet);
-                    const snippetPreview = candidate.snippet ? candidate.snippet.replace(/\s+/g, ' ').trim().substring(0, 200) : null;
+                    const badges = extractBadgesFromSnippet(candidate.snippet);
+                    const snippetFull = candidate.snippet ? candidate.snippet.replace(/\s+/g, ' ').trim() : null;
                     const score = candidate.relevanceScore || 0;
 
                     return (
@@ -719,11 +740,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 <h4 className="text-base font-bold text-slate-100 leading-tight">
                                   {candidate.name || candidate.fullName || 'Unknown'}
                                 </h4>
-                                {availability && (
-                                  <span className="inline-flex items-center text-[10px] rounded-full border border-emerald-700/50 bg-emerald-950/35 text-emerald-300 px-2 py-0.5 font-semibold">
-                                    {availability}
+                                {badges.map((b) => (
+                                  <span key={b.label} className={`inline-flex items-center text-[10px] rounded-full border px-2 py-0.5 font-semibold ${
+                                    b.type === 'immediate'    ? 'border-sky-700/50 bg-sky-950/35 text-sky-300' :
+                                    b.type === 'availability' ? 'border-emerald-700/50 bg-emerald-950/35 text-emerald-300' :
+                                    b.type === 'fresher'      ? 'border-blue-700/40 bg-blue-950/30 text-blue-300' :
+                                                                 'border-slate-600 bg-slate-800 text-slate-300'
+                                  }`}>
+                                    {b.label}
                                   </span>
-                                )}
+                                ))}
                                 {candidate.level && (
                                   <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold capitalize">
                                     {candidate.level}
@@ -757,17 +783,24 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                             </span>
                           )}
                           {education && (
-                            <span className="flex items-center gap-1">
-                              <GraduationCap size={11} />
-                              {education}
-                            </span>
+                            isPremiumInstitute(education) ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-600/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
+                                <GraduationCap size={10} />
+                                {education}
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <GraduationCap size={11} />
+                                {education}
+                              </span>
+                            )
                           )}
                         </div>
 
-                        {/* Snippet preview */}
-                        {snippetPreview && (
-                          <p className="mt-2.5 text-[12px] text-slate-400 leading-relaxed line-clamp-2 border-l-2 border-slate-700/80 pl-2.5 italic">
-                            {snippetPreview}{candidate.snippet.length > 200 ? '…' : ''}
+                        {/* Full snippet */}
+                        {snippetFull && (
+                          <p className="mt-2.5 text-[12px] text-slate-400 leading-relaxed line-clamp-4 border-l-2 border-slate-700/80 pl-2.5 italic">
+                            {snippetFull}
                           </p>
                         )}
 
