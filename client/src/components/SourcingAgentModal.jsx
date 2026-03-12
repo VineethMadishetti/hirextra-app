@@ -854,10 +854,11 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           </div>
                         )}
 
-                        {/* ScrapingDog full profile — expandable */}
-                        {(candidate.about || candidate.languages?.length > 0) && (() => {
+                        {/* Full profile — expandable */}
+                        {(candidate.about || candidate.snippet || candidate.languages?.length > 0) && (() => {
                           const cardKey = linkedInUrl || candidate.name;
                           const isExpanded = expandedCards.has(cardKey);
+                          const aboutText = candidate.about || candidate.snippet || null;
                           return (
                             <div className="mt-2.5">
                               <button
@@ -869,11 +870,11 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               </button>
                               {isExpanded && (
                                 <div className="mt-2 space-y-3 border-t border-slate-700/40 pt-2.5 text-xs text-slate-300">
-                                  {/* About */}
-                                  {candidate.about && (
+                                  {/* About / Snippet */}
+                                  {aboutText && (
                                     <div>
                                       <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
-                                      <p className="text-slate-400 leading-relaxed">{candidate.about}</p>
+                                      <p className="text-slate-400 leading-relaxed whitespace-pre-line">{aboutText}</p>
                                     </div>
                                   )}
                                   {/* Languages */}
@@ -893,22 +894,20 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           );
                         })()}
 
-                        {/* Footer: LinkedIn + Contact info + Get Contact */}
-                        <div className="mt-3 border-t border-slate-700/50 pt-2.5 space-y-2">
-                          {/* LinkedIn link */}
-                          <div>
-                            {linkedInUrl ? (
-                              <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium">
-                                🔗 View LinkedIn
-                              </a>
-                            ) : (
-                              <span className="text-xs text-slate-600">No profile URL</span>
-                            )}
-                          </div>
-                          {/* Enriched contact — shown when available */}
-                          {(candidate.email || candidate.phone) && (
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-emerald-950/30 border border-emerald-800/30 px-2.5 py-1.5">
-                              <span className="text-[10px] uppercase tracking-wide text-emerald-500 font-semibold w-full">Contact Found</span>
+                        {/* Footer: LinkedIn | contact (fetched) or Get Contact button */}
+                        <div className="mt-3 border-t border-slate-700/50 pt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+                          {linkedInUrl ? (
+                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
+                              🔗 View LinkedIn
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-600">No profile URL</span>
+                          )}
+                          {/* Separator dot */}
+                          {linkedInUrl && <span className="text-slate-600 text-xs">·</span>}
+                          {/* If contact already fetched, show inline; otherwise show Get Contact button */}
+                          {candidate.email || candidate.phone ? (
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                               {candidate.email && (
                                 <a href={`mailto:${candidate.email}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 min-w-0">
                                   <Mail size={11} className="shrink-0" />
@@ -921,9 +920,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 </a>
                               )}
                             </div>
-                          )}
-                          {/* Get Contact button — shown when no contact yet */}
-                          {!candidate.email && !candidate.phone && (
+                          ) : (
                             <CandidateGetContact
                               candidate={candidate}
                               onSaveCandidate={handleSaveCandidate}
