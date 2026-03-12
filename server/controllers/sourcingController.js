@@ -392,26 +392,22 @@ export const sourceCandidates = async (req, res) => {
     // Step 2: Rank candidates (skills + seniority score)
     candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
 
-    // Step 3: Strict location filter.
-    // After OpenAI enrichment, c.location is AI-extracted (accurate city name).
-    // We check AI-extracted location first, then fall back to snippet text.
-    // Only candidates matching the required city are kept — no fallback to unknown-location profiles.
+    // Step 3: Strict current-location filter.
+    // ONLY use the AI-extracted c.location field (current city of residence).
+    // Do NOT check snippet or about text — those contain education/past-company city names
+    // which would incorrectly match candidates based in other countries.
+    // Candidates with no extractable current location are excluded.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
 
       candidates = candidates.filter((c) => {
-        const aiLocation = String(c.location || '').toLowerCase();
-        const snippetText = String(c.snippet || '').toLowerCase();
-        const aboutText = String(c.about || '').toLowerCase();
-        return (
-          aiLocation.includes(locLower) ||
-          snippetText.includes(locLower) ||
-          aboutText.includes(locLower)
-        );
+        const currentLocation = String(c.location || '').toLowerCase();
+        // Must have a location AND it must match the required city
+        return currentLocation.length > 0 && currentLocation.includes(locLower);
       });
 
-      logger.info(`Location filter "${locLower}": ${candidates.length} candidates matched`);
+      logger.info(`Location filter "${locLower}": ${candidates.length} candidates matched (current-location only)`);
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);

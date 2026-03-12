@@ -182,7 +182,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || responseData?.parsedRequirements || null;
-  const canExtractRequirements = Boolean(jobDescription.trim());
+  const canExtractRequirements = Boolean(jobDescription.trim()) || Boolean(jdFile);
   const hasParsedDraft = Boolean(parsedDraft);
   const candidates = useMemo(
     () => responseData?.candidates || responseData?.results || [],

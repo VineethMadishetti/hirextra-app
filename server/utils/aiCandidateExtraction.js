@@ -55,7 +55,7 @@ For EACH result return ALL of:
 - name: full name — usually before " - " or " | " in the title (e.g. "Rahul Sharma")
 - jobTitle: current role/title, clean (e.g. "Senior Java Developer"). Strip trailing city names.
 - company: current employer from "Experience:" label or "at Company" or "@ Company" pattern. Strip city names (e.g. "Infosys" not "Infosys Hyderabad").
-- location: city and/or state/country (e.g. "Hyderabad, Telangana", "Bangalore"). Use "Location:" label if present. If only a pin code appears, use the city from context.
+- location: the city/region WHERE THE PERSON CURRENTLY LIVES AND WORKS — their present location, NOT where they studied or where a past company was based. Use the "Location:" label in the snippet (highest priority). Look for LinkedIn patterns like "City, State · connections" at the start of the snippet. If someone studied at "JNTU Hyderabad" but works in Canada, their location is Canada. If you cannot determine CURRENT residence with confidence, return null.
 - education: highest degree + institution (e.g. "B.Tech, JNTU Hyderabad", "MBA, IIM Ahmedabad"). Prioritise "Education:" label in snippet.
 - skills: JSON array of up to 10 specific technical/domain skills extracted from title and snippet (e.g. ["Java", "Spring Boot", "Microservices", "AWS", "Hibernate"]). Be specific — prefer technology names over generic terms.
 - totalExperience: years of experience as string (e.g. "6+ years", "3 years", "10 years"). Look for patterns like "X years of experience", "X+ years". Return null if not found.
@@ -64,6 +64,7 @@ For EACH result return ALL of:
     • Write complete sentences — never end with "…" or trail off
     • Mention key technical skills naturally within the narrative
     • Example: "Rahul Sharma is a Senior Java Developer based in Hyderabad with 8+ years of experience building enterprise applications. He specialises in Spring Boot, Microservices, and AWS, and has worked at Infosys and TCS. Rahul holds a B.Tech from JNTU Hyderabad and is known for his expertise in distributed systems and RESTful APIs."
+    • IMPORTANT: Only mention a city as the candidate's location if it is their CURRENT residence. Do not say "based in Hyderabad" just because they attended a Hyderabad university.
     • If limited data is available, write 2 complete sentences that cover what is known.
 
 Return: {"candidates": [...exactly ${batch.length} objects in the same order as input...]}
