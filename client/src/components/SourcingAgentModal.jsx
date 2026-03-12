@@ -855,10 +855,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         )}
 
                         {/* Full profile — expandable */}
-                        {(candidate.about || candidate.snippet || candidate.languages?.length > 0) && (() => {
+                        {(candidate.about || candidate.languages?.length > 0) && (() => {
                           const cardKey = linkedInUrl || candidate.name;
                           const isExpanded = expandedCards.has(cardKey);
-                          const aboutText = candidate.about || candidate.snippet || null;
+                          const aboutText = candidate.about || null;
                           return (
                             <div className="mt-2.5">
                               <button

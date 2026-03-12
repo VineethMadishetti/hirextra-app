@@ -366,9 +366,10 @@ export const sourceCandidates = async (req, res) => {
     let candidates = extractCandidates(allResults, targetCountries, searchQueries);
     candidates = deduplicateCandidates(candidates);
 
-    // Step 1: OpenAI snippet enrichment (fast, no credit cost — fills fields from Serper snippets)
-    // Only runs when OPENAI_API_KEY is set and ScrapingDog is NOT configured (avoids redundant work).
-    if (!isScrapingDogConfigured()) {
+    // Step 1: OpenAI snippet enrichment — always runs when OPENAI_API_KEY is set.
+    // Fills structured fields AND generates a proper "about" paragraph from the Serper snippet.
+    // ScrapingDog will later overwrite about/fields for top 10 candidates with richer LinkedIn data.
+    {
       const aiMap = await aiEnrichCandidates(allResults);
       if (aiMap && aiMap.size > 0) {
         candidates = candidates.map((c) => {
@@ -383,6 +384,7 @@ export const sourceCandidates = async (req, res) => {
             education: (ai.education?.trim()) || c.education,
             skills: Array.isArray(ai.skills) ? ai.skills.filter(Boolean).slice(0, 8) : (c.skills || []),
             totalExperience: ai.totalExperience || c.totalExperience || null,
+            about: (ai.about?.trim()) || c.about || null,
           };
         });
         logger.info(`OpenAI snippet enrichment: ${aiMap.size} candidates enriched`);

@@ -58,10 +58,12 @@ For EACH result return:
 - education: degree + institution (e.g. "B.Tech, IIT Bombay", "CVR College of Engineering, Hyderabad", "MBA"). Prioritise "Education:" label.
 - skills: array of up to 8 technical/professional skills found in title or snippet (e.g. ["Python", "Django", "AWS"])
 - totalExperience: years of experience as string (e.g. "5+ years", "3 years") or null if not mentioned
+- about: a 2-4 sentence professional summary paragraph written in third person. Use ALL information available in the snippet (name, role, company, experience years, skills, education, location). Expand abbreviated or cut-off text into complete sentences. Example: "Sairam Konda is a Software Developer with 6+ years of experience specialising in Java and Spring Boot. He has worked at Infosys and holds a B.Tech from JNTU Hyderabad."
 
 Rules:
 - For jobTitle: strip trailing city names (e.g. "Python developer, Hyderabad" → "Python developer")
 - For company: do NOT include city names in company (e.g. "Arcus Infotech Hyderabad" → "Arcus Infotech")
+- For about: never end with "…" — always write complete sentences. If information is limited, keep it short but complete.
 - Return {"candidates": [...array of ${batch.length} objects in same order as input...]}
 - Use null for any field that cannot be determined with confidence
 
@@ -70,7 +72,7 @@ ${JSON.stringify(input)}`,
       },
     ],
     temperature: 0,
-    max_tokens: 3000,
+    max_tokens: 4000,
     response_format: { type: 'json_object' },
   });
 
