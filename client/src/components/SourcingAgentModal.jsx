@@ -4,6 +4,7 @@ import {
   Briefcase,
   Building2,
   Bot,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -177,6 +178,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || responseData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim());
@@ -850,6 +853,94 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                             ))}
                           </div>
                         )}
+
+                        {/* ScrapingDog full profile — expandable */}
+                        {candidate.scrapingDogEnriched && (candidate.about || candidate.workHistory?.length > 0 || candidate.educationHistory?.length > 0 || candidate.certifications?.length > 0 || candidate.languages?.length > 0) && (() => {
+                          const cardKey = linkedInUrl || candidate.name;
+                          const isExpanded = expandedCards.has(cardKey);
+                          return (
+                            <div className="mt-2.5">
+                              <button
+                                onClick={() => toggleCard(cardKey)}
+                                className="flex items-center gap-1 text-[11px] text-[#9B8FEF] hover:text-[#C4B8FF] font-medium cursor-pointer"
+                              >
+                                <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                {isExpanded ? 'Hide full profile' : 'View full profile'}
+                              </button>
+                              {isExpanded && (
+                                <div className="mt-2 space-y-3 border-t border-slate-700/40 pt-2.5 text-xs text-slate-300">
+                                  {/* About */}
+                                  {candidate.about && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
+                                      <p className="text-slate-400 leading-relaxed line-clamp-4">{candidate.about}</p>
+                                    </div>
+                                  )}
+                                  {/* Work History */}
+                                  {candidate.workHistory?.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Work History</p>
+                                      <div className="space-y-2">
+                                        {candidate.workHistory.map((job, i) => (
+                                          <div key={i} className="flex gap-2">
+                                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[#6B5AF0] shrink-0" />
+                                            <div>
+                                              <p className="font-semibold text-slate-200">{job.title || '—'}</p>
+                                              <p className="text-slate-400">{[job.company, job.location].filter(Boolean).join(' · ')}</p>
+                                              <p className="text-slate-500 text-[10px]">
+                                                {job.startDate || ''}{job.startDate && (job.endDate || job.current) ? ' – ' : ''}{job.current ? 'Present' : job.endDate || ''}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Education History */}
+                                  {candidate.educationHistory?.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Education</p>
+                                      <div className="space-y-2">
+                                        {candidate.educationHistory.map((edu, i) => (
+                                          <div key={i} className="flex gap-2">
+                                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                            <div>
+                                              <p className="font-semibold text-slate-200">{edu.school || '—'}</p>
+                                              <p className="text-slate-400">{[edu.degree, edu.fieldOfStudy].filter(Boolean).join(', ')}</p>
+                                              <p className="text-slate-500 text-[10px]">{edu.startDate || ''}{edu.startDate && edu.endDate ? ' – ' : ''}{edu.endDate || ''}</p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Certifications */}
+                                  {candidate.certifications?.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Certifications</p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {candidate.certifications.map((cert, i) => (
+                                          <span key={i} className="text-[11px] rounded-md border border-emerald-700/40 bg-emerald-950/25 text-emerald-300 px-2 py-0.5">{cert}</span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Languages */}
+                                  {candidate.languages?.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Languages</p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {candidate.languages.map((lang, i) => (
+                                          <span key={i} className="text-[11px] rounded-md border border-slate-600 bg-slate-800 text-slate-300 px-2 py-0.5">{lang}</span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Footer: LinkedIn + Contact info + Get Contact */}
                         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-700/50 pt-2.5">

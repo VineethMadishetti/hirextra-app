@@ -1453,13 +1453,19 @@ export const searchCandidates = async (req, res) => {
         if (privateDbId) {
             query.privateDbId = privateDbId;
         } else if (privateDbOnly === 'true') {
-            // Only candidates in THIS user's private databases
-            const userDbs = await PrivateDatabase.find(
-                { owner: req.user._id, isDeleted: { $ne: true } },
-                { _id: 1 }
-            ).lean();
-            const userDbIds = userDbs.map((db) => db._id);
-            query.privateDbId = { $in: userDbIds };
+            const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN';
+            if (isAdmin) {
+                // Admins see candidates from all private databases across all users
+                query.privateDbId = { $ne: null };
+            } else {
+                // Regular users see only their own private databases
+                const userDbs = await PrivateDatabase.find(
+                    { owner: req.user._id, isDeleted: { $ne: true } },
+                    { _id: 1 }
+                ).lean();
+                const userDbIds = userDbs.map((db) => db._id);
+                query.privateDbId = { $in: userDbIds };
+            }
         } else if (includePrivate === 'true') {
             // no filter: returns both global and private candidates visible to this user
         } else {

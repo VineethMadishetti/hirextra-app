@@ -9,6 +9,7 @@ import {
   formatCandidates,
 } from '../utils/candidateExtraction.js';
 import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
+import { enrichCandidatesWithScrapingDog, isConfigured as isScrapingDogConfigured } from '../utils/scrapingDogService.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
@@ -269,7 +270,7 @@ export const sourceCandidates = async (req, res) => {
     parsedRequirements,
     maxCandidates = 50,
     maxQueries = 6,
-    resultsPerCountry = 3,
+    resultsPerCountry = 7,
     enrichContacts = false,
     enrichTopN = 0,
     autoSave = true,
@@ -284,7 +285,7 @@ export const sourceCandidates = async (req, res) => {
 
     const maxCandidatesSafe = clampNumber(maxCandidates, 1, 120, 50);
     const maxQueriesSafe = clampNumber(maxQueries, 1, 8, 6);
-    const resultsPerCountrySafe = clampNumber(resultsPerCountry, 1, 10, 3);
+    const resultsPerCountrySafe = clampNumber(resultsPerCountry, 1, 10, 7);
     const enrichTopNSafe = clampNumber(enrichTopN, 1, 50, 15);
 
     const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
@@ -365,35 +366,39 @@ export const sourceCandidates = async (req, res) => {
     let candidates = extractCandidates(allResults, targetCountries, searchQueries);
     candidates = deduplicateCandidates(candidates);
 
-    // AI enrichment: use OpenAI to extract accurate structured fields from raw Serper data.
-    // Falls back gracefully when OPENAI_API_KEY is not set.
-    const aiMap = await aiEnrichCandidates(allResults);
-    if (aiMap && aiMap.size > 0) {
-      candidates = candidates.map((c) => {
-        const ai = aiMap.get(c.normalizedUrl);
-        if (!ai) return c;
-        return {
-          ...c,
-          name: (ai.name?.trim()) || c.name,
-          jobTitle: (ai.jobTitle?.trim()) || c.jobTitle,
-          company: (ai.company?.trim()) || c.company,
-          location: (ai.location?.trim()) || c.location,
-          education: (ai.education?.trim()) || c.education,
-          skills: Array.isArray(ai.skills) ? ai.skills.filter(Boolean).slice(0, 8) : (c.skills || []),
-          totalExperience: ai.totalExperience || c.totalExperience || null,
-        };
-      });
-      logger.info(`AI enriched ${aiMap.size} candidates`);
+    // Step 1: OpenAI snippet enrichment (fast, no credit cost — fills fields from Serper snippets)
+    // Only runs when OPENAI_API_KEY is set and ScrapingDog is NOT configured (avoids redundant work).
+    if (!isScrapingDogConfigured()) {
+      const aiMap = await aiEnrichCandidates(allResults);
+      if (aiMap && aiMap.size > 0) {
+        candidates = candidates.map((c) => {
+          const ai = aiMap.get(c.normalizedUrl);
+          if (!ai) return c;
+          return {
+            ...c,
+            name: (ai.name?.trim()) || c.name,
+            jobTitle: (ai.jobTitle?.trim()) || c.jobTitle,
+            company: (ai.company?.trim()) || c.company,
+            location: (ai.location?.trim()) || c.location,
+            education: (ai.education?.trim()) || c.education,
+            skills: Array.isArray(ai.skills) ? ai.skills.filter(Boolean).slice(0, 8) : (c.skills || []),
+            totalExperience: ai.totalExperience || c.totalExperience || null,
+          };
+        });
+        logger.info(`OpenAI snippet enrichment: ${aiMap.size} candidates enriched`);
+      }
     }
 
+    // Step 2: Rank candidates (skills + seniority score)
     candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
 
-    // Filter + boost by required location
+    // Step 3: Location boost + filter — runs BEFORE ScrapingDog so we only scrape
+    // location-matched candidates and don't waste credits on wrong-location profiles.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
 
-      // Boost candidates that mention the location
+      // Boost candidates whose snippet/location already mentions the city
       candidates = candidates.map((c) => {
         const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
         if (text.includes(locLower)) {
@@ -403,25 +408,24 @@ export const sourceCandidates = async (req, res) => {
       });
       candidates.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-      // Filter: keep only candidates who match the location OR have no location info
-      const locationMatched = candidates.filter((c) => {
+      // Strict: only show candidates whose snippet or extracted location mentions the required city.
+      candidates = candidates.filter((c) => {
         const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
         return text.includes(locLower);
       });
-      const noLocationInfo = candidates.filter((c) => {
-        const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
-        return !c.location && !text.includes(locLower);
-      });
-
-      // Prefer location matches; supplement with no-location candidates only if < 10 matches
-      if (locationMatched.length >= 10) {
-        candidates = locationMatched;
-      } else {
-        candidates = [...locationMatched, ...noLocationInfo];
-      }
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);
+
+    // Step 4: ScrapingDog full LinkedIn profile enrichment (50 credits/profile).
+    // Runs AFTER location filter so credits are spent only on location-relevant candidates.
+    // Falls back gracefully when SCRAPINGDOG_API_KEY is not set.
+    if (isScrapingDogConfigured()) {
+      const maxToScrape = Math.min(candidates.length, 10);
+      candidates = await enrichCandidatesWithScrapingDog(candidates, maxToScrape);
+      // Re-rank after enrichment so ScrapingDog-enriched skills influence the score
+      candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
+    }
 
     if (enrichContacts) {
       const enrichCount = Math.min(candidates.length, enrichTopNSafe);
