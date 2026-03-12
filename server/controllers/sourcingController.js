@@ -953,7 +953,7 @@ export const testScrapingDog = async (req, res) => {
   try {
     const axios = (await import('axios')).default;
     const response = await axios.get('https://api.scrapingdog.com/linkedin/', {
-      params: { api_key: apiKey, type: 'profile', linkId },
+      params: { api_key: apiKey, type: 'profile', linkId, premium: true },
       timeout: 30000,
     });
     // Return raw response so field names are visible

@@ -116,7 +116,7 @@ async function scrapeLinkedInProfile(linkedInUrl) {
 
   try {
     const response = await axios.get(BASE_URL, {
-      params: { api_key: apiKey, type: 'profile', linkId },
+      params: { api_key: apiKey, type: 'profile', linkId, premium: true },
       timeout: 30000,
     });
     // Log raw response keys in development so field mapping can be verified
