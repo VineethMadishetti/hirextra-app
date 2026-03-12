@@ -8,6 +8,7 @@ import logger from "../utils/logger.js";
 import { checkRChilliCredits } from "../utils/rchilliService.js";
 import fs from "fs";
 import DeleteLog from "../models/DeleteLog.js";
+import PrivateDatabase from "../models/PrivateDatabase.js";
 import csv from "csv-parser";
 import path from "path";
 import os from "os";
@@ -1452,7 +1453,13 @@ export const searchCandidates = async (req, res) => {
         if (privateDbId) {
             query.privateDbId = privateDbId;
         } else if (privateDbOnly === 'true') {
-            query.privateDbId = { $ne: null }; // only candidates in any private DB
+            // Only candidates in THIS user's private databases
+            const userDbs = await PrivateDatabase.find(
+                { owner: req.user._id, isDeleted: { $ne: true } },
+                { _id: 1 }
+            ).lean();
+            const userDbIds = userDbs.map((db) => db._id);
+            query.privateDbId = { $in: userDbIds };
         } else if (includePrivate === 'true') {
             // no filter: returns both global and private candidates visible to this user
         } else {
