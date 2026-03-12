@@ -9,7 +9,6 @@ import {
   formatCandidates,
 } from '../utils/candidateExtraction.js';
 import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
-import { enrichCandidatesWithScrapingDog, isConfigured as isScrapingDogConfigured } from '../utils/scrapingDogService.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
@@ -368,7 +367,6 @@ export const sourceCandidates = async (req, res) => {
 
     // Step 1: OpenAI snippet enrichment — always runs when OPENAI_API_KEY is set.
     // Fills structured fields AND generates a proper "about" paragraph from the Serper snippet.
-    // ScrapingDog will later overwrite about/fields for top 10 candidates with richer LinkedIn data.
     {
       const aiMap = await aiEnrichCandidates(allResults);
       if (aiMap && aiMap.size > 0) {
@@ -394,40 +392,29 @@ export const sourceCandidates = async (req, res) => {
     // Step 2: Rank candidates (skills + seniority score)
     candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
 
-    // Step 3: Location boost + filter — runs BEFORE ScrapingDog so we only scrape
-    // location-matched candidates and don't waste credits on wrong-location profiles.
+    // Step 3: Strict location filter.
+    // After OpenAI enrichment, c.location is AI-extracted (accurate city name).
+    // We check AI-extracted location first, then fall back to snippet text.
+    // Only candidates matching the required city are kept — no fallback to unknown-location profiles.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
 
-      // Boost candidates whose snippet/location already mentions the city
-      candidates = candidates.map((c) => {
-        const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
-        if (text.includes(locLower)) {
-          return { ...c, relevanceScore: (c.relevanceScore || 0) + 10 };
-        }
-        return c;
-      });
-      candidates.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-      // Strict: only show candidates whose snippet or extracted location mentions the required city.
       candidates = candidates.filter((c) => {
-        const text = `${c.snippet || ''} ${c.location || ''}`.toLowerCase();
-        return text.includes(locLower);
+        const aiLocation = String(c.location || '').toLowerCase();
+        const snippetText = String(c.snippet || '').toLowerCase();
+        const aboutText = String(c.about || '').toLowerCase();
+        return (
+          aiLocation.includes(locLower) ||
+          snippetText.includes(locLower) ||
+          aboutText.includes(locLower)
+        );
       });
+
+      logger.info(`Location filter "${locLower}": ${candidates.length} candidates matched`);
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);
-
-    // Step 4: ScrapingDog full LinkedIn profile enrichment (50 credits/profile).
-    // Runs AFTER location filter so credits are spent only on location-relevant candidates.
-    // Falls back gracefully when SCRAPINGDOG_API_KEY is not set.
-    if (isScrapingDogConfigured()) {
-      const maxToScrape = Math.min(candidates.length, 10);
-      candidates = await enrichCandidatesWithScrapingDog(candidates, maxToScrape);
-      // Re-rank after enrichment so ScrapingDog-enriched skills influence the score
-      candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
-    }
 
     if (enrichContacts) {
       const enrichCount = Math.min(candidates.length, enrichTopNSafe);
@@ -937,34 +924,6 @@ export const exportCandidatesAsCSV = async (req, res) => {
   }
 };
 
-/**
- * GET /api/ai-source/test-scrapingdog?url=linkedin.com/in/SLUG
- * Returns the raw ScrapingDog API response so field names can be verified.
- */
-export const testScrapingDog = async (req, res) => {
-  const apiKey = process.env.SCRAPINGDOG_API_KEY;
-  if (!apiKey) {
-    return res.status(400).json({ error: 'SCRAPINGDOG_API_KEY is not set in .env' });
-  }
-  const linkedInUrl = req.query.url || '';
-  const match = linkedInUrl.match(/linkedin\.com\/in\/([^/?#]+)/i);
-  const linkId = match ? match[1].replace(/\/$/, '').toLowerCase() : null;
-  if (!linkId) {
-    return res.status(400).json({ error: 'Pass ?url=linkedin.com/in/PROFILE_SLUG' });
-  }
-  try {
-    const axios = (await import('axios')).default;
-    const response = await axios.get('https://api.scrapingdog.com/linkedin/', {
-      params: { api_key: apiKey, type: 'profile', linkId, premium: true },
-      timeout: 30000,
-    });
-    // Return raw response so field names are visible
-    return res.json({ linkId, status: response.status, data: response.data });
-  } catch (err) {
-    return res.status(500).json({ error: err.message, status: err.response?.status, data: err.response?.data });
-  }
-};
-
 export default {
   extractRequirements,
   sourceCandidates,
@@ -975,5 +934,4 @@ export default {
   getSourcingStats,
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
-  testScrapingDog,
 };

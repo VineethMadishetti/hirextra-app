@@ -1,7 +1,7 @@
 /**
  * OpenAI-based candidate enrichment for AI Sourcing Agent.
- * Processes raw Serper search results in parallel batches to extract:
- * Full Name, Job Title, Company, Location, Education, Skills, Total Experience.
+ * Processes raw Serper search results in batches to extract structured fields
+ * and generate a recruiter-friendly professional summary for each candidate.
  */
 
 import OpenAI from 'openai';
@@ -41,38 +41,40 @@ async function processBatch(client, batch) {
     messages: [
       {
         role: 'system',
-        content: `You are an expert at extracting structured candidate information from LinkedIn Google search results.
-LinkedIn snippets often follow this format: "Role, City · Experience: Company Name · Education: School · Location: City"
-Always return valid JSON. Be precise — do not infer or guess fields not present in the text.`,
+        content: `You are a senior technical recruiter assistant. Your job is to parse LinkedIn Google search snippets and extract clean, accurate structured candidate data. LinkedIn snippets follow formats like:
+- "Role · Company · Location: City · Education: Degree, School · Experience: X years"
+- "Name - Title at Company | LinkedIn"
+Always return valid JSON. Extract only what is present — never fabricate data.`,
       },
       {
         role: 'user',
-        content: `Extract structured candidate info from these ${batch.length} LinkedIn search results.
+        content: `Parse these ${batch.length} LinkedIn search results and return structured candidate profiles.
 
-For EACH result return:
-- url: copy the exact url from input (do not modify)
-- name: full name (typically before " - " in the title, e.g. "Shravan Kumar")
-- jobTitle: current job title / role (e.g. "Python Developer", "Senior Software Engineer")
-- company: current company/employer name (from "Experience:" label or "at Company" pattern)
-- location: city or region (e.g. "Hyderabad", "Bangalore, India"). If Location field is a pin code, use city from the role hint instead.
-- education: degree + institution (e.g. "B.Tech, IIT Bombay", "CVR College of Engineering, Hyderabad", "MBA"). Prioritise "Education:" label.
-- skills: array of up to 8 technical/professional skills found in title or snippet (e.g. ["Python", "Django", "AWS"])
-- totalExperience: years of experience as string (e.g. "5+ years", "3 years") or null if not mentioned
-- about: a 2-4 sentence professional summary paragraph written in third person. Use ALL information available in the snippet (name, role, company, experience years, skills, education, location). Expand abbreviated or cut-off text into complete sentences. Example: "Sairam Konda is a Software Developer with 6+ years of experience specialising in Java and Spring Boot. He has worked at Infosys and holds a B.Tech from JNTU Hyderabad."
+For EACH result return ALL of:
+- url: exact url from input, unchanged
+- name: full name — usually before " - " or " | " in the title (e.g. "Rahul Sharma")
+- jobTitle: current role/title, clean (e.g. "Senior Java Developer"). Strip trailing city names.
+- company: current employer from "Experience:" label or "at Company" or "@ Company" pattern. Strip city names (e.g. "Infosys" not "Infosys Hyderabad").
+- location: city and/or state/country (e.g. "Hyderabad, Telangana", "Bangalore"). Use "Location:" label if present. If only a pin code appears, use the city from context.
+- education: highest degree + institution (e.g. "B.Tech, JNTU Hyderabad", "MBA, IIM Ahmedabad"). Prioritise "Education:" label in snippet.
+- skills: JSON array of up to 10 specific technical/domain skills extracted from title and snippet (e.g. ["Java", "Spring Boot", "Microservices", "AWS", "Hibernate"]). Be specific — prefer technology names over generic terms.
+- totalExperience: years of experience as string (e.g. "6+ years", "3 years", "10 years"). Look for patterns like "X years of experience", "X+ years". Return null if not found.
+- about: Write a complete, professional 3-5 sentence recruiter-facing summary in third person. Rules:
+    • Use every piece of data available: name, role, company, years of experience, skills, education, location
+    • Write complete sentences — never end with "…" or trail off
+    • Mention key technical skills naturally within the narrative
+    • Example: "Rahul Sharma is a Senior Java Developer based in Hyderabad with 8+ years of experience building enterprise applications. He specialises in Spring Boot, Microservices, and AWS, and has worked at Infosys and TCS. Rahul holds a B.Tech from JNTU Hyderabad and is known for his expertise in distributed systems and RESTful APIs."
+    • If limited data is available, write 2 complete sentences that cover what is known.
 
-Rules:
-- For jobTitle: strip trailing city names (e.g. "Python developer, Hyderabad" → "Python developer")
-- For company: do NOT include city names in company (e.g. "Arcus Infotech Hyderabad" → "Arcus Infotech")
-- For about: never end with "…" — always write complete sentences. If information is limited, keep it short but complete.
-- Return {"candidates": [...array of ${batch.length} objects in same order as input...]}
-- Use null for any field that cannot be determined with confidence
+Return: {"candidates": [...exactly ${batch.length} objects in the same order as input...]}
+Use null only for fields genuinely absent from the source text.
 
 Input:
 ${JSON.stringify(input)}`,
       },
     ],
     temperature: 0,
-    max_tokens: 4000,
+    max_tokens: 5000,
     response_format: { type: 'json_object' },
   });
 
@@ -85,7 +87,7 @@ ${JSON.stringify(input)}`,
  * Enrich raw Serper search results with OpenAI-extracted structured fields.
  *
  * @param   {Array}      rawResults  — Serper results: [{link, title, snippet, ...}]
- * @returns {Map|null}   normalizedUrl → {name, jobTitle, company, location, education, skills, totalExperience}
+ * @returns {Map|null}   normalizedUrl → enriched candidate data
  *                       Returns null when OPENAI_API_KEY is not configured.
  */
 export async function aiEnrichCandidates(rawResults) {
@@ -103,7 +105,7 @@ export async function aiEnrichCandidates(rawResults) {
   if (validResults.length === 0) return null;
   logger.info(`AI enriching ${validResults.length} LinkedIn results in batches...`);
 
-  const BATCH_SIZE = 8;
+  const BATCH_SIZE = 6;
   const PARALLEL = 3;
   const batches = [];
   for (let i = 0; i < validResults.length; i += BATCH_SIZE) {
