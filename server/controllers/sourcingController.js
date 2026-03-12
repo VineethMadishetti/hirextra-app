@@ -935,6 +935,34 @@ export const exportCandidatesAsCSV = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/ai-source/test-scrapingdog?url=linkedin.com/in/SLUG
+ * Returns the raw ScrapingDog API response so field names can be verified.
+ */
+export const testScrapingDog = async (req, res) => {
+  const apiKey = process.env.SCRAPINGDOG_API_KEY;
+  if (!apiKey) {
+    return res.status(400).json({ error: 'SCRAPINGDOG_API_KEY is not set in .env' });
+  }
+  const linkedInUrl = req.query.url || '';
+  const match = linkedInUrl.match(/linkedin\.com\/in\/([^/?#]+)/i);
+  const linkId = match ? match[1].replace(/\/$/, '').toLowerCase() : null;
+  if (!linkId) {
+    return res.status(400).json({ error: 'Pass ?url=linkedin.com/in/PROFILE_SLUG' });
+  }
+  try {
+    const axios = (await import('axios')).default;
+    const response = await axios.get('https://api.scrapingdog.com/linkedin/', {
+      params: { api_key: apiKey, type: 'profile', linkId },
+      timeout: 30000,
+    });
+    // Return raw response so field names are visible
+    return res.json({ linkId, status: response.status, data: response.data });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, status: err.response?.status, data: err.response?.data });
+  }
+};
+
 export default {
   extractRequirements,
   sourceCandidates,
@@ -945,4 +973,5 @@ export default {
   getSourcingStats,
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
+  testScrapingDog,
 };

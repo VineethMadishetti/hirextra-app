@@ -119,12 +119,19 @@ async function scrapeLinkedInProfile(linkedInUrl) {
       params: { api_key: apiKey, type: 'profile', linkId },
       timeout: 30000,
     });
+    // Log raw response keys in development so field mapping can be verified
+    if (process.env.NODE_ENV !== 'production') {
+      const raw = response.data?.data || response.data;
+      logger.info(`ScrapingDog raw keys for ${linkId}: ${JSON.stringify(Object.keys(raw || {}))}`);
+      if (raw?.experience?.[0]) logger.info(`ScrapingDog experience[0] keys: ${JSON.stringify(Object.keys(raw.experience[0]))}`);
+      if (raw?.education?.[0])  logger.info(`ScrapingDog education[0] keys: ${JSON.stringify(Object.keys(raw.education[0]))}`);
+    }
     return response.data;
   } catch (error) {
     if (error.response?.status === 202) {
       logger.info(`ScrapingDog: ${linkId} still being scraped — skipping`);
     } else {
-      logger.warn(`ScrapingDog scrape failed for ${linkId}: ${error.message}`);
+      logger.warn(`ScrapingDog scrape failed for ${linkId}: ${error.message} | response: ${JSON.stringify(error.response?.data)}`);
     }
     return null;
   }

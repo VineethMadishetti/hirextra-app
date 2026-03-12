@@ -11,6 +11,7 @@ import {
   getSourcingStats,
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
+  testScrapingDog,
 } from '../controllers/sourcingController.js';
 
 const router = express.Router();
@@ -50,5 +51,8 @@ router.get('/history', protect, getSourcingHistory);
 
 // Get sourcing statistics
 router.get('/stats', protect, getSourcingStats);
+
+// Debug: test ScrapingDog with a real LinkedIn URL — returns raw API response
+router.get('/test-scrapingdog', protect, testScrapingDog);
 
 export default router;
