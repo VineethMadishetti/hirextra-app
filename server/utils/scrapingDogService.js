@@ -31,27 +31,38 @@ function parseYearFromDate(dateStr) {
 }
 
 function mergeScrapingDogData(candidate, profileData) {
-  const profile = profileData.data || profileData;
+  // Response is an array: [{...}] — unwrap it
+  const raw = Array.isArray(profileData)
+    ? profileData[0]
+    : Array.isArray(profileData?.data)
+      ? profileData.data[0]
+      : (profileData?.data || profileData);
 
-  const experience    = Array.isArray(profile.experience)     ? profile.experience     : [];
-  const education     = Array.isArray(profile.education)      ? profile.education      : [];
-  const rawSkills     = Array.isArray(profile.skills)         ? profile.skills         : [];
-  const certifications = Array.isArray(profile.certifications) ? profile.certifications : [];
-  const languages     = Array.isArray(profile.languages)      ? profile.languages      : [];
+  if (!raw) return candidate;
 
-  // Current job — first with no end date, or just first entry
-  const currentJob = experience.find((e) => !e.endDate && !e.ends_at) || experience[0];
+  const experience     = Array.isArray(raw.experience)   ? raw.experience   : [];
+  const education      = Array.isArray(raw.education)    ? raw.education    : [];
+  const certifications = Array.isArray(raw.certification) ? raw.certification : []; // field is 'certification' (singular)
+  const languages      = Array.isArray(raw.languages)    ? raw.languages    : [];
 
-  // Skills: handle both string arrays and {name: ...} object arrays
-  const skills = rawSkills
-    .map((s) => (typeof s === 'string' ? s : s.name || s.title))
-    .filter(Boolean)
-    .slice(0, 15);
+  // Current job = first experience entry (no end date = current)
+  const currentJob = experience.find((e) => !e.ends_at && !e.end_date) || experience[0];
 
-  // Total experience from earliest start year to now
+  // Company: from experience or description.description1 fallback
+  const company = currentJob?.company_name
+    || raw.description?.description1
+    || candidate.company;
+
+  // Job title: from headline or experience company_position (title field in experience)
+  const jobTitle = raw.headline
+    || currentJob?.title
+    || currentJob?.company_position
+    || candidate.jobTitle;
+
+  // Total experience from earliest start year
   let totalExperience = candidate.totalExperience;
   const startYears = experience
-    .map((e) => parseYearFromDate(e.startDate || e.starts_at))
+    .map((e) => parseYearFromDate(e.starts_at || e.start_date || e.startDate))
     .filter(Boolean);
   if (startYears.length > 0) {
     const earliest = Math.min(...startYears);
@@ -59,52 +70,53 @@ function mergeScrapingDogData(candidate, profileData) {
     totalExperience = `${years}+ years`;
   }
 
-  // Primary education summary line
+  // Education: from education array or description.description2 fallback
   const primaryEdu = education[0];
   const educationStr = primaryEdu
     ? [
         primaryEdu.degree,
         primaryEdu.field_of_study || primaryEdu.fieldOfStudy,
-        primaryEdu.school || primaryEdu.schoolName,
+        primaryEdu.school || primaryEdu.school_name,
       ]
         .filter(Boolean)
         .join(', ')
-    : candidate.education;
+    : (raw.description?.description2 || candidate.education);
 
   // Structured work history
   const workHistory = experience.map((e) => ({
-    title:       e.title || null,
-    company:     e.company || e.companyName || null,
+    title:       e.title || e.company_position || null,
+    company:     e.company_name || null,
     location:    e.location || null,
-    startDate:   e.startDate || e.starts_at || null,
-    endDate:     e.endDate   || e.ends_at   || null,
-    current:     !e.endDate && !e.ends_at,
+    startDate:   e.starts_at || e.start_date || null,
+    endDate:     e.ends_at  || e.end_date   || null,
+    current:     !e.ends_at && !e.end_date,
     description: e.description || null,
   }));
 
   // Structured education history
   const educationHistory = education.map((e) => ({
-    school:       e.school || e.schoolName || null,
+    school:       e.school || e.school_name || null,
     degree:       e.degree || null,
     fieldOfStudy: e.field_of_study || e.fieldOfStudy || null,
-    startDate:    e.startDate || e.starts_at || null,
-    endDate:      e.endDate   || e.ends_at   || null,
+    startDate:    e.starts_at || e.start_date || null,
+    endDate:      e.ends_at  || e.end_date   || null,
   }));
 
   return {
     ...candidate,
-    name:          profile.name       || profile.fullName  || candidate.name,
-    jobTitle:      profile.headline   || currentJob?.title || candidate.jobTitle,
-    company:       currentJob?.company || currentJob?.companyName || candidate.company,
-    location:      profile.location   || profile.city      || candidate.location,
-    about:         profile.summary    || profile.about     || null,
-    skills:        skills.length > 0  ? skills             : (candidate.skills || []),
+    name:            raw.fullName                  || candidate.name,
+    jobTitle:        jobTitle                      || candidate.jobTitle,
+    company:         company                       || candidate.company,
+    location:        raw.location                  || candidate.location,
+    about:           raw.about                     || null,
+    // ScrapingDog does not return a skills array — keep enriched/snippet skills
+    skills:          candidate.skills              || [],
     totalExperience,
-    education:     educationStr       || candidate.education,
+    education:       educationStr                  || candidate.education,
     workHistory,
     educationHistory,
-    certifications: certifications.map((c) => (typeof c === 'string' ? c : c.name || c.title)).filter(Boolean),
-    languages:      languages.map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean),
+    certifications:  certifications.map((c) => (typeof c === 'string' ? c : c.title || c.name)).filter(Boolean),
+    languages:       languages.map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean),
     _scrapingDogEnriched: true,
   };
 }
@@ -121,7 +133,8 @@ async function scrapeLinkedInProfile(linkedInUrl) {
     });
     // Log raw response keys in development so field mapping can be verified
     if (process.env.NODE_ENV !== 'production') {
-      const raw = response.data?.data || response.data;
+      const rawArr = Array.isArray(response.data) ? response.data : (Array.isArray(response.data?.data) ? response.data.data : null);
+      const raw = rawArr ? rawArr[0] : (response.data?.data || response.data);
       logger.info(`ScrapingDog raw keys for ${linkId}: ${JSON.stringify(Object.keys(raw || {}))}`);
       if (raw?.experience?.[0]) logger.info(`ScrapingDog experience[0] keys: ${JSON.stringify(Object.keys(raw.experience[0]))}`);
       if (raw?.education?.[0])  logger.info(`ScrapingDog education[0] keys: ${JSON.stringify(Object.keys(raw.education[0]))}`);
