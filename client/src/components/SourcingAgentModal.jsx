@@ -855,7 +855,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         )}
 
                         {/* ScrapingDog full profile — expandable */}
-                        {candidate.scrapingDogEnriched && (candidate.about || candidate.workHistory?.length > 0 || candidate.educationHistory?.length > 0 || candidate.certifications?.length > 0 || candidate.languages?.length > 0) && (() => {
+                        {(candidate.about || candidate.workHistory?.length > 0 || candidate.educationHistory?.length > 0 || candidate.certifications?.length > 0 || candidate.languages?.length > 0) && (() => {
                           const cardKey = linkedInUrl || candidate.name;
                           const isExpanded = expandedCards.has(cardKey);
                           return (
@@ -946,7 +946,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-700/50 pt-2.5">
                           {linkedInUrl ? (
                             <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
-                              🔗 View Profile
+                              🔗 View LinkedIn
                             </a>
                           ) : (
                             <span className="text-xs text-slate-600">No profile URL</span>
