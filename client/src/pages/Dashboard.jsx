@@ -114,7 +114,7 @@ const WelcomePage = ({ user, onNavigate }) => (
 const AdminDashboard = lazy(() => import("./AdminDashboard"));
 const UserSearch = lazy(() => import("./UserSearch"));
 const UserManagement = lazy(() => import("./UserManagement"));
-const Enrich = lazy(() => import("./Enrich"));
+// const Enrich = lazy(() => import("./Enrich")); // hidden for now
 const PrivateDatabases = lazy(() => import("./PrivateDatabases"));
 
 const Dashboard = () => {
@@ -276,18 +276,19 @@ const Dashboard = () => {
 								<Search size={16} />
 								Search People
 							</button>
-
-							<button
-								onClick={() => setCurrentView("enrich")}
-								className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
+					{/* Enrich nav — hidden for now
+						<button
+							onClick={() => setCurrentView("enrich")}
+							className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all
             ${
 							currentView === "enrich"
 								? "bg-white dark:bg-slate-900 text-blue-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700"
 								: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-						}`}>
-								<Sparkles size={16} />
-								Enrich
-							</button>
+							}`}>
+							<Sparkles size={16} />
+							Enrich
+						</button>
+					*/}
 
 						<button
 							onClick={() => setCurrentView("ai-source")}
@@ -451,6 +452,7 @@ const Dashboard = () => {
 >
     Search
 </button>
+					{/* Enrich mobile nav — hidden for now
 					<button
 						onClick={() => setCurrentView("enrich")}
 						className={`flex-1 py-3 text-sm font-medium text-center transition-all duration-75 active:translate-y-1 ${
@@ -460,6 +462,7 @@ const Dashboard = () => {
 						}`}>
 						Enrich
 					</button>
+					*/}
 				</div>
 			)}
 

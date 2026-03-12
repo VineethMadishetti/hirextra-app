@@ -12,9 +12,10 @@ export const getUserStats = async (req, res) => {
         { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$owner', count: { $sum: 1 } } },
       ]),
-      // Count uploaded files (UploadJob) per user — uploadedBy is always set
+      // Count all uploaded files (UploadJob) per user regardless of deletion status
+      // (isDeleted=true is set after processing completes, not only when user deletes)
       UploadJob.aggregate([
-        { $match: { isDeleted: { $ne: true } } },
+        { $match: { uploadedBy: { $exists: true, $ne: null } } },
         { $group: { _id: '$uploadedBy', count: { $sum: 1 } } },
       ]),
     ]);

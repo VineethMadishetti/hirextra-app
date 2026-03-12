@@ -289,11 +289,11 @@ const [userToDelete, setUserToDelete] = useState(null);
 												</div>
 											{/* Databases */}
 											<div className="md:col-span-2 flex flex-col items-center">
-													<span className="text-lg font-semibold text-slate-800 dark:text-white">{dbCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : dbCount}</span>
+													<span className="text-sm font-medium text-slate-500 dark:text-slate-300">{dbCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : dbCount}</span>
 												</div>
 												{/* Uploads */}
 												<div className="md:col-span-2 flex flex-col items-center">
-													<span className="text-lg font-semibold text-slate-800 dark:text-white">{uploadCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : uploadCount}</span>
+													<span className="text-sm font-medium text-slate-500 dark:text-slate-300">{uploadCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : uploadCount}</span>
 												</div>
 												{/* Joined */}
 												<div className="md:col-span-1 text-sm text-slate-500 dark:text-slate-400">

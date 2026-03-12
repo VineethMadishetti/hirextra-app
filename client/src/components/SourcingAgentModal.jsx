@@ -430,24 +430,35 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  const handleExportCSV = async () => {
+  const handleExportCSV = () => {
     if (!candidates.length) return;
-    try {
-      toast.loading('Generating CSV...', { id: 'csv-export' });
-      const response = await api.post('/ai-source/export/csv', { candidates }, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `sourced-candidates-${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success('CSV downloaded.', { id: 'csv-export' });
-    } catch {
-      toast.error('Failed to export CSV', { id: 'csv-export' });
-    }
+    const escape = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+    const headers = ['Name', 'Job Title', 'Company', 'Location', 'Skills', 'Education', 'Total Experience', 'LinkedIn URL', 'Email', 'Phone', 'Source Country', 'Pipeline Stage'];
+    const rows = candidates.map((c) => [
+      escape(c.name),
+      escape(c.jobTitle || c.title),
+      escape(c.company),
+      escape(c.location),
+      escape(Array.isArray(c.skills) ? c.skills.join(', ') : (c.skills || '')),
+      escape(c.education),
+      escape(c.totalExperience),
+      escape(c.linkedInUrl || c.linkedinUrl),
+      escape(c.email),
+      escape(c.phone),
+      escape(c.sourceCountry),
+      escape(c.pipelineStage),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `sourced-candidates-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    toast.success('CSV downloaded.');
   };
 
   if (!inline && !isOpen) return null;
