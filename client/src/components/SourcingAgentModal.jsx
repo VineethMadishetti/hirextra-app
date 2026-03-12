@@ -855,7 +855,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         )}
 
                         {/* ScrapingDog full profile — expandable */}
-                        {(candidate.about || candidate.workHistory?.length > 0 || candidate.educationHistory?.length > 0 || candidate.certifications?.length > 0 || candidate.languages?.length > 0) && (() => {
+                        {(candidate.about || candidate.languages?.length > 0) && (() => {
                           const cardKey = linkedInUrl || candidate.name;
                           const isExpanded = expandedCards.has(cardKey);
                           return (
@@ -873,56 +873,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                   {candidate.about && (
                                     <div>
                                       <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
-                                      <p className="text-slate-400 leading-relaxed line-clamp-4">{candidate.about}</p>
-                                    </div>
-                                  )}
-                                  {/* Work History */}
-                                  {candidate.workHistory?.length > 0 && (
-                                    <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Work History</p>
-                                      <div className="space-y-2">
-                                        {candidate.workHistory.map((job, i) => (
-                                          <div key={i} className="flex gap-2">
-                                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[#6B5AF0] shrink-0" />
-                                            <div>
-                                              <p className="font-semibold text-slate-200">{job.title || '—'}</p>
-                                              <p className="text-slate-400">{[job.company, job.location].filter(Boolean).join(' · ')}</p>
-                                              <p className="text-slate-500 text-[10px]">
-                                                {job.startDate || ''}{job.startDate && (job.endDate || job.current) ? ' – ' : ''}{job.current ? 'Present' : job.endDate || ''}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {/* Education History */}
-                                  {candidate.educationHistory?.length > 0 && (
-                                    <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Education</p>
-                                      <div className="space-y-2">
-                                        {candidate.educationHistory.map((edu, i) => (
-                                          <div key={i} className="flex gap-2">
-                                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                            <div>
-                                              <p className="font-semibold text-slate-200">{edu.school || '—'}</p>
-                                              <p className="text-slate-400">{[edu.degree, edu.fieldOfStudy].filter(Boolean).join(', ')}</p>
-                                              <p className="text-slate-500 text-[10px]">{edu.startDate || ''}{edu.startDate && edu.endDate ? ' – ' : ''}{edu.endDate || ''}</p>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {/* Certifications */}
-                                  {candidate.certifications?.length > 0 && (
-                                    <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Certifications</p>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {candidate.certifications.map((cert, i) => (
-                                          <span key={i} className="text-[11px] rounded-md border border-emerald-700/40 bg-emerald-950/25 text-emerald-300 px-2 py-0.5">{cert}</span>
-                                        ))}
-                                      </div>
+                                      <p className="text-slate-400 leading-relaxed">{candidate.about}</p>
                                     </div>
                                   )}
                                   {/* Languages */}
@@ -943,25 +894,35 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         })()}
 
                         {/* Footer: LinkedIn + Contact info + Get Contact */}
-                        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-700/50 pt-2.5">
-                          {linkedInUrl ? (
-                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
-                              🔗 View LinkedIn
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-600">No profile URL</span>
+                        <div className="mt-3 border-t border-slate-700/50 pt-2.5 space-y-2">
+                          {/* LinkedIn link */}
+                          <div>
+                            {linkedInUrl ? (
+                              <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium">
+                                🔗 View LinkedIn
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-600">No profile URL</span>
+                            )}
+                          </div>
+                          {/* Enriched contact — shown when available */}
+                          {(candidate.email || candidate.phone) && (
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-emerald-950/30 border border-emerald-800/30 px-2.5 py-1.5">
+                              <span className="text-[10px] uppercase tracking-wide text-emerald-500 font-semibold w-full">Contact Found</span>
+                              {candidate.email && (
+                                <a href={`mailto:${candidate.email}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 min-w-0">
+                                  <Mail size={11} className="shrink-0" />
+                                  <span className="truncate max-w-55">{candidate.email}</span>
+                                </a>
+                              )}
+                              {candidate.phone && (
+                                <a href={`tel:${candidate.phone}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 shrink-0">
+                                  <Phone size={11} />{candidate.phone}
+                                </a>
+                              )}
+                            </div>
                           )}
-                          {candidate.email && (
-                            <a href={`mailto:${candidate.email}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 min-w-0">
-                              <Mail size={11} className="shrink-0" />
-                              <span className="truncate max-w-[200px]">{candidate.email}</span>
-                            </a>
-                          )}
-                          {candidate.phone && (
-                            <a href={`tel:${candidate.phone}`} className="flex items-center gap-1 text-xs text-[#C4B8FF] hover:text-white shrink-0">
-                              <Phone size={11} />{candidate.phone}
-                            </a>
-                          )}
+                          {/* Get Contact button — shown when no contact yet */}
                           {!candidate.email && !candidate.phone && (
                             <CandidateGetContact
                               candidate={candidate}
