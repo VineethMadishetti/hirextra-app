@@ -19,6 +19,8 @@ import {
 	Zap,
 	ArrowRight,
 	Database,
+	KanbanSquare,
+	Briefcase,
 } from "lucide-react";
 import LoadingScreen from "../components/LoadingScreen";
 import SourcingAgentModal from "../components/SourcingAgentModal";
