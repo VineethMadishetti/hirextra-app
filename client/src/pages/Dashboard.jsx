@@ -118,6 +118,8 @@ const UserSearch = lazy(() => import("./UserSearch"));
 const UserManagement = lazy(() => import("./UserManagement"));
 // const Enrich = lazy(() => import("./Enrich")); // hidden for now
 const PrivateDatabases = lazy(() => import("./PrivateDatabases"));
+const Pipeline = lazy(() => import("./Pipeline"));
+const Jobs = lazy(() => import("./Jobs"));
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
