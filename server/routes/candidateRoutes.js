@@ -18,7 +18,8 @@ import {
   processResumeFolder,
   checkRChilliStatus,
   getJobDetails,
-  syncJobStatus
+  syncJobStatus,
+  updateCandidateNotes
 } from '../controllers/candidateController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
@@ -55,6 +56,7 @@ router.post('/headers', protect, adminOnly, getFileHeaders);    // Get headers t
 router.delete('/nuke/all', protect, adminOnly, nukeDatabase);
 router.delete('/:id', protect, adminOnly, softDeleteCandidate);
 router.put('/:id/restore', protect, adminOnly, undoDeleteCandidate);
+router.patch('/:id/notes', protect, updateCandidateNotes);
 router.post('/:id/resume', protect, adminOnly, resumeUploadJob);
 router.post('/:id/pause', protect, adminOnly, pauseUploadJob);
 router.post('/:id/sync', protect, adminOnly, syncJobStatus);

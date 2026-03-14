@@ -29,6 +29,8 @@ import adminRoutes from './routes/adminRoutes.js';
 import enrichmentRoutes from './routes/enrichmentRoutes.js';
 import sourcingRoutes from './routes/sourcingRoutes.js';
 import privateDbRoutes from './routes/privateDbRoutes.js';
+import jobRoutes from './routes/jobRoutes.js';
+import shortlistRoutes from './routes/shortlistRoutes.js';
 
 // Define __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -230,6 +232,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/enrich-contact', enrichmentRoutes);
 app.use('/api/ai-source', sourcingRoutes);
 app.use('/api/private-db', privateDbRoutes);
+app.use('/api/jobs', jobRoutes);
+app.use('/api/shortlists', shortlistRoutes);
 
 /* ---------------------------------------------------
    GLOBAL ERROR HANDLER

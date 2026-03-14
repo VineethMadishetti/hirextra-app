@@ -215,11 +215,55 @@ const AdminDashboard = () => {
 		"phone",
 		"locality",
 		"location",
+		"country",
 		"skills",
 		"linkedinUrl",
 		"experience",
 		"summary",
 	];
+
+	// Known column name aliases → our field names.
+	// Covers Apollo, LinkedIn Sales Nav, ZoomInfo, Lusha, Hunter.io, generic CSVs.
+	const FIELD_ALIASES = {
+		fullName:    ["n", "person_name", "full_name", "fullname", "name", "contact_name", "candidate_name"],
+		firstName:   ["person_first_name_unanalyzed", "first_name", "firstname", "given_name"],
+		lastName:    ["person_last_name_unanalyzed", "last_name", "lastname", "surname", "family_name"],
+		jobTitle:    ["person_title", "title", "job_title", "jobtitle", "position", "role", "designation", "current_title"],
+		company:     ["sanitized_organization_name_unanalyzed", "organization_name", "company", "company_name", "employer", "current_company", "organization"],
+		industry:    ["person_functions", "industry", "department", "function", "vertical", "sector"],
+		email:       ["e", "person_email", "email", "email_address", "work_email", "personal_email", "contact_email"],
+		phone:       ["t", "person_sanitized_phone", "person_phone", "phone", "phone_number", "mobile", "mobile_number", "contact_phone", "direct_phone"],
+		locality:    ["person_location_city", "city", "locality", "town"],
+		location:    ["a", "person_location_city_with_state_or_country", "location", "address", "full_location", "city_state", "city_country"],
+		country:     ["person_location_country", "country", "country_name", "nation"],
+		skills:      ["skills", "skill_set", "technologies", "tech_stack", "expertise"],
+		linkedinUrl: ["linkedin", "liid", "person_linkedin_url", "linkedin_url", "linkedin_profile", "profile_url", "linkedin_profile_url"],
+		experience:  ["person_seniority", "seniority", "experience", "years_of_experience", "total_experience", "exp"],
+		summary:     ["summary", "bio", "about", "description", "overview", "profile_summary"],
+	};
+
+	// Auto-suggest mapping based on file headers
+	const buildAutoMapping = (headers) => {
+		const suggested = {};
+		const headerLower = headers.map((h) => ({ original: h, lower: h.toLowerCase().trim() }));
+		for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+			for (const alias of aliases) {
+				const match = headerLower.find((h) => h.lower === alias);
+				if (match) { suggested[field] = match.original; break; }
+			}
+		}
+		return suggested;
+	};
+
+	// Auto-apply mapping whenever new headers are loaded
+	React.useEffect(() => {
+		if (uploadData?.headers?.length > 0) {
+			const suggested = buildAutoMapping(uploadData.headers);
+			if (Object.keys(suggested).length > 0) {
+				setMapping(suggested);
+			}
+		}
+	}, [uploadData]);
 
 	// --- MAPPING LOGIC ---
 	const handleProcess = async () => {
@@ -1061,11 +1105,11 @@ const AdminDashboard = () => {
 
 														{/* Actions */}
 														<div className="flex items-center gap-2">
-															{isFolderImport && job.status === "FAILED" && (
+															{job.status === "FAILED" && (job.successRows > 0 || job.totalRows > 0) && (
 																<button
 																	onClick={() => handleResumeStuckJob(job._id)}
 																	className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-sm"
-																	title="Resume import from checkpoint — skips already-processed files">
+																	title="Resume from checkpoint — continues from last saved position">
 																	<Play size={12} />
 																	Resume
 																</button>

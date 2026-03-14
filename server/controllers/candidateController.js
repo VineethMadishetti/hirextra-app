@@ -261,9 +261,38 @@ export const getFileHeaders = async (req, res) => {
 		// FIX: Allow S3 keys in subfolders (e.g. "USA/file.csv") by checking if it's NOT an absolute path
 		const isS3Key = !path.isAbsolute(filePath);
 		const isXlsx = filePath.toLowerCase().endsWith(".xlsx");
+		const ext = filePath.toLowerCase();
+		const isNdjson = ext.endsWith(".json") || ext.endsWith(".jsonl") || ext.endsWith(".ndjson");
 
 		if (isS3Key) {
 			try {
+				// NDJSON / JSON-Lines (PDL, custom exports) — scan up to 20 lines to union all keys
+				if (isNdjson) {
+					const s3Stream = await downloadFromS3(filePath, { rangeStart: 0, rangeEnd: 65536 });
+					const rl = readline.createInterface({ input: s3Stream, crlfDelay: Infinity });
+					const allKeys = new Set();
+					let linesRead = 0;
+					let parseError = null;
+					for await (const line of rl) {
+						if (!line.trim()) continue;
+						try {
+							const obj = JSON.parse(line);
+							Object.keys(obj).forEach((k) => allKeys.add(k));
+							linesRead++;
+						} catch (e) {
+							if (linesRead === 0) parseError = e;
+						}
+						if (linesRead >= 20) break;
+					}
+					rl.close();
+					s3Stream.destroy();
+					if (linesRead === 0) {
+						if (parseError) return res.status(400).json({ message: 'File does not appear to be valid NDJSON (could not parse first line as JSON)' });
+						return res.status(400).json({ message: 'NDJSON file appears to be empty' });
+					}
+					return res.json({ headers: Array.from(allKeys), filePath, format: 'ndjson' });
+				}
+
 				if (isXlsx) {
 					const s3Stream = await downloadFromS3(filePath);
 					const buffer = await streamToBuffer(s3Stream);
@@ -1340,14 +1369,7 @@ export const getUploadHistory = async (req, res) => {
 	try {
 		// Optimized query: only fetch essential fields, limit to recent 100 jobs
 		const jobs = await UploadJob.find({
-			$or: [
-				{ isDeleted: { $ne: true } }, // Show jobs that are not soft-deleted
-				{ 
-					status: "PROCESSING",
-					error: { $not: /^Merged into/ } // Hide processing jobs if they are merged
-				},
-				{ status: "MAPPING_PENDING" }
-			]
+			isDeleted: { $ne: true }, // Exclude soft-deleted jobs
 		})
 			.select(
 				"fileName originalName uploadedBy status totalRows successRows failedRows error mapping createdAt updatedAt completedAt",
@@ -3996,4 +4018,21 @@ export const syncJobStatus = async (req, res) => {
 	} catch (error) {
 		res.status(500).json({ message: error.message });
 	}
+};
+
+// --- UPDATE NOTES & TAGS ---
+export const updateCandidateNotes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { recruiterNotes, internalTags } = req.body;
+    const update = {};
+    if (recruiterNotes !== undefined) update.recruiterNotes = String(recruiterNotes || '');
+    if (internalTags !== undefined) update.internalTags = String(internalTags || '');
+    const candidate = await Candidate.findByIdAndUpdate(id, update, { new: true })
+      .select('recruiterNotes internalTags');
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    res.json(candidate);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };

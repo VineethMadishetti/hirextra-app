@@ -1430,6 +1430,107 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 		await UploadJob.findByIdAndUpdate(jobId, { status: "PROCESSING", totalRows: resumeFrom });
 		const isXlsx = (filePath.toLowerCase().endsWith(".xlsx") || (originalName && originalName.toLowerCase().endsWith(".xlsx")));
 
+		const isNdjson = filePath.toLowerCase().endsWith('.json') || filePath.toLowerCase().endsWith('.jsonl') || filePath.toLowerCase().endsWith('.ndjson') || (originalName && (originalName.toLowerCase().endsWith('.json') || originalName.toLowerCase().endsWith('.jsonl') || originalName.toLowerCase().endsWith('.ndjson')));
+
+		// ─── NDJSON / JSON-Lines processing (PDL format and similar) ───────────────
+		if (isNdjson) {
+			logger.info(`NDJSON format detected for job ${jobId}. Processing line by line.`);
+
+			const BATCH = 2000;
+			const PROGRESS_INTERVAL = 2000;
+			let ndSuccess = 0, ndFailed = 0, ndRow = 0;
+			let ndCandidates = [];
+			let ndLastProgress = Date.now();
+			const ndFailReasons = new Map();
+
+			const getJsonVal = (obj, key) => {
+				if (!key) return '';
+				const val = obj[key];
+				if (Array.isArray(val)) return val[0] != null ? String(val[0]).trim() : '';
+				return val != null ? String(val).trim() : '';
+			};
+
+			const ndStream = await getFileStream(filePath);
+			const ndRl = readline.createInterface({ input: ndStream, crlfDelay: Infinity });
+
+			for await (const line of ndRl) {
+				if (!line.trim()) continue;
+				ndRow++;
+
+				// Skip rows already processed (resume support)
+				if (ndRow <= resumeFrom) continue;
+
+				try {
+					const obj = JSON.parse(line);
+
+					const candidateData = {
+						fullName:   getJsonVal(obj, mapping.fullName),
+						firstName:  getJsonVal(obj, mapping.firstName),
+						lastName:   getJsonVal(obj, mapping.lastName),
+						jobTitle:   getJsonVal(obj, mapping.jobTitle),
+						company:    getJsonVal(obj, mapping.company),
+						industry:   getJsonVal(obj, mapping.industry),
+						email:      getJsonVal(obj, mapping.email),
+						phone:      getJsonVal(obj, mapping.phone),
+						locality:   getJsonVal(obj, mapping.locality),
+						location:   getJsonVal(obj, mapping.location),
+						country:    getJsonVal(obj, mapping.country),
+						skills:     getJsonVal(obj, mapping.skills),
+						linkedinUrl:getJsonVal(obj, mapping.linkedinUrl),
+						experience: getJsonVal(obj, mapping.experience),
+						summary:    getJsonVal(obj, mapping.summary),
+						sourceFile: filePath,
+						uploadJobId: jobId,
+						isDeleted: false,
+					};
+
+					const result = cleanAndValidateCandidate(candidateData, { requireContact: false });
+					if (result.valid) {
+						ndCandidates.push(result.data);
+					} else {
+						ndFailed++;
+						const r = result.reason || 'INVALID_DATA';
+						ndFailReasons.set(r, (ndFailReasons.get(r) || 0) + 1);
+					}
+
+					if (ndCandidates.length >= BATCH) {
+						try {
+							await Candidate.insertMany(ndCandidates, { ordered: false });
+							ndSuccess += ndCandidates.length;
+						} catch (e) {
+							ndSuccess += e.insertedDocs?.length || 0;
+							ndFailed += ndCandidates.length - (e.insertedDocs?.length || 0);
+						}
+						ndCandidates = [];
+					}
+
+					if (Date.now() - ndLastProgress > PROGRESS_INTERVAL) {
+						await UploadJob.findByIdAndUpdate(jobId, { successRows: ndSuccess, failedRows: ndFailed, totalRows: ndRow, failureReasons: Object.fromEntries(ndFailReasons) });
+						ndLastProgress = Date.now();
+					}
+				} catch (parseErr) {
+					ndFailed++;
+					ndFailReasons.set('JSON_PARSE_ERROR', (ndFailReasons.get('JSON_PARSE_ERROR') || 0) + 1);
+				}
+			}
+
+			// Insert remaining
+			if (ndCandidates.length > 0) {
+				try {
+					await Candidate.insertMany(ndCandidates, { ordered: false });
+					ndSuccess += ndCandidates.length;
+				} catch (e) {
+					ndSuccess += e.insertedDocs?.length || 0;
+					ndFailed += ndCandidates.length - (e.insertedDocs?.length || 0);
+				}
+			}
+
+			await UploadJob.findByIdAndUpdate(jobId, { status: 'COMPLETED', completedAt: new Date(), successRows: ndSuccess, failedRows: ndFailed, totalRows: ndRow, failureReasons: Object.fromEntries(ndFailReasons) });
+			logger.info(`NDJSON job ${jobId} complete. Rows: ${ndRow}, Success: ${ndSuccess}, Failed: ${ndFailed}`);
+			return;
+		}
+		// ────────────────────────────────────────────────────────────────────────────
+
 		// 1. Auto-Detect where the headers are
 		const skipLinesCount = await findHeaderRowIndex(filePath, mapping);
 
@@ -1680,7 +1781,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 							};
 
 							// Validate and Clean Data (ETL)
-							const validationResult = cleanAndValidateCandidate(candidateData);
+							// requireContact: false — contact info is optional; Apollo/LinkedIn exports
+							// contain millions of profiles without email/phone that are still valuable.
+							const validationResult = cleanAndValidateCandidate(candidateData, { requireContact: false });
 
 							if (validationResult.valid) {
 								candidates.push(validationResult.data);

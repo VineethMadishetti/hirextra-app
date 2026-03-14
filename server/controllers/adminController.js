@@ -80,22 +80,17 @@ export const deleteJob = async (req, res) => {
         // Hard delete all candidates associated with this job
         const deleteCandidatesResult = await Candidate.deleteMany({ uploadJobId: id });
         console.log(`Deleted ${deleteCandidatesResult.deletedCount} candidates`);
-        
-        // Hard delete the UploadJob record itself
-        const deleteJobResult = await UploadJob.findByIdAndDelete(id);
-        if (!deleteJobResult) {
-            console.warn(`Job with ID ${id} not found or already deleted`);
-        } else {
-            console.log(`Deleted job with ID: ${id}`);
 
-            if (job) {
-                await DeleteLog.create({
-                    entityType: 'FILE',
-                    entityName: job.originalName || job.fileName,
-                    deletedBy: req.user._id
-                });
-            }
+        // Keep the UploadJob record as a soft-delete so per-user upload counts remain accurate.
+        // The record is already marked isDeleted=true / status=DELETED above.
+        if (job) {
+            await DeleteLog.create({
+                entityType: 'FILE',
+                entityName: job.originalName || job.fileName,
+                deletedBy: req.user._id
+            });
         }
+        console.log(`Soft-deleted job with ID: ${id}`);
         
         res.status(200).json({ message: 'Job and associated candidates deleted successfully' });
     } catch (error) {

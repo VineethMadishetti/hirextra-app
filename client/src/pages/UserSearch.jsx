@@ -402,6 +402,15 @@ const UserSearch = ({ focusAiSearch = false }) => {
 	// --- PRE-FETCHING LOGIC ---
 	// Satisfies: "filtering should happen backend right from typing... but display after entering search"
 	const debouncedSearchInput = useDebounce(searchInput, 500);
+
+	const [savedSearches, setSavedSearches] = useState(() => {
+		try { return JSON.parse(localStorage.getItem('hirextra_saved_searches') || '[]'); }
+		catch { return []; }
+	});
+	const [showSavedSearches, setShowSavedSearches] = useState(false);
+	const [showShortlistModal, setShowShortlistModal] = useState(false);
+	const [shortlistName, setShortlistName] = useState('');
+	const [isCreatingShortlist, setIsCreatingShortlist] = useState(false);
 	const debouncedFilters = useDebounce(filters, 500);
 	const debouncedLocationForApi = useMemo(
 		() => normalizeLocationFilterForApi(debouncedFilters.location),
@@ -1427,6 +1436,30 @@ const UserSearch = ({ focusAiSearch = false }) => {
 					</button>
 				)}
 
+				{/* Shortlist Modal */}
+				{showShortlistModal && (
+					<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowShortlistModal(false)}>
+						<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+							<h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2"><Sparkles size={18} className="text-violet-500"/>Create Shortlist</h3>
+							<p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{selectedIds.size} candidate{selectedIds.size > 1 ? 's' : ''} selected. A shareable link will be copied to your clipboard.</p>
+							<input
+								value={shortlistName}
+								onChange={e => setShortlistName(e.target.value)}
+								onKeyDown={e => e.key === 'Enter' && handleCreateShortlist()}
+								placeholder="e.g. Senior Java Devs - Client ABC"
+								className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 mb-4"
+								autoFocus
+							/>
+							<div className="flex justify-end gap-3">
+								<button onClick={() => setShowShortlistModal(false)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-white transition cursor-pointer">Cancel</button>
+								<button onClick={handleCreateShortlist} disabled={isCreatingShortlist} className="px-5 py-2 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-400 text-white rounded-xl text-sm font-semibold transition cursor-pointer">
+									{isCreatingShortlist ? 'Creating...' : 'Create & Copy Link'}
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
+
 				{selectedProfile && (
 					<ProfileModal
 						profile={selectedProfile}
@@ -1772,6 +1805,41 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 	const skillItems = getProfileSkillItems(profile);
 	const educationItems = getEducationItems(profile);
 	const workedPeriod = parserData?.WorkedPeriod || {};
+
+	// Notes & Tags state
+	const [notes, setNotes] = React.useState(profile?.recruiterNotes || '');
+	const [tags, setTags] = React.useState(profile?.internalTags || '');
+	const [tagInput, setTagInput] = React.useState('');
+	const [notesSaving, setNotesSaving] = React.useState(false);
+	const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+	const saveNotes = async () => {
+		setNotesSaving(true);
+		try {
+			await api.patch(`/candidates/${profile._id}/notes`, { recruiterNotes: notes, internalTags: tags });
+			toast.success('Notes saved');
+		} catch {
+			toast.error('Failed to save notes');
+		} finally {
+			setNotesSaving(false);
+		}
+	};
+
+	const addTag = (val) => {
+		const trimmed = val.trim().replace(/,/g, '');
+		if (!trimmed) return;
+		const existing = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+		if (!existing.includes(trimmed)) {
+			setTags([...existing, trimmed].join(', '));
+		}
+		setTagInput('');
+	};
+
+	const removeTag = (tag) => {
+		const updated = tagList.filter(t => t !== tag).join(', ');
+		setTags(updated);
+	};
+
 	const profileMetrics = [
 		{ label: "Total Experience", value: workedPeriod?.TotalExperienceInYear ? `${workedPeriod.TotalExperienceInYear} years` : "" },
 		{ label: "Average Stay", value: parserData?.AverageStay ? `${parserData.AverageStay} months` : "" },
@@ -1984,6 +2052,43 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 								) : (
 									<p className="text-slate-400 italic">No skills listed</p>
 								)}
+								{/* Notes & Tags */}
+								<div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
+									<h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Recruiter Notes & Tags</h3>
+									<div>
+										<div className="flex flex-wrap gap-1.5 mb-2">
+											{tagList.map(tag => (
+												<span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
+													{tag}
+													<button onClick={() => removeTag(tag)} className="hover:text-rose-500 transition-colors cursor-pointer"><X size={11}/></button>
+												</span>
+											))}
+										</div>
+										<div className="flex gap-2">
+											<input
+												value={tagInput}
+												onChange={e => setTagInput(e.target.value)}
+												onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); } }}
+												placeholder="Add tag, press Enter"
+												className="flex-1 text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+											/>
+											<button onClick={() => addTag(tagInput)} className="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition cursor-pointer">Add</button>
+										</div>
+									</div>
+									<textarea
+										value={notes}
+										onChange={e => setNotes(e.target.value)}
+										placeholder="Add recruiter notes... e.g. Called, not available until April."
+										rows={3}
+										className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+									/>
+									<button
+										onClick={saveNotes}
+										disabled={notesSaving}
+										className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-400 text-white text-sm font-semibold transition cursor-pointer">
+										{notesSaving ? 'Saving...' : 'Save Notes & Tags'}
+									</button>
+								</div>
 								<div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
 									<button
 										onClick={(e) => {

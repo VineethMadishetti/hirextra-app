@@ -8,6 +8,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "./context/ThemeContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import SharedShortlist from "./pages/SharedShortlist";
 // --- Placeholder Imports for Nested Routes ---
 // You will need to create these components if they don't exist.
 import AdminPanel from "./pages/AdminPanel"; // Assuming this is the main dashboard view
@@ -77,6 +78,7 @@ function App() {
 									<Route path="user-management" element={<UserManagement />} />
 									<Route path="search-database" element={<SearchDatabase />} />
 								</Route>
+								<Route path="/share/:token" element={<SharedShortlist />} />
 								<Route path="*" element={<Navigate to="/login" replace />} />
 							</Routes>
 						</BrowserRouter>

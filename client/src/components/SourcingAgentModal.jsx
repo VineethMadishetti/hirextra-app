@@ -269,8 +269,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
   const handleExtractRequirements = async () => {
     setError('');
-    if (!jobDescription.trim()) {
-      setError('Enter job description to extract requirements.');
+    if (!jobDescription.trim() && !jdFile) {
+      setError('Enter job description or upload a file to extract requirements.');
       return;
     }
 
