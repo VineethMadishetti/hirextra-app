@@ -978,32 +978,22 @@ export const searchInternalDb = async (req, res) => {
     const maxResultsSafe = Math.min(Math.max(Number(maxResults) || 50, 1), 200);
     const minScoreSafe   = Math.min(Math.max(Number(minScore)   || 30, 0), 100);
 
-    // ── 2. Build broad MongoDB pre-filter (uses indexes) ─────────────────
-    // Strategy: OR across all skills so we cast a wide net, then score in JS.
-    // This avoids a full collection scan while keeping recall high.
-    const orClauses = [];
-
-    if (allSkills.length > 0) {
-      const skillPattern = allSkills
-        .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-        .join('|');
-      orClauses.push({ skills: { $regex: skillPattern, $options: 'i' } });
-      orClauses.push({ jobTitle: { $regex: skillPattern, $options: 'i' } });
-    }
-
-    if (hasLocation) {
-      const cityName = reqLocation.split(',')[0].trim();
-      const locEscaped = cityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      orClauses.push({ location: { $regex: locEscaped, $options: 'i' } });
-      orClauses.push({ locality: { $regex: locEscaped, $options: 'i' } });
-    }
+    // ── 2. Build broad MongoDB pre-filter (uses $text index for speed) ────
+    // Strategy: use the CandidateTextIndex for broad recall, score in JS.
+    // $text is orders of magnitude faster than $regex on 200M+ docs.
+    const textTerms = [
+      ...allSkills,
+      ...(hasLocation ? [reqLocation.split(',')[0].trim()] : []),
+    ].filter(Boolean);
 
     const preFilter = {
       isDeleted: false,
       privateDbId: null, // global PeopleFinder DB only
     };
-    if (orClauses.length > 0) {
-      preFilter.$or = orClauses;
+
+    if (textTerms.length > 0) {
+      // Join as OR search — MongoDB $text treats space-separated words as OR
+      preFilter.$text = { $search: textTerms.join(' ') };
     }
 
     // Fetch a broad batch — score in JS, return top maxResultsSafe.
@@ -1016,7 +1006,7 @@ export const searchInternalDb = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(PRE_FETCH_LIMIT)
       .lean()
-      .maxTimeMS(15000);
+      .maxTimeMS(30000);
 
     // ── 3. Score & rank ───────────────────────────────────────────────────
     const scored = scoreCandidates(rawCandidates, parsed, {

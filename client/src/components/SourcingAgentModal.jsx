@@ -954,10 +954,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
                         {/* Row 2: Location · Experience · Education */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
-                          {candidate.location && (
+                          {(candidate.location || candidate.locality) && (
                             <span className="flex items-center gap-1">
                               <MapPin size={11} className="text-slate-500" />
-                              {candidate.location}
+                              {candidate.location || candidate.locality}
                             </span>
                           )}
                           {totalExperience && (
