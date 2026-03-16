@@ -344,6 +344,25 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
+  // Skip AI — initialise an empty form so the user can type skills directly
+  const handleManualMode = () => {
+    setParsedDraft({
+      jobTitle: '', industry: '', location: '', experienceYears: 0,
+      mustHaveSkills: [], requiredSkills: [], preferredSkills: [],
+      jobType: '', salaryRange: '', education: '', availability: '',
+    });
+    setComposeStep('parsed');
+  };
+
+  // canSearch: true when parsedDraft has at least one skill in any tier (no AI required)
+  const canSearch = Boolean(
+    parsedDraft && (
+      parsedDraft.mustHaveSkills?.length  > 0 ||
+      parsedDraft.requiredSkills?.length  > 0 ||
+      parsedDraft.preferredSkills?.length > 0
+    )
+  );
+
   const parseSkillsText = (value) =>
     String(value || '')
       .split(',')
@@ -372,15 +391,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       setParsedDraft({
         ...extractedRequirements,
         experienceYears: Number(extractedRequirements.experienceYears || 0),
-        requiredSkills: Array.isArray(extractedRequirements.requiredSkills) ? extractedRequirements.requiredSkills : [],
-        preferredSkills: Array.isArray(extractedRequirements.preferredSkills) ? extractedRequirements.preferredSkills : [],
-        dosa: {
-          ...(extractedRequirements.dosa || {}),
-        },
+        mustHaveSkills:  Array.isArray(extractedRequirements.mustHaveSkills)  ? extractedRequirements.mustHaveSkills  :
+                         Array.isArray(extractedRequirements.must_have_skills) ? extractedRequirements.must_have_skills : [],
+        requiredSkills:  Array.isArray(extractedRequirements.requiredSkills)  ? extractedRequirements.requiredSkills  :
+                         Array.isArray(extractedRequirements.required_skills)  ? extractedRequirements.required_skills  : [],
+        preferredSkills: Array.isArray(extractedRequirements.preferredSkills) ? extractedRequirements.preferredSkills :
+                         Array.isArray(extractedRequirements.preferred_skills) ? extractedRequirements.preferred_skills : [],
+        dosa: { ...(extractedRequirements.dosa || {}) },
         availability: extractedRequirements.availability || extractedRequirements.dosa?.availability || '',
-        jobType: extractedRequirements.durationType || '',
-        salaryRange: extractedRequirements.salaryPackage || '',
-        education: extractedRequirements.education || '',
+        jobType:      extractedRequirements.durationType || '',
+        salaryRange:  extractedRequirements.salaryPackage || '',
+        education:    extractedRequirements.education || '',
       });
       setComposeStep('parsed');
       toast.success('Structured requirements extracted.');
@@ -396,7 +417,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   // ── Internet sourcing (Google CSE → LinkedIn profiles) ───────────────────
   const handleSearchInternet = async () => {
     setError('');
-    if (!parsedRequirements) { setError('Extract requirements first.'); return; }
+    if (!canSearch) { setError('Add at least one skill in Must-Have or Required Skills.'); return; }
     setSearchingInternet(true);
     setActiveTab('internet');
     setView('sourcing');
@@ -472,7 +493,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   // ── Internal DB sourcing (Boolean match scoring against MongoDB) ───────────
   const handleSearchInternalDb = async () => {
     setError('');
-    if (!parsedRequirements) { setError('Extract requirements first.'); return; }
+    if (!canSearch) { setError('Add at least one skill in Must-Have or Required Skills.'); return; }
     setSearchingInternal(true);
     setActiveTab('internal');
     setView('sourcing');
@@ -690,14 +711,22 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     </div>
                   </div>
 
-                  <div className="flex justify-center">
+                  <div className="flex flex-col sm:flex-row justify-center gap-3">
                     <button
                       onClick={handleExtractRequirements}
                       disabled={extracting || !canExtractRequirements}
-                      className="min-w-[260px] rounded-xl bg-[#432DD7] hover:bg-[#5A45E5] disabled:bg-slate-700 disabled:text-slate-400 text-white px-6 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                      className="min-w-[220px] rounded-xl bg-[#432DD7] hover:bg-[#5A45E5] disabled:bg-slate-700 disabled:text-slate-400 text-white px-6 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                     >
                       {extracting ? <Loader2 size={16} className="animate-spin" /> : <FileSearch size={16} />}
-                      Extract Requirements
+                      {extracting ? 'Extracting…' : 'Extract via AI'}
+                    </button>
+                    <button
+                      onClick={handleManualMode}
+                      disabled={extracting}
+                      className="min-w-[220px] rounded-xl border border-slate-600 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 px-6 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <Database size={16} />
+                      Enter Skills Manually
                     </button>
                   </div>
                 </div>
@@ -786,23 +815,36 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       </div>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills (comma separated)</label>
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-red-400 font-bold">Must-Have Skills <span className="text-slate-500 normal-case font-normal">(hard filter — candidates missing ALL of these are disqualified)</span></label>
+                      <textarea
+                        value={(parsedDraft?.mustHaveSkills || []).join(', ')}
+                        onChange={(e) =>
+                          setParsedDraft((prev) => ({ ...(prev || {}), mustHaveSkills: parseSkillsText(e.target.value) }))
+                        }
+                        placeholder="e.g. React, Node.js, TypeScript"
+                        className="mt-1 h-16 w-full rounded-lg border border-red-800/50 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-red-600/60 focus:outline-none focus:ring-2 focus:ring-red-700/50"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills <span className="text-slate-500 normal-case font-normal">(strong signal — 12 pts each)</span></label>
                       <textarea
                         value={(parsedDraft?.requiredSkills || []).join(', ')}
                         onChange={(e) =>
                           setParsedDraft((prev) => ({ ...(prev || {}), requiredSkills: parseSkillsText(e.target.value) }))
                         }
-                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                        placeholder="e.g. Python, AWS, Docker"
+                        className="mt-1 h-16 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Preferred Skills (comma separated)</label>
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Preferred Skills <span className="text-slate-500 normal-case font-normal">(nice-to-have — 5 pts each)</span></label>
                       <textarea
                         value={(parsedDraft?.preferredSkills || []).join(', ')}
                         onChange={(e) =>
                           setParsedDraft((prev) => ({ ...(prev || {}), preferredSkills: parseSkillsText(e.target.value) }))
                         }
-                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
+                        placeholder="e.g. GraphQL, Redis, Kubernetes"
+                        className="mt-1 h-16 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
                     </div>
                   </div>
@@ -811,7 +853,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     {/* Internet sourcing — Google CSE / LinkedIn */}
                     <button
                       onClick={handleSearchInternet}
-                      disabled={searchingInternet || searchingInternal || extracting || !parsedRequirements}
+                      disabled={searchingInternet || searchingInternal || extracting || !canSearch}
                       className="flex-1 max-w-xs rounded-xl bg-[#432DD7] hover:bg-[#5A45E5] disabled:opacity-60 text-white px-5 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                     >
                       {searchingInternet
@@ -822,7 +864,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     {/* Internal DB sourcing — Boolean match scoring */}
                     <button
                       onClick={handleSearchInternalDb}
-                      disabled={searchingInternet || searchingInternal || extracting || !parsedRequirements}
+                      disabled={searchingInternet || searchingInternal || extracting || !canSearch}
                       className="flex-1 max-w-xs rounded-xl border border-[#6B5AF0]/60 bg-[#432DD7]/15 hover:bg-[#432DD7]/30 disabled:opacity-60 text-[#C4B8FF] px-5 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                     >
                       {searchingInternal

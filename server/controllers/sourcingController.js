@@ -971,42 +971,56 @@ export const searchInternalDb = async (req, res) => {
     const mustHaveSkills  = parsed.must_have_skills  || [];
     const requiredSkills  = parsed.required_skills   || [];
     const preferredSkills = parsed.preferred_skills  || [];
-    const allSkills       = [...new Set([...mustHaveSkills, ...requiredSkills, ...preferredSkills])];
     const reqLocation     = String(parsed.location || '');
     const hasLocation     = Boolean(reqLocation && !/unspecified|not specified/i.test(reqLocation));
 
     const maxResultsSafe = Math.min(Math.max(Number(maxResults) || 50, 1), 200);
     const minScoreSafe   = Math.min(Math.max(Number(minScore)   || 30, 0), 100);
 
-    // ── 2. Build broad MongoDB pre-filter (uses $text index for speed) ────
-    // Strategy: use the CandidateTextIndex for broad recall, score in JS.
-    // $text is orders of magnitude faster than $regex on 200M+ docs.
-    const textTerms = [
-      ...allSkills,
+    // ── 2. Build pre-filter using $text index ────────────────────────────
+    // Internal DB stores skills as a comma-separated string e.g. "React, Node.js, Python"
+    // jobTitle e.g. "Senior React Developer", locality e.g. "Hyderabad"
+    //
+    // CandidateTextIndex covers: fullName, jobTitle, skills, company, location, locality, summary
+    // We quote each term so MongoDB treats "Node.js" as a phrase, not split tokens.
+    //
+    // IMPORTANT: $text cannot be combined with .sort(createdAt) — use textScore sort instead.
+    const coreSkills = [...new Set([...mustHaveSkills, ...requiredSkills])].slice(0, 6);
+    const textTerms  = [
+      ...coreSkills,
       ...(hasLocation ? [reqLocation.split(',')[0].trim()] : []),
     ].filter(Boolean);
 
-    const preFilter = {
-      isDeleted: false,
-      privateDbId: null, // global PeopleFinder DB only
-    };
+    const PRE_FETCH_LIMIT = 2000;
+    const SELECT_FIELDS   = 'fullName jobTitle skills experience location locality country email phone linkedinUrl company industry education summary availability candidateStatus createdAt';
+
+    let rawCandidates;
 
     if (textTerms.length > 0) {
-      // Join as OR search — MongoDB $text treats space-separated words as OR
-      preFilter.$text = { $search: textTerms.join(' ') };
+      // Quoted phrases → exact token match ("Node.js" stays "Node.js", not split)
+      const textSearch = textTerms.map(t => `"${t}"`).join(' ');
+      const preFilter  = {
+        isDeleted:   false,
+        privateDbId: null,
+        $text:       { $search: textSearch },
+      };
+      rawCandidates = await Candidate
+        .find(preFilter, { _textScore: { $meta: 'textScore' } })
+        .select(SELECT_FIELDS)
+        .sort({ _textScore: { $meta: 'textScore' } })   // required when using $text
+        .limit(PRE_FETCH_LIMIT)
+        .lean()
+        .maxTimeMS(30000);
+    } else {
+      // No skills/location — return most recent candidates for scoring
+      rawCandidates = await Candidate
+        .find({ isDeleted: false, privateDbId: null })
+        .select(SELECT_FIELDS)
+        .sort({ createdAt: -1 })
+        .limit(PRE_FETCH_LIMIT)
+        .lean()
+        .maxTimeMS(30000);
     }
-
-    // Fetch a broad batch — score in JS, return top maxResultsSafe.
-    // PRE_FETCH_LIMIT controls how many we pull from Mongo before scoring.
-    // Higher = better recall but more memory; 2000 is a safe default.
-    const PRE_FETCH_LIMIT = 2000;
-
-    const rawCandidates = await Candidate.find(preFilter)
-      .select('fullName jobTitle skills experience location locality country email phone linkedinUrl company industry education summary availability candidateStatus createdAt')
-      .sort({ createdAt: -1 })
-      .limit(PRE_FETCH_LIMIT)
-      .lean()
-      .maxTimeMS(30000);
 
     // ── 3. Score & rank ───────────────────────────────────────────────────
     const scored = scoreCandidates(rawCandidates, parsed, {
