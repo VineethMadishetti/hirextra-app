@@ -1031,9 +1031,28 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         {/* Skills */}
                         {skills.length > 0 && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {skills.map((skill) => (
-                              <span key={skill} className="text-[11px] rounded-md border border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#D4CCFF] px-2 py-0.5">
-                                {skill}
+                            {skills.map((skill) => {
+                              const isMatched = candidate.matchedSkills?.some(
+                                (m) => m.toLowerCase() === skill.toLowerCase()
+                              );
+                              return (
+                                <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 ${
+                                  isMatched
+                                    ? 'border-[#A89EFF] bg-[#432DD7]/30 text-white font-semibold'
+                                    : 'border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF]'
+                                }`}>
+                                  {skill}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {/* Missing required skills */}
+                        {candidate.missingSkills?.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {candidate.missingSkills.map((skill) => (
+                              <span key={skill} className="text-[10px] rounded-md border border-red-700/40 bg-red-950/20 text-red-400 px-2 py-0.5 italic">
+                                missing: {skill}
                               </span>
                             ))}
                           </div>

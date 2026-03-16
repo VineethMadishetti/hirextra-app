@@ -263,18 +263,12 @@ export function extractLocation(title, snippet) {
     if (loc.length >= 5 && loc.length <= 80) return loc;
   }
 
-  // Strategy 4: explicit location phrases
+  // Strategy 4: explicit "based in" / "located in" phrases only (not bare "in X" which matches skills)
   const text = fullText.replace(/\s+/g, ' ').trim();
-  const patterns = [
-    /\b(?:based in|located in|location[:\s]+)\s*([A-Za-z .'-]+(?:,\s*[A-Za-z .'-]+){0,2})/i,
-    /\bin\s+([A-Za-z .'-]+,\s*[A-Za-z .'-]+(?:,\s*[A-Za-z .'-]+)?)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (!match?.[1]) continue;
-    const location = match[1].trim().replace(/\s{2,}/g, ' ');
-    if (location.length >= 3 && location.length <= 80) return location;
+  const explicitLocMatch = text.match(/\b(?:based in|located in|location[:\s]+)\s*([A-Za-z][A-Za-z .'-]+(?:,\s*[A-Za-z][A-Za-z .'-]+){0,2})/i);
+  if (explicitLocMatch?.[1]) {
+    const loc = explicitLocMatch[1].trim().replace(/\s{2,}/g, ' ');
+    if (loc.length >= 3 && loc.length <= 80) return loc;
   }
 
   // Strategy 5: City name appearing at the end of snippet (common LinkedIn pattern: "... Hyderabad ...")
