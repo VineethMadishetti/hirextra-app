@@ -1002,7 +1002,7 @@ export const searchInternalDb = async (req, res) => {
     const PRE_FETCH_LIMIT = 2000;
 
     const rawCandidates = await Candidate.find(preFilter)
-      .select('fullName jobTitle skills experience location locality country email phone linkedinUrl company industry summary createdAt')
+      .select('fullName jobTitle skills experience location locality country email phone linkedinUrl company industry education summary availability candidateStatus createdAt')
       .sort({ createdAt: -1 })
       .limit(PRE_FETCH_LIMIT)
       .lean()

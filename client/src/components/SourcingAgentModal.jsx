@@ -75,6 +75,29 @@ function extractBadgesFromSnippet(snippet) {
 // ────────────────────────────────────────────────────────────────────────────
 
 
+/** Extract seniority label from job title string */
+function extractSeniority(title) {
+  if (!title) return null;
+  const t = title.toLowerCase();
+  if (/\b(vp|vice president|director|head of|chief|cto|ceo|cfo|coo)\b/.test(t)) return 'Director+';
+  if (/\b(principal|staff|architect)\b/.test(t)) return 'Principal';
+  if (/\blead\b/.test(t)) return 'Lead';
+  if (/\bsenior\b|\bsr\.?\b/.test(t)) return 'Senior';
+  if (/\bjunior\b|\bjr\.?\b/.test(t)) return 'Junior';
+  if (/\bmid[- ]?level\b/.test(t)) return 'Mid-level';
+  return null;
+}
+
+/** Map DB availability enum to display badge */
+function availabilityBadge(availability) {
+  switch (availability) {
+    case 'IMMEDIATE': return { label: 'Immediate Joiner', type: 'immediate' };
+    case '15_DAYS':   return { label: '15 Days Notice',   type: 'availability' };
+    case '30_DAYS':   return { label: '30 Days Notice',   type: 'availability' };
+    default:          return null;
+  }
+}
+
 const CARD_FONT = { fontFamily: '"Plus Jakarta Sans","Segoe UI",sans-serif' };
 
 
@@ -168,10 +191,10 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
 
 // ── Match category styling ────────────────────────────────────────────────────
 const MATCH_CATEGORY_STYLE = {
-  PERFECT:  { label: '100% Match', className: 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300' },
-  STRONG:   { label: '~80% Match', className: 'border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#B9AEFF]' },
-  GOOD:     { label: '~60% Match', className: 'border-amber-600/50 bg-amber-950/30 text-amber-300' },
-  PARTIAL:  { label: '~40% Match', className: 'border-slate-600/60 bg-slate-800/40 text-slate-400' },
+  PERFECT:  { label: '-80% Match', className: 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300' },
+  STRONG:   { label: '-80% Match', className: 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300' },
+  GOOD:     { label: '-60% Match', className: 'border-blue-600/60 bg-blue-950/40 text-blue-300' },
+  PARTIAL:  { label: '-40% Match', className: 'border-yellow-600/50 bg-yellow-950/30 text-yellow-300' },
   WEAK:     { label: 'Weak',       className: 'border-slate-700/50 bg-slate-800/30 text-slate-500' },
 };
 
@@ -180,25 +203,29 @@ function MatchBadge({ score, category }) {
   if (score == null) return null;
   return (
     <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border ${meta.className}`}>
-      {score}% · {meta.label}
+      {score}% Match
     </span>
   );
 }
 
 function BucketSummary({ bucketCounts }) {
   if (!bucketCounts) return null;
+  const count80 = (bucketCounts.perfect || 0) + (bucketCounts.strong || 0);
+  const count60 = bucketCounts.good    || 0;
+  const count40 = bucketCounts.partial || 0;
   const items = [
-    { key: 'perfect', label: '100%', color: 'text-emerald-400' },
-    { key: 'strong',  label: '~80%', color: 'text-[#B9AEFF]' },
-    { key: 'good',    label: '~60%', color: 'text-amber-400' },
-    { key: 'partial', label: '~40%', color: 'text-slate-400' },
-  ].filter(item => bucketCounts[item.key] > 0);
+    { count: count80, label: '80%', color: 'text-emerald-400' },
+    { count: count60, label: '60%', color: 'text-blue-400' },
+    { count: count40, label: '40%', color: 'text-yellow-400' },
+  ].filter(i => i.count > 0);
   if (!items.length) return null;
   return (
-    <div className="flex flex-wrap gap-2 text-xs">
-      {items.map(({ key, label, color }) => (
-        <span key={key} className={`font-semibold ${color}`}>
-          {bucketCounts[key]} {label}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+      {items.map(({ count, label, color }, idx) => (
+        <span key={label} className="flex items-center gap-1">
+          {idx > 0 && <span className="text-slate-600 mr-2">|</span>}
+          <span className={`font-bold ${color}`}>{label}</span>
+          <span className="text-slate-400">- {count} {count === 1 ? 'Candidate' : 'Candidates'}</span>
         </span>
       ))}
     </div>
@@ -897,28 +924,51 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                   {pageCandidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
                     const globalIndex = (currentPage - 1) * CANDIDATES_PER_PAGE + index + 1;
-                    // Prefer server-extracted skills (AI); fall back to client-side regex
-                    const skills = (candidate.skills?.length > 0)
-                      ? candidate.skills
-                      : extractSkillsFromSnippet(candidate.snippet, candidate.title || candidate.jobTitle);
-                    // Prefer server-extracted education (AI); fall back to client-side snippet parse
-                    const education = candidate.education || extractEducationFromSnippet(candidate.snippet);
-                    const totalExperience = candidate.totalExperience || null;
-                    const badges = extractBadgesFromSnippet(candidate.snippet);
-                    return (
-                      <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
 
-                        {/* Row 1: Rank + Name + Badges + Match Badge */}
+                    // ── Field resolution (handles both internet-sourced & internal DB) ──
+                    const fullName    = candidate.fullName || candidate.name || 'Unknown';
+                    const jobTitle    = candidate.jobTitle || candidate.title || '';
+                    const company     = candidate.company || '';
+                    const experience  = candidate.experience || candidate.totalExperience || '';
+                    const education   = candidate.education || extractEducationFromSnippet(candidate.snippet);
+                    const location    = candidate.location || candidate.locality || '';
+
+                    // Skills: DB candidates have a comma string; internet candidates have an array
+                    const rawSkills = candidate.skills;
+                    const skills = Array.isArray(rawSkills) && rawSkills.length > 0
+                      ? rawSkills
+                      : typeof rawSkills === 'string' && rawSkills.trim().length > 0
+                        ? rawSkills.split(/[,;|·]+/).map(s => s.trim()).filter(Boolean)
+                        : extractSkillsFromSnippet(candidate.snippet, jobTitle);
+
+                    // Seniority label: prefer explicit field, else extract from title
+                    const seniority = candidate.level || extractSeniority(jobTitle);
+
+                    // Availability badges: prefer DB enum field, else parse snippet
+                    const dbAvail = availabilityBadge(candidate.availability);
+                    const snippetBadges = extractBadgesFromSnippet(candidate.snippet);
+                    const badges = dbAvail ? [dbAvail, ...snippetBadges.filter(b => b.type === 'fresher')] : snippetBadges;
+
+                    return (
+                      <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
+
+                        {/* Row 1: Rank · Name · Seniority · Availability · IIT/NIT badge · Match Badge */}
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-2.5 min-w-0 flex-1">
                             <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400">
                               {globalIndex}
                             </span>
                             <div className="min-w-0">
+                              {/* Name + inline badges */}
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <h4 className="text-base font-bold text-slate-100 leading-tight">
-                                  {candidate.name || candidate.fullName || 'Unknown'}
+                                  {fullName}
                                 </h4>
+                                {seniority && (
+                                  <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold">
+                                    {seniority}
+                                  </span>
+                                )}
                                 {badges.map((b) => (
                                   <span key={b.label} className={`inline-flex items-center text-[10px] rounded-full border px-2 py-0.5 font-semibold ${
                                     b.type === 'immediate'    ? 'border-sky-700/50 bg-sky-950/35 text-sky-300' :
@@ -929,21 +979,25 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     {b.label}
                                   </span>
                                 ))}
-                                {candidate.level && (
-                                  <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold capitalize">
-                                    {candidate.level}
+                                {isPremiumInstitute(education) && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-500/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
+                                    <GraduationCap size={9} />
+                                    {education}
                                   </span>
                                 )}
                               </div>
+                              {/* Job Title · Company */}
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                                <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
-                                  <Briefcase size={11} className="text-[#8B7FE8] shrink-0" />
-                                  {candidate.title || candidate.jobTitle || 'Unknown role'}
-                                </span>
-                                {candidate.company && (
+                                {jobTitle && (
+                                  <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
+                                    <Briefcase size={11} className="text-[#8B7FE8] shrink-0" />
+                                    {jobTitle}
+                                  </span>
+                                )}
+                                {company && (
                                   <span className="flex items-center gap-1 text-sm text-slate-400">
                                     <Building2 size={11} className="text-slate-500 shrink-0" />
-                                    {candidate.company}
+                                    {company}
                                   </span>
                                 )}
                               </div>
@@ -952,68 +1006,38 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           <MatchBadge score={candidate.matchScore} category={candidate.matchCategory} />
                         </div>
 
-                        {/* Row 2: Location · Experience · Education */}
+                        {/* Row 2: Location · Experience · Education (non-premium) */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
-                          {(candidate.location || candidate.locality) && (
+                          {location && (
                             <span className="flex items-center gap-1">
                               <MapPin size={11} className="text-slate-500" />
-                              {candidate.location || candidate.locality}
+                              {location}
                             </span>
                           )}
-                          {totalExperience && (
+                          {experience && (
                             <span className="flex items-center gap-1">
                               <Clock size={11} className="text-slate-500" />
-                              {totalExperience}
+                              {experience}
                             </span>
                           )}
-                          {education && (
-                            isPremiumInstitute(education) ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-600/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
-                                <GraduationCap size={10} />
-                                {education}
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <GraduationCap size={11} />
-                                {education}
-                              </span>
-                            )
+                          {education && !isPremiumInstitute(education) && (
+                            <span className="flex items-center gap-1">
+                              <GraduationCap size={11} />
+                              {education}
+                            </span>
                           )}
                         </div>
 
                         {/* Skills */}
                         {skills.length > 0 && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {skills.map((skill) => {
-                              const isMatched = candidate.matchedSkills?.some(
-                                (m) => m.toLowerCase() === skill.toLowerCase()
-                              );
-                              const isMissing = candidate.missingSkills?.some(
-                                (m) => m.toLowerCase() === skill.toLowerCase()
-                              );
-                              return (
-                                <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 ${
-                                  isMatched ? 'border-emerald-600/50 bg-emerald-950/30 text-emerald-300' :
-                                  isMissing ? 'border-red-700/40 bg-red-950/20 text-red-400' :
-                                  'border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF]'
-                                }`}>
-                                  {skill}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {/* Missing required skills (shown only when scorer data is present) */}
-                        {candidate.missingSkills?.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {candidate.missingSkills.map((skill) => (
-                              <span key={skill} className="text-[10px] rounded-md border border-red-700/40 bg-red-950/20 text-red-400 px-2 py-0.5 italic">
-                                missing: {skill}
+                            {skills.map((skill) => (
+                              <span key={skill} className="text-[11px] rounded-md border border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#D4CCFF] px-2 py-0.5">
+                                {skill}
                               </span>
                             ))}
                           </div>
                         )}
-
                         {/* Full profile — expandable */}
                         {(candidate.about || candidate.languages?.length > 0) && (() => {
                           const cardKey = linkedInUrl || candidate.name;
