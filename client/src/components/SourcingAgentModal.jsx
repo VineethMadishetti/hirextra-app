@@ -602,7 +602,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       Next
                       <ChevronRight size={16} />
                     </button>
-                  ) : responseData ? (
+                  ) : (internetData || internalData) ? (
                     <button
                       onClick={() => setView('results')}
                       className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
