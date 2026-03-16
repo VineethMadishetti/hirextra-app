@@ -19,8 +19,6 @@ import {
 	Zap,
 	ArrowRight,
 	Database,
-	KanbanSquare,
-	Briefcase,
 } from "lucide-react";
 import LoadingScreen from "../components/LoadingScreen";
 import SourcingAgentModal from "../components/SourcingAgentModal";
@@ -118,8 +116,6 @@ const UserSearch = lazy(() => import("./UserSearch"));
 const UserManagement = lazy(() => import("./UserManagement"));
 // const Enrich = lazy(() => import("./Enrich")); // hidden for now
 const PrivateDatabases = lazy(() => import("./PrivateDatabases"));
-const Pipeline = lazy(() => import("./Pipeline"));
-const Jobs = lazy(() => import("./Jobs"));
 
 const Dashboard = () => {
 	const { user, logout } = useContext(AuthContext);
@@ -237,20 +233,6 @@ const Dashboard = () => {
 								<Database size={16} />
 								My Databases
 							</button>
-						<button
-							onClick={() => setCurrentView("pipeline")}
-							className={[`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all`,
-								currentView === "pipeline" ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"].join(" ")}>
-							<KanbanSquare size={16} />
-							Pipeline
-						</button>
-						<button
-							onClick={() => setCurrentView("jobs")}
-							className={[`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all`,
-								currentView === "jobs" ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"].join(" ")}>
-							<Briefcase size={16} />
-							Jobs
-						</button>
 						</div>
 					)}
 
@@ -319,20 +301,6 @@ const Dashboard = () => {
 							<Zap size={16} />
 							AI Source
 						</button>
-					<button
-						onClick={() => setCurrentView("pipeline")}
-						className={["flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all",
-							currentView === "pipeline" ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"].join(" ")}>
-						<KanbanSquare size={16} />
-						Pipeline
-					</button>
-					<button
-						onClick={() => setCurrentView("jobs")}
-						className={["flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all",
-							currentView === "jobs" ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"].join(" ")}>
-						<Briefcase size={16} />
-						Jobs
-					</button>
 					</div>
 				)}
 			</div>
@@ -519,11 +487,7 @@ const Dashboard = () => {
 						<Enrich />
 					) : currentView === "ai-source" ? (
 						<SourcingAgentModal inline={true} onClose={() => setCurrentView(user?.role === "ADMIN" ? "admin" : "welcome")} />
-					) : currentView === "pipeline" ? (
-					<Pipeline />
-				) : currentView === "jobs" ? (
-					<Jobs />
-				) : currentView === "ai-search" ? (
+					) : currentView === "ai-search" ? (
 						<UserSearch focusAiSearch={true} />
 					) : (
 						<UserSearch />

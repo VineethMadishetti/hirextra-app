@@ -1438,7 +1438,8 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 
 			const BATCH = 2000;
 			const PROGRESS_INTERVAL = 2000;
-			let ndSuccess = 0, ndFailed = 0, ndRow = 0;
+			// Fix: initialize from resume counts so totals stay accurate after a restart
+			let ndSuccess = initialSuccess, ndFailed = initialFailed, ndRow = 0;
 			let ndCandidates = [];
 			let ndLastProgress = Date.now();
 			const ndFailReasons = new Map();
@@ -1458,7 +1459,14 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 				ndRow++;
 
 				// Skip rows already processed (resume support)
-				if (ndRow <= resumeFrom) continue;
+				if (ndRow <= resumeFrom) {
+					// Keep UI updated during the skip phase so it doesn't appear frozen
+					if (Date.now() - ndLastProgress > PROGRESS_INTERVAL) {
+						await UploadJob.findByIdAndUpdate(jobId, { totalRows: ndRow });
+						ndLastProgress = Date.now();
+					}
+					continue;
+				}
 
 				try {
 					const obj = JSON.parse(line);

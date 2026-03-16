@@ -4,6 +4,7 @@ import { protect } from '../middleware/authMiddleware.js';
 import {
   extractRequirements,
   sourceCandidates,
+  searchInternalDb,
   updateCandidateStage,
   parseSearchQuery,
   saveSourcingResult,
@@ -24,8 +25,11 @@ const jdUpload = multer({
  * All routes require authentication
  */
 
-// Main sourcing endpoint - accepts job description and returns candidates
+// Main sourcing endpoint - internet/CSE sourcing
 router.post('/', protect, sourceCandidates);
+
+// Internal DB sourcing - Boolean match scoring against MongoDB
+router.post('/internal-db', protect, searchInternalDb);
 
 // Extract structured requirements from JD text/file
 router.post('/requirements', protect, jdUpload.single('jdFile'), extractRequirements);

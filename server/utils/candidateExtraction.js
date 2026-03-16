@@ -504,6 +504,13 @@ export function formatCandidates(candidates) {
     snippet: c.snippet || '',
     sources: c.sources || [],
     relevanceScore: c.relevanceScore || 0,
+    // Boolean match scoring fields (populated by matchScorer)
+    matchScore:      c.matchScore      ?? null,
+    matchCategory:   c.matchCategory   ?? null,
+    matchedSkills:   c.matchedSkills   ?? [],
+    missingSkills:   c.missingSkills   ?? [],
+    locationMatch:   c.locationMatch   ?? null,
+    experienceMatch: c.experienceMatch ?? null,
     savedCandidateId: c.savedCandidateId || null,
     savedToDatabase: Boolean(c.savedToDatabase),
     pipelineStage: c.pipelineStage || 'DISCOVERED',

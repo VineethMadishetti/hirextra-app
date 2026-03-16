@@ -12,6 +12,7 @@ import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
+import { scoreCandidates, bucketByMatchCategory } from '../utils/matchScorer.js';
 
 const require = createRequire(import.meta.url);
 
@@ -389,8 +390,11 @@ export const sourceCandidates = async (req, res) => {
       }
     }
 
-    // Step 2: Rank candidates (skills + seniority score)
-    candidates = rankCandidates(candidates, structured.mustHaveSkills || []);
+    // Step 2: Boolean match scoring (replaces simple rankCandidates).
+    // scoreCandidates handles skill alias matching, location, and experience.
+    // minScore=0 keeps all candidates here; we still apply the strict location
+    // filter below before slicing to maxCandidatesSafe.
+    candidates = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
 
     // Step 3: Strict current-location filter.
     // ONLY use the AI-extracted c.location field (current city of residence).
@@ -458,8 +462,16 @@ export const sourceCandidates = async (req, res) => {
     const enrichedCount = formatted.filter((c) => c.email || c.phone).length;
     const totalTime = Date.now() - startedAt;
 
+    // Build match-category bucket counts for the frontend
+    const bucketCounts = { perfect: 0, strong: 0, good: 0, partial: 0, weak: 0 };
+    for (const c of formatted) {
+      const key = (c.matchCategory || 'weak').toLowerCase();
+      if (key in bucketCounts) bucketCounts[key]++;
+    }
+
     return res.status(200).json({
       success: true,
+      source: 'internet',
       parseOnly: false,
       message: 'AI sourcing completed successfully.',
       parsedRequirements: structured,
@@ -469,6 +481,7 @@ export const sourceCandidates = async (req, res) => {
         resultsPerCountry: resultsPerCountrySafe,
         maxQueries: maxQueriesSafe,
       },
+      bucketCounts,
       candidates: formatted,
       results: formatted,
       totalFound: formatted.length,
@@ -920,9 +933,154 @@ export const exportCandidatesAsCSV = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/ai-source/internal-db
+ *
+ * Search the internal MongoDB candidate database using Boolean match scoring.
+ *
+ * Flow:
+ *   1. Parse JD → structured requirements (AI or passed directly)
+ *   2. Build a broad MongoDB pre-filter using OR regex on all skills + location
+ *      (uses existing indexes — does NOT do a full collection scan)
+ *   3. Score each pre-filtered candidate with matchScorer
+ *   4. Return candidates bucketed by match category (PERFECT / STRONG / GOOD / PARTIAL)
+ *
+ * Body params:
+ *   jobDescription      {string}   raw JD text (used if parsedRequirements not provided)
+ *   parsedRequirements  {object}   already-parsed requirements object (skips AI call)
+ *   maxResults          {number}   max candidates to return (default 50, max 200)
+ *   minScore            {number}   minimum match % to include (default 30)
+ *   includeWeak         {boolean}  include WEAK matches in response (default false)
+ */
+export const searchInternalDb = async (req, res) => {
+  const startedAt = Date.now();
+
+  try {
+    const {
+      jobDescription,
+      parsedRequirements,
+      maxResults = 50,
+      minScore = 30,
+      includeWeak = false,
+    } = req.body || {};
+
+    // ── 1. Parse requirements ─────────────────────────────────────────────
+    const parsed = await toInternalParsed({ parsedRequirements, jobDescription });
+    const structured = buildStructuredRequirements(parsed);
+
+    const mustHaveSkills  = parsed.must_have_skills  || [];
+    const requiredSkills  = parsed.required_skills   || [];
+    const preferredSkills = parsed.preferred_skills  || [];
+    const allSkills       = [...new Set([...mustHaveSkills, ...requiredSkills, ...preferredSkills])];
+    const reqLocation     = String(parsed.location || '');
+    const hasLocation     = Boolean(reqLocation && !/unspecified|not specified/i.test(reqLocation));
+
+    const maxResultsSafe = Math.min(Math.max(Number(maxResults) || 50, 1), 200);
+    const minScoreSafe   = Math.min(Math.max(Number(minScore)   || 30, 0), 100);
+
+    // ── 2. Build broad MongoDB pre-filter (uses indexes) ─────────────────
+    // Strategy: OR across all skills so we cast a wide net, then score in JS.
+    // This avoids a full collection scan while keeping recall high.
+    const orClauses = [];
+
+    if (allSkills.length > 0) {
+      const skillPattern = allSkills
+        .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+      orClauses.push({ skills: { $regex: skillPattern, $options: 'i' } });
+      orClauses.push({ jobTitle: { $regex: skillPattern, $options: 'i' } });
+    }
+
+    if (hasLocation) {
+      const cityName = reqLocation.split(',')[0].trim();
+      const locEscaped = cityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      orClauses.push({ location: { $regex: locEscaped, $options: 'i' } });
+      orClauses.push({ locality: { $regex: locEscaped, $options: 'i' } });
+    }
+
+    const preFilter = {
+      isDeleted: false,
+      privateDbId: null, // global PeopleFinder DB only
+    };
+    if (orClauses.length > 0) {
+      preFilter.$or = orClauses;
+    }
+
+    // Fetch a broad batch — score in JS, return top maxResultsSafe.
+    // PRE_FETCH_LIMIT controls how many we pull from Mongo before scoring.
+    // Higher = better recall but more memory; 2000 is a safe default.
+    const PRE_FETCH_LIMIT = 2000;
+
+    const rawCandidates = await Candidate.find(preFilter)
+      .select('fullName jobTitle skills experience location locality country email phone linkedinUrl company industry summary createdAt')
+      .sort({ createdAt: -1 })
+      .limit(PRE_FETCH_LIMIT)
+      .lean()
+      .maxTimeMS(15000);
+
+    // ── 3. Score & rank ───────────────────────────────────────────────────
+    const scored = scoreCandidates(rawCandidates, parsed, {
+      minScore: minScoreSafe,
+      excludeDisqualified: true,
+    });
+
+    // ── 4. Bucket and trim ────────────────────────────────────────────────
+    const allBucketed = bucketByMatchCategory(scored);
+
+    // Optionally exclude WEAK bucket
+    if (!includeWeak) delete allBucketed.weak;
+
+    // Flatten in priority order for the `candidates` array, capped at maxResultsSafe
+    const orderedCandidates = [
+      ...(allBucketed.perfect  || []),
+      ...(allBucketed.strong   || []),
+      ...(allBucketed.good     || []),
+      ...(allBucketed.partial  || []),
+      ...(allBucketed.weak     || []),
+    ].slice(0, maxResultsSafe);
+
+    const bucketCounts = {
+      perfect:  (allBucketed.perfect  || []).length,
+      strong:   (allBucketed.strong   || []).length,
+      good:     (allBucketed.good     || []).length,
+      partial:  (allBucketed.partial  || []).length,
+      weak:     (allBucketed.weak     || []).length,
+    };
+
+    return res.status(200).json({
+      success: true,
+      source: 'internal_db',
+      parsedRequirements: structured,
+      totalPreFiltered: rawCandidates.length,
+      totalScored: scored.length,
+      totalReturned: orderedCandidates.length,
+      bucketCounts,
+      buckets: allBucketed,
+      candidates: orderedCandidates,
+      summary: {
+        jobTitle: structured.jobTitle,
+        mustHaveSkills,
+        requiredSkills,
+        preferredSkills,
+        location: reqLocation,
+        minScore: minScoreSafe,
+        timeMs: Date.now() - startedAt,
+      },
+    });
+  } catch (error) {
+    logger.error(`Internal DB search failed: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal DB search failed',
+      message: error.message,
+    });
+  }
+};
+
 export default {
   extractRequirements,
   sourceCandidates,
+  searchInternalDb,
   updateCandidateStage,
   parseSearchQuery,
   saveSourcingResult,

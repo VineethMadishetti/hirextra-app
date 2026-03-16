@@ -8,8 +8,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Database,
   Download,
   FileSearch,
+  Globe,
   GraduationCap,
   Loader2,
   Mail,
@@ -164,16 +166,59 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
   );
 }
 
+// ── Match category styling ────────────────────────────────────────────────────
+const MATCH_CATEGORY_STYLE = {
+  PERFECT:  { label: '100% Match', className: 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300' },
+  STRONG:   { label: '~80% Match', className: 'border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#B9AEFF]' },
+  GOOD:     { label: '~60% Match', className: 'border-amber-600/50 bg-amber-950/30 text-amber-300' },
+  PARTIAL:  { label: '~40% Match', className: 'border-slate-600/60 bg-slate-800/40 text-slate-400' },
+  WEAK:     { label: 'Weak',       className: 'border-slate-700/50 bg-slate-800/30 text-slate-500' },
+};
+
+function MatchBadge({ score, category }) {
+  const meta = MATCH_CATEGORY_STYLE[category] || MATCH_CATEGORY_STYLE.WEAK;
+  if (score == null) return null;
+  return (
+    <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border ${meta.className}`}>
+      {score}% · {meta.label}
+    </span>
+  );
+}
+
+function BucketSummary({ bucketCounts }) {
+  if (!bucketCounts) return null;
+  const items = [
+    { key: 'perfect', label: '100%', color: 'text-emerald-400' },
+    { key: 'strong',  label: '~80%', color: 'text-[#B9AEFF]' },
+    { key: 'good',    label: '~60%', color: 'text-amber-400' },
+    { key: 'partial', label: '~40%', color: 'text-slate-400' },
+  ].filter(item => bucketCounts[item.key] > 0);
+  if (!items.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 text-xs">
+      {items.map(({ key, label, color }) => (
+        <span key={key} className={`font-semibold ${color}`}>
+          {bucketCounts[key]} {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
   const [view, setView] = useState('compose'); // compose | sourcing | results
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
+  const [activeTab, setActiveTab] = useState('internet'); // internet | internal
   const [jobDescription, setJobDescription] = useState('');
   const [jdFile, setJdFile] = useState(null);
   const [extracting, setExtracting] = useState(false);
-  const [sourcing, setSourcing] = useState(false);
+  const [searchingInternet, setSearchingInternet] = useState(false);
+  const [searchingInternal, setSearchingInternal] = useState(false);
   const [bundle, setBundle] = useState(null);
   const [parsedDraft, setParsedDraft] = useState(null);
-  const [responseData, setResponseData] = useState(null);
+  const [internetData, setInternetData] = useState(null);
+  const [internalData, setInternalData] = useState(null);
   const [error, setError] = useState('');
   const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
@@ -181,14 +226,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [expandedCards, setExpandedCards] = useState(new Set());
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
-  const parsedRequirements = parsedDraft || bundle?.parsedRequirements || responseData?.parsedRequirements || null;
+  // Active tab data helpers
+  const activeData = activeTab === 'internet' ? internetData : internalData;
+  const sourcing = searchingInternet || searchingInternal;
+
+  const parsedRequirements = parsedDraft || bundle?.parsedRequirements || activeData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim()) || Boolean(jdFile);
   const hasParsedDraft = Boolean(parsedDraft);
   const candidates = useMemo(
-    () => responseData?.candidates || responseData?.results || [],
-    [responseData]
+    () => activeData?.candidates || activeData?.results || [],
+    [activeData]
   );
-  const parseOnly = Boolean(responseData?.parseOnly);
+  const parseOnly = Boolean(activeData?.parseOnly);
 
   const CANDIDATES_PER_PAGE = 10;
   const totalPages = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
@@ -208,10 +257,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         setView(parsed.view === 'sourcing' ? 'results' : parsed.view);
       }
       if (parsed?.composeStep) setComposeStep(parsed.composeStep);
+      if (parsed?.activeTab) setActiveTab(parsed.activeTab);
       if (typeof parsed?.jobDescription === 'string') setJobDescription(parsed.jobDescription);
       if (parsed?.bundle) setBundle(parsed.bundle);
       if (parsed?.parsedDraft) setParsedDraft(parsed.parsedDraft);
-      if (parsed?.responseData) setResponseData(parsed.responseData);
+      if (parsed?.internetData) setInternetData(parsed.internetData);
+      if (parsed?.internalData) setInternalData(parsed.internalData);
       if (Array.isArray(parsed?.savedCandidates)) {
         setSavedCandidates(new Set(parsed.savedCandidates));
       }
@@ -225,28 +276,33 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       const snapshot = {
         view,
         composeStep,
+        activeTab,
         jobDescription,
         bundle,
         parsedDraft,
-        responseData,
+        internetData,
+        internalData,
         savedCandidates: Array.from(savedCandidates),
       };
       localStorage.setItem(AI_SOURCE_STATE_KEY, JSON.stringify(snapshot));
     } catch {
       // Ignore persistence errors
     }
-  }, [view, composeStep, jobDescription, bundle, parsedDraft, responseData, savedCandidates]);
+  }, [view, composeStep, activeTab, jobDescription, bundle, parsedDraft, internetData, internalData, savedCandidates]);
 
   const handleClose = () => {
     setView('compose');
     setJobDescription('');
     setJdFile(null);
     setComposeStep('input');
+    setActiveTab('internet');
     setExtracting(false);
-    setSourcing(false);
+    setSearchingInternet(false);
+    setSearchingInternal(false);
     setBundle(null);
     setParsedDraft(null);
-    setResponseData(null);
+    setInternetData(null);
+    setInternalData(null);
     setError('');
     setSavedCandidates(new Set());
     onClose();
@@ -310,19 +366,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  const handleStartSourcing = async () => {
+  // ── Internet sourcing (Google CSE → LinkedIn profiles) ───────────────────
+  const handleSearchInternet = async () => {
     setError('');
-    if (!parsedRequirements) {
-      setError('Extract requirements first.');
-      return;
-    }
-
-    setSourcing(true);
+    if (!parsedRequirements) { setError('Extract requirements first.'); return; }
+    setSearchingInternet(true);
+    setActiveTab('internet');
     setView('sourcing');
     try {
       const { data } = await api.post('/ai-source', {
         jobDescription: jobDescription.trim() || undefined,
-        parsedRequirements: parsedRequirements,
+        parsedRequirements,
         maxCandidates: 60,
         maxQueries: 6,
         resultsPerCountry: 10,
@@ -330,8 +384,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         enrichTopN: 0,
         autoSave: false,
       });
-
-      setResponseData(data);
+      setInternetData(data);
       setCurrentPage(1);
       const preSaved = new Set(
         (data?.candidates || [])
@@ -340,9 +393,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       );
       setSavedCandidates(preSaved);
       setView('results');
-
-      // Background-save all candidates so Get Contact is instant when clicked.
-      // Fires after the UI renders — non-blocking, batches of 4.
+      // Background-save all internet candidates so Get Contact is instant
       const toSave = (data?.candidates || []).filter(
         (c) => !c.savedCandidateId && (c.linkedinUrl || c.linkedInUrl)
       );
@@ -359,7 +410,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const savedId = saved?.candidateId || saved?.candidate?._id;
                     const url = c.linkedinUrl || c.linkedInUrl;
                     if (savedId && url) {
-                      setResponseData((prev) => {
+                      setInternetData((prev) => {
                         if (!prev) return prev;
                         const next = (prev.candidates || prev.results || []).map((row) =>
                           (row.linkedinUrl || row.linkedInUrl) === url
@@ -370,25 +421,53 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       });
                     }
                   }
-                } catch { /* ignore background save errors */ }
+                } catch { /* ignore */ }
               })
             );
           }
         })();
       }
-
       if (data?.parseOnly) {
-        toast('Requirements parsed. Add SERPER_API_KEY to enable candidate discovery.', { icon: 'i' });
+        toast('Requirements parsed. Add SERPER_API_KEY to enable candidate discovery.', { icon: 'ℹ️' });
       } else {
-        toast.success(`Sourcing complete. ${data?.summary?.totalExtracted || 0} candidates found.`);
+        toast.success(`Internet search complete. ${data?.summary?.totalExtracted || 0} candidates found.`);
       }
     } catch (err) {
-      const message = err.response?.data?.error || 'Failed to source candidates.';
+      const message = err.response?.data?.error || 'Failed to source candidates from internet.';
       setError(message);
       setView('compose');
       toast.error(message);
     } finally {
-      setSourcing(false);
+      setSearchingInternet(false);
+    }
+  };
+
+  // ── Internal DB sourcing (Boolean match scoring against MongoDB) ───────────
+  const handleSearchInternalDb = async () => {
+    setError('');
+    if (!parsedRequirements) { setError('Extract requirements first.'); return; }
+    setSearchingInternal(true);
+    setActiveTab('internal');
+    setView('sourcing');
+    try {
+      const { data } = await api.post('/ai-source/internal-db', {
+        jobDescription: jobDescription.trim() || undefined,
+        parsedRequirements,
+        maxResults: 100,
+        minScore: 30,
+        includeWeak: false,
+      });
+      setInternalData(data);
+      setCurrentPage(1);
+      setView('results');
+      toast.success(`Internal DB search complete. ${data?.totalReturned || 0} candidates matched.`);
+    } catch (err) {
+      const message = err.response?.data?.error || 'Failed to search internal database.';
+      setError(message);
+      setView('compose');
+      toast.error(message);
+    } finally {
+      setSearchingInternal(false);
     }
   };
 
@@ -402,23 +481,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       if (data?.success) {
         const savedId = data?.candidateId || data?.candidate?._id || null;
         setSavedCandidates((prev) => new Set([...prev, linkedInUrl]));
-        setResponseData((prev) => {
+        // Update whichever dataset the candidate belongs to
+        const updater = (prev) => {
           if (!prev) return prev;
           const nextCandidates = (prev.candidates || prev.results || []).map((row) => {
             const rowLinkedin = row.linkedinUrl || row.linkedInUrl;
             if (rowLinkedin !== linkedInUrl) return row;
-            return {
-              ...row,
-              savedToDatabase: true,
-              savedCandidateId: savedId || row.savedCandidateId || null,
-            };
+            return { ...row, savedToDatabase: true, savedCandidateId: savedId || row.savedCandidateId || null };
           });
-          return {
-            ...prev,
-            candidates: nextCandidates,
-            results: nextCandidates,
-          };
-        });
+          return { ...prev, candidates: nextCandidates, results: nextCandidates };
+        };
+        setInternetData(updater);
+        setInternalData(updater);
         if (!silent) toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
         return savedId;
       } else {
@@ -706,13 +780,28 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     </div>
                   </div>
 
-                  <div className="mt-6 flex justify-center">
+                  <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
+                    {/* Internet sourcing — Google CSE / LinkedIn */}
                     <button
-                      onClick={handleStartSourcing}
-                      disabled={sourcing || extracting || !parsedRequirements}
-                      className="min-w-[260px] rounded-xl bg-[#432DD7] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#5A45E5] disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+                      onClick={handleSearchInternet}
+                      disabled={searchingInternet || searchingInternal || extracting || !parsedRequirements}
+                      className="flex-1 max-w-xs rounded-xl bg-[#432DD7] hover:bg-[#5A45E5] disabled:opacity-60 text-white px-5 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                     >
-                      Find Candidate
+                      {searchingInternet
+                        ? <><Loader2 size={15} className="animate-spin" /> Searching Internet…</>
+                        : <><Globe size={15} /> Search Internet</>
+                      }
+                    </button>
+                    {/* Internal DB sourcing — Boolean match scoring */}
+                    <button
+                      onClick={handleSearchInternalDb}
+                      disabled={searchingInternet || searchingInternal || extracting || !parsedRequirements}
+                      className="flex-1 max-w-xs rounded-xl border border-[#6B5AF0]/60 bg-[#432DD7]/15 hover:bg-[#432DD7]/30 disabled:opacity-60 text-[#C4B8FF] px-5 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      {searchingInternal
+                        ? <><Loader2 size={15} className="animate-spin" /> Searching DB…</>
+                        : <><Database size={15} /> Search Internal DB</>
+                      }
                     </button>
                   </div>
 
@@ -724,16 +813,24 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           {view === 'sourcing' && (
             <div className="py-20 text-center">
               <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
-              <p className="mt-4 text-lg font-semibold text-slate-100">Sourcing Pipeline Running</p>
-              <p className="text-sm text-slate-400 mt-1">
-                Generating search queries, extracting profiles, and returning candidates.
-              </p>
+              {searchingInternet ? (
+                <>
+                  <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internet</p>
+                  <p className="text-sm text-slate-400 mt-1">Generating LinkedIn queries and extracting profiles across countries.</p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internal Database</p>
+                  <p className="text-sm text-slate-400 mt-1">Scoring candidates with Boolean match logic against your requirements.</p>
+                </>
+              )}
             </div>
           )}
 
           {view === 'results' && (
             <div className="space-y-5">
-              <div className="flex items-center justify-between px-1">
+              {/* Top bar: Back + Source tabs */}
+              <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
                 <button
                   onClick={() => setView('compose')}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
@@ -741,8 +838,53 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                   <ChevronLeft size={16} />
                   Back
                 </button>
-                <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates found</p>
+
+                {/* Source tabs */}
+                <div className="flex items-center rounded-xl border border-slate-700 bg-slate-900/70 p-1 gap-1">
+                  <button
+                    onClick={() => { setActiveTab('internet'); setCurrentPage(1); }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                      activeTab === 'internet'
+                        ? 'bg-[#432DD7] text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Globe size={13} />
+                    Internet
+                    {internetData && (
+                      <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
+                        {(internetData.candidates || internetData.results || []).length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('internal'); setCurrentPage(1); }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                      activeTab === 'internal'
+                        ? 'bg-[#432DD7] text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Database size={13} />
+                    Internal DB
+                    {internalData && (
+                      <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
+                        {internalData.totalReturned || 0}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates</p>
               </div>
+
+              {/* Bucket summary bar */}
+              {activeData?.bucketCounts && (
+                <div className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 px-4 py-2.5">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wide shrink-0">Match</span>
+                  <BucketSummary bucketCounts={activeData.bucketCounts} />
+                </div>
+              )}
 
               {parseOnly && (
                 <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-200">
@@ -763,12 +905,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const education = candidate.education || extractEducationFromSnippet(candidate.snippet);
                     const totalExperience = candidate.totalExperience || null;
                     const badges = extractBadgesFromSnippet(candidate.snippet);
-                    const score = candidate.relevanceScore || 0;
-
                     return (
                       <div key={`${linkedInUrl || candidate.name || 'candidate'}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
 
-                        {/* Row 1: Rank + Name + Badges + Score */}
+                        {/* Row 1: Rank + Name + Badges + Match Badge */}
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-2.5 min-w-0 flex-1">
                             <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400">
@@ -809,9 +949,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               </div>
                             </div>
                           </div>
-                          <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border ${score >= 10 ? 'border-[#6B5AF0]/60 bg-[#432DD7]/20 text-[#B9AEFF]' : 'border-slate-700 bg-slate-800/60 text-slate-500'}`}>
-                            ★ {score}
-                          </span>
+                          <MatchBadge score={candidate.matchScore} category={candidate.matchCategory} />
                         </div>
 
                         {/* Row 2: Location · Experience · Education */}
@@ -846,9 +984,31 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         {/* Skills */}
                         {skills.length > 0 && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {skills.map((skill) => (
-                              <span key={skill} className="text-[11px] rounded-md border border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF] px-2 py-0.5">
-                                {skill}
+                            {skills.map((skill) => {
+                              const isMatched = candidate.matchedSkills?.some(
+                                (m) => m.toLowerCase() === skill.toLowerCase()
+                              );
+                              const isMissing = candidate.missingSkills?.some(
+                                (m) => m.toLowerCase() === skill.toLowerCase()
+                              );
+                              return (
+                                <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 ${
+                                  isMatched ? 'border-emerald-600/50 bg-emerald-950/30 text-emerald-300' :
+                                  isMissing ? 'border-red-700/40 bg-red-950/20 text-red-400' :
+                                  'border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF]'
+                                }`}>
+                                  {skill}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {/* Missing required skills (shown only when scorer data is present) */}
+                        {candidate.missingSkills?.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {candidate.missingSkills.map((skill) => (
+                              <span key={skill} className="text-[10px] rounded-md border border-red-700/40 bg-red-950/20 text-red-400 px-2 py-0.5 italic">
+                                missing: {skill}
                               </span>
                             ))}
                           </div>
@@ -925,14 +1085,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               candidate={candidate}
                               onSaveCandidate={handleSaveCandidate}
                               onContactFound={(linkedInUrl, enriched, candidateId) => {
-                                setResponseData((prev) => {
+                                const updater = (prev) => {
                                   if (!prev) return prev;
                                   const nextCandidates = (prev.candidates || prev.results || []).map((row) => {
                                     if ((row.linkedinUrl || row.linkedInUrl) !== linkedInUrl) return row;
                                     return { ...row, savedCandidateId: candidateId, savedToDatabase: true, email: enriched.email || null, phone: enriched.phone || null };
                                   });
                                   return { ...prev, candidates: nextCandidates, results: nextCandidates };
-                                });
+                                };
+                                setInternetData(updater);
+                                setInternalData(updater);
                               }}
                             />
                           )}
