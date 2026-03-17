@@ -160,7 +160,7 @@ const Enrich = () => {
                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-70 active:scale-95"
                         >
                             {loading ? <Loader className="animate-spin" size={20} /> : <Search size={20} />}
-                            Search Database
+                            AI Search Database
                         </button>
                     </div>
                 </form>
