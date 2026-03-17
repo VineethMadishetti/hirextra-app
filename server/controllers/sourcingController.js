@@ -391,9 +391,9 @@ export const sourceCandidates = async (req, res) => {
     }
 
     // Step 2: Boolean match scoring.
-    // excludeDisqualified: true — drop candidates that match none of the must-have skills (score=0).
-    // minScore: 10 — drop any remaining 0% candidates that slipped through (e.g. no requirements defined).
-    candidates = scoreCandidates(candidates, parsed, { minScore: 10, excludeDisqualified: true });
+    // excludeDisqualified: true — drop candidates that match none of the required skills.
+    // minScore: 30 — only show candidates with at least 30% match on required skills.
+    candidates = scoreCandidates(candidates, parsed, { minScore: 30, excludeDisqualified: true });
 
     // Step 3: Strict current-location filter.
     // ONLY use the AI-extracted c.location field (current city of residence).

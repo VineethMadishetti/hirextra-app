@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Briefcase,
@@ -101,13 +101,6 @@ function availabilityBadge(availability) {
 const CARD_FONT = { fontFamily: '"Plus Jakarta Sans","Segoe UI",sans-serif' };
 
 
-const stageMeta = {
-  DISCOVERED: { label: 'Discovered', className: 'bg-slate-800 text-slate-200 border-slate-700' },
-  CONTACT_ENRICHED: { label: 'Contact Enriched', className: 'bg-[#432DD7]/25 text-[#E3DEFF] border-[#6B5AF0]/50' },
-  SEQUENCED: { label: 'Sequenced', className: 'bg-teal-950/45 text-teal-200 border-teal-700/50' },
-  CALL_QUEUED: { label: 'Call Queued', className: 'bg-amber-950/45 text-amber-200 border-amber-700/50' },
-  SHORTLISTED: { label: 'Shortlisted', className: 'bg-emerald-950/45 text-emerald-200 border-emerald-700/50' },
-};
 
 const AI_SOURCE_STATE_KEY = 'hirextra_ai_source_state';
 
@@ -127,7 +120,7 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
       let candidateId = candidate.savedCandidateId;
       if (!candidateId) candidateId = await onSaveCandidate(candidate, { silent: true });
       if (!candidateId) { setNotFound(true); return; }
-      const { data } = await api.get(`/enrich-contact/${candidateId}`);
+      const { data } = await api.get(`/enrich-contact/${candidateId}`, { timeout: 15000 });
       const enriched = data?.data;
       if (data?.success && (enriched?.email || enriched?.phone)) {
         setContact(enriched);
@@ -189,7 +182,7 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
   );
 }
 
-// ── Match category styling ────────────────────────────────────────────────────
+// ── Match category styling ──────────────���─────────────────────────────────────
 const MATCH_CATEGORY_STYLE = {
   PERFECT:  { label: '-80% Match', className: 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300' },
   STRONG:   { label: '-80% Match', className: 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300' },
@@ -243,20 +236,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [bundle, setBundle] = useState(null);
   const [parsedDraft, setParsedDraft] = useState(null);
   // Raw text for skill textareas — allows typing commas freely without re-parse on every keystroke
-  const [mustHaveRaw,  setMustHaveRaw]  = useState('');
   const [requiredRaw,  setRequiredRaw]  = useState('');
   const [preferredRaw, setPreferredRaw] = useState('');
   const [internetData, setInternetData] = useState(null);
   const [error, setError] = useState('');
-  const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCards, setExpandedCards] = useState(new Set());
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const searchAbortRef = useRef(null);
 
-  // Active tab data helpers
   const activeData = internetData;
-  const sourcing = searchingInternet;
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || activeData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim()) || Boolean(jdFile);
@@ -345,16 +335,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       mustHaveSkills: [], requiredSkills: [], preferredSkills: [],
       jobType: '', salaryRange: '', education: '', availability: '',
     });
-    setMustHaveRaw('');
     setRequiredRaw('');
     setPreferredRaw('');
     setComposeStep('parsed');
   };
 
-  // canSearch: true when parsedDraft has at least one skill in any tier (no AI required)
+  // canSearch: true when parsedDraft has at least one required or preferred skill
   const canSearch = Boolean(
     parsedDraft && (
-      parsedDraft.mustHaveSkills?.length  > 0 ||
       parsedDraft.requiredSkills?.length  > 0 ||
       parsedDraft.preferredSkills?.length > 0
     )
@@ -400,7 +388,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         jobType: er.durationType || '', salaryRange: er.salaryPackage || '', education: er.education || '',
       });
       // Sync raw textarea display
-      setMustHaveRaw(mh.join(', '));
       setRequiredRaw(rq.join(', '));
       setPreferredRaw(pf.join(', '));
       setComposeStep('parsed');
@@ -417,9 +404,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   // ── Internet sourcing (Google CSE → LinkedIn profiles) ───────────────────
   const handleSearchInternet = async () => {
     setError('');
-    if (!canSearch) { setError('Add at least one skill in Must-Have or Required Skills.'); return; }
+    if (!canSearch) { setError('Add at least one skill in Required Skills.'); return; }
+
+    // Cancel any previous in-flight search
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
     setSearchingInternet(true);
-    setActiveTab('internet');
     setView('sourcing');
     try {
       const { data } = await api.post('/ai-source', {
@@ -431,7 +423,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         enrichContacts: false,
         enrichTopN: 0,
         autoSave: false,
-      });
+      }, { signal: controller.signal });
       setInternetData(data);
       setCurrentPage(1);
       const preSaved = new Set(
@@ -481,12 +473,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         toast.success(`Internet search complete. ${data?.summary?.totalExtracted || 0} candidates found.`);
       }
     } catch (err) {
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
+        // User navigated back — silently stop
+        return;
+      }
       const message = err.response?.data?.error || 'Failed to source candidates from internet.';
       setError(message);
       setView('compose');
       toast.error(message);
     } finally {
       setSearchingInternet(false);
+      searchAbortRef.current = null;
     }
   };
 
@@ -495,7 +492,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
     if (!linkedInUrl) return null;
 
-    setSavingCandidateUrl(linkedInUrl);
     try {
       const { data } = await api.post('/ai-source/save-candidate', candidate);
       if (data?.success) {
@@ -521,8 +517,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     } catch (err) {
       if (!silent) toast.error(err.response?.data?.error || 'Failed to save candidate');
       return null;
-    } finally {
-      setSavingCandidateUrl(null);
     }
   };
 
@@ -786,17 +780,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       </div>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-red-400 font-bold">Must-Have Skills <span className="text-slate-500 normal-case font-normal">(hard filter — candidates missing ALL of these are disqualified)</span></label>
-                      <textarea
-                        value={mustHaveRaw}
-                        onChange={(e) => setMustHaveRaw(e.target.value)}
-                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), mustHaveSkills: parseSkillsText(mustHaveRaw) }))}
-                        placeholder="e.g. React, Node.js, TypeScript"
-                        className="mt-1 h-16 w-full rounded-lg border border-red-800/50 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-red-600/60 focus:outline-none focus:ring-2 focus:ring-red-700/50"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills <span className="text-slate-500 normal-case font-normal">(strong signal — 12 pts each)</span></label>
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills <span className="text-slate-500 normal-case font-normal">(at least 30% match required to show candidate)</span></label>
                       <textarea
                         value={requiredRaw}
                         onChange={(e) => setRequiredRaw(e.target.value)}
@@ -841,6 +825,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
               <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internet</p>
               <p className="text-sm text-slate-400 mt-1">Generating LinkedIn queries and extracting profiles across countries.</p>
+              <button
+                onClick={() => {
+                  if (searchAbortRef.current) { searchAbortRef.current.abort(); searchAbortRef.current = null; }
+                  setSearchingInternet(false);
+                  setView('compose');
+                }}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Cancel
+              </button>
             </div>
           )}
 
@@ -1091,7 +1085,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                   return { ...prev, candidates: nextCandidates, results: nextCandidates };
                                 };
                                 setInternetData(updater);
-                                setInternalData(updater);
                               }}
                             />
                           )}
