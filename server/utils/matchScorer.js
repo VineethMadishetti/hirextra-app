@@ -212,9 +212,22 @@ export function scoreCandidate(candidate, requirements) {
   const missingRequired  = requiredSkills.filter(s  => !skillMatches(candidateSkills, s));
   const matchedPreferred = preferredSkills.filter(s => skillMatches(candidateSkills, s));
 
-  // ── Hard disqualification ─────────────────────────────────────────────────
-  const hasMustHaveConstraint = mustHaveSkills.length > 0;
-  const disqualified = hasMustHaveConstraint && matchedMustHave.length === 0;
+  // ── Compute location match early (needed for hard rules below) ───────────
+  const locMatch = locationMatches(candidateLocation, reqLocation);
+
+  // ── Hard disqualification rules ───────────────────────────────────────────
+  const hasSkillRequirements = mustHaveSkills.length > 0 || requiredSkills.length > 0 || preferredSkills.length > 0;
+  const totalSkillsMatched   = matchedMustHave.length + matchedRequired.length + matchedPreferred.length;
+
+  // Rule 1: must-have skills present but none matched
+  const mustHaveFail = mustHaveSkills.length > 0 && matchedMustHave.length === 0;
+  // Rule 2: skills are defined but candidate matches ZERO across all tiers
+  const zeroSkillMatch = hasSkillRequirements && totalSkillsMatched === 0;
+  // Rule 3: location is specified but doesn't match
+  const hasLocationRequirement = Boolean(reqLocation && !/unspecified|not specified/i.test(reqLocation));
+  const locationFail = hasLocationRequirement && !locMatch;
+
+  const disqualified = mustHaveFail || zeroSkillMatch || locationFail;
 
   if (disqualified) {
     return {
@@ -225,7 +238,7 @@ export function scoreCandidate(candidate, requirements) {
       matchedRequired,
       missingRequired,
       matchedPreferred,
-      locationMatch: false,
+      locationMatch: locMatch,
       experienceMatch: false,
       breakdown: { mustHavePts: 0, requiredPts: 0, preferredPts: 0, locationPts: 0, experiencePts: 0 },
       disqualified: true,
@@ -237,7 +250,6 @@ export function scoreCandidate(candidate, requirements) {
   const requiredPts   = matchedRequired.length  * WEIGHT.required;
   const preferredPts  = matchedPreferred.length * WEIGHT.preferred;
 
-  const locMatch      = locationMatches(candidateLocation, reqLocation);
   const locationPts   = locMatch ? WEIGHT.location : 0;
 
   const candExpYears  = parseExperienceYears(candidateExp);

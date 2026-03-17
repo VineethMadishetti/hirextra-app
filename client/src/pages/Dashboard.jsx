@@ -33,7 +33,7 @@ const WelcomePage = ({ user, onNavigate }) => (
 
 		{/* Action Cards */}
 		<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-5xl">
-			{/* Search People Card */}
+			{/* Search Database Card */}
 			<button
 				onClick={() => onNavigate("search")}
 				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
@@ -43,7 +43,7 @@ const WelcomePage = ({ user, onNavigate }) => (
 					<Search size={22} className="text-blue-600 dark:text-blue-400" />
 				</div>
 				<div className="flex-1">
-					<h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">Search People</h3>
+					<h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">Search Database</h3>
 					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Filter by skills, location, title & more from our global talent database.</p>
 				</div>
 				<ArrowRight size={18} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
@@ -194,7 +194,7 @@ const Dashboard = () => {
 						<span className="text-slate-900 dark:text-slate-200">Finder</span>
 					</button>
 
-					{/* USER Navigation: Search People, AI Search, My Databases */}
+					{/* USER Navigation: Search Database, AI Search, My Databases */}
 					{user?.role === "USER" && (
 						<div className="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 rounded-full p-1 shadow-inner">
 							<button
@@ -204,9 +204,7 @@ const Dashboard = () => {
 									? "bg-white dark:bg-slate-900 text-blue-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700"
 									: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
 								}`}>
-								<Search size={16} />
-								Search People
-							</button>
+								<Search size={16} />Search Database</button>
 							<button
 								onClick={() => setCurrentView("ai-search")}
 								className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${currentView === "ai-search" ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
@@ -273,9 +271,7 @@ const Dashboard = () => {
 								? "bg-white dark:bg-slate-900 text-blue-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700"
 								: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
 						}`}>
-								<Search size={16} />
-								Search People
-							</button>
+								<Search size={16} />Search Database</button>
 					{/* Enrich nav — hidden for now
 						<button
 							onClick={() => setCurrentView("enrich")}
@@ -298,9 +294,7 @@ const Dashboard = () => {
 								? "bg-white dark:bg-slate-900 text-blue-600 dark:text-slate-100 shadow ring-1 ring-slate-200 dark:ring-slate-700"
 								: "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
 						}`}>
-							<Zap size={16} />
-							AI Source
-						</button>
+							<Zap size={16} />AI Internet Source</button>
 					</div>
 				)}
 			</div>
@@ -389,9 +383,7 @@ const Dashboard = () => {
 							? "text-blue-600 border-b-2 border-blue-600"
 							: "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
 					}`}>
-					<Search size={14} />
-					Search People
-				</button>
+					<Search size={14} />Search Database</button>
 				<button
 					onClick={() => setCurrentView("ai-search")}
 					className={`flex-1 py-3 text-sm font-medium text-center flex items-center justify-center gap-1.5 ${currentView === "ai-search" ? "text-violet-600 border-b-2 border-violet-600" : "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}`}>

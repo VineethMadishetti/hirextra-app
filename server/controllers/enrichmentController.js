@@ -55,8 +55,80 @@ export const enrichContact = async (req, res) => {
       logger.info(`Retrying provider for candidate ${candidateId} (cached failure or force)`);
     }
 
-    // Not in cache, run enrichment
-    logger.info(`Starting enrichment for candidate ${candidateId}`);
+    // ── Step 0: Candidate already has contact data (e.g. PDL import) ─────────
+    // PDL records were imported directly into the candidates collection with
+    // email + phone already populated. No API call needed.
+    if (!forceRefresh && (candidate.email || candidate.phone)) {
+      logger.info(`Contact resolved from candidate document for ${candidateId} (PDL/import data)`);
+      return res.json({
+        success: true,
+        data: {
+          candidateId,
+          email: candidate.email   || null,
+          phone: candidate.phone   || null,
+          linkedinUrl: candidate.linkedinUrl || null,
+          confidence: 95,
+          source: 'internal_pdl',
+          error: null,
+        },
+      });
+    }
+
+    // ── Step 1: PDL lookup by linkedinUrl across the 416M local dataset ──────
+    // Before calling any paid external API, check if another candidate record
+    // in the DB matches this linkedinUrl and already has email/phone.
+    const linkedinUrl = candidate.linkedinUrl || candidate.linkedInUrl;
+    if (!forceRefresh && linkedinUrl) {
+      const normalizedUrl = linkedinUrl.replace(/\/$/, '').toLowerCase();
+      const pdlMatch = await Candidate.findOne({
+        linkedinUrl: { $regex: new RegExp(`^${normalizedUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`, 'i') },
+        _id: { $ne: candidate._id },
+        $or: [
+          { email: { $exists: true, $ne: '' } },
+          { phone:  { $exists: true, $ne: '' } },
+        ],
+        isDeleted: false,
+      }).select('email phone linkedinUrl').lean();
+
+      if (pdlMatch && (pdlMatch.email || pdlMatch.phone)) {
+        logger.info(`PDL local lookup hit for ${candidateId} (linkedinUrl match)`);
+        // Cache the result so future requests skip this lookup too
+        await EnrichedContact.updateOne(
+          { candidateId },
+          {
+            candidateId,
+            email: pdlMatch.email || null,
+            phone: pdlMatch.phone || null,
+            linkedinUrl: pdlMatch.linkedinUrl || linkedinUrl,
+            confidence: 92,
+            source: 'internal_pdl',
+            verifiedAt: new Date(),
+            expiresAt: PERSISTENT_CONTACT_EXPIRY,
+          },
+          { upsert: true }
+        );
+        // Write back to candidate document so Step 0 catches it next time
+        await Candidate.updateOne(
+          { _id: candidateId },
+          { $set: { email: pdlMatch.email || candidate.email, phone: pdlMatch.phone || candidate.phone, 'enrichment.lastEnrichedAt': new Date(), 'enrichment.verificationStatus': 'VERIFIED' } }
+        );
+        return res.json({
+          success: true,
+          data: {
+            candidateId,
+            email: pdlMatch.email   || null,
+            phone: pdlMatch.phone   || null,
+            linkedinUrl: pdlMatch.linkedinUrl || linkedinUrl,
+            confidence: 92,
+            source: 'internal_pdl',
+            error: null,
+          },
+        });
+      }
+    }
+
+    // ── Step 2: External enrichment APIs (paid) ───────────────────────────────
+    logger.info(`Starting external enrichment for candidate ${candidateId}`);
     const result = await contactEnrichmentService.enrichCandidate(candidate);
 
     if (result.source === 'error' && !result.email && !result.phone) {

@@ -236,16 +236,17 @@ function BucketSummary({ bucketCounts }) {
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
   const [view, setView] = useState('compose'); // compose | sourcing | results
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
-  const [activeTab, setActiveTab] = useState('internet'); // internet | internal
   const [jobDescription, setJobDescription] = useState('');
   const [jdFile, setJdFile] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [searchingInternet, setSearchingInternet] = useState(false);
-  const [searchingInternal, setSearchingInternal] = useState(false);
   const [bundle, setBundle] = useState(null);
   const [parsedDraft, setParsedDraft] = useState(null);
+  // Raw text for skill textareas — allows typing commas freely without re-parse on every keystroke
+  const [mustHaveRaw,  setMustHaveRaw]  = useState('');
+  const [requiredRaw,  setRequiredRaw]  = useState('');
+  const [preferredRaw, setPreferredRaw] = useState('');
   const [internetData, setInternetData] = useState(null);
-  const [internalData, setInternalData] = useState(null);
   const [error, setError] = useState('');
   const [savingCandidateUrl, setSavingCandidateUrl] = useState(null);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
@@ -254,8 +255,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   // Active tab data helpers
-  const activeData = activeTab === 'internet' ? internetData : internalData;
-  const sourcing = searchingInternet || searchingInternal;
+  const activeData = internetData;
+  const sourcing = searchingInternet;
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || activeData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim()) || Boolean(jdFile);
@@ -284,12 +285,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         setView(parsed.view === 'sourcing' ? 'results' : parsed.view);
       }
       if (parsed?.composeStep) setComposeStep(parsed.composeStep);
-      if (parsed?.activeTab) setActiveTab(parsed.activeTab);
       if (typeof parsed?.jobDescription === 'string') setJobDescription(parsed.jobDescription);
       if (parsed?.bundle) setBundle(parsed.bundle);
       if (parsed?.parsedDraft) setParsedDraft(parsed.parsedDraft);
       if (parsed?.internetData) setInternetData(parsed.internetData);
-      if (parsed?.internalData) setInternalData(parsed.internalData);
       if (Array.isArray(parsed?.savedCandidates)) {
         setSavedCandidates(new Set(parsed.savedCandidates));
       }
@@ -303,33 +302,28 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       const snapshot = {
         view,
         composeStep,
-        activeTab,
         jobDescription,
         bundle,
         parsedDraft,
         internetData,
-        internalData,
         savedCandidates: Array.from(savedCandidates),
       };
       localStorage.setItem(AI_SOURCE_STATE_KEY, JSON.stringify(snapshot));
     } catch {
       // Ignore persistence errors
     }
-  }, [view, composeStep, activeTab, jobDescription, bundle, parsedDraft, internetData, internalData, savedCandidates]);
+  }, [view, composeStep, jobDescription, bundle, parsedDraft, internetData, savedCandidates]);
 
   const handleClose = () => {
     setView('compose');
     setJobDescription('');
     setJdFile(null);
     setComposeStep('input');
-    setActiveTab('internet');
     setExtracting(false);
     setSearchingInternet(false);
-    setSearchingInternal(false);
     setBundle(null);
     setParsedDraft(null);
     setInternetData(null);
-    setInternalData(null);
     setError('');
     setSavedCandidates(new Set());
     onClose();
@@ -351,6 +345,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       mustHaveSkills: [], requiredSkills: [], preferredSkills: [],
       jobType: '', salaryRange: '', education: '', availability: '',
     });
+    setMustHaveRaw('');
+    setRequiredRaw('');
+    setPreferredRaw('');
     setComposeStep('parsed');
   };
 
@@ -387,22 +384,25 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       });
 
       setBundle(data);
-      const extractedRequirements = data?.parsedRequirements || {};
+      const er = data?.parsedRequirements || {};
+      const mh = Array.isArray(er.mustHaveSkills)  ? er.mustHaveSkills  :
+                 Array.isArray(er.must_have_skills) ? er.must_have_skills : [];
+      const rq = Array.isArray(er.requiredSkills)  ? er.requiredSkills  :
+                 Array.isArray(er.required_skills)  ? er.required_skills  : [];
+      const pf = Array.isArray(er.preferredSkills) ? er.preferredSkills :
+                 Array.isArray(er.preferred_skills) ? er.preferred_skills : [];
       setParsedDraft({
-        ...extractedRequirements,
-        experienceYears: Number(extractedRequirements.experienceYears || 0),
-        mustHaveSkills:  Array.isArray(extractedRequirements.mustHaveSkills)  ? extractedRequirements.mustHaveSkills  :
-                         Array.isArray(extractedRequirements.must_have_skills) ? extractedRequirements.must_have_skills : [],
-        requiredSkills:  Array.isArray(extractedRequirements.requiredSkills)  ? extractedRequirements.requiredSkills  :
-                         Array.isArray(extractedRequirements.required_skills)  ? extractedRequirements.required_skills  : [],
-        preferredSkills: Array.isArray(extractedRequirements.preferredSkills) ? extractedRequirements.preferredSkills :
-                         Array.isArray(extractedRequirements.preferred_skills) ? extractedRequirements.preferred_skills : [],
-        dosa: { ...(extractedRequirements.dosa || {}) },
-        availability: extractedRequirements.availability || extractedRequirements.dosa?.availability || '',
-        jobType:      extractedRequirements.durationType || '',
-        salaryRange:  extractedRequirements.salaryPackage || '',
-        education:    extractedRequirements.education || '',
+        ...er,
+        experienceYears: Number(er.experienceYears || 0),
+        mustHaveSkills: mh, requiredSkills: rq, preferredSkills: pf,
+        dosa: { ...(er.dosa || {}) },
+        availability: er.availability || er.dosa?.availability || '',
+        jobType: er.durationType || '', salaryRange: er.salaryPackage || '', education: er.education || '',
       });
+      // Sync raw textarea display
+      setMustHaveRaw(mh.join(', '));
+      setRequiredRaw(rq.join(', '));
+      setPreferredRaw(pf.join(', '));
       setComposeStep('parsed');
       toast.success('Structured requirements extracted.');
     } catch (err) {
@@ -490,34 +490,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  // ── Internal DB sourcing (Boolean match scoring against MongoDB) ───────────
-  const handleSearchInternalDb = async () => {
-    setError('');
-    if (!canSearch) { setError('Add at least one skill in Must-Have or Required Skills.'); return; }
-    setSearchingInternal(true);
-    setActiveTab('internal');
-    setView('sourcing');
-    try {
-      const { data } = await api.post('/ai-source/internal-db', {
-        jobDescription: jobDescription.trim() || undefined,
-        parsedRequirements,
-        maxResults: 100,
-        minScore: 30,
-        includeWeak: false,
-      });
-      setInternalData(data);
-      setCurrentPage(1);
-      setView('results');
-      toast.success(`Internal DB search complete. ${data?.totalReturned || 0} candidates matched.`);
-    } catch (err) {
-      const message = err.response?.data?.error || 'Failed to search internal database.';
-      setError(message);
-      setView('compose');
-      toast.error(message);
-    } finally {
-      setSearchingInternal(false);
-    }
-  };
 
   const handleSaveCandidate = async (candidate, { silent = false } = {}) => {
     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
@@ -540,7 +512,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           return { ...prev, candidates: nextCandidates, results: nextCandidates };
         };
         setInternetData(updater);
-        setInternalData(updater);
         if (!silent) toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
         return savedId;
       } else {
@@ -650,7 +621,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       Next
                       <ChevronRight size={16} />
                     </button>
-                  ) : (internetData || internalData) ? (
+                  ) : internetData ? (
                     <button
                       onClick={() => setView('results')}
                       className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
@@ -817,10 +788,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     <div className="md:col-span-2">
                       <label className="text-[11px] uppercase tracking-[0.16em] text-red-400 font-bold">Must-Have Skills <span className="text-slate-500 normal-case font-normal">(hard filter — candidates missing ALL of these are disqualified)</span></label>
                       <textarea
-                        value={(parsedDraft?.mustHaveSkills || []).join(', ')}
-                        onChange={(e) =>
-                          setParsedDraft((prev) => ({ ...(prev || {}), mustHaveSkills: parseSkillsText(e.target.value) }))
-                        }
+                        value={mustHaveRaw}
+                        onChange={(e) => setMustHaveRaw(e.target.value)}
+                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), mustHaveSkills: parseSkillsText(mustHaveRaw) }))}
                         placeholder="e.g. React, Node.js, TypeScript"
                         className="mt-1 h-16 w-full rounded-lg border border-red-800/50 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-red-600/60 focus:outline-none focus:ring-2 focus:ring-red-700/50"
                       />
@@ -828,10 +798,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     <div className="md:col-span-2">
                       <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills <span className="text-slate-500 normal-case font-normal">(strong signal — 12 pts each)</span></label>
                       <textarea
-                        value={(parsedDraft?.requiredSkills || []).join(', ')}
-                        onChange={(e) =>
-                          setParsedDraft((prev) => ({ ...(prev || {}), requiredSkills: parseSkillsText(e.target.value) }))
-                        }
+                        value={requiredRaw}
+                        onChange={(e) => setRequiredRaw(e.target.value)}
+                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), requiredSkills: parseSkillsText(requiredRaw) }))}
                         placeholder="e.g. Python, AWS, Docker"
                         className="mt-1 h-16 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
@@ -839,10 +808,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     <div className="md:col-span-2">
                       <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Preferred Skills <span className="text-slate-500 normal-case font-normal">(nice-to-have — 5 pts each)</span></label>
                       <textarea
-                        value={(parsedDraft?.preferredSkills || []).join(', ')}
-                        onChange={(e) =>
-                          setParsedDraft((prev) => ({ ...(prev || {}), preferredSkills: parseSkillsText(e.target.value) }))
-                        }
+                        value={preferredRaw}
+                        onChange={(e) => setPreferredRaw(e.target.value)}
+                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), preferredSkills: parseSkillsText(preferredRaw) }))}
                         placeholder="e.g. GraphQL, Redis, Kubernetes"
                         className="mt-1 h-16 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                       />
@@ -853,23 +821,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     {/* Internet sourcing — Google CSE / LinkedIn */}
                     <button
                       onClick={handleSearchInternet}
-                      disabled={searchingInternet || searchingInternal || extracting || !canSearch}
+                      disabled={searchingInternet || extracting || !canSearch}
                       className="flex-1 max-w-xs rounded-xl bg-[#432DD7] hover:bg-[#5A45E5] disabled:opacity-60 text-white px-5 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                     >
                       {searchingInternet
                         ? <><Loader2 size={15} className="animate-spin" /> Searching Internet…</>
                         : <><Globe size={15} /> Search Internet</>
-                      }
-                    </button>
-                    {/* Internal DB sourcing — Boolean match scoring */}
-                    <button
-                      onClick={handleSearchInternalDb}
-                      disabled={searchingInternet || searchingInternal || extracting || !canSearch}
-                      className="flex-1 max-w-xs rounded-xl border border-[#6B5AF0]/60 bg-[#432DD7]/15 hover:bg-[#432DD7]/30 disabled:opacity-60 text-[#C4B8FF] px-5 py-3 text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      {searchingInternal
-                        ? <><Loader2 size={15} className="animate-spin" /> Searching DB…</>
-                        : <><Database size={15} /> Search Internal DB</>
                       }
                     </button>
                   </div>
@@ -882,23 +839,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           {view === 'sourcing' && (
             <div className="py-20 text-center">
               <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
-              {searchingInternet ? (
-                <>
-                  <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internet</p>
-                  <p className="text-sm text-slate-400 mt-1">Generating LinkedIn queries and extracting profiles across countries.</p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internal Database</p>
-                  <p className="text-sm text-slate-400 mt-1">Scoring candidates with Boolean match logic against your requirements.</p>
-                </>
-              )}
+              <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internet</p>
+              <p className="text-sm text-slate-400 mt-1">Generating LinkedIn queries and extracting profiles across countries.</p>
             </div>
           )}
 
           {view === 'results' && (
             <div className="space-y-5">
-              {/* Top bar: Back + Source tabs */}
+              {/* Top bar: Back + count */}
               <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
                 <button
                   onClick={() => setView('compose')}
@@ -907,42 +855,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                   <ChevronLeft size={16} />
                   Back
                 </button>
-
-                {/* Source tabs */}
-                <div className="flex items-center rounded-xl border border-slate-700 bg-slate-900/70 p-1 gap-1">
-                  <button
-                    onClick={() => { setActiveTab('internet'); setCurrentPage(1); }}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-                      activeTab === 'internet'
-                        ? 'bg-[#432DD7] text-white shadow'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Globe size={13} />
-                    Internet
-                    {internetData && (
-                      <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
-                        {(internetData.candidates || internetData.results || []).length}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => { setActiveTab('internal'); setCurrentPage(1); }}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-                      activeTab === 'internal'
-                        ? 'bg-[#432DD7] text-white shadow'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Database size={13} />
-                    Internal DB
-                    {internalData && (
-                      <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
-                        {internalData.totalReturned || 0}
-                      </span>
-                    )}
-                  </button>
-                </div>
 
                 <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates</p>
               </div>

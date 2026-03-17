@@ -152,6 +152,15 @@ candidateSchema.index({ createdAt: -1, _id: -1 }, { partialFilterExpression: { i
 // 3. Filter: Email (Unique lookup)
 candidateSchema.index({ email: 1 }, { partialFilterExpression: { isDeleted: false } });
 
+// 3a. PDL contact lookup — find a record by linkedinUrl that has email or phone
+// Partial index: only indexes documents that actually have a linkedinUrl value.
+// Used by the enrichment controller to resolve contacts from the local 416M PDL dataset
+// before calling any paid external API.
+candidateSchema.index(
+  { linkedinUrl: 1 },
+  { partialFilterExpression: { linkedinUrl: { $exists: true, $ne: '' }, isDeleted: false }, background: true, name: 'CandidateLinkedinUrlIdx' }
+);
+
 // 4. Filter: Company Name
 candidateSchema.index({ company: 1 }, { partialFilterExpression: { isDeleted: false } });
 
