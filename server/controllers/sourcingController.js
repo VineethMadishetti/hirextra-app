@@ -390,12 +390,11 @@ export const sourceCandidates = async (req, res) => {
       }
     }
 
-    // Step 2: Boolean match scoring (internet sourcing — rank only, do not hard-filter).
-    // Internet candidates come from a Serper query that already contains job title + skills +
-    // location, so Google has pre-filtered them. Snippet data is sparse (no full resume),
-    // so hard disqualification on missing skills/location would remove most valid candidates.
-    // Use the score only for ranking/bucketing; the location filter below handles geography.
-    candidates = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
+    // Step 2: Boolean match scoring.
+    // excludeDisqualified: true — drop candidates that match zero skills across all tiers.
+    // minScore: 30 — only show candidates with at least 30% match on required skills.
+    // Location is NOT a hard disqualifier in the scorer; the filter in Step 3 handles it.
+    candidates = scoreCandidates(candidates, parsed, { minScore: 30, excludeDisqualified: true });
 
     // Step 3: Strict current-location filter.
     // ONLY use the AI-extracted c.location field (current city of residence).

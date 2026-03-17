@@ -223,11 +223,12 @@ export function scoreCandidate(candidate, requirements) {
   const mustHaveFail = mustHaveSkills.length > 0 && matchedMustHave.length === 0;
   // Rule 2: skills are defined but candidate matches ZERO across all tiers
   const zeroSkillMatch = hasSkillRequirements && totalSkillsMatched === 0;
-  // Rule 3: location is specified but doesn't match
-  const hasLocationRequirement = Boolean(reqLocation && !/unspecified|not specified/i.test(reqLocation));
-  const locationFail = hasLocationRequirement && !locMatch;
+  // Note: location is NOT a hard disqualifier here — it reduces the score only.
+  // The sourcing controller applies a strict location filter after scoring, which
+  // handles geography correctly without penalising candidates whose location wasn't
+  // extractable from a sparse search snippet.
 
-  const disqualified = mustHaveFail || zeroSkillMatch || locationFail;
+  const disqualified = mustHaveFail || zeroSkillMatch;
 
   if (disqualified) {
     return {
