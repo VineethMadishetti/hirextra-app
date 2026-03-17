@@ -236,6 +236,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [bundle, setBundle] = useState(null);
   const [parsedDraft, setParsedDraft] = useState(null);
   // Raw text for skill textareas — allows typing commas freely without re-parse on every keystroke
+  const [mustHaveRaw,  setMustHaveRaw]  = useState('');
   const [requiredRaw,  setRequiredRaw]  = useState('');
   const [preferredRaw, setPreferredRaw] = useState('');
   const [internetData, setInternetData] = useState(null);
@@ -335,6 +336,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       mustHaveSkills: [], requiredSkills: [], preferredSkills: [],
       jobType: '', salaryRange: '', education: '', availability: '',
     });
+    setMustHaveRaw('');
     setRequiredRaw('');
     setPreferredRaw('');
     setComposeStep('parsed');
@@ -388,6 +390,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         jobType: er.durationType || '', salaryRange: er.salaryPackage || '', education: er.education || '',
       });
       // Sync raw textarea display
+      setMustHaveRaw(mh.join(', '));
       setRequiredRaw(rq.join(', '));
       setPreferredRaw(pf.join(', '));
       setComposeStep('parsed');
@@ -778,6 +781,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
                         />
                       </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-red-400">Must Have Skills <span className="text-slate-500 normal-case font-normal">(candidate rejected if ANY of these is missing)</span></label>
+                      <textarea
+                        value={mustHaveRaw}
+                        onChange={(e) => setMustHaveRaw(e.target.value)}
+                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), mustHaveSkills: parseSkillsText(mustHaveRaw) }))}
+                        placeholder="e.g. Node.js, Python, React"
+                        className="mt-1 h-16 w-full rounded-lg border border-red-800/50 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-red-600/60 focus:outline-none focus:ring-2 focus:ring-red-700/50"
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills <span className="text-slate-500 normal-case font-normal">(at least 30% match required to show candidate)</span></label>
