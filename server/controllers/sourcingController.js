@@ -406,7 +406,6 @@ export const sourceCandidates = async (req, res) => {
 
       candidates = candidates.filter((c) => {
         const currentLocation = String(c.location || '').toLowerCase();
-        // Must have a location AND it must match the required city
         return currentLocation.length > 0 && currentLocation.includes(locLower);
       });
 

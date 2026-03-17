@@ -236,13 +236,13 @@ class ContactEnricher {
           response?.data?.result?.email ||
           null;
 
-        // Return immediately (success or not) — never double-call Skrapp
-        return email
-          ? { email, phone: null, linkedinUrl: linkedinUrl || null, verifiedAt: new Date() }
-          : null;
+        if (email) {
+          return { email, phone: null, linkedinUrl: linkedinUrl || null, verifiedAt: new Date() };
+        }
+        // Primary found nothing — fall through to LinkedIn URL lookup below
       }
 
-      // Legacy fallback: /api/v2/accounts/find with linkedin_url (only when primary conditions not met)
+      // LinkedIn URL fallback: /api/v2/accounts/find with linkedin_url
       if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
         const legacyResponse = await axios.post(
           this.skrappLegacyEndpoint,
