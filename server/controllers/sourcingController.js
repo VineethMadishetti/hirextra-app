@@ -390,11 +390,10 @@ export const sourceCandidates = async (req, res) => {
       }
     }
 
-    // Step 2: Boolean match scoring (replaces simple rankCandidates).
-    // scoreCandidates handles skill alias matching, location, and experience.
-    // minScore=0 keeps all candidates here; we still apply the strict location
-    // filter below before slicing to maxCandidatesSafe.
-    candidates = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
+    // Step 2: Boolean match scoring.
+    // excludeDisqualified: true — drop candidates that match none of the must-have skills (score=0).
+    // minScore: 10 — drop any remaining 0% candidates that slipped through (e.g. no requirements defined).
+    candidates = scoreCandidates(candidates, parsed, { minScore: 10, excludeDisqualified: true });
 
     // Step 3: Strict current-location filter.
     // ONLY use the AI-extracted c.location field (current city of residence).
