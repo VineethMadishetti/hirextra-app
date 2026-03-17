@@ -81,14 +81,12 @@ class ContactEnricher {
     const linkedinUrl = candidate.linkedinUrl || candidate.linkedInUrl || candidate.linkedin_url;
     const fullName = candidate.fullName || candidate.name;
     const company = candidate.company || candidate.company_name;
-    const hasAnyProvider = Boolean(this.skrappKey || this.pdlKey || this.lushaKey || this.proxycurlKey);
-
     logger.info(`🔍 Starting enrichment cascade for candidate ${candidateId}`);
 
     try {
-      if (!hasAnyProvider) {
+      if (!this.skrappKey && !this.lushaKey) {
         const errorMessage =
-          'No contact enrichment providers configured. Add PROXYCURL_API_KEY, SKRAPP_API_KEY, PDL_API_KEY, or LUSHA_API_KEY to server .env.';
+          'No contact enrichment providers configured. Add SKRAPP_API_KEY or LUSHA_API_KEY to server .env.';
         logger.error(errorMessage);
         return {
           email: null,
@@ -99,51 +97,19 @@ class ContactEnricher {
         };
       }
 
-      // 1+2. Proxycurl and Skrapp run in parallel — take whichever finds contact first
-      {
-        const parallelProviders = [];
-        if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl) && this.proxycurlKey) {
-          logger.debug(`  → Trying Proxycurl (parallel)`);
-          parallelProviders.push(
-            this._proxycurlLookup(linkedinUrl)
-              .then((r) => (r && (r.email || r.phone) ? { ...r, source: 'proxycurl', confidence: 0.90 } : null))
-              .catch(() => null)
-          );
-        }
-        if (fullName || linkedinUrl) {
-          logger.debug(`  → Trying Skrapp (parallel)`);
-          parallelProviders.push(
-            this._skrappLookup({ linkedinUrl, fullName, company })
-              .then((r) => (r && r.email ? { ...r, source: 'skrapp', confidence: 0.85 } : null))
-              .catch(() => null)
-          );
-        }
-        if (parallelProviders.length > 0) {
-          const parallelResult = await this._firstSuccess(parallelProviders);
-          if (parallelResult) {
-            logger.info(`  ✅ ${parallelResult.source} found contact for ${candidateId}`);
-            return parallelResult;
-          }
+      // 1. Skrapp — primary provider
+      if (this.skrappKey && (fullName || linkedinUrl)) {
+        logger.debug(`  → Step 1: Trying Skrapp`);
+        const skrappResult = await this._skrappLookup({ linkedinUrl, fullName, company });
+        if (skrappResult && skrappResult.email) {
+          logger.info(`  ✅ Skrapp found contact for ${candidateId}`);
+          return { ...skrappResult, source: 'skrapp', confidence: 0.85 };
         }
       }
 
-      // 3. Fallback to PDL (name + company match)
-      if (fullName && company) {
-        logger.debug(`  → Step 3/4: Trying PDL for ${fullName} at ${company}`);
-        const pdlResult = await this._pdlLookup(fullName, company);
-        if (pdlResult && pdlResult.email) {
-          logger.info(`  ✅ PDL found email for ${candidateId}`);
-          return {
-            ...pdlResult,
-            source: 'pdl',
-            confidence: 0.75,
-          };
-        }
-      }
-
-      // 4. Last resort: Lusha for phone numbers
-      if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
-        logger.debug(`  → Step 4/4: Trying Lusha for ${linkedinUrl}`);
+      // 2. Lusha — fallback for phone numbers
+      if (this.lushaKey && linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
+        logger.debug(`  → Step 2: Trying Lusha for ${linkedinUrl}`);
         const lushaResult = await this._lushaLookup(linkedinUrl);
         if (lushaResult && (lushaResult.phone || lushaResult.email)) {
           logger.info(`  ✅ Lusha found contact for ${candidateId}`);
@@ -163,7 +129,7 @@ class ContactEnricher {
         source: 'failed',
         confidence: 0,
         error:
-          'No contact found. Skrapp requires a valid name + company/domain (or a supported LinkedIn match).',
+          'No contact found. Skrapp requires a valid name + company/domain (or a supported LinkedIn URL).',
       };
     } catch (error) {
       logger.error(`❌ Enrichment cascade error for ${candidateId}:`, error.message);
