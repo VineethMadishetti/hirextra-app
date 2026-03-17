@@ -353,6 +353,11 @@ const UserSearch = ({ focusAiSearch = false }) => {
 		return !!(searchInput || hasFilters);
 	});
 
+	// True when the user has entered at least one filter value or a search term
+	const hasFilterData =
+		searchInput.trim().length > 0 ||
+		Object.values(filters).some((v) => v && v !== false && v !== "");
+
 	// Database source: 'peoplefinder' | 'my-db' | 'all'
 	const [dbSource, setDbSource] = useState('peoplefinder');
 	const [selectedPrivateDbId, setSelectedPrivateDbId] = useState('');
@@ -1007,16 +1012,22 @@ const UserSearch = ({ focusAiSearch = false }) => {
 								<div className="flex items-center rounded-l-full border border-r-0 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden">
 									<button
 										onClick={() => triggerSearchWithSource('all', '')}
-										className={`px-3 py-1.5 text-xs font-semibold transition-all ${dbSource === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>All</button>
+										disabled={!hasFilterData}
+										title={!hasFilterData ? 'Enter at least one filter to search' : undefined}
+										className={`px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${dbSource === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>All</button>
 									<div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
 									<button
 										onClick={() => triggerSearchWithSource('peoplefinder', '')}
-										className={`px-3 py-1.5 text-xs font-semibold transition-all ${dbSource === 'peoplefinder' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>PeopleFinder</button>
+										disabled={!hasFilterData}
+										title={!hasFilterData ? 'Enter at least one filter to search' : undefined}
+										className={`px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${dbSource === 'peoplefinder' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>PeopleFinder</button>
 								</div>
 								{/* My Databases — no dropdown, always all */}
 								<button
 									onClick={() => triggerSearchWithSource('my-db', '')}
-									className={`px-3 py-1.5 text-xs font-semibold rounded-r-full border border-slate-200 dark:border-slate-700 transition-all ${dbSource === 'my-db' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>
+									disabled={!hasFilterData}
+									title={!hasFilterData ? 'Enter at least one filter to search' : undefined}
+									className={`px-3 py-1.5 text-xs font-semibold rounded-r-full border border-slate-200 dark:border-slate-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${dbSource === 'my-db' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}>
 									My Database
 								</button>
 							</div>
