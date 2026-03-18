@@ -2,9 +2,9 @@ import mammoth from 'mammoth';
 import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
+import proxyCurlService from '../utils/proxyCurlService.js';
 import {
   extractCandidates,
-  rankCandidates,
   deduplicateCandidates,
   formatCandidates,
 } from '../utils/candidateExtraction.js';
@@ -288,87 +288,76 @@ export const sourceCandidates = async (req, res) => {
     const resultsPerCountrySafe = clampNumber(resultsPerCountry, 1, 10, 7);
     const enrichTopNSafe = clampNumber(enrichTopN, 1, 50, 15);
 
-    const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
-    if (searchQueries.length === 0) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to generate search queries',
+    // ── Candidate Discovery ───────────────────────────────────────────────────
+    //
+    // Priority 1: ProxyCurl — real LinkedIn profile data, real experience years,
+    //             real location. No snippet scraping, no OpenAI extraction needed.
+    //
+    // Priority 2: Serper (Google search) — fallback when ProxyCurl is not
+    //             configured. Uses Boolean queries + OpenAI snippet enrichment.
+    //
+    let candidates = [];
+    let dataSource = 'unknown';
+
+    if (proxyCurlService.isConfigured()) {
+      // ── ProxyCurl path ──────────────────────────────────────────────────────
+      dataSource = 'proxycurl';
+      logger.info('[ProxyCurl] Using ProxyCurl for candidate discovery');
+
+      const proxyCandidates = await proxyCurlService.sourceCandidatesViaProxyCurl(parsed, {
+        maxCandidates: maxCandidatesSafe,
       });
-    }
 
-    const targetCountries = aiSourcingService.determineTargetCountries(
-      structured.location,
-      structured.remote
-    );
+      if (!proxyCandidates || proxyCandidates.length === 0) {
+        return res.status(200).json({
+          success: true,
+          parseOnly: false,
+          message: 'No candidate profiles found via ProxyCurl for this requirement set.',
+          parsedRequirements: structured,
+          candidates: [],
+          results: [],
+          summary: {
+            totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0,
+            totalSaved: 0, timeMs: Date.now() - startedAt,
+          },
+        });
+      }
 
-    if (!cseService.isConfigured()) {
-      return res.status(200).json({
-        success: true,
-        parseOnly: true,
-        message:
-          'Requirements extracted and search plan generated. Add GOOGLE_CSE_API_KEY to run candidate discovery.',
-        parsedRequirements: structured,
-        searchPlan: {
-          queries: searchQueries,
-          countries: targetCountries,
-          resultsPerCountry: resultsPerCountrySafe,
-          maxQueries: maxQueriesSafe,
-        },
-        candidates: [],
-        results: [],
-        summary: {
-          totalDiscovered: 0,
-          totalExtracted: 0,
-          totalEnriched: 0,
-          totalSaved: 0,
-          countriesSearched: targetCountries.length,
-          queryCount: searchQueries.length,
-          timeMs: Date.now() - startedAt,
-        },
+      candidates = proxyCandidates;
+
+    } else if (cseService.isConfigured()) {
+      // ── Serper (Google) fallback path ───────────────────────────────────────
+      dataSource = 'serper';
+      logger.info('[Serper] ProxyCurl not configured — falling back to Serper');
+
+      const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
+      if (searchQueries.length === 0) {
+        return res.status(500).json({ success: false, error: 'Failed to generate search queries' });
+      }
+      const targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
+
+      const searchPromises = searchQueries.map(async (query) => {
+        const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
+        return rows.map((row) => ({ ...row, query }));
       });
-    }
+      const searchResponses = await Promise.allSettled(searchPromises);
+      const allResults = searchResponses
+        .filter((item) => item.status === 'fulfilled')
+        .flatMap((item) => item.value || []);
 
-    const searchPromises = searchQueries.map(async (query) => {
-      const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
-      return rows.map((row) => ({ ...row, query }));
-    });
-    const searchResponses = await Promise.allSettled(searchPromises);
-    const allResults = searchResponses
-      .filter((item) => item.status === 'fulfilled')
-      .flatMap((item) => item.value || []);
+      if (allResults.length === 0) {
+        return res.status(200).json({
+          success: true, parseOnly: false,
+          message: 'No candidate profiles found for this requirement set.',
+          parsedRequirements: structured, candidates: [], results: [],
+          summary: { totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0, totalSaved: 0, timeMs: Date.now() - startedAt },
+        });
+      }
 
-    if (allResults.length === 0) {
-      return res.status(200).json({
-        success: true,
-        parseOnly: false,
-        message: 'No candidate profiles found for this requirement set.',
-        parsedRequirements: structured,
-        searchPlan: {
-          queries: searchQueries,
-          countries: targetCountries,
-          resultsPerCountry: resultsPerCountrySafe,
-          maxQueries: maxQueriesSafe,
-        },
-        candidates: [],
-        results: [],
-        summary: {
-          totalDiscovered: 0,
-          totalExtracted: 0,
-          totalEnriched: 0,
-          totalSaved: 0,
-          countriesSearched: targetCountries.length,
-          queryCount: searchQueries.length,
-          timeMs: Date.now() - startedAt,
-        },
-      });
-    }
+      candidates = extractCandidates(allResults, targetCountries, searchQueries);
+      candidates = deduplicateCandidates(candidates);
 
-    let candidates = extractCandidates(allResults, targetCountries, searchQueries);
-    candidates = deduplicateCandidates(candidates);
-
-    // Step 1: OpenAI snippet enrichment — always runs when OPENAI_API_KEY is set.
-    // Fills structured fields AND generates a proper "about" paragraph from the Serper snippet.
-    {
+      // OpenAI snippet enrichment (Serper only — ProxyCurl already has structured data)
       const aiMap = await aiEnrichCandidates(allResults);
       if (aiMap && aiMap.size > 0) {
         candidates = candidates.map((c) => {
@@ -376,25 +365,20 @@ export const sourceCandidates = async (req, res) => {
           if (!ai) return c;
           return {
             ...c,
-            name: (ai.name?.trim()) || c.name,
-            jobTitle: (ai.jobTitle?.trim()) || c.jobTitle,
-            company: (ai.company?.trim()) || c.company,
-            location: (ai.location?.trim()) || c.location,
+            name:      (ai.name?.trim())      || c.name,
+            jobTitle:  (ai.jobTitle?.trim())  || c.jobTitle,
+            company:   (ai.company?.trim())   || c.company,
+            location:  (ai.location?.trim())  || c.location,
             education: (ai.education?.trim()) || c.education,
             skills: Array.isArray(ai.skills)
               ? ai.skills
                   .filter(Boolean)
                   .map(s => String(s).trim())
                   .filter(s =>
-                    s.length >= 2 &&
-                    s.length <= 40 &&
-                    // Reject company-name patterns (Pvt/Ltd/Inc etc.)
+                    s.length >= 2 && s.length <= 40 &&
                     !/\b(pvt|ltd|inc|corp|llc|llp|limited|solutions|technologies|systems|services|consulting|group|software|infotech)\b/i.test(s) &&
-                    // Reject location-like values (city, state, country)
                     !/\b(india|usa|uk|canada|germany|singapore|australia|bangalore|bengaluru|hyderabad|mumbai|delhi|chennai|pune|kolkata|gurgaon|noida|london|berlin|new york|toronto|sydney)\b/i.test(s) &&
-                    // Reject experience-duration strings ("5 years", "3+ yrs")
                     !/^\d+\s*\+?\s*(year|yr|month|mo)/i.test(s) &&
-                    // Reject strings containing commas (likely addresses)
                     !s.includes(',')
                   )
                   .slice(0, 8)
@@ -403,8 +387,43 @@ export const sourceCandidates = async (req, res) => {
             about: (ai.about?.trim()) || c.about || null,
           };
         });
-        logger.info(`OpenAI snippet enrichment: ${aiMap.size} candidates enriched`);
+        logger.info(`[Serper] OpenAI enrichment: ${aiMap.size} candidates enriched`);
       }
+
+    } else {
+      // ── Neither configured ──────────────────────────────────────────────────
+      const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
+      const targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
+      return res.status(200).json({
+        success: true, parseOnly: true,
+        message: 'Requirements extracted. Add PROXYCURL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',
+        parsedRequirements: structured,
+        searchPlan: { queries: searchQueries, countries: targetCountries },
+        candidates: [], results: [],
+        summary: { totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0, totalSaved: 0, timeMs: Date.now() - startedAt },
+      });
+    }
+
+    // ── Step 1: Experience hard filter ────────────────────────────────────────
+    // ProxyCurl gives us real years from job history.
+    // Serper gives text like "5+ years" — we parse the number.
+    // In both cases, reject anyone clearly below the required minimum.
+    const minExpYears = Number(parsed.experience_years || 0);
+    if (minExpYears > 0) {
+      const beforeExp = candidates.length;
+      candidates = candidates.filter(c => {
+        // ProxyCurl: c.experienceYears is a calculated number
+        if (typeof c.experienceYears === 'number' && c.experienceYears > 0) {
+          return c.experienceYears >= minExpYears;
+        }
+        // Serper fallback: parse the text field
+        const expStr = String(c.totalExperience || c.experience || '');
+        const match = expStr.match(/(\d+(\.\d+)?)/);
+        if (match) return parseFloat(match[1]) >= minExpYears;
+        // No experience data at all — keep the candidate (don't discard unknowns)
+        return true;
+      });
+      logger.info(`Experience filter (>=${minExpYears} yrs): ${candidates.length}/${beforeExp} passed`);
     }
 
     // Step 2: Boolean match scoring.
@@ -527,6 +546,7 @@ export const sourceCandidates = async (req, res) => {
     return res.status(200).json({
       success: true,
       source: 'internet',
+      dataSource,
       parseOnly: false,
       message: 'AI sourcing completed successfully.',
       parsedRequirements: structured,
