@@ -2,31 +2,14 @@ import axios from 'axios';
 import logger from './logger.js';
 
 /**
- * Contact Enrichment Service
- * Cascade order: Skrapp (LinkedIn) → PDL (name+company) → Lusha (phone)
+ * Contact Enrichment Service — Skrapp only
  */
 
 class ContactEnricher {
   constructor() {
     this.skrappKey = null;
-    this.pdlKey = null;
-    this.lushaKey = null;
-    this.proxycurlKey = null;
-
-    // API endpoints
     this.skrappEndpoint = 'https://api.skrapp.io/api/v2/find';
     this.skrappLegacyEndpoint = 'https://api.skrapp.io/api/v2/accounts/find';
-    this.pdlEndpoint = 'https://api.peopledatalabs.com/v5/person/enrich';
-    this.lushaEndpoint = 'https://api.lusha.co/prospecting/social/linkedin';
-    this.proxycurlEndpoint = 'https://nubela.co/proxycurl/api/v2/linkedin';
-
-    // Cost tracking (approximate)
-    this.costs = {
-      skrapp: 0.049,
-      pdl: 0.040,
-      lusha: 0.156,
-      proxycurl: 0.03,
-    };
   }
 
   _readEnvKey(...names) {
@@ -35,45 +18,21 @@ class ContactEnricher {
       if (typeof raw !== 'string') continue;
       const value = raw.trim();
       if (!value) continue;
-
-      // Skip placeholder-like values frequently left in env files
       const lower = value.toLowerCase();
-      if (
-        lower === 'undefined' ||
-        lower === 'null' ||
-        lower === 'your-api-key' ||
-        lower === 'your_api_key' ||
-        lower === 'your-key-here'
-      ) {
-        continue;
-      }
+      if (['undefined', 'null', 'your-api-key', 'your_api_key', 'your-key-here'].includes(lower)) continue;
       return value;
     }
     return null;
   }
 
   _refreshApiKeys() {
-    // Accept common fallback names to reduce misconfiguration failures.
     this.skrappKey = this._readEnvKey(
-      'SKRAPP_API_KEY',
-      'SKRAPP_KEY',
-      'SKRAPP_API_LEY',
-      'SKRAPP_API_TOKEN',
-      'VITE_SKRAPP_API_KEY'
+      'SKRAPP_API_KEY', 'SKRAPP_KEY', 'SKRAPP_API_LEY', 'SKRAPP_API_TOKEN', 'VITE_SKRAPP_API_KEY'
     );
-    this.pdlKey = this._readEnvKey('PDL_API_KEY', 'PDL_KEY', 'VITE_PDL_API_KEY');
-    this.lushaKey = this._readEnvKey('LUSHA_API_KEY', 'LUSHA_KEY', 'VITE_LUSHA_API_KEY');
-    this.proxycurlKey = this._readEnvKey('PROXYCURL_API_KEY', 'PROXYCURL_KEY', 'PROXYURL_API_KEY');
   }
 
-  /**
-   * Main enrichment method with cascade logic
-   * Tries sources in order of cost/speed
-   */
   async enrichCandidate(candidate) {
-    if (!candidate) {
-      throw new Error('Candidate object required');
-    }
+    if (!candidate) throw new Error('Candidate object required');
 
     this._refreshApiKeys();
 
@@ -81,134 +40,39 @@ class ContactEnricher {
     const linkedinUrl = candidate.linkedinUrl || candidate.linkedInUrl || candidate.linkedin_url;
     const fullName = candidate.fullName || candidate.name;
     const company = candidate.company || candidate.company_name;
-    logger.info(`🔍 Starting enrichment cascade for candidate ${candidateId}`);
 
-    try {
-      if (!this.skrappKey && !this.lushaKey) {
-        const errorMessage =
-          'No contact enrichment providers configured. Add SKRAPP_API_KEY or LUSHA_API_KEY to server .env.';
-        logger.error(errorMessage);
-        return {
-          email: null,
-          phone: null,
-          source: 'error',
-          confidence: 0,
-          error: errorMessage,
-        };
-      }
-
-      // 1. Skrapp — primary provider
-      if (this.skrappKey && (fullName || linkedinUrl)) {
-        logger.debug(`  → Step 1: Trying Skrapp`);
-        const skrappResult = await this._skrappLookup({ linkedinUrl, fullName, company });
-        if (skrappResult && skrappResult.email) {
-          logger.info(`  ✅ Skrapp found contact for ${candidateId}`);
-          return { ...skrappResult, source: 'skrapp', confidence: 0.85 };
-        }
-      }
-
-      // 2. Lusha — fallback for phone numbers
-      if (this.lushaKey && linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
-        logger.debug(`  → Step 2: Trying Lusha for ${linkedinUrl}`);
-        const lushaResult = await this._lushaLookup(linkedinUrl);
-        if (lushaResult && (lushaResult.phone || lushaResult.email)) {
-          logger.info(`  ✅ Lusha found contact for ${candidateId}`);
-          return {
-            ...lushaResult,
-            source: 'lusha',
-            confidence: lushaResult.phone ? 0.80 : 0.60,
-          };
-        }
-      }
-
-      // All failed
-      logger.warn(`  ❌ All enrichment sources failed for ${candidateId}`);
-      return {
-        email: null,
-        phone: null,
-        source: 'failed',
-        confidence: 0,
-        error:
-          'No contact found. Skrapp requires a valid name + company/domain (or a supported LinkedIn URL).',
-      };
-    } catch (error) {
-      logger.error(`❌ Enrichment cascade error for ${candidateId}:`, error.message);
-      return {
-        email: null,
-        phone: null,
-        source: 'error',
-        confidence: 0,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Proxycurl API - LinkedIn profile scraper with email/phone
-   * Cost: ~$0.03 per lookup
-   * Accuracy: 90%+
-   */
-  async _proxycurlLookup(linkedinUrl) {
-    if (!this.proxycurlKey) return null;
-
-    try {
-      const response = await axios.get(this.proxycurlEndpoint, {
-        headers: { Authorization: `Bearer ${this.proxycurlKey}` },
-        params: {
-          linkedin_profile_url: linkedinUrl,
-          personal_email: 'include',
-          personal_contact_number: 'include',
-          use_cache: 'if-present',
-        },
-        timeout: 8000,
-      });
-
-      const data = response?.data;
-      if (!data) return null;
-
-      const email =
-        (Array.isArray(data.personal_emails) ? data.personal_emails[0] : null) ||
-        data.email ||
-        null;
-      const phone =
-        (Array.isArray(data.personal_numbers) ? data.personal_numbers[0] : null) ||
-        data.personal_contact_number ||
-        null;
-
-      if (!email && !phone) return null;
-
-      return {
-        email,
-        phone: phone || null,
-        linkedinUrl,
-        verifiedAt: new Date(),
-      };
-    } catch (error) {
-      if (error.response?.status === 404) {
-        logger.debug('Proxycurl: Profile not found');
-      } else if (error.response?.status === 429) {
-        logger.warn('Proxycurl rate limit hit');
-      } else {
-        logger.error(`Proxycurl API error: ${error.response?.status || error.message}`);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Skrapp.io API - LinkedIn email finder
-   * Cost: ~$0.049 per lookup
-   * Accuracy: 85-90%
-   */
-  async _skrappLookup({ linkedinUrl, fullName, company }) {
     if (!this.skrappKey) {
-      logger.debug('Skrapp API key not configured, skipping');
-      return null;
+      const errorMessage = 'Contact enrichment not configured. Add SKRAPP_API_KEY to server .env.';
+      logger.error(errorMessage);
+      return { email: null, phone: null, source: 'error', confidence: 0, error: errorMessage };
     }
+
+    logger.info(`🔍 Skrapp lookup for candidate ${candidateId}`);
+
+    try {
+      const result = await this._skrappLookup({ linkedinUrl, fullName, company });
+      if (result && result.email) {
+        logger.info(`  ✅ Skrapp found contact for ${candidateId}`);
+        return { ...result, source: 'skrapp', confidence: 0.85 };
+      }
+
+      logger.warn(`  ❌ Skrapp found no contact for ${candidateId}`);
+      return {
+        email: null, phone: null, source: 'failed', confidence: 0,
+        error: 'No contact found. Skrapp requires a valid name + company/domain (or a supported LinkedIn URL).',
+      };
+    } catch (error) {
+      logger.error(`❌ Enrichment error for ${candidateId}:`, error.message);
+      return { email: null, phone: null, source: 'error', confidence: 0, error: error.message };
+    }
+  }
+
+  async _skrappLookup({ linkedinUrl, fullName, company }) {
+    if (!this.skrappKey) return null;
 
     const headers = {
       'X-Access-Key': this.skrappKey,
-      'X-Access-Token': this.skrappKey, // legacy compatibility
+      'X-Access-Token': this.skrappKey,
       'Content-Type': 'application/json',
     };
 
@@ -216,7 +80,6 @@ class ContactEnricher {
     const companyDomain = this._extractDomain(company);
 
     try {
-      // Preferred endpoint: /api/v2/find using firstName + lastName + company/domain
       const canUsePrimary = parsedName.firstName && parsedName.lastName && (company || companyDomain);
       if (canUsePrimary) {
         const response = await axios.get(this.skrappEndpoint, {
@@ -227,7 +90,7 @@ class ContactEnricher {
             company: company || undefined,
             domain: companyDomain || undefined,
           },
-          timeout: 7000,
+          timeout: 5000,
         });
 
         const email =
@@ -239,18 +102,13 @@ class ContactEnricher {
         if (email) {
           return { email, phone: null, linkedinUrl: linkedinUrl || null, verifiedAt: new Date() };
         }
-        // Primary found nothing — fall through to LinkedIn URL lookup below
       }
 
-      // LinkedIn URL fallback: /api/v2/accounts/find with linkedin_url
       if (linkedinUrl && this._isValidLinkedInUrl(linkedinUrl)) {
         const legacyResponse = await axios.post(
           this.skrappLegacyEndpoint,
           { linkedin_url: linkedinUrl },
-          {
-            headers,
-            timeout: 7000,
-          }
+          { headers, timeout: 5000 }
         );
 
         const legacyEmail =
@@ -264,7 +122,7 @@ class ContactEnricher {
           return {
             email: legacyEmail,
             phone: legacyResponse?.data?.phone || null,
-            linkedinUrl: linkedinUrl,
+            linkedinUrl,
             verifiedAt: new Date(),
           };
         }
@@ -283,169 +141,22 @@ class ContactEnricher {
     }
   }
 
-  /**
-   * People Data Labs API - Name + Company enrichment
-   * Cost: ~$0.040 per lookup
-   * Accuracy: 80-85%
-   */
-  async _pdlLookup(fullName, company) {
-    if (!this.pdlKey) {
-      logger.debug('PDL API key not configured, skipping');
-      return null;
-    }
-
-    try {
-      const response = await axios.get(this.pdlEndpoint, {
-        headers: {
-          Authorization: `Bearer ${this.pdlKey}`,
-        },
-        params: {
-          name: fullName,
-          company: company,
-        },
-        timeout: 7000,
-      });
-
-      if (response.status === 200 && response.data) {
-        const emails = response.data.emails || [];
-        const phones = response.data.phone_numbers || [];
-
-        // Get highest confidence email
-        let bestEmail = null;
-        if (emails.length > 0) {
-          const sorted = emails.sort(
-            (a, b) => (b.confidence || 0) - (a.confidence || 0)
-          );
-          bestEmail = sorted[0].address;
-        }
-
-        // Get first phone
-        const bestPhone = phones.length > 0 ? phones[0].number : null;
-
-        return {
-          email: bestEmail,
-          phone: bestPhone,
-          linkedinUrl: response.data.linkedin_url || null,
-          verifiedAt: new Date(),
-        };
-      }
-
-      return null;
-    } catch (error) {
-      if (error.response?.status === 429) {
-        logger.warn('PDL rate limit hit');
-      } else if (error.response?.status === 404) {
-        logger.debug('PDL: Person not found');
-      } else {
-        logger.error(`PDL API error: ${error.response?.status || error.message}`);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Lusha API - Phone number finder
-   * Cost: ~$0.156 per lookup
-   * Accuracy: 85-90% for phones
-   */
-  async _lushaLookup(linkedinUrl) {
-    if (!this.lushaKey) {
-      logger.debug('Lusha API key not configured, skipping');
-      return null;
-    }
-
-    try {
-      const response = await axios.get(this.lushaEndpoint, {
-        headers: {
-          Authorization: `Bearer ${this.lushaKey}`,
-          'Content-Type': 'application/json',
-        },
-        params: {
-          linkedinUrl: linkedinUrl,
-        },
-        timeout: 7000,
-      });
-
-      if (response.status === 200 && response.data) {
-        return {
-          email: response.data.email || null,
-          phone: response.data.phone || null,
-          linkedinUrl: linkedinUrl,
-          verifiedAt: new Date(),
-        };
-      }
-
-      return null;
-    } catch (error) {
-      if (error.response?.status === 429) {
-        logger.warn('Lusha rate limit hit');
-      } else if (error.response?.status === 404) {
-        logger.debug('Lusha: Contact not found');
-      } else {
-        logger.error(`Lusha API error: ${error.response?.status || error.message}`);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Resolves with the first promise result that has email or phone.
-   * Resolves null only if all promises fail/return null.
-   */
-  _firstSuccess(promises) {
-    return new Promise((resolve) => {
-      let remaining = promises.length;
-      if (remaining === 0) { resolve(null); return; }
-      for (const p of promises) {
-        p.then((result) => {
-          if (result && (result.email || result.phone)) {
-            resolve(result);
-          } else {
-            remaining -= 1;
-            if (remaining === 0) resolve(null);
-          }
-        }).catch(() => {
-          remaining -= 1;
-          if (remaining === 0) resolve(null);
-        });
-      }
-    });
-  }
-
-  /**
-   * Validate LinkedIn URL format
-   */
   _isValidLinkedInUrl(url) {
     if (!url) return false;
-    return (
-      url.includes('linkedin.com/in/') ||
-      url.includes('linkedin.com/company/')
-    );
+    return url.includes('linkedin.com/in/') || url.includes('linkedin.com/company/');
   }
 
   _splitName(fullName) {
     const clean = String(fullName || '').replace(/\s+/g, ' ').trim();
-    if (!clean) {
-      return { fullName: '', firstName: '', lastName: '' };
-    }
+    if (!clean) return { fullName: '', firstName: '', lastName: '' };
     const parts = clean.split(' ');
-    return {
-      fullName: clean,
-      firstName: parts[0] || '',
-      lastName: parts.length > 1 ? parts.slice(1).join(' ') : '',
-    };
+    return { fullName: clean, firstName: parts[0] || '', lastName: parts.length > 1 ? parts.slice(1).join(' ') : '' };
   }
 
   _extractDomain(companyValue) {
     const input = String(companyValue || '').trim().toLowerCase();
     if (!input) return '';
-
-    const cleaned = input
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .split('/')[0]
-      .trim();
-
+    const cleaned = input.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim();
     if (/^[a-z0-9.-]+\.[a-z]{2,}$/.test(cleaned)) return cleaned;
     return '';
   }

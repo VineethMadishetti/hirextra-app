@@ -308,7 +308,7 @@ export const sourceCandidates = async (req, res) => {
 
     // ── Candidate Discovery ───────────────────────────────────────────────────
     //
-    // Serper (Google search) — Boolean queries + OpenAI snippet enrichment.
+    // Apify (Google search) — Boolean queries + OpenAI snippet enrichment.
     //
     let candidates = [];
     let dataSource = 'unknown';
@@ -316,33 +316,18 @@ export const sourceCandidates = async (req, res) => {
     let targetCountries = [];
     let allResults = [];
 
-    if (apifyService.isConfigured() || cseService.isConfigured()) {
+    if (apifyService.isConfigured()) {
       searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
       if (searchQueries.length === 0) {
         return res.status(500).json({ success: false, error: 'Failed to generate search queries' });
       }
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
 
-      if (apifyService.isConfigured()) {
-        // ── Apify path — batches all queries into one actor run ─────────────
-        dataSource = 'apify';
-        logger.info(`[Apify] Using Apify for candidate discovery — ${searchQueries.length} queries`);
-        // Scale results per query by the number of target countries so total coverage is similar
-        const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
-        allResults = await apifyService.runGoogleSearch(searchQueries, apifyResultsPerQuery);
-      } else {
-        // ── Serper (Google) fallback path ────────────────────────────────────
-        dataSource = 'serper';
-        logger.info('[Serper] Using Serper for candidate discovery');
-        const searchPromises = searchQueries.map(async (query) => {
-          const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
-          return rows.map((row) => ({ ...row, query }));
-        });
-        const searchResponses = await Promise.allSettled(searchPromises);
-        allResults = searchResponses
-          .filter((item) => item.status === 'fulfilled')
-          .flatMap((item) => item.value || []);
-      }
+      // ── Apify path — batches all queries into one actor run ─────────────
+      dataSource = 'apify';
+      logger.info(`[Apify] Using Apify for candidate discovery — ${searchQueries.length} queries`);
+      const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
+      allResults = await apifyService.runGoogleSearch(searchQueries, apifyResultsPerQuery);
 
       if (allResults.length === 0) {
         return res.status(200).json({
