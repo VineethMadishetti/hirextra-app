@@ -2,7 +2,7 @@ import mammoth from 'mammoth';
 import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
-import proxyCurlService from '../utils/proxyCurlService.js';
+import coreSignalService from '../utils/coreSignalService.js';
 import {
   extractCandidates,
   deduplicateCandidates,
@@ -299,20 +299,20 @@ export const sourceCandidates = async (req, res) => {
     let candidates = [];
     let dataSource = 'unknown';
 
-    if (proxyCurlService.isConfigured()) {
-      // ── ProxyCurl path ──────────────────────────────────────────────────────
-      dataSource = 'proxycurl';
-      logger.info('[ProxyCurl] Using ProxyCurl for candidate discovery');
+    if (coreSignalService.isConfigured()) {
+      // ── CoreSignal path — real LinkedIn profile data ────────────────────────
+      dataSource = 'coresignal';
+      logger.info('[CoreSignal] Using CoreSignal for candidate discovery (tiered search)');
 
-      const proxyCandidates = await proxyCurlService.sourceCandidatesViaProxyCurl(parsed, {
+      const coreCandidates = await coreSignalService.sourceCandidatesViaCoreSignal(parsed, {
         maxCandidates: maxCandidatesSafe,
       });
 
-      if (!proxyCandidates || proxyCandidates.length === 0) {
+      if (!coreCandidates || coreCandidates.length === 0) {
         return res.status(200).json({
           success: true,
           parseOnly: false,
-          message: 'No candidate profiles found via ProxyCurl for this requirement set.',
+          message: 'No candidate profiles found via CoreSignal for this requirement set.',
           parsedRequirements: structured,
           candidates: [],
           results: [],
@@ -323,12 +323,12 @@ export const sourceCandidates = async (req, res) => {
         });
       }
 
-      candidates = proxyCandidates;
+      candidates = coreCandidates;
 
     } else if (cseService.isConfigured()) {
       // ── Serper (Google) fallback path ───────────────────────────────────────
       dataSource = 'serper';
-      logger.info('[Serper] ProxyCurl not configured — falling back to Serper');
+      logger.info('[Serper] CoreSignal not configured — falling back to Serper');
 
       const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
       if (searchQueries.length === 0) {
@@ -396,7 +396,7 @@ export const sourceCandidates = async (req, res) => {
       const targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       return res.status(200).json({
         success: true, parseOnly: true,
-        message: 'Requirements extracted. Add PROXYCURL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',
+        message: 'Requirements extracted. Add CORESIGNAL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',
         parsedRequirements: structured,
         searchPlan: { queries: searchQueries, countries: targetCountries },
         candidates: [], results: [],
