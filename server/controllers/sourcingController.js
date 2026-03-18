@@ -2,7 +2,7 @@ import mammoth from 'mammoth';
 import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
-import pdlService from '../utils/pdlService.js';
+import apifyService from '../utils/apifyService.js';
 import {
   extractCandidates,
   deduplicateCandidates,
@@ -119,7 +119,7 @@ function deriveCandidatePayload(candidate, parsed, userId) {
   const enrichmentConfidence = Number(candidate.contact?.confidence || candidate.enrichmentConfidence || 0);
   const baseStage = contactEmail || contactPhone ? 'CONTACT_ENRICHED' : 'DISCOVERED';
 
-  // Candidate's actual skills (CoreSignal gives real array; Serper gives array or CSV string)
+  // Candidate's actual skills (array or CSV string)
   let candidateSkills = '';
   if (Array.isArray(candidate.skills) && candidate.skills.length > 0) {
     candidateSkills = candidate.skills.join(', ');
@@ -127,7 +127,7 @@ function deriveCandidatePayload(candidate, parsed, userId) {
     candidateSkills = candidate.skills.trim();
   }
 
-  // Candidate's actual experience (CoreSignal: real years; Serper: text like "5+ years")
+  // Candidate's actual experience (text like "5+ years" or numeric years)
   const candidateExperience =
     candidate.totalExperience ||
     (typeof candidate.experienceYears === 'number' && candidate.experienceYears > 0
@@ -307,11 +307,7 @@ export const sourceCandidates = async (req, res) => {
 
     // ── Candidate Discovery ───────────────────────────────────────────────────
     //
-    // Priority 1: PDL (People Data Labs) — real structured LinkedIn-grade profile
-    //             data, real experience dates, real location. No scraping needed.
-    //
-    // Priority 2: Serper (Google search) — fallback. Uses Boolean queries +
-    //             OpenAI snippet enrichment.
+    // Serper (Google search) — Boolean queries + OpenAI snippet enrichment.
     //
     let candidates = [];
     let dataSource = 'unknown';
@@ -319,59 +315,33 @@ export const sourceCandidates = async (req, res) => {
     let targetCountries = [];
     let allResults = [];
 
-    // pdlAvailable: null = unconfigured/credits exhausted (fall through), [] = configured+working but 0 results
-    let pdlAvailable = pdlService.isConfigured() ? 'configured' : null;
-
-    if (pdlAvailable) {
-      // ── PDL path — structured profile data ────────────────────────────────
-      logger.info('[PDL] Using People Data Labs for candidate discovery (tiered search)');
-
-      const pdlCandidates = await pdlService.sourceCandidatesViaPDL(parsed, {
-        maxCandidates: maxCandidatesSafe,
-      });
-
-      if (pdlCandidates === null) {
-        // null = credits exhausted or API unavailable — fall through to next source
-        logger.warn('[PDL] Credits exhausted — falling through to CoreSignal');
-        pdlAvailable = null;
-      } else if (pdlCandidates.length === 0) {
-        return res.status(200).json({
-          success: true,
-          parseOnly: false,
-          message: 'No candidate profiles found via PDL for this requirement set.',
-          parsedRequirements: structured,
-          candidates: [],
-          results: [],
-          summary: {
-            totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0,
-            totalSaved: 0, timeMs: Date.now() - startedAt,
-          },
-        });
-      } else {
-        dataSource = 'pdl';
-        candidates = pdlCandidates;
-      }
-    }
-
-    if (candidates.length === 0 && cseService.isConfigured()) {
-      // ── Serper (Google) fallback path ───────────────────────────────────────
-      dataSource = 'serper';
-      logger.info('[Serper] PDL unavailable — falling back to Serper');
-
+    if (apifyService.isConfigured() || cseService.isConfigured()) {
       searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
       if (searchQueries.length === 0) {
         return res.status(500).json({ success: false, error: 'Failed to generate search queries' });
       }
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
 
-      const searchPromises = searchQueries.map(async (query) => {
-        const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
-        return rows.map((row) => ({ ...row, query }));
-      });
-      const searchResponses = await Promise.allSettled(searchPromises);
-      allResults = searchResponses
-        .filter((item) => item.status === 'fulfilled')
-        .flatMap((item) => item.value || []);
+      if (apifyService.isConfigured()) {
+        // ── Apify path — batches all queries into one actor run ─────────────
+        dataSource = 'apify';
+        logger.info(`[Apify] Using Apify for candidate discovery — ${searchQueries.length} queries`);
+        // Scale results per query by the number of target countries so total coverage is similar
+        const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
+        allResults = await apifyService.runGoogleSearch(searchQueries, apifyResultsPerQuery);
+      } else {
+        // ── Serper (Google) fallback path ────────────────────────────────────
+        dataSource = 'serper';
+        logger.info('[Serper] Using Serper for candidate discovery');
+        const searchPromises = searchQueries.map(async (query) => {
+          const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
+          return rows.map((row) => ({ ...row, query }));
+        });
+        const searchResponses = await Promise.allSettled(searchPromises);
+        allResults = searchResponses
+          .filter((item) => item.status === 'fulfilled')
+          .flatMap((item) => item.value || []);
+      }
 
       if (allResults.length === 0) {
         return res.status(200).json({
@@ -385,7 +355,7 @@ export const sourceCandidates = async (req, res) => {
       candidates = extractCandidates(allResults, targetCountries, searchQueries);
       candidates = deduplicateCandidates(candidates);
 
-      // OpenAI snippet enrichment (Serper only — CoreSignal already has structured data)
+      // OpenAI snippet enrichment
       const aiMap = await aiEnrichCandidates(allResults);
       if (aiMap && aiMap.size > 0) {
         candidates = candidates.map((c) => {
@@ -424,7 +394,7 @@ export const sourceCandidates = async (req, res) => {
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       return res.status(200).json({
         success: true, parseOnly: true,
-        message: 'Requirements extracted. Add PDL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',
+        message: 'Requirements extracted. Add APIFY_API_KEY or SERPER_API_KEY to run candidate discovery.',
         parsedRequirements: structured,
         searchPlan: { queries: searchQueries, countries: targetCountries },
         candidates: [], results: [],
@@ -433,14 +403,12 @@ export const sourceCandidates = async (req, res) => {
     }
 
     // ── Step 1: Experience hard filter ────────────────────────────────────────
-    // PDL/CoreSignal: real years calculated from job history dates (c.experienceYears).
-    // Serper fallback: text like "5+ years" — parsed as a number.
-    // Both paths reject anyone clearly below the required minimum.
+    // Serper: text like "5+ years" parsed as a number.
+    // Rejects anyone clearly below the required minimum.
     const minExpYears = Number(parsed.experience_years || 0);
     if (minExpYears > 0) {
       const beforeExp = candidates.length;
       candidates = candidates.filter(c => {
-        // CoreSignal: c.experienceYears is a real calculated number
         if (typeof c.experienceYears === 'number' && c.experienceYears > 0) {
           return c.experienceYears >= minExpYears;
         }
@@ -463,20 +431,16 @@ export const sourceCandidates = async (req, res) => {
     // Step 3: Strict location filter — two-tier approach.
     //
     // Tier 1 (city-confirmed): c.location contains the required city.
-    //   CoreSignal: profile.city = "Hyderabad" → c.location = "Hyderabad, India" → PASS
-    //   Serper: AI-extracted location → PASS if city found in string
+    //   e.g. AI-extracted location → PASS if city found in string
     //
     // Tier 2 (country-fallback): city not in c.location but country matches.
     //   e.g. required="Hyderabad", c.country="India" → PASS (flagged as location unverified)
-    //   Handles CoreSignal profiles whose city field is empty but country is correct,
-    //   and Serper candidates whose snippet had no city signal.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
 
       // Build a country keyword from the required location so we can match c.foundIn.
       // e.g. "Hyderabad" → "india", "London" → "uk", "Berlin" → "germany"
-      // Values use full country names as returned by CoreSignal (e.g. "India", "United Kingdom").
       // Comparisons are done after toLowerCase() so capitalisation doesn't matter.
       const CITY_TO_COUNTRY = {
         hyderabad: 'india', bangalore: 'india', bengaluru: 'india', mumbai: 'india',
@@ -506,7 +470,6 @@ export const sourceCandidates = async (req, res) => {
           cityConfirmed.push(c);
         } else if (countryForCity) {
           // Tier 2: city not found in location — check country instead.
-          // CoreSignal profiles always have a country, so we can't require location to be empty.
           // Use foundIn / sourceCountry / country / location itself for country check.
           const countryStr = String(c.foundIn || c.sourceCountry || c.country || currentLocation).toLowerCase();
           if (countryStr && countryStr.includes(countryForCity)) {
