@@ -12,6 +12,7 @@ import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
+import SourcingSession from '../models/SourcingSession.js';
 import { scoreCandidates, bucketByMatchCategory } from '../utils/matchScorer.js';
 
 const require = createRequire(import.meta.url);
@@ -531,6 +532,19 @@ export const sourceCandidates = async (req, res) => {
     const formatted = formatCandidates(candidates);
     const enrichedCount = formatted.filter((c) => c.email || c.phone).length;
     const totalTime = Date.now() - startedAt;
+
+    // ── Persist search session (fire-and-forget, never blocks response) ───────
+    if (userId && formatted.length > 0) {
+      SourcingSession.create({
+        userId,
+        jobTitle:       structured.jobTitle || '',
+        location:       structured.location || '',
+        dataSource,
+        candidateCount: formatted.length,
+        parsedRequirements: structured,
+        candidates:     formatted.slice(0, 50),
+      }).catch((err) => logger.warn(`[Session] Failed to persist sourcing session: ${err.message}`));
+    }
 
     // Build match-category bucket counts for the frontend
     const bucketCounts = { perfect: 0, strong: 0, good: 0, partial: 0, weak: 0 };
@@ -1152,6 +1166,47 @@ export const searchInternalDb = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/ai-source/sessions
+ * List the current user's recent sourcing sessions (newest first, max 20).
+ */
+export const getSourcingSessions = async (req, res) => {
+  const userId = req.user?._id;
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+
+  try {
+    const sessions = await SourcingSession.find({ userId })
+      .select('jobTitle location dataSource candidateCount createdAt')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.status(200).json({ success: true, sessions });
+  } catch (error) {
+    logger.error(`Failed to get sourcing sessions: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve sessions' });
+  }
+};
+
+/**
+ * GET /api/ai-source/sessions/:id
+ * Get a single sourcing session including its candidates.
+ */
+export const getSessionById = async (req, res) => {
+  const userId = req.user?._id;
+
+  try {
+    const session = await SourcingSession.findOne({ _id: req.params.id, userId }).lean();
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    return res.status(200).json({ success: true, session });
+  } catch (error) {
+    logger.error(`Failed to get sourcing session: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve session' });
+  }
+};
+
 export default {
   extractRequirements,
   sourceCandidates,
@@ -1163,4 +1218,6 @@ export default {
   getSourcingStats,
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
+  getSourcingSessions,
+  getSessionById,
 };

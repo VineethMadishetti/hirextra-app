@@ -13,6 +13,7 @@ import {
   FileSearch,
   Globe,
   GraduationCap,
+  History,
   Loader2,
   Mail,
   MapPin,
@@ -227,7 +228,7 @@ function BucketSummary({ bucketCounts }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
-  const [view, setView] = useState('compose'); // compose | sourcing | results
+  const [view, setView] = useState('compose'); // compose | sourcing | results | recent
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
   const [jobDescription, setJobDescription] = useState('');
   const [jdFile, setJdFile] = useState(null);
@@ -246,6 +247,54 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [expandedCards, setExpandedCards] = useState(new Set());
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const searchAbortRef = useRef(null);
+
+  // ── Recent Sessions ───────────────────────────────────────────────────────
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(false);
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const { data } = await api.get('/ai-source/sessions?limit=20');
+      setSessions(data?.sessions || []);
+    } catch {
+      toast.error('Could not load recent searches.');
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const openRecentView = () => {
+    setView('recent');
+    loadSessions();
+  };
+
+  const restoreSession = async (sessionId) => {
+    setSessionLoading(true);
+    try {
+      const { data } = await api.get(`/ai-source/sessions/${sessionId}`);
+      const session = data?.session;
+      if (!session) return;
+      const restoredData = {
+        success: true,
+        parseOnly: false,
+        candidates: session.candidates || [],
+        results:    session.candidates || [],
+        parsedRequirements: session.parsedRequirements,
+        dataSource: session.dataSource,
+        summary: { totalExtracted: session.candidateCount },
+      };
+      setInternetData(restoredData);
+      setCurrentPage(1);
+      setView('results');
+      toast.success(`Restored: ${session.jobTitle || 'Search session'}`);
+    } catch {
+      toast.error('Failed to load session.');
+    } finally {
+      setSessionLoading(false);
+    }
+  };
 
   const activeData = internetData;
 
@@ -580,6 +629,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               <p className="text-sm text-slate-300 mt-1">Fast candidate discovery from JD with immediate results.</p>
             </div>
           </div>
+          <button
+            onClick={view === 'recent' ? () => setView('compose') : openRecentView}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition-all cursor-pointer shrink-0"
+          >
+            <History size={15} />
+            {view === 'recent' ? 'Back' : 'Recent Searches'}
+          </button>
         </div>
 
         <div className="h-[calc(100%-102px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
@@ -587,6 +643,76 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
             <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
               <AlertCircle size={16} className="mt-0.5" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {view === 'recent' && (
+            <div className="mx-auto max-w-4xl">
+              <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+                <History size={18} className="text-[#A99BFF]" />
+                Recent Searches
+              </h3>
+
+              {sessionsLoading && (
+                <div className="flex items-center justify-center py-16 text-slate-400">
+                  <Loader2 size={22} className="animate-spin mr-3" />
+                  Loading…
+                </div>
+              )}
+
+              {!sessionsLoading && sessions.length === 0 && (
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-10 text-center text-slate-400">
+                  <Clock size={32} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No recent searches yet. Run a sourcing search to see it here.</p>
+                </div>
+              )}
+
+              {!sessionsLoading && sessions.length > 0 && (
+                <div className="space-y-3">
+                  {sessions.map((s) => (
+                    <button
+                      key={s._id}
+                      onClick={() => restoreSession(s._id)}
+                      disabled={sessionLoading}
+                      className="w-full text-left rounded-2xl border border-slate-700 bg-slate-900/70 p-4 hover:border-[#6B5AF0]/70 hover:bg-slate-800/80 transition-all cursor-pointer disabled:opacity-60 group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-100 truncate group-hover:text-[#A99BFF] transition-colors">
+                            {s.jobTitle || 'Untitled Search'}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
+                            {s.location && (
+                              <span className="flex items-center gap-1">
+                                <MapPin size={11} />
+                                {s.location}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Globe size={11} />
+                              {s.dataSource || 'unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={11} />
+                              {new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-indigo-950/60 border border-indigo-700/40 px-3 py-1 text-xs font-semibold text-indigo-300">
+                          {s.candidateCount} candidate{s.candidateCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {sessionLoading && (
+                <div className="flex items-center justify-center py-6 text-slate-400 text-sm gap-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading session…
+                </div>
+              )}
             </div>
           )}
 

@@ -12,6 +12,8 @@ import {
   getSourcingStats,
   exportSourcedCandidatesCSV,
   exportCandidatesAsCSV,
+  getSourcingSessions,
+  getSessionById,
 } from '../controllers/sourcingController.js';
 
 const router = express.Router();
@@ -54,5 +56,9 @@ router.get('/history', protect, getSourcingHistory);
 
 // Get sourcing statistics
 router.get('/stats', protect, getSourcingStats);
+
+// Recent search sessions
+router.get('/sessions', protect, getSourcingSessions);
+router.get('/sessions/:id', protect, getSessionById);
 
 export default router;
