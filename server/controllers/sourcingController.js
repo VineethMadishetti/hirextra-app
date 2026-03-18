@@ -470,13 +470,15 @@ export const sourceCandidates = async (req, res) => {
       for (const c of candidates) {
         const currentLocation = String(c.location || '').toLowerCase();
 
-        if (currentLocation.length > 0 && currentLocation.includes(locLower)) {
-          // Tier 1: city explicitly confirmed in AI-extracted location
+        if (currentLocation.includes(locLower)) {
+          // Tier 1: city confirmed — location string contains the required city
           cityConfirmed.push(c);
-        } else if (!currentLocation && countryForCity) {
-          // Tier 2: no city signal but Serper country matches
-          const foundIn = String(c.foundIn || c.sourceCountry || '').toLowerCase();
-          if (foundIn && foundIn.includes(countryForCity)) {
+        } else if (countryForCity) {
+          // Tier 2: city not found in location — check country instead.
+          // CoreSignal profiles always have a country, so we can't require location to be empty.
+          // Use foundIn / sourceCountry / country / location itself for country check.
+          const countryStr = String(c.foundIn || c.sourceCountry || c.country || currentLocation).toLowerCase();
+          if (countryStr && countryStr.includes(countryForCity)) {
             countryFallback.push({ ...c, locationUnverified: true });
           }
         }

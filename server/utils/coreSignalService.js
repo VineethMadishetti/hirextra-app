@@ -109,11 +109,19 @@ export function calcExperienceYears(experiences) {
 
 /**
  * Build CoreSignal skill query string.
+ * Multi-word skills are quoted so "Spring Boot" is treated as a phrase, not two tokens.
  * logic = 'AND' → all skills must be present (high precision)
  * logic = 'OR'  → at least one skill (broad sweep)
  */
 function buildSkillQuery(skills, logic = 'AND') {
-  const clean = skills.filter(Boolean).map(s => s.trim()).filter(Boolean);
+  const clean = skills
+    .filter(Boolean)
+    .map(s => {
+      const t = s.trim();
+      // Quote multi-word skills to prevent tokenisation issues
+      return t.includes(' ') ? `"${t}"` : t;
+    })
+    .filter(Boolean);
   if (clean.length === 0) return '';
   if (clean.length === 1) return clean[0];
   return clean.join(` ${logic} `);
@@ -121,10 +129,17 @@ function buildSkillQuery(skills, logic = 'AND') {
 
 /**
  * Build CoreSignal headline query from title variants.
- * Joins with OR so any title variation matches.
+ * Multi-word titles are quoted. Variants joined with OR.
  */
 function buildHeadlineQuery(titles) {
-  const clean = [...new Set(titles.filter(Boolean).map(s => s.trim()))];
+  const clean = [...new Set(
+    titles
+      .filter(Boolean)
+      .map(s => {
+        const t = s.trim();
+        return t.includes(' ') ? `"${t}"` : t;
+      })
+  )];
   if (clean.length === 0) return '';
   if (clean.length === 1) return clean[0];
   return clean.join(' OR ');
@@ -157,7 +172,19 @@ async function searchFilter(body, itemsPerPage = 20) {
       }
     );
 
-    const ids = Array.isArray(response.data) ? response.data : [];
+    // CoreSignal returns a raw array of integer IDs.
+    // Guard against unexpected wrapping just in case.
+    let ids;
+    if (Array.isArray(response.data)) {
+      ids = response.data;
+    } else if (Array.isArray(response.data?.data)) {
+      ids = response.data.data;
+    } else if (Array.isArray(response.data?.results)) {
+      ids = response.data.results;
+    } else {
+      logger.warn(`[CoreSignal] Unexpected search response shape: ${JSON.stringify(response.data)?.slice(0, 200)}`);
+      ids = [];
+    }
     logger.info(`[CoreSignal] Search returned ${ids.length} IDs`);
     return ids;
   } catch (error) {
@@ -297,56 +324,72 @@ export async function sourceCandidatesViaCoreSignal(parsed, { maxCandidates = 50
   const coreSkills   = mustHave.length > 0 ? mustHave : required;
   const headlineQ    = buildHeadlineQuery(allTitles);
 
-  // ── Three search tiers ──────────────────────────────────────────────────────
+  // ── Four search tiers (Kumar's approach adapted for CoreSignal's structured API) ──
+  //
+  // Tiers run in parallel. Each tier is progressively more lenient:
+  //   Tier 1 — top 2 must-have skills AND'd + title + location  (highest precision)
+  //   Tier 2 — single primary skill + title + location           (strong match)
+  //   Tier 3 — skills OR'd + title + location                   (broad sweep)
+  //   Tier 4 — title + country only, no city, no skills          (safety fallback)
+  //
+  // matchScorer ranks the final pool by actual skill match percentage.
 
-  // Tier 1: ALL must-have skills AND'd — precision first
-  const tier1Body = {
-    headline:         headlineQ,
-    skill:            buildSkillQuery(coreSkills.slice(0, 4), 'AND'),
-    location:         city || undefined,
-    country:          country || undefined,
-    active_experience: true,
-  };
-
-  // Tier 2: top required skills AND'd (relaxed vs tier 1)
-  const tier2Body = {
-    headline:         headlineQ,
-    skill:            buildSkillQuery(coreSkills.slice(0, 2), 'AND'),
-    location:         city || undefined,
-    country:          country || undefined,
-    active_experience: true,
-  };
-
-  // Tier 3: required + preferred skills OR'd — broadest sweep
-  const tier3Skills = [...new Set([...coreSkills.slice(0, 3), ...preferred.slice(0, 2)])];
-  const tier3Body = {
-    headline:         headlineQ,
-    skill:            buildSkillQuery(tier3Skills, 'OR'),
-    location:         city || undefined,
-    country:          country || undefined,
-    active_experience: true,
-  };
-
-  const tierLimit = Math.ceil(maxCandidates / 2); // over-fetch to account for exp filtering
+  const tierLimit = Math.ceil(maxCandidates / 2); // over-fetch for exp filtering
 
   logger.info(`[CoreSignal] Tier search: title="${mainTitle}" city="${city}" country="${country}"`);
 
-  // Run all 3 tiers in parallel — CoreSignal handles concurrency well
-  const [ids1, ids2, ids3] = await Promise.all([
-    searchFilter(tier1Body, Math.min(tierLimit, 25)),
-    searchFilter(tier2Body, Math.min(tierLimit, 25)),
-    searchFilter(tier3Body, Math.min(tierLimit, 20)),
+  // Tier 1: top 2 must-have skills AND'd — precision (max 2 to avoid zero results)
+  const tier1Body = {
+    headline:          headlineQ,
+    skill:             buildSkillQuery(coreSkills.slice(0, 2), 'AND'),
+    location:          city || undefined,
+    country:           country || undefined,
+    active_experience: true,
+  };
+
+  // Tier 2: primary skill only AND'd with title + location
+  const tier2Body = {
+    headline:          headlineQ,
+    skill:             coreSkills[0] ? buildSkillQuery([coreSkills[0]], 'AND') : undefined,
+    location:          city || undefined,
+    country:           country || undefined,
+    active_experience: true,
+  };
+
+  // Tier 3: all required + preferred skills OR'd — broadest skill sweep
+  const tier3Skills = [...new Set([...coreSkills.slice(0, 4), ...preferred.slice(0, 2)])];
+  const tier3Body = {
+    headline:          headlineQ,
+    skill:             buildSkillQuery(tier3Skills, 'OR'),
+    location:          city || undefined,
+    country:           country || undefined,
+  };
+
+  // Tier 4: title + country only — safety fallback when city is too restrictive
+  const tier4Body = {
+    headline: headlineQ,
+    country:  country || undefined,
+  };
+
+  // Run all 4 tiers in parallel
+  const [ids1, ids2, ids3, ids4] = await Promise.all([
+    searchFilter(tier1Body, Math.min(tierLimit, 20)),
+    searchFilter(tier2Body, Math.min(tierLimit, 20)),
+    searchFilter(tier3Body, Math.min(tierLimit, 15)),
+    searchFilter(tier4Body, 10),
   ]);
 
-  // Deduplicate IDs across all tiers, preserving tier order (tier1 first = highest quality)
+  logger.info(`[CoreSignal] Tier results — T1:${ids1.length} T2:${ids2.length} T3:${ids3.length} T4:${ids4.length}`);
+
+  // Deduplicate across tiers — tier1 first means highest quality collected first
   const seen = new Set();
   const allIds = [];
-  for (const id of [...ids1, ...ids2, ...ids3]) {
+  for (const id of [...ids1, ...ids2, ...ids3, ...ids4]) {
     if (!seen.has(id)) { seen.add(id); allIds.push(id); }
   }
 
   if (allIds.length === 0) {
-    logger.info('[CoreSignal] No IDs returned from any search tier');
+    logger.warn('[CoreSignal] No IDs returned from any search tier — check API key and search params');
     return [];
   }
 
