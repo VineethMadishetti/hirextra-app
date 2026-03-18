@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
 import coreSignalService from '../utils/coreSignalService.js';
+import pdlService from '../utils/pdlService.js';
 import {
   extractCandidates,
   deduplicateCandidates,
@@ -119,23 +120,40 @@ function deriveCandidatePayload(candidate, parsed, userId) {
   const enrichmentConfidence = Number(candidate.contact?.confidence || candidate.enrichmentConfidence || 0);
   const baseStage = contactEmail || contactPhone ? 'CONTACT_ENRICHED' : 'DISCOVERED';
 
+  // Candidate's actual skills (CoreSignal gives real array; Serper gives array or CSV string)
+  let candidateSkills = '';
+  if (Array.isArray(candidate.skills) && candidate.skills.length > 0) {
+    candidateSkills = candidate.skills.join(', ');
+  } else if (typeof candidate.skills === 'string' && candidate.skills.trim()) {
+    candidateSkills = candidate.skills.trim();
+  }
+
+  // Candidate's actual experience (CoreSignal: real years; Serper: text like "5+ years")
+  const candidateExperience =
+    candidate.totalExperience ||
+    (typeof candidate.experienceYears === 'number' && candidate.experienceYears > 0
+      ? `${candidate.experienceYears} years`
+      : '') ||
+    experience; // fallback to JD-derived value if nothing on the candidate
+
   return {
     linkedInUrl,
     fullName,
     jobTitle: candidate.jobTitle || candidate.title || parsed?.job_title?.main || '',
     company: candidate.company || '',
     location,
-    country: candidate.sourceCountry || candidate.foundIn || '',
+    country: candidate.sourceCountry || candidate.foundIn || candidate.country || '',
     industry: parsed?.industry || 'Not Specified',
     availability: normalizeAvailability(parsed?.availability),
-    education: parsed?.education || 'Not Specified',
+    education: candidate.education || '',
     email: contactEmail,
     phone: contactPhone,
-    skills: Array.isArray(parsed?.required_skills) ? parsed.required_skills.join(', ') : '',
-    experience,
+    skills: candidateSkills,
+    experience: candidateExperience,
+    summary: candidate.about || '',
     createdBy: userId,
     source: 'AI_SOURCING',
-    sourceCountry: candidate.sourceCountry || candidate.foundIn || '',
+    sourceCountry: candidate.sourceCountry || candidate.foundIn || candidate.country || '',
     enrichmentStatus: contactEmail || contactPhone ? 'ENRICHED' : 'NEW',
     enrichmentMetadata:
       enrichmentSource || enrichmentConfidence
@@ -290,19 +308,47 @@ export const sourceCandidates = async (req, res) => {
 
     // ── Candidate Discovery ───────────────────────────────────────────────────
     //
-    // Priority 1: ProxyCurl — real LinkedIn profile data, real experience years,
-    //             real location. No snippet scraping, no OpenAI extraction needed.
+    // Priority 1: PDL (People Data Labs) — real structured LinkedIn-grade profile
+    //             data, real experience dates, real location. No scraping needed.
     //
-    // Priority 2: Serper (Google search) — fallback when ProxyCurl is not
-    //             configured. Uses Boolean queries + OpenAI snippet enrichment.
+    // Priority 2: CoreSignal — also real LinkedIn data, used if PDL not configured.
+    //
+    // Priority 3: Serper (Google search) — fallback. Uses Boolean queries +
+    //             OpenAI snippet enrichment.
     //
     let candidates = [];
     let dataSource = 'unknown';
 
-    if (coreSignalService.isConfigured()) {
+    if (pdlService.isConfigured()) {
+      // ── PDL path — structured profile data ────────────────────────────────
+      dataSource = 'pdl';
+      logger.info('[PDL] Using People Data Labs for candidate discovery (tiered search)');
+
+      const pdlCandidates = await pdlService.sourceCandidatesViaPDL(parsed, {
+        maxCandidates: maxCandidatesSafe,
+      });
+
+      if (!pdlCandidates || pdlCandidates.length === 0) {
+        return res.status(200).json({
+          success: true,
+          parseOnly: false,
+          message: 'No candidate profiles found via PDL for this requirement set.',
+          parsedRequirements: structured,
+          candidates: [],
+          results: [],
+          summary: {
+            totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0,
+            totalSaved: 0, timeMs: Date.now() - startedAt,
+          },
+        });
+      }
+
+      candidates = pdlCandidates;
+
+    } else if (coreSignalService.isConfigured()) {
       // ── CoreSignal path — real LinkedIn profile data ────────────────────────
       dataSource = 'coresignal';
-      logger.info('[CoreSignal] Using CoreSignal for candidate discovery (tiered search)');
+      logger.info('[CoreSignal] PDL not configured — using CoreSignal for candidate discovery');
 
       const coreCandidates = await coreSignalService.sourceCandidatesViaCoreSignal(parsed, {
         maxCandidates: maxCandidatesSafe,
@@ -357,7 +403,7 @@ export const sourceCandidates = async (req, res) => {
       candidates = extractCandidates(allResults, targetCountries, searchQueries);
       candidates = deduplicateCandidates(candidates);
 
-      // OpenAI snippet enrichment (Serper only — ProxyCurl already has structured data)
+      // OpenAI snippet enrichment (Serper only — CoreSignal already has structured data)
       const aiMap = await aiEnrichCandidates(allResults);
       if (aiMap && aiMap.size > 0) {
         candidates = candidates.map((c) => {
@@ -396,7 +442,7 @@ export const sourceCandidates = async (req, res) => {
       const targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       return res.status(200).json({
         success: true, parseOnly: true,
-        message: 'Requirements extracted. Add CORESIGNAL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',
+        message: 'Requirements extracted. Add PDL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',
         parsedRequirements: structured,
         searchPlan: { queries: searchQueries, countries: targetCountries },
         candidates: [], results: [],
@@ -405,14 +451,14 @@ export const sourceCandidates = async (req, res) => {
     }
 
     // ── Step 1: Experience hard filter ────────────────────────────────────────
-    // ProxyCurl gives us real years from job history.
-    // Serper gives text like "5+ years" — we parse the number.
-    // In both cases, reject anyone clearly below the required minimum.
+    // PDL/CoreSignal: real years calculated from job history dates (c.experienceYears).
+    // Serper fallback: text like "5+ years" — parsed as a number.
+    // Both paths reject anyone clearly below the required minimum.
     const minExpYears = Number(parsed.experience_years || 0);
     if (minExpYears > 0) {
       const beforeExp = candidates.length;
       candidates = candidates.filter(c => {
-        // ProxyCurl: c.experienceYears is a calculated number
+        // CoreSignal: c.experienceYears is a real calculated number
         if (typeof c.experienceYears === 'number' && c.experienceYears > 0) {
           return c.experienceYears >= minExpYears;
         }
@@ -434,32 +480,35 @@ export const sourceCandidates = async (req, res) => {
 
     // Step 3: Strict location filter — two-tier approach.
     //
-    // Tier 1 (city-confirmed): AI-extracted c.location contains the required city.
-    //   e.g. required="Hyderabad", c.location="Hyderabad, India" → PASS
+    // Tier 1 (city-confirmed): c.location contains the required city.
+    //   CoreSignal: profile.city = "Hyderabad" → c.location = "Hyderabad, India" → PASS
+    //   Serper: AI-extracted location → PASS if city found in string
     //
-    // Tier 2 (country-fallback): c.location is empty/null but c.foundIn (sourceCountry)
-    //   matches the country that contains the required city.
-    //   e.g. required="Hyderabad", c.foundIn="india" → PASS (flagged as location unverified)
-    //   This handles candidates whose LinkedIn snippet had no city signal but were returned
-    //   by a Serper query scoped to the correct country.
-    //
-    // Do NOT check c.about / snippet text — those contain education/past-company city names
-    // which would incorrectly match candidates based in other regions.
+    // Tier 2 (country-fallback): city not in c.location but country matches.
+    //   e.g. required="Hyderabad", c.country="India" → PASS (flagged as location unverified)
+    //   Handles CoreSignal profiles whose city field is empty but country is correct,
+    //   and Serper candidates whose snippet had no city signal.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
 
       // Build a country keyword from the required location so we can match c.foundIn.
       // e.g. "Hyderabad" → "india", "London" → "uk", "Berlin" → "germany"
+      // Values use full country names as returned by CoreSignal (e.g. "India", "United Kingdom").
+      // Comparisons are done after toLowerCase() so capitalisation doesn't matter.
       const CITY_TO_COUNTRY = {
         hyderabad: 'india', bangalore: 'india', bengaluru: 'india', mumbai: 'india',
-        delhi: 'india', chennai: 'india', pune: 'india', kolkata: 'india', gurgaon: 'india', noida: 'india',
-        london: 'uk', manchester: 'uk', birmingham: 'uk',
-        berlin: 'germany', munich: 'germany', frankfurt: 'germany',
-        toronto: 'canada', vancouver: 'canada',
-        sydney: 'australia', melbourne: 'australia',
+        delhi: 'india', 'new delhi': 'india', chennai: 'india', pune: 'india',
+        kolkata: 'india', gurgaon: 'india', noida: 'india', ahmedabad: 'india',
+        london: 'united kingdom', manchester: 'united kingdom', birmingham: 'united kingdom', edinburgh: 'united kingdom',
+        berlin: 'germany', munich: 'germany', frankfurt: 'germany', hamburg: 'germany',
+        toronto: 'canada', vancouver: 'canada', montreal: 'canada',
+        sydney: 'australia', melbourne: 'australia', brisbane: 'australia',
         singapore: 'singapore',
-        'new york': 'us', 'san francisco': 'us', seattle: 'us', austin: 'us',
+        'new york': 'united states', 'san francisco': 'united states', seattle: 'united states',
+        austin: 'united states', chicago: 'united states', boston: 'united states',
+        dubai: 'united arab emirates', amsterdam: 'netherlands',
+        paris: 'france', madrid: 'spain', stockholm: 'sweden',
       };
       const countryForCity = CITY_TO_COUNTRY[locLower] || null;
 

@@ -109,7 +109,9 @@ export function calcExperienceYears(experiences) {
 
 /**
  * Build CoreSignal skill query string.
- * Multi-word skills are quoted so "Spring Boot" is treated as a phrase, not two tokens.
+ * Multi-word skills are wrapped in parentheses so "Spring Boot" is treated as a phrase.
+ * Quoted strings ("...") in CoreSignal do exact phrase matching and can return 0 results.
+ * Parentheses (Spring Boot) do phrase grouping without the strictness of exact-match quotes.
  * logic = 'AND' → all skills must be present (high precision)
  * logic = 'OR'  → at least one skill (broad sweep)
  */
@@ -118,8 +120,8 @@ function buildSkillQuery(skills, logic = 'AND') {
     .filter(Boolean)
     .map(s => {
       const t = s.trim();
-      // Quote multi-word skills to prevent tokenisation issues
-      return t.includes(' ') ? `"${t}"` : t;
+      // Wrap multi-word skills in parentheses for phrase grouping
+      return t.includes(' ') ? `(${t})` : t;
     })
     .filter(Boolean);
   if (clean.length === 0) return '';
@@ -129,7 +131,9 @@ function buildSkillQuery(skills, logic = 'AND') {
 
 /**
  * Build CoreSignal headline query from title variants.
- * Multi-word titles are quoted. Variants joined with OR.
+ * Use plain keywords (no quotes) — quoted titles do exact phrase match in CoreSignal
+ * and can return 0 results for multi-word titles like "Senior Software Engineer".
+ * Multi-word titles wrapped in parentheses for loose phrase grouping. Variants joined with OR.
  */
 function buildHeadlineQuery(titles) {
   const clean = [...new Set(
@@ -137,7 +141,8 @@ function buildHeadlineQuery(titles) {
       .filter(Boolean)
       .map(s => {
         const t = s.trim();
-        return t.includes(' ') ? `"${t}"` : t;
+        // Parentheses for phrase grouping (not strict exact-match like quotes)
+        return t.includes(' ') ? `(${t})` : t;
       })
   )];
   if (clean.length === 0) return '';
@@ -189,11 +194,12 @@ async function searchFilter(body, itemsPerPage = 20) {
     return ids;
   } catch (error) {
     const status = error.response?.status;
-    const msg = error.response?.data?.message || error.response?.data || error.message;
-    if (status === 401) logger.error('[CoreSignal] 401 — invalid API key');
-    else if (status === 402) logger.error('[CoreSignal] 402 — insufficient credits');
+    const msg = error.response?.data?.detail || error.response?.data?.message || JSON.stringify(error.response?.data) || error.message;
+    if (status === 401) logger.error(`[CoreSignal] 401 — invalid API key: ${msg}`);
+    else if (status === 402) logger.error(`[CoreSignal] 402 — insufficient credits: ${msg}`);
+    else if (status === 422) logger.warn(`[CoreSignal] 422 — invalid search params: ${msg}`);
     else if (status === 429) logger.warn('[CoreSignal] 429 — rate limited');
-    else logger.warn(`[CoreSignal] Search failed (HTTP ${status ?? 'timeout'}): ${JSON.stringify(msg)}`);
+    else logger.warn(`[CoreSignal] Search failed (HTTP ${status ?? 'timeout'}): ${msg}`);
     return [];
   }
 }
@@ -321,8 +327,11 @@ export async function sourceCandidatesViaCoreSignal(parsed, { maxCandidates = 50
   const required     = parsed.required_skills   || [];
   const preferred    = parsed.preferred_skills  || [];
 
-  const coreSkills   = mustHave.length > 0 ? mustHave : required;
-  const headlineQ    = buildHeadlineQuery(allTitles);
+  const coreSkills     = mustHave.length > 0 ? mustHave : required;
+  const headlineQ      = buildHeadlineQuery(allTitles);
+  // experience_title searches work history job titles — more reliable than headline
+  // for matching candidates actively in the role (not just in their bio/summary)
+  const expTitleQ      = buildHeadlineQuery(allTitles);
 
   // ── Four search tiers (Kumar's approach adapted for CoreSignal's structured API) ──
   //
@@ -339,36 +348,40 @@ export async function sourceCandidatesViaCoreSignal(parsed, { maxCandidates = 50
   logger.info(`[CoreSignal] Tier search: title="${mainTitle}" city="${city}" country="${country}"`);
 
   // Tier 1: top 2 must-have skills AND'd — precision (max 2 to avoid zero results)
+  // Note: active_experience=true requires is_current=1 on profile records; many profiles
+  // lack this flag so it would return 0 results — intentionally omitted.
   const tier1Body = {
-    headline:          headlineQ,
-    skill:             buildSkillQuery(coreSkills.slice(0, 2), 'AND'),
-    location:          city || undefined,
-    country:           country || undefined,
-    active_experience: true,
+    headline:         headlineQ,
+    experience_title: expTitleQ,
+    skill:            buildSkillQuery(coreSkills.slice(0, 2), 'AND'),
+    location:         city || undefined,
+    country:          country || undefined,
   };
 
   // Tier 2: primary skill only AND'd with title + location
   const tier2Body = {
-    headline:          headlineQ,
-    skill:             coreSkills[0] ? buildSkillQuery([coreSkills[0]], 'AND') : undefined,
-    location:          city || undefined,
-    country:           country || undefined,
-    active_experience: true,
+    headline:         headlineQ,
+    experience_title: expTitleQ,
+    skill:            coreSkills[0] ? buildSkillQuery([coreSkills[0]], 'AND') : undefined,
+    location:         city || undefined,
+    country:          country || undefined,
   };
 
   // Tier 3: all required + preferred skills OR'd — broadest skill sweep
   const tier3Skills = [...new Set([...coreSkills.slice(0, 4), ...preferred.slice(0, 2)])];
   const tier3Body = {
-    headline:          headlineQ,
-    skill:             buildSkillQuery(tier3Skills, 'OR'),
-    location:          city || undefined,
-    country:           country || undefined,
+    headline:         headlineQ,
+    experience_title: expTitleQ,
+    skill:            buildSkillQuery(tier3Skills, 'OR'),
+    location:         city || undefined,
+    country:          country || undefined,
   };
 
   // Tier 4: title + country only — safety fallback when city is too restrictive
   const tier4Body = {
-    headline: headlineQ,
-    country:  country || undefined,
+    headline:         headlineQ,
+    experience_title: expTitleQ,
+    country:          country || undefined,
   };
 
   // Run all 4 tiers in parallel
