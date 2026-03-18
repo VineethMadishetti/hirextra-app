@@ -518,6 +518,11 @@ export function formatCandidates(candidates) {
     pipelineStage: c.pipelineStage || 'DISCOVERED',
     sequenceStatus: c.sequenceStatus || 'NOT_STARTED',
     callStatus: c.callStatus || 'NOT_SCHEDULED',
+    locationUnverified: c.locationUnverified || false,
+    profilePic: c.profilePic || null,
+    headline: c.headline || null,
+    dataSource: c.dataSource || null,
+    experienceYears: c.experienceYears ?? null,
   }));
 }
 

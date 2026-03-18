@@ -78,14 +78,18 @@ export function resolveLocationParams(location) {
     return { city: '', country: '' };
   }
   const parts = location.split(',').map(p => p.trim().toLowerCase());
-  const city = parts[0] || '';
+  const firstPart = parts[0] || '';
   const countryPart = parts[parts.length - 1] || '';
 
   const country =
-    CITY_TO_COUNTRY[city] ||
+    CITY_TO_COUNTRY[firstPart] ||
     COUNTRY_TO_PDL[countryPart] ||
-    COUNTRY_TO_PDL[city] ||
+    COUNTRY_TO_PDL[firstPart] ||
     '';
+
+  // If the first part is itself a country name (no specific city given), leave city empty.
+  // e.g. "India" → city='', country='india' — avoids filtering location_locality='india' in PDL.
+  const city = COUNTRY_TO_PDL[firstPart] ? '' : firstPart;
 
   return { city, country };
 }

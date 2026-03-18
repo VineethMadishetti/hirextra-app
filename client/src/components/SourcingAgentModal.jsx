@@ -970,9 +970,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         {/* Row 2: Location · Experience · Education (non-premium) */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
                           {location && (
-                            <span className="flex items-center gap-1">
-                              <MapPin size={11} className="text-slate-500" />
+                            <span className={`flex items-center gap-1 ${candidate.locationUnverified ? 'text-amber-500/80' : ''}`}>
+                              <MapPin size={11} className={candidate.locationUnverified ? 'text-amber-500/70' : 'text-slate-500'} />
                               {location}
+                              {candidate.locationUnverified && (
+                                <span className="italic text-[10px] text-amber-500/60">(unverified)</span>
+                              )}
                             </span>
                           )}
                           {!location && candidate.locationUnverified && (

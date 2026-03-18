@@ -318,6 +318,9 @@ export const sourceCandidates = async (req, res) => {
     //
     let candidates = [];
     let dataSource = 'unknown';
+    let searchQueries = [];
+    let targetCountries = [];
+    let allResults = [];
 
     if (pdlService.isConfigured()) {
       // ── PDL path — structured profile data ────────────────────────────────
@@ -376,18 +379,18 @@ export const sourceCandidates = async (req, res) => {
       dataSource = 'serper';
       logger.info('[Serper] CoreSignal not configured — falling back to Serper');
 
-      const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
+      searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
       if (searchQueries.length === 0) {
         return res.status(500).json({ success: false, error: 'Failed to generate search queries' });
       }
-      const targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
+      targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
 
       const searchPromises = searchQueries.map(async (query) => {
         const rows = await cseService.searchCountries(query, targetCountries, resultsPerCountrySafe);
         return rows.map((row) => ({ ...row, query }));
       });
       const searchResponses = await Promise.allSettled(searchPromises);
-      const allResults = searchResponses
+      allResults = searchResponses
         .filter((item) => item.status === 'fulfilled')
         .flatMap((item) => item.value || []);
 
