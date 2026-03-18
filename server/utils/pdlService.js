@@ -171,14 +171,13 @@ function buildEsQuery({ titles = [], mustSkills = [], anySkills = [], city, coun
 /**
  * POST /v5/person/search → returns array of person profiles.
  */
-async function searchPersons(esQuery, size = 20, from = 0) {
+async function searchPersons(esQuery, size = 20) {
   const apiKey = getApiKey();
   if (!apiKey) return [];
 
   const body = {
     query: esQuery,
     size: Math.min(size, 100),
-    from,
     pretty: false,
     titlecase: false,
   };
