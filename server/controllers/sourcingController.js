@@ -381,7 +381,24 @@ export const sourceCandidates = async (req, res) => {
             company: (ai.company?.trim()) || c.company,
             location: (ai.location?.trim()) || c.location,
             education: (ai.education?.trim()) || c.education,
-            skills: Array.isArray(ai.skills) ? ai.skills.filter(Boolean).slice(0, 8) : (c.skills || []),
+            skills: Array.isArray(ai.skills)
+              ? ai.skills
+                  .filter(Boolean)
+                  .map(s => String(s).trim())
+                  .filter(s =>
+                    s.length >= 2 &&
+                    s.length <= 40 &&
+                    // Reject company-name patterns (Pvt/Ltd/Inc etc.)
+                    !/\b(pvt|ltd|inc|corp|llc|llp|limited|solutions|technologies|systems|services|consulting|group|software|infotech)\b/i.test(s) &&
+                    // Reject location-like values (city, state, country)
+                    !/\b(india|usa|uk|canada|germany|singapore|australia|bangalore|bengaluru|hyderabad|mumbai|delhi|chennai|pune|kolkata|gurgaon|noida|london|berlin|new york|toronto|sydney)\b/i.test(s) &&
+                    // Reject experience-duration strings ("5 years", "3+ yrs")
+                    !/^\d+\s*\+?\s*(year|yr|month|mo)/i.test(s) &&
+                    // Reject strings containing commas (likely addresses)
+                    !s.includes(',')
+                  )
+                  .slice(0, 8)
+              : (c.skills || []),
             totalExperience: ai.totalExperience || c.totalExperience || null,
             about: (ai.about?.trim()) || c.about || null,
           };
@@ -396,21 +413,60 @@ export const sourceCandidates = async (req, res) => {
     // Location is NOT a hard disqualifier in the scorer; the filter in Step 3 handles it.
     candidates = scoreCandidates(candidates, parsed, { minScore: 30, excludeDisqualified: true });
 
-    // Step 3: Strict current-location filter.
-    // ONLY use the AI-extracted c.location field (current city of residence).
-    // Do NOT check snippet or about text — those contain education/past-company city names
-    // which would incorrectly match candidates based in other countries.
-    // Candidates with no extractable current location are excluded.
+    // Step 3: Strict location filter — two-tier approach.
+    //
+    // Tier 1 (city-confirmed): AI-extracted c.location contains the required city.
+    //   e.g. required="Hyderabad", c.location="Hyderabad, India" → PASS
+    //
+    // Tier 2 (country-fallback): c.location is empty/null but c.foundIn (sourceCountry)
+    //   matches the country that contains the required city.
+    //   e.g. required="Hyderabad", c.foundIn="india" → PASS (flagged as location unverified)
+    //   This handles candidates whose LinkedIn snippet had no city signal but were returned
+    //   by a Serper query scoped to the correct country.
+    //
+    // Do NOT check c.about / snippet text — those contain education/past-company city names
+    // which would incorrectly match candidates based in other regions.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
 
-      candidates = candidates.filter((c) => {
-        const currentLocation = String(c.location || '').toLowerCase();
-        return currentLocation.length > 0 && currentLocation.includes(locLower);
-      });
+      // Build a country keyword from the required location so we can match c.foundIn.
+      // e.g. "Hyderabad" → "india", "London" → "uk", "Berlin" → "germany"
+      const CITY_TO_COUNTRY = {
+        hyderabad: 'india', bangalore: 'india', bengaluru: 'india', mumbai: 'india',
+        delhi: 'india', chennai: 'india', pune: 'india', kolkata: 'india', gurgaon: 'india', noida: 'india',
+        london: 'uk', manchester: 'uk', birmingham: 'uk',
+        berlin: 'germany', munich: 'germany', frankfurt: 'germany',
+        toronto: 'canada', vancouver: 'canada',
+        sydney: 'australia', melbourne: 'australia',
+        singapore: 'singapore',
+        'new york': 'us', 'san francisco': 'us', seattle: 'us', austin: 'us',
+      };
+      const countryForCity = CITY_TO_COUNTRY[locLower] || null;
 
-      logger.info(`Location filter "${locLower}": ${candidates.length} candidates matched (current-location only)`);
+      const beforeCount = candidates.length;
+      const cityConfirmed = [];
+      const countryFallback = [];
+
+      for (const c of candidates) {
+        const currentLocation = String(c.location || '').toLowerCase();
+
+        if (currentLocation.length > 0 && currentLocation.includes(locLower)) {
+          // Tier 1: city explicitly confirmed in AI-extracted location
+          cityConfirmed.push(c);
+        } else if (!currentLocation && countryForCity) {
+          // Tier 2: no city signal but Serper country matches
+          const foundIn = String(c.foundIn || c.sourceCountry || '').toLowerCase();
+          if (foundIn && foundIn.includes(countryForCity)) {
+            countryFallback.push({ ...c, locationUnverified: true });
+          }
+        }
+      }
+
+      // City-confirmed first (already sorted by matchScore), country-fallback appended after
+      candidates = [...cityConfirmed, ...countryFallback];
+
+      logger.info(`Location filter "${locLower}": ${cityConfirmed.length} city-confirmed + ${countryFallback.length} country-fallback (${candidates.length}/${beforeCount} total)`);
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);

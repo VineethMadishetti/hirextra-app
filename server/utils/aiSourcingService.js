@@ -306,10 +306,11 @@ export function buildBooleanQueries(parsed) {
     : '';
   const linkedinClause = 'site:linkedin.com/in';
 
+  // Location is always AND'd — it is a hard geographic gate, not a scoring hint.
   const requiredBoolean = [titleClause, requiredClause, locationClause, linkedinClause]
     .filter(Boolean)
     .join(' AND ');
-  const preferredBoolean = [titleClause, requiredClause, preferredClause, linkedinClause]
+  const preferredBoolean = [titleClause, requiredClause, preferredClause, locationClause, linkedinClause]
     .filter(Boolean)
     .join(' AND ');
 
@@ -381,36 +382,42 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
   const includeSalary = Boolean(salaryPackage && !/not specified/i.test(salaryPackage));
   const salaryClause = includeSalary ? `("${salaryPackage}")` : '';
 
+  // When location is specified, make it an AND clause (not OR) so Google only returns
+  // profiles that mention the target city — this is the primary location gate.
+  // locationClause is already built as `("City" OR "Greater City Area" OR "City")` which
+  // is fine because all variants point to the same geography.
+  const locationAnd = includeLocation ? locationClause : '';
+
   const queries = [];
   for (const title of titles) {
     queries.push(
-      [`"${title}"`, skillsClause, locationClause, durationClause, salaryClause, 'site:linkedin.com/in']
+      [`"${title}"`, skillsClause, locationAnd, durationClause, salaryClause, 'site:linkedin.com/in']
         .filter(Boolean)
-        .join(' ')
+        .join(' AND ')
     );
   }
 
   if (titles.length) {
     queries.push(
-      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, locationClause, '"open to work"', 'site:linkedin.com/in']
+      [`(${titles.map((t) => `"${t}"`).join(' OR ')})`, skillsClause, locationAnd, '"open to work"', 'site:linkedin.com/in']
         .filter(Boolean)
-        .join(' ')
+        .join(' AND ')
     );
   }
 
   if (parsed.remote) {
     queries.push(
-      [`"${parsed.job_title.main}"`, skillsClause, locationClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
+      [`"${parsed.job_title.main}"`, skillsClause, '("remote" OR "distributed")', 'site:linkedin.com/in']
         .filter(Boolean)
-        .join(' ')
+        .join(' AND ')
     );
   }
 
-  // Resume-oriented pass (still linked to LinkedIn profile results)
+  // Resume-oriented pass
   queries.push(
-    [`"${parsed.job_title.main}"`, skillsClause, locationClause, '("resume" OR "cv")', 'site:linkedin.com/in']
+    [`"${parsed.job_title.main}"`, skillsClause, locationAnd, '("resume" OR "cv")', 'site:linkedin.com/in']
       .filter(Boolean)
-      .join(' ')
+      .join(' AND ')
   );
 
   return uniqueStrings(queries, Math.min(Math.max(1, Number(maxQueries) || 6), 8));

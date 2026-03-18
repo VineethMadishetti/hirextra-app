@@ -89,7 +89,15 @@ function parseStructuredSnippet(snippet) {
     if (!value) continue;
 
     if (label === 'experience') {
-      result.company = value;
+      // LinkedIn uses "Experience:" to mean the current employer in card snippets.
+      // But some snippets use it for duration ("5+ years", "8 years") or role descriptions.
+      // Only treat it as a company name when it doesn't look like a duration or bare role.
+      const looksLikeDuration = /^\d+\s*\+?\s*(year|yr|month|mo)/i.test(value.trim());
+      const looksLikeBareRole = /^(senior|junior|lead|principal|staff|mid|entry)\s+\w/i.test(value.trim())
+        && !/\b(at|@|pvt|ltd|inc|corp|limited|solutions|technologies|systems|services)\b/i.test(value);
+      if (!looksLikeDuration && !looksLikeBareRole) {
+        result.company = value;
+      }
     } else if (label === 'education') {
       result.education = value;
     } else if (label === 'location') {

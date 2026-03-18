@@ -975,6 +975,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               {location}
                             </span>
                           )}
+                          {!location && candidate.locationUnverified && (
+                            <span className="flex items-center gap-1 text-amber-500/70 italic">
+                              <MapPin size={11} className="text-amber-500/70" />
+                              Location unverified
+                            </span>
+                          )}
                           {experience && (
                             <span className="flex items-center gap-1">
                               <Clock size={11} className="text-slate-500" />

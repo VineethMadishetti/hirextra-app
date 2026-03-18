@@ -1383,6 +1383,10 @@ export const processFolderJob = async ({ jobId, skipIfExists = false }) => {
 export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, initialSuccess: explicitSuccess, initialFailed: explicitFailed, job: queueJob }) => {
 	logger.info(`🚀 Processing UploadJob ID: ${jobId}`);
 
+	// Declare filePath before the try block so the outer catch blocks can safely
+	// reference it for logging even when an error occurs before jobDoc is loaded.
+	let filePath = '(unknown)';
+
 	try {
 		// ✅ SINGLE SOURCE OF TRUTH: Fetch all job parameters from the database.
 		const jobDoc = await UploadJob.findById(jobId).lean();
@@ -1404,7 +1408,9 @@ export const processCsvJob = async ({ jobId, resumeFrom: explicitResumeFrom, ini
 			logger.info(`🔄 Resuming job ${jobId} from row ${resumeFrom}. Initial counts: Success=${initialSuccess}, Failed=${initialFailed}`);
 		}
 
-		const { fileName: filePath, mapping, headers: actualHeaders, originalName } = jobDoc;
+		// Assign filePath now that jobDoc is loaded (replaces the '(unknown)' placeholder)
+		({ fileName: filePath } = jobDoc);
+		const { mapping, headers: actualHeaders, originalName } = jobDoc;
 
 		if (!actualHeaders || actualHeaders.length === 0) {
 			logger.error(`❌ Job ${jobId} is missing stored headers. Cannot process.`);

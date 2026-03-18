@@ -1208,6 +1208,9 @@ export const resumeUploadJob = async (req, res) => {
 		// Resume from the last recorded totalRows (which acts as the processed count)
 		// ✅ FIX: Calculate resume point from actual processed rows (Success + Failed)
 		// This fixes issues where totalRows was incorrectly overwritten or is the target total.
+		// NOTE: job.totalRows only tracks rows scanned so far — NOT the actual file row count.
+		// The file may contain more rows beyond what totalRows shows, so we never short-circuit
+		// based on that comparison. processCsvJob fast-forwards and stops naturally at EOF.
 		let resumeFrom = job.successRows + job.failedRows;
 
 		console.log(`🔄 Resuming job ${id} from row ${resumeFrom}`);
@@ -1220,19 +1223,19 @@ export const resumeUploadJob = async (req, res) => {
 		});
 
 		// Trigger processing
-			processCsvJob({
-				jobId: job._id,
-				resumeFrom: resumeFrom,
-				initialSuccess: job.successRows,
-				initialFailed: job.failedRows
-			}).catch(async (err) => {
-				const errorMsg = err.message || String(err) || "Resume failed";
-				console.error(`❌ Resume failed for job ${id}:`, err);
-				await UploadJob.findByIdAndUpdate(id, {
-					status: "FAILED",
-					error: "Resume failed: " + errorMsg
-				});
+		processCsvJob({
+			jobId: job._id,
+			resumeFrom: resumeFrom,
+			initialSuccess: job.successRows,
+			initialFailed: job.failedRows
+		}).catch(async (err) => {
+			const errorMsg = err.message || String(err) || "Resume failed";
+			console.error(`❌ Resume failed for job ${id}:`, err);
+			await UploadJob.findByIdAndUpdate(id, {
+				status: "FAILED",
+				error: "Resume failed: " + errorMsg
 			});
+		});
 
 		res.json({ message: "Job resumed successfully", resumeFrom });
 	} catch (error) {
