@@ -2,7 +2,6 @@ import mammoth from 'mammoth';
 import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
-import coreSignalService from '../utils/coreSignalService.js';
 import pdlService from '../utils/pdlService.js';
 import {
   extractCandidates,
@@ -311,9 +310,7 @@ export const sourceCandidates = async (req, res) => {
     // Priority 1: PDL (People Data Labs) — real structured LinkedIn-grade profile
     //             data, real experience dates, real location. No scraping needed.
     //
-    // Priority 2: CoreSignal — also real LinkedIn data, used if PDL not configured.
-    //
-    // Priority 3: Serper (Google search) — fallback. Uses Boolean queries +
+    // Priority 2: Serper (Google search) — fallback. Uses Boolean queries +
     //             OpenAI snippet enrichment.
     //
     let candidates = [];
@@ -322,16 +319,22 @@ export const sourceCandidates = async (req, res) => {
     let targetCountries = [];
     let allResults = [];
 
-    if (pdlService.isConfigured()) {
+    // pdlAvailable: null = unconfigured/credits exhausted (fall through), [] = configured+working but 0 results
+    let pdlAvailable = pdlService.isConfigured() ? 'configured' : null;
+
+    if (pdlAvailable) {
       // ── PDL path — structured profile data ────────────────────────────────
-      dataSource = 'pdl';
       logger.info('[PDL] Using People Data Labs for candidate discovery (tiered search)');
 
       const pdlCandidates = await pdlService.sourceCandidatesViaPDL(parsed, {
         maxCandidates: maxCandidatesSafe,
       });
 
-      if (!pdlCandidates || pdlCandidates.length === 0) {
+      if (pdlCandidates === null) {
+        // null = credits exhausted or API unavailable — fall through to next source
+        logger.warn('[PDL] Credits exhausted — falling through to CoreSignal');
+        pdlAvailable = null;
+      } else if (pdlCandidates.length === 0) {
         return res.status(200).json({
           success: true,
           parseOnly: false,
@@ -344,40 +347,16 @@ export const sourceCandidates = async (req, res) => {
             totalSaved: 0, timeMs: Date.now() - startedAt,
           },
         });
+      } else {
+        dataSource = 'pdl';
+        candidates = pdlCandidates;
       }
+    }
 
-      candidates = pdlCandidates;
-
-    } else if (coreSignalService.isConfigured()) {
-      // ── CoreSignal path — real LinkedIn profile data ────────────────────────
-      dataSource = 'coresignal';
-      logger.info('[CoreSignal] PDL not configured — using CoreSignal for candidate discovery');
-
-      const coreCandidates = await coreSignalService.sourceCandidatesViaCoreSignal(parsed, {
-        maxCandidates: maxCandidatesSafe,
-      });
-
-      if (!coreCandidates || coreCandidates.length === 0) {
-        return res.status(200).json({
-          success: true,
-          parseOnly: false,
-          message: 'No candidate profiles found via CoreSignal for this requirement set.',
-          parsedRequirements: structured,
-          candidates: [],
-          results: [],
-          summary: {
-            totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0,
-            totalSaved: 0, timeMs: Date.now() - startedAt,
-          },
-        });
-      }
-
-      candidates = coreCandidates;
-
-    } else if (cseService.isConfigured()) {
+    if (candidates.length === 0 && cseService.isConfigured()) {
       // ── Serper (Google) fallback path ───────────────────────────────────────
       dataSource = 'serper';
-      logger.info('[Serper] CoreSignal not configured — falling back to Serper');
+      logger.info('[Serper] PDL unavailable — falling back to Serper');
 
       searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
       if (searchQueries.length === 0) {
@@ -439,10 +418,10 @@ export const sourceCandidates = async (req, res) => {
         logger.info(`[Serper] OpenAI enrichment: ${aiMap.size} candidates enriched`);
       }
 
-    } else {
-      // ── Neither configured ──────────────────────────────────────────────────
-      const searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
-      const targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
+    } else if (candidates.length === 0) {
+      // ── No source available or all fell through ─────────────────────────────
+      searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
+      targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       return res.status(200).json({
         success: true, parseOnly: true,
         message: 'Requirements extracted. Add PDL_API_KEY (recommended) or SERPER_API_KEY to run candidate discovery.',

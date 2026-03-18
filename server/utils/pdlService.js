@@ -217,7 +217,7 @@ async function searchPersons(esQuery, size = 20) {
     const status = error.response?.status;
     const msg = error.response?.data?.error?.message || error.response?.data?.message || JSON.stringify(error.response?.data) || error.message;
     if (status === 401) logger.error(`[PDL] 401 — invalid API key: ${msg}`);
-    else if (status === 402) logger.error(`[PDL] 402 — insufficient credits: ${msg}`);
+    else if (status === 402) { logger.error(`[PDL] 402 — insufficient credits: ${msg}`); return null; }
     else if (status === 422) logger.warn(`[PDL] 422 — invalid query: ${msg}`);
     else if (status === 429) logger.warn('[PDL] 429 — rate limited');
     else logger.warn(`[PDL] Search failed (HTTP ${status ?? 'timeout'}): ${msg}`);
@@ -343,12 +343,24 @@ export async function sourceCandidatesViaPDL(parsed, { maxCandidates = 50 } = {}
   });
 
   // Run all 4 tiers in parallel
-  const [profiles1, profiles2, profiles3, profiles4] = await Promise.all([
+  const [res1, res2, res3, res4] = await Promise.all([
     searchPersons(tier1Query, Math.min(tierLimit, 25)),
     searchPersons(tier2Query, Math.min(tierLimit, 25)),
     searchPersons(tier3Query, Math.min(tierLimit, 20)),
     searchPersons(tier4Query, 15),
   ]);
+
+  // null means 402 (out of credits) — if ALL tiers hit 402, signal upstream to fall through
+  const allCreditsExhausted = res1 === null && res2 === null && res3 === null && res4 === null;
+  if (allCreditsExhausted) {
+    logger.warn('[PDL] All tiers returned 402 — PDL credits exhausted, falling through to next source');
+    return null;
+  }
+
+  const profiles1 = res1 || [];
+  const profiles2 = res2 || [];
+  const profiles3 = res3 || [];
+  const profiles4 = res4 || [];
 
   logger.info(`[PDL] Tier results — T1:${profiles1.length} T2:${profiles2.length} T3:${profiles3.length} T4:${profiles4.length}`);
 
