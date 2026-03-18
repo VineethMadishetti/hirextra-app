@@ -124,10 +124,21 @@ export function calcExperienceYears(experiences) {
 }
 
 /**
- * Build an Elasticsearch DSL bool query for PDL person search.
+ * Build a PDL-compatible Elasticsearch DSL bool query.
+ *
+ * PDL's ES DSL supports: must, should, filter, term, terms, match
+ * PDL does NOT support: minimum_should_match inside nested bool clauses
+ *
+ * Strategy:
+ *   - Primary title → `match` in `must` (required)
+ *   - Title synonyms → `match` in `should` (optional score boosters)
+ *   - mustSkills → `term` per skill in `filter` (all required — AND)
+ *   - anySkills  → `terms` in `must` (at least one required — OR via terms array)
+ *   - country    → `term` in `filter`
+ *   - city       → `term` in `filter` (exact lowercase locality match)
  *
  * @param {object} opts
- * @param {string[]} opts.titles         job title keywords
+ * @param {string[]} opts.titles         job title keywords (first is primary, rest optional)
  * @param {string[]} opts.mustSkills     skills that must ALL be present (AND)
  * @param {string[]} opts.anySkills      skills where at least one must be present (OR)
  * @param {string}   opts.city           lowercase city for location_locality filter
@@ -135,37 +146,34 @@ export function calcExperienceYears(experiences) {
  */
 function buildEsQuery({ titles = [], mustSkills = [], anySkills = [], city, country }) {
   const must = [];
+  const should = [];
   const filter = [];
 
-  // Title: match current job_title OR any experience title
+  // Title: primary title required (must), synonyms are optional score boosters (should)
   if (titles.length > 0) {
-    const titleShould = [];
-    for (const t of titles) {
-      titleShould.push({ match: { job_title: t } });
-      titleShould.push({ match: { 'experience.title': t } });
+    must.push({ match: { job_title: titles[0] } });
+    for (let i = 1; i < titles.length; i++) {
+      should.push({ match: { job_title: titles[i] } });
     }
-    must.push({ bool: { should: titleShould, minimum_should_match: 1 } });
   }
 
-  // Must-have skills: each skill must be present (AND)
+  // Must-have skills: every skill must appear in the skills array (AND)
   for (const skill of mustSkills.map(s => s.toLowerCase())) {
     filter.push({ term: { skills: skill } });
   }
 
-  // Any-skills: at least one of these (OR) — used in tier 3
+  // Any-skills: `terms` returns docs that have at least ONE of the listed values (OR)
   if (anySkills.length > 0) {
-    filter.push({ terms: { skills: anySkills.map(s => s.toLowerCase()) } });
+    must.push({ terms: { skills: anySkills.map(s => s.toLowerCase()) } });
   }
 
-  // Location filters
-  if (country) {
-    filter.push({ term: { location_country: country } });
-  }
-  if (city) {
-    must.push({ match: { location_locality: city } });
-  }
+  // Location filters (exact keyword match — PDL stores these as lowercase)
+  if (country) filter.push({ term: { location_country: country } });
+  if (city)    filter.push({ term: { location_locality: city } });
 
-  return { bool: { must, filter } };
+  const boolClause = { must, filter };
+  if (should.length > 0) boolClause.should = should;
+  return { bool: boolClause };
 }
 
 /**
