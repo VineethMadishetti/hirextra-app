@@ -534,7 +534,7 @@ export function normalizeLinkedInProfiles(profiles) {
       name: fullName,
       jobTitle: jobTitle || null,
       company: company || null,
-      location: p.location || null,
+      location: p.location || p.geoLocation || p.locationName || p.city || null,
       level: _levelFromHeadline(headline),
       education: null,
       snippet: headline,

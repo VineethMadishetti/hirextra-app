@@ -532,11 +532,17 @@ export const sourceCandidates = async (req, res) => {
         if (cityVariants.some((v) => currentLocation.includes(v))) {
           // Tier 1: city confirmed — location string contains the required city (or its synonym)
           cityConfirmed.push(c);
+        } else if (!currentLocation && isPreFiltered) {
+          // Tier 1b: HarvestAPI already applied LinkedIn's location filter — if we have no
+          // location string to verify against, trust LinkedIn's filtering and accept the candidate
+          cityConfirmed.push(c);
         } else if (countryForCity) {
           // Tier 2: city not found in location — check country instead.
-          // Use foundIn / sourceCountry / country / location itself for country check.
           const countryStr = String(c.foundIn || c.sourceCountry || c.country || currentLocation).toLowerCase();
           if (countryStr && countryStr.includes(countryForCity)) {
+            countryFallback.push({ ...c, locationUnverified: true });
+          } else if (isPreFiltered) {
+            // HarvestAPI pre-filtered by location — can't verify city but trust LinkedIn's filter
             countryFallback.push({ ...c, locationUnverified: true });
           }
         }
