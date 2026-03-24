@@ -567,6 +567,41 @@ export function parseMultipleLocations(locationStr) {
   return [raw];
 }
 
+// Full LinkedIn location strings for common cities.
+// HarvestAPI needs "City, State, Country" to resolve locations unambiguously.
+const CITY_TO_LINKEDIN_LOCATION = {
+  bangalore:   'Bengaluru, Karnataka, India',
+  bengaluru:   'Bengaluru, Karnataka, India',
+  hyderabad:   'Hyderabad, Telangana, India',
+  pune:        'Pune, Maharashtra, India',
+  mumbai:      'Mumbai, Maharashtra, India',
+  delhi:       'Delhi, India',
+  'new delhi': 'New Delhi, Delhi, India',
+  chennai:     'Chennai, Tamil Nadu, India',
+  kolkata:     'Kolkata, West Bengal, India',
+  gurgaon:     'Gurugram, Haryana, India',
+  gurugram:    'Gurugram, Haryana, India',
+  noida:       'Noida, Uttar Pradesh, India',
+  ahmedabad:   'Ahmedabad, Gujarat, India',
+  jaipur:      'Jaipur, Rajasthan, India',
+  kochi:       'Kochi, Kerala, India',
+  coimbatore:  'Coimbatore, Tamil Nadu, India',
+  nagpur:      'Nagpur, Maharashtra, India',
+  indore:      'Indore, Madhya Pradesh, India',
+  chandigarh:  'Chandigarh, India',
+  london:      'London, England, United Kingdom',
+  berlin:      'Berlin, Germany',
+  toronto:     'Toronto, Ontario, Canada',
+  sydney:      'Sydney, New South Wales, Australia',
+  singapore:   'Singapore',
+  dubai:       'Dubai, United Arab Emirates',
+};
+
+function expandLocationForLinkedIn(city) {
+  const key = city.trim().toLowerCase();
+  return CITY_TO_LINKEDIN_LOCATION[key] || city;
+}
+
 /**
  * Build structured LinkedIn search parameters for the HarvestAPI actor.
  * Converts parsed JD requirements into LinkedIn-native filter IDs and search terms.
@@ -589,8 +624,9 @@ export function buildLinkedInSearchParams(parsedInput) {
     5
   );
 
-  // locations: support multiple cities separated by / | ; or "or"
-  const locations = parseMultipleLocations(parsed.location);
+  // Expand each city to full LinkedIn location string so HarvestAPI can resolve it.
+  // "Hyderabad" → "Hyderabad, Telangana, India"  |  "Bangalore, India" → kept as-is
+  const locations = parseMultipleLocations(parsed.location).map(expandLocationForLinkedIn);
 
   const yearsOfExperienceIds = mapExperienceYearsToIds(parsed.experience_years);
   const seniorityLevelIds = mapExperienceLevelToSeniorityIds(parsed.experience_level);
