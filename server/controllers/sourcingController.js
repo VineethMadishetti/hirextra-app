@@ -486,41 +486,39 @@ export const sourceCandidates = async (req, res) => {
     //   e.g. required="Hyderabad", c.country="India" → PASS (flagged as location unverified)
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
-      const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
-
-      // City spelling synonyms — e.g. "bangalore" ↔ "bengaluru", "new delhi" ↔ "delhi"
       const CITY_SYNONYMS = {
-        bangalore: ['bengaluru', 'bangalore'],
-        bengaluru: ['bengaluru', 'bangalore'],
-        'new delhi': ['new delhi', 'delhi'],
-        delhi: ['delhi', 'new delhi'],
-        mumbai: ['mumbai', 'bombay'],
-        bombay: ['mumbai', 'bombay'],
-        kolkata: ['kolkata', 'calcutta'],
-        calcutta: ['kolkata', 'calcutta'],
-        chennai: ['chennai', 'madras'],
-        madras: ['chennai', 'madras'],
+        bangalore: ['bengaluru', 'bangalore'], bengaluru: ['bengaluru', 'bangalore'],
+        'new delhi': ['new delhi', 'delhi'],   delhi: ['delhi', 'new delhi'],
+        mumbai: ['mumbai', 'bombay'],          bombay: ['mumbai', 'bombay'],
+        kolkata: ['kolkata', 'calcutta'],      calcutta: ['kolkata', 'calcutta'],
+        chennai: ['chennai', 'madras'],        madras: ['chennai', 'madras'],
       };
-      const cityVariants = CITY_SYNONYMS[locLower] || [locLower];
-
-      // Build a country keyword from the required location so we can match c.foundIn.
-      // e.g. "Hyderabad" → "india", "London" → "uk", "Berlin" → "germany"
-      // Comparisons are done after toLowerCase() so capitalisation doesn't matter.
       const CITY_TO_COUNTRY = {
         hyderabad: 'india', bangalore: 'india', bengaluru: 'india', mumbai: 'india',
         delhi: 'india', 'new delhi': 'india', chennai: 'india', pune: 'india',
-        kolkata: 'india', gurgaon: 'india', noida: 'india', ahmedabad: 'india',
-        london: 'united kingdom', manchester: 'united kingdom', birmingham: 'united kingdom', edinburgh: 'united kingdom',
-        berlin: 'germany', munich: 'germany', frankfurt: 'germany', hamburg: 'germany',
-        toronto: 'canada', vancouver: 'canada', montreal: 'canada',
-        sydney: 'australia', melbourne: 'australia', brisbane: 'australia',
+        kolkata: 'india', gurgaon: 'india', noida: 'india', ahmedabad: 'india', hyderabad: 'india',
+        london: 'united kingdom', manchester: 'united kingdom',
+        berlin: 'germany', munich: 'germany',
+        toronto: 'canada', vancouver: 'canada',
+        sydney: 'australia', melbourne: 'australia',
         singapore: 'singapore',
         'new york': 'united states', 'san francisco': 'united states', seattle: 'united states',
-        austin: 'united states', chicago: 'united states', boston: 'united states',
         dubai: 'united arab emirates', amsterdam: 'netherlands',
-        paris: 'france', madrid: 'spain', stockholm: 'sweden',
       };
-      const countryForCity = CITY_TO_COUNTRY[locLower] || null;
+
+      // Support multiple cities: "Bangalore / Pune / Hyderabad"
+      const requestedCities = aiSourcingService.parseMultipleLocations(requiredLocation)
+        .map((c) => c.split(',')[0].trim().toLowerCase());
+
+      // Expand each city to include spelling synonyms
+      const allCityVariants = [...new Set(
+        requestedCities.flatMap((city) => CITY_SYNONYMS[city] || [city])
+      )];
+
+      // Countries that match any of the requested cities (for fallback)
+      const allCountries = [...new Set(
+        requestedCities.map((city) => CITY_TO_COUNTRY[city]).filter(Boolean)
+      )];
 
       const beforeCount = candidates.length;
       const cityConfirmed = [];
@@ -529,29 +527,23 @@ export const sourceCandidates = async (req, res) => {
       for (const c of candidates) {
         const currentLocation = String(c.location || '').toLowerCase();
 
-        if (cityVariants.some((v) => currentLocation.includes(v))) {
-          // Tier 1: city confirmed — location string contains the required city (or its synonym)
+        if (allCityVariants.some((v) => currentLocation.includes(v))) {
           cityConfirmed.push(c);
         } else if (!currentLocation && isPreFiltered) {
-          // Tier 1b: HarvestAPI already applied LinkedIn's location filter — if we have no
-          // location string to verify against, trust LinkedIn's filtering and accept the candidate
+          // No location string — trust HarvestAPI's native location filter
           cityConfirmed.push(c);
-        } else if (countryForCity) {
-          // Tier 2: city not found in location — check country instead.
+        } else if (allCountries.length > 0) {
           const countryStr = String(c.foundIn || c.sourceCountry || c.country || currentLocation).toLowerCase();
-          if (countryStr && countryStr.includes(countryForCity)) {
+          if (allCountries.some((country) => countryStr.includes(country))) {
             countryFallback.push({ ...c, locationUnverified: true });
           } else if (isPreFiltered) {
-            // HarvestAPI pre-filtered by location — can't verify city but trust LinkedIn's filter
             countryFallback.push({ ...c, locationUnverified: true });
           }
         }
       }
 
-      // City-confirmed first (already sorted by matchScore), country-fallback appended after
       candidates = [...cityConfirmed, ...countryFallback];
-
-      logger.info(`Location filter "${locLower}": ${cityConfirmed.length} city-confirmed + ${countryFallback.length} country-fallback (${candidates.length}/${beforeCount} total)`);
+      logger.info(`Location filter [${requestedCities.join(', ')}]: ${cityConfirmed.length} confirmed + ${countryFallback.length} fallback (${candidates.length}/${beforeCount} total)`);
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);

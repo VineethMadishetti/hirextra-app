@@ -121,16 +121,31 @@ function skillMatches(candidateSkills, requiredSkill) {
  * @param {string} requiredLocation
  * @returns {boolean}
  */
+const LOCATION_SYNONYMS = {
+  bangalore: ['bengaluru', 'bangalore'], bengaluru: ['bengaluru', 'bangalore'],
+  delhi: ['delhi', 'new delhi'], 'new delhi': ['delhi', 'new delhi'],
+  mumbai: ['mumbai', 'bombay'], bombay: ['mumbai', 'bombay'],
+  chennai: ['chennai', 'madras'], madras: ['chennai', 'madras'],
+  kolkata: ['kolkata', 'calcutta'], calcutta: ['kolkata', 'calcutta'],
+};
+
 function locationMatches(candidateLocation, requiredLocation) {
-  if (!requiredLocation || /unspecified|not specified/i.test(requiredLocation)) return true; // no requirement
+  if (!requiredLocation || /unspecified|not specified/i.test(requiredLocation)) return true;
   if (!candidateLocation) return false;
 
   const candLow = String(candidateLocation).toLowerCase();
-  const reqCity = requiredLocation.split(',')[0].trim().toLowerCase();
 
-  if (!reqCity) return false;
+  // Support multiple cities: "Bangalore / Pune / Hyderabad"
+  const cities = requiredLocation
+    .split(/\s*[\/|;]\s*|\s+or\s+/i)
+    .map((p) => p.split(',')[0].trim().toLowerCase())
+    .filter(Boolean);
 
-  return candLow.includes(reqCity) || reqCity.includes(candLow.split(',')[0].trim());
+  for (const city of cities) {
+    const variants = LOCATION_SYNONYMS[city] || [city];
+    if (variants.some((v) => candLow.includes(v))) return true;
+  }
+  return false;
 }
 
 /**
@@ -200,7 +215,18 @@ export function scoreCandidate(candidate, requirements) {
   const reqLocation     = String(req.location || '');
   const reqExpYears     = Number(req.experience_years || req.experienceYears || 0);
 
-  const candidateSkills   = candidate.skills || '';
+  // Build enriched skill text: skills array + about section + headline/snippet
+  // HarvestAPI profiles have rich about/headline that often mentions skills not in the skills list
+  const skillsArr = Array.isArray(candidate.skills)
+    ? candidate.skills
+    : String(candidate.skills || '').split(/[,;|·]+/).map(s => s.trim()).filter(Boolean);
+  const candidateSkills = [
+    ...skillsArr,
+    String(candidate.about    || ''),
+    String(candidate.headline || ''),
+    String(candidate.snippet  || ''),
+  ].join(' ');
+
   const candidateLocation = String(candidate.location || candidate.locality || '');
   // Support both DB candidates (experience) and internet-sourced candidates (totalExperience)
   const candidateExp      = candidate.experience || candidate.totalExperience || candidate.experienceYears || 0;

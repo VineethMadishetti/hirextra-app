@@ -525,6 +525,48 @@ function mapIndustryToIds(industry) {
   return ['4', '96'];
 }
 
+// Known city names — used to detect comma-separated multi-city strings.
+// "Hyderabad, Pune" → split; "Bangalore, India" → keep as one (India not a city).
+const KNOWN_CITIES = new Set([
+  'bangalore', 'bengaluru', 'hyderabad', 'pune', 'mumbai', 'delhi', 'new delhi',
+  'chennai', 'kolkata', 'gurgaon', 'noida', 'ahmedabad', 'jaipur', 'kochi',
+  'coimbatore', 'surat', 'nagpur', 'indore', 'bhopal', 'lucknow', 'chandigarh',
+  'london', 'berlin', 'munich', 'toronto', 'vancouver', 'sydney', 'melbourne',
+  'singapore', 'new york', 'san francisco', 'seattle', 'austin', 'dubai', 'amsterdam',
+]);
+
+/**
+ * Parse a location string that may contain multiple cities.
+ * Supports: "/" "|" ";" "or" separators AND comma-separated known city names.
+ * e.g. "Bangalore / Pune / Hyderabad" → ["Bangalore", "Pune", "Hyderabad"]
+ * e.g. "Hyderabad, Pune"              → ["Hyderabad", "Pune"]   (both are known cities)
+ * e.g. "Bangalore, India"             → ["Bangalore, India"]    (India is not a city)
+ */
+export function parseMultipleLocations(locationStr) {
+  const raw = String(locationStr || '').trim();
+  if (!raw || /unspecified|not specified|remote/i.test(raw)) return [];
+
+  // Split on explicit multi-city separators first (/ | ; or)
+  if (/[\/|;]|\bor\b/i.test(raw)) {
+    const parts = raw
+      .split(/\s*[\/|;]\s*|\s+or\s+/i)
+      .map((p) => p.trim())
+      .filter((p) => p && !/unspecified|not specified|remote/i.test(p));
+    if (parts.length > 1) return parts;
+  }
+
+  // Comma-split: only when every part is a known city name
+  // This avoids splitting "Bangalore, India" or "Bengaluru, Karnataka, India"
+  if (raw.includes(',')) {
+    const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1 && parts.every((p) => KNOWN_CITIES.has(p.toLowerCase()))) {
+      return parts;
+    }
+  }
+
+  return [raw];
+}
+
 /**
  * Build structured LinkedIn search parameters for the HarvestAPI actor.
  * Converts parsed JD requirements into LinkedIn-native filter IDs and search terms.
@@ -547,10 +589,8 @@ export function buildLinkedInSearchParams(parsedInput) {
     5
   );
 
-  // locations: only when not remote/unspecified
-  const location = String(parsed.location || '').trim();
-  const locations =
-    location && !/unspecified|not specified|remote/i.test(location) ? [location] : [];
+  // locations: support multiple cities separated by / | ; or "or"
+  const locations = parseMultipleLocations(parsed.location);
 
   const yearsOfExperienceIds = mapExperienceYearsToIds(parsed.experience_years);
   const seniorityLevelIds = mapExperienceLevelToSeniorityIds(parsed.experience_level);
@@ -630,5 +670,6 @@ export default {
   generateLinkedInQueries,
   generateOsintQueries,
   buildLinkedInSearchParams,
+  parseMultipleLocations,
   determineTargetCountries,
 };

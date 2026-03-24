@@ -120,6 +120,10 @@ class ApifyService {
 
     const profiles = await this._fetchDataset(datasetId);
     logger.info(`[Apify] LinkedIn run complete — ${profiles.length} profiles returned`);
+    if (profiles.length > 0) {
+      logger.info(`[Apify] Sample profile keys: ${Object.keys(profiles[0]).join(', ')}`);
+      logger.info(`[Apify] Sample profile[0]: ${JSON.stringify(profiles[0], null, 2)}`);
+    }
     return profiles;
   }
 
