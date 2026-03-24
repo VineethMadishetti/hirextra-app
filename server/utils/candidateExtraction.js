@@ -538,13 +538,26 @@ export function normalizeLinkedInProfiles(profiles) {
       null;
     if (!fullName) continue;
 
-    const headline = p.headline || '';
+    const headline = String(p.headline || '');
     const currentExp = Array.isArray(p.experience) ? p.experience[0] : null;
-    const company = p.company || p.currentCompany || currentExp?.company || null;
-    const jobTitle = currentExp?.title ||
-      p.jobTitle || p.title ||
-      (headline.split(' at ')[0].split(' | ')[0].trim()) ||
-      null;
+
+    // company may be an object { name, positions } or a plain string
+    const rawCompany = p.company || p.currentCompany || currentExp?.company || null;
+    const company = rawCompany
+      ? (typeof rawCompany === 'object' ? (rawCompany.name || null) : String(rawCompany))
+      : null;
+
+    const rawTitle = currentExp?.title || p.jobTitle || p.title || null;
+    const jobTitle = rawTitle
+      ? (typeof rawTitle === 'object' ? (rawTitle.name || null) : String(rawTitle))
+      : (headline.split(' at ')[0].split(' | ')[0].trim() || null);
+
+    // skills may be strings or objects { name }
+    const rawSkills = Array.isArray(p.skills) ? p.skills : [];
+    const skills = rawSkills
+      .slice(0, 10)
+      .map((s) => (s && typeof s === 'object' ? s.name : s))
+      .filter((s) => s && typeof s === 'string');
 
     result.push({
       linkedInUrl,
@@ -559,7 +572,7 @@ export function normalizeLinkedInProfiles(profiles) {
       foundIn: '',
       sourceCountry: '',
       about: p.about || p.summary || null,
-      skills: Array.isArray(p.skills) ? p.skills.slice(0, 10) : [],
+      skills,
       profilePic: p.imageUrl || p.profilePicture || null,
       headline: headline || null,
       totalExperience: null,
@@ -656,33 +669,42 @@ export function mergeOsintData(candidates, allResults) {
   });
 }
 
+function _str(v) {
+  if (!v) return null;
+  if (typeof v === 'string') return v.trim() || null;
+  if (typeof v === 'object') return v.name || v.text || v.linkedinText || null;
+  return String(v) || null;
+}
+
 export function formatCandidates(candidates) {
   return candidates.map((c) => ({
     linkedInUrl: c.linkedInUrl,
     linkedinUrl: c.linkedInUrl,
-    name: c.name,
-    title: c.jobTitle || null,
-    jobTitle: c.jobTitle || null,
-    company: c.company || null,
-    location: c.location || null,
-    level: c.level || null,
-    education: c.education || null,
-    skills: Array.isArray(c.skills) ? c.skills : [],
-    totalExperience: c.totalExperience || null,
-    about: c.about || null,
+    name: _str(c.name),
+    title: _str(c.jobTitle),
+    jobTitle: _str(c.jobTitle),
+    company: _str(c.company),
+    location: _str(c.location),
+    level: _str(c.level),
+    education: _str(c.education),
+    skills: Array.isArray(c.skills)
+      ? c.skills.map((s) => _str(s)).filter(Boolean)
+      : [],
+    totalExperience: _str(c.totalExperience),
+    about: _str(c.about),
     email: c.contact?.email || null,
     phone: c.contact?.phone || null,
     enrichmentSource: c.contact?.source || null,
     enrichmentConfidence: c.contact?.confidence || null,
     sourceCountry: c.sourceCountry || c.foundIn || null,
-    snippet: c.snippet || '',
+    snippet: _str(c.snippet) || '',
     sources: c.sources || [],
     relevanceScore: c.relevanceScore || 0,
     // Boolean match scoring fields (populated by matchScorer)
     matchScore:      c.matchScore      ?? null,
     matchCategory:   c.matchCategory   ?? null,
-    matchedSkills:   c.matchedSkills   ?? [],
-    missingSkills:   c.missingSkills   ?? [],
+    matchedSkills:   Array.isArray(c.matchedSkills) ? c.matchedSkills.map(_str).filter(Boolean) : [],
+    missingSkills:   Array.isArray(c.missingSkills)  ? c.missingSkills.map(_str).filter(Boolean)  : [],
     locationMatch:   c.locationMatch   ?? null,
     experienceMatch: c.experienceMatch ?? null,
     savedCandidateId: c.savedCandidateId || null,
@@ -692,7 +714,7 @@ export function formatCandidates(candidates) {
     callStatus: c.callStatus || 'NOT_SCHEDULED',
     locationUnverified: c.locationUnverified || false,
     profilePic: c.profilePic || null,
-    headline: c.headline || null,
+    headline: _str(c.headline),
     dataSource: c.dataSource || null,
     experienceYears: c.experienceYears ?? null,
     // OSINT-enriched fields
