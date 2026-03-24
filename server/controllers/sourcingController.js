@@ -468,10 +468,14 @@ export const sourceCandidates = async (req, res) => {
     }
 
     // Step 2: Boolean match scoring.
-    // excludeDisqualified: true — drop candidates that match zero skills across all tiers.
-    // minScore: 30 — only show candidates with at least 30% match on required skills.
-    // Location is NOT a hard disqualifier in the scorer; the filter in Step 3 handles it.
-    candidates = scoreCandidates(candidates, parsed, { minScore: 30, excludeDisqualified: true });
+    // For HarvestAPI (apify) sourcing: LinkedIn native filters already pre-screen by seniority,
+    // experience IDs and keywords — score for ranking only, do NOT hard-exclude on score.
+    // For fallback text-search (serper): apply a 30-point floor since we have no upstream filter.
+    const isPreFiltered = dataSource === 'apify';
+    candidates = scoreCandidates(candidates, parsed, {
+      minScore: isPreFiltered ? 0 : 30,
+      excludeDisqualified: !isPreFiltered,
+    });
 
     // Step 3: Strict location filter — two-tier approach.
     //
@@ -483,6 +487,21 @@ export const sourceCandidates = async (req, res) => {
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
       const locLower = requiredLocation.split(',')[0].trim().toLowerCase();
+
+      // City spelling synonyms — e.g. "bangalore" ↔ "bengaluru", "new delhi" ↔ "delhi"
+      const CITY_SYNONYMS = {
+        bangalore: ['bengaluru', 'bangalore'],
+        bengaluru: ['bengaluru', 'bangalore'],
+        'new delhi': ['new delhi', 'delhi'],
+        delhi: ['delhi', 'new delhi'],
+        mumbai: ['mumbai', 'bombay'],
+        bombay: ['mumbai', 'bombay'],
+        kolkata: ['kolkata', 'calcutta'],
+        calcutta: ['kolkata', 'calcutta'],
+        chennai: ['chennai', 'madras'],
+        madras: ['chennai', 'madras'],
+      };
+      const cityVariants = CITY_SYNONYMS[locLower] || [locLower];
 
       // Build a country keyword from the required location so we can match c.foundIn.
       // e.g. "Hyderabad" → "india", "London" → "uk", "Berlin" → "germany"
@@ -510,8 +529,8 @@ export const sourceCandidates = async (req, res) => {
       for (const c of candidates) {
         const currentLocation = String(c.location || '').toLowerCase();
 
-        if (currentLocation.includes(locLower)) {
-          // Tier 1: city confirmed — location string contains the required city
+        if (cityVariants.some((v) => currentLocation.includes(v))) {
+          // Tier 1: city confirmed — location string contains the required city (or its synonym)
           cityConfirmed.push(c);
         } else if (countryForCity) {
           // Tier 2: city not found in location — check country instead.
