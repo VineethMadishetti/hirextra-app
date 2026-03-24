@@ -484,6 +484,79 @@ export function deduplicateCandidates(candidates) {
   return deduped;
 }
 
+function _levelFromHeadline(headline) {
+  const h = String(headline || '').toLowerCase();
+  if (/\b(ceo|cto|coo|vp|vice president|president|founder|co-founder)\b/.test(h)) return 'executive';
+  if (/\bdirector\b/.test(h)) return 'director';
+  if (/\bprincipal\b/.test(h)) return 'principal';
+  if (/\b(lead|staff)\b/.test(h)) return 'lead';
+  if (/\b(senior|sr\.?)\b/.test(h)) return 'senior';
+  if (/\bmanager\b/.test(h)) return 'manager';
+  if (/\b(junior|jr\.?)\b/.test(h)) return 'junior';
+  if (/\bintern\b/.test(h)) return 'intern';
+  return null;
+}
+
+/**
+ * Convert structured HarvestAPI LinkedIn Profile Search output into our
+ * internal candidate format. Skips regex extraction — data is already structured.
+ */
+export function normalizeLinkedInProfiles(profiles) {
+  if (!Array.isArray(profiles)) return [];
+
+  const seen = new Set();
+  const result = [];
+
+  for (const p of profiles) {
+    const linkedInUrl = p.profileUrl || p.linkedInUrl || p.linkedinUrl || p.url || null;
+    if (!linkedInUrl || !linkedInUrl.includes('linkedin.com')) continue;
+
+    const normalized = linkedInUrl.split('?')[0].replace(/\/$/, '').toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    const fullName = p.fullName ||
+      [p.firstName, p.lastName].filter(Boolean).join(' ').trim() ||
+      null;
+    if (!fullName) continue;
+
+    const headline = p.headline || '';
+    const currentExp = Array.isArray(p.experience) ? p.experience[0] : null;
+    const company = p.company || p.currentCompany || currentExp?.company || null;
+    const jobTitle = currentExp?.title ||
+      p.jobTitle || p.title ||
+      (headline.split(' at ')[0].split(' | ')[0].trim()) ||
+      null;
+
+    result.push({
+      linkedInUrl,
+      normalizedUrl: normalized,
+      name: fullName,
+      jobTitle: jobTitle || null,
+      company: company || null,
+      location: p.location || null,
+      level: _levelFromHeadline(headline),
+      education: null,
+      snippet: headline,
+      foundIn: '',
+      sourceCountry: '',
+      about: p.about || p.summary || null,
+      skills: Array.isArray(p.skills) ? p.skills.slice(0, 10) : [],
+      profilePic: p.imageUrl || p.profilePicture || null,
+      headline: headline || null,
+      totalExperience: null,
+      sources: [{
+        country: '',
+        query: 'linkedin-search',
+        snippetPreview: headline.substring(0, 100),
+      }],
+    });
+  }
+
+  logger.info(`[HarvestAPI] Normalized ${result.length} LinkedIn profiles`);
+  return result;
+}
+
 /**
  * Extract GitHub profile URL from a result link.
  * Matches top-level user profile URLs only (not repos or orgs).
@@ -613,6 +686,7 @@ export function formatCandidates(candidates) {
 
 export default {
   extractCandidates,
+  normalizeLinkedInProfiles,
   extractName,
   extractJobInfo,
   extractLocation,

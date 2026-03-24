@@ -424,6 +424,34 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
 }
 
 /**
+ * Generate simple keyword queries for HarvestAPI LinkedIn Profile Search.
+ * LinkedIn's search engine handles relevance — no Boolean syntax needed.
+ */
+export function generateLinkedInQueries(parsedInput, maxQueries = 4) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+  const aliases = buildAliases(parsed);
+  const titles = uniqueStrings(aliases.titleAliases, 3);
+  const coreSkills = uniqueStrings(
+    parsed.must_have_skills.length ? parsed.must_have_skills : parsed.required_skills,
+    3
+  );
+  const skillsPart = coreSkills.join(' ');
+  const location = String(parsed.location || '').trim();
+  const cityName = location.split(',')[0].trim();
+  const locationPart = cityName && !/unspecified|not specified|remote/i.test(cityName) ? cityName : '';
+
+  const queries = [];
+  for (const title of titles) {
+    queries.push([title, skillsPart, locationPart].filter(Boolean).join(' '));
+  }
+  if (parsed.job_title.main) {
+    queries.push([parsed.job_title.main, skillsPart, locationPart].filter(Boolean).join(' '));
+  }
+
+  return uniqueStrings(queries, Math.min(Math.max(1, Number(maxQueries) || 4), 6));
+}
+
+/**
  * Generate GitHub + Stack Overflow dorking queries for the same role/skills.
  * These run in the same Apify batch as LinkedIn queries (no extra API cost).
  * Only generated for tech roles (skills required).
@@ -460,6 +488,98 @@ export function generateOsintQueries(parsedInput) {
   );
 
   return uniqueStrings(queries, 4);
+}
+
+// ── LinkedIn Filter ID Mappers ─────────────────────────────────────────────
+
+function mapExperienceYearsToIds(years) {
+  // 1=<1yr, 2=1-2yrs, 3=3-5yrs, 4=6-10yrs, 5=10+yrs
+  const y = Number(years) || 0;
+  if (y <= 0) return [];
+  if (y <= 1) return ['1', '2'];
+  if (y <= 2) return ['2', '3'];
+  if (y <= 5) return ['3', '4'];
+  if (y <= 10) return ['4', '5'];
+  return ['5'];
+}
+
+function mapExperienceLevelToSeniorityIds(level) {
+  // 110=Entry, 120=Senior, 200=EntryManager, 210=ExperiencedManager, 220=Director, 300=VP, 310=CXO
+  const l = String(level || '').toLowerCase();
+  if (l === 'junior') return ['110'];
+  if (l === 'mid') return ['110', '120'];
+  if (l === 'senior') return ['120'];
+  if (l === 'lead') return ['120', '200'];
+  if (l === 'executive') return ['220', '300', '310'];
+  return ['120'];
+}
+
+function mapIndustryToIds(industry) {
+  // 4=Software, 96=IT Services, 6=Internet, 43=Financial Services, 14=Healthcare
+  const ind = String(industry || '').toLowerCase();
+  if (/fintech|finance|banking|financial/i.test(ind)) return ['43', '4'];
+  if (/health|medical|pharma/i.test(ind)) return ['14'];
+  if (/ecommerce|e-commerce|retail/i.test(ind)) return ['27', '4'];
+  if (/internet|saas/i.test(ind)) return ['6', '4'];
+  if (/tech|software|it |information technology/i.test(ind)) return ['4', '96'];
+  return ['4', '96'];
+}
+
+/**
+ * Build structured LinkedIn search parameters for the HarvestAPI actor.
+ * Converts parsed JD requirements into LinkedIn-native filter IDs and search terms.
+ */
+export function buildLinkedInSearchParams(parsedInput) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+
+  // Short searchQuery: title + top skill, max 10 words total
+  const topSkill = parsed.must_have_skills[0] || parsed.required_skills[0] || '';
+  const searchQuery = [parsed.job_title.main, topSkill]
+    .filter(Boolean)
+    .join(' ')
+    .split(' ')
+    .slice(0, 10)
+    .join(' ');
+
+  // currentJobTitles: main + synonyms (max 5)
+  const currentJobTitles = uniqueStrings(
+    [parsed.job_title.main, ...parsed.job_title.synonyms],
+    5
+  );
+
+  // locations: only when not remote/unspecified
+  const location = String(parsed.location || '').trim();
+  const locations =
+    location && !/unspecified|not specified|remote/i.test(location) ? [location] : [];
+
+  const yearsOfExperienceIds = mapExperienceYearsToIds(parsed.experience_years);
+  const seniorityLevelIds = mapExperienceLevelToSeniorityIds(parsed.experience_level);
+  const industryIds = mapIndustryToIds(parsed.industry);
+
+  // postFilteringMongoQuery: narrow by top 1-2 must-have skills (relaxed OR filter)
+  let postFilteringMongoQuery = null;
+  const filterSkills = parsed.must_have_skills.slice(0, 2);
+  if (filterSkills.length === 1) {
+    postFilteringMongoQuery = JSON.stringify({
+      skills: { $regex: filterSkills[0], $options: 'i' },
+    });
+  } else if (filterSkills.length >= 2) {
+    postFilteringMongoQuery = JSON.stringify({
+      $or: filterSkills.map((s) => ({ skills: { $regex: s, $options: 'i' } })),
+    });
+  }
+
+  return {
+    searchQuery,
+    currentJobTitles,
+    locations,
+    yearsOfExperienceIds,
+    seniorityLevelIds,
+    industryIds,
+    profileScraperMode: 'Full',
+    takePages: 4,
+    postFilteringMongoQuery,
+  };
 }
 
 export function determineTargetCountries(location, isRemote) {
@@ -507,6 +627,8 @@ export default {
   buildAliases,
   buildBooleanQueries,
   generateSearchQueries,
+  generateLinkedInQueries,
   generateOsintQueries,
+  buildLinkedInSearchParams,
   determineTargetCountries,
 };

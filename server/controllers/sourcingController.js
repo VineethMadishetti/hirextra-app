@@ -5,6 +5,7 @@ import cseService from '../utils/cseService.js';
 import apifyService from '../utils/apifyService.js';
 import {
   extractCandidates,
+  normalizeLinkedInProfiles,
   deduplicateCandidates,
   formatCandidates,
   mergeOsintData,
@@ -319,24 +320,43 @@ export const sourceCandidates = async (req, res) => {
     let searchQueries = [];
     let targetCountries = [];
     let allResults = [];
+    let linkedInProfiles = [];
 
     if (apifyService.isConfigured()) {
-      searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
-      if (searchQueries.length === 0) {
-        return res.status(500).json({ success: false, error: 'Failed to generate search queries' });
-      }
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
 
-      // ── Apify path — batches all queries into one actor run ─────────────
+      // ── HarvestAPI LinkedIn Profile Search — main candidate discovery ────
       dataSource = 'apify';
-      // Add GitHub + Stack Overflow dorking queries to the same Apify run
+      const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
       const osintQueries = aiSourcingService.generateOsintQueries(parsed);
-      const allQueries = [...searchQueries, ...osintQueries];
-      logger.info(`[Apify] Using Apify for candidate discovery — ${searchQueries.length} LinkedIn + ${osintQueries.length} OSINT queries`);
-      const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
-      allResults = await apifyService.runGoogleSearch(allQueries, apifyResultsPerQuery);
+      logger.info(
+        `[HarvestAPI] searchQuery="${linkedInParams.searchQuery}" titles=${linkedInParams.currentJobTitles.length} ` +
+        `seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages} | OSINT=${osintQueries.length} queries`
+      );
 
-      if (allResults.length === 0) {
+      linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+
+      // Auto-retry 1: 0 results → remove seniorityLevelIds (too restrictive)
+      if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
+        logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
+        linkedInProfiles = await apifyService.runLinkedInSearch({
+          ...linkedInParams,
+          seniorityLevelIds: [],
+        });
+      }
+
+      // Auto-retry 2: <10 results → remove postFilteringMongoQuery + double pages
+      if (linkedInProfiles.length < 10 && linkedInParams.postFilteringMongoQuery) {
+        logger.info(`[HarvestAPI] ${linkedInProfiles.length} results — retrying without postFilteringMongoQuery`);
+        linkedInProfiles = await apifyService.runLinkedInSearch({
+          ...linkedInParams,
+          seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
+          postFilteringMongoQuery: null,
+          takePages: 8,
+        });
+      }
+
+      if (linkedInProfiles.length === 0) {
         return res.status(200).json({
           success: true, parseOnly: false,
           message: 'No candidate profiles found for this requirement set.',
@@ -345,11 +365,15 @@ export const sourceCandidates = async (req, res) => {
         });
       }
 
-      candidates = extractCandidates(allResults, targetCountries, searchQueries);
+      candidates = normalizeLinkedInProfiles(linkedInProfiles);
       candidates = deduplicateCandidates(candidates);
 
-      // ── Phase 1: Merge GitHub/SO URLs found in OSINT results ─────────────
-      candidates = mergeOsintData(candidates, allResults);
+      // ── OSINT: GitHub + Stack Overflow dorking (same Apify account) ──────
+      if (osintQueries.length > 0) {
+        const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
+        allResults = await apifyService.runGoogleSearch(osintQueries, apifyResultsPerQuery);
+        candidates = mergeOsintData(candidates, allResults);
+      }
 
       // ── Phase 2: LinkedIn slug → GitHub correlation (opt-in) ─────────────
       if (discoverGithub && candidates.length > 0) {
@@ -370,8 +394,14 @@ export const sourceCandidates = async (req, res) => {
         }
       }
 
-      // OpenAI snippet enrichment
-      const aiMap = await aiEnrichCandidates(allResults);
+      // HarvestAPI already returns structured data — OpenAI enrichment is skipped.
+      // We still run it if the snippet (headline) has useful info to parse.
+      const aiMap = await aiEnrichCandidates(linkedInProfiles.map(p => ({
+        title: p.headline || '',
+        link:  p.profileUrl || p.linkedInUrl || '',
+        snippet: p.about || p.headline || '',
+        query: 'linkedin-search',
+      })));
       if (aiMap && aiMap.size > 0) {
         candidates = candidates.map((c) => {
           const ai = aiMap.get(c.normalizedUrl);
@@ -596,7 +626,7 @@ export const sourceCandidates = async (req, res) => {
       enrichedCount,
       countriesSearched: targetCountries,
       summary: {
-        totalDiscovered: allResults.length,
+        totalDiscovered: linkedInProfiles?.length || allResults.length,
         totalExtracted: formatted.length,
         totalEnriched: enrichedCount,
         totalSaved: savedCount,
