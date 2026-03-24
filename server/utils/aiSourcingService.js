@@ -423,6 +423,45 @@ export function generateSearchQueries(parsedInput, maxQueries = 6) {
   return uniqueStrings(queries, Math.min(Math.max(1, Number(maxQueries) || 6), 8));
 }
 
+/**
+ * Generate GitHub + Stack Overflow dorking queries for the same role/skills.
+ * These run in the same Apify batch as LinkedIn queries (no extra API cost).
+ * Only generated for tech roles (skills required).
+ */
+export function generateOsintQueries(parsedInput) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+  const coreSkills = uniqueStrings(
+    parsed.must_have_skills.length ? parsed.must_have_skills : parsed.required_skills,
+    4
+  );
+
+  // Skip OSINT queries if no technical skills — non-tech roles won't have GitHub profiles
+  if (coreSkills.length === 0) return [];
+
+  const skillsClause = `(${coreSkills.map((s) => `"${s}"`).join(' OR ')})`;
+  const mainTitle = parsed.job_title.main;
+  const location = String(parsed.location || '').trim();
+  const includeLocation = Boolean(location && !/unspecified|not specified|remote/i.test(location));
+  const cityName = location.split(',')[0].trim();
+  const locationClause = includeLocation ? `("${cityName}")` : '';
+
+  const queries = [];
+
+  // GitHub — developer profiles showing skills and title
+  queries.push(
+    [`"${mainTitle}"`, skillsClause, locationClause, 'site:github.com']
+      .filter(Boolean).join(' AND ')
+  );
+
+  // Stack Overflow — user profile pages
+  queries.push(
+    [`"${mainTitle}"`, skillsClause, 'site:stackoverflow.com/users']
+      .filter(Boolean).join(' AND ')
+  );
+
+  return uniqueStrings(queries, 4);
+}
+
 export function determineTargetCountries(location, isRemote) {
   const normalized = String(location || '').toLowerCase();
 
@@ -468,5 +507,6 @@ export default {
   buildAliases,
   buildBooleanQueries,
   generateSearchQueries,
+  generateOsintQueries,
   determineTargetCountries,
 };

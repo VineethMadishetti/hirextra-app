@@ -7,9 +7,11 @@ import {
   extractCandidates,
   deduplicateCandidates,
   formatCandidates,
+  mergeOsintData,
 } from '../utils/candidateExtraction.js';
 import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
+import githubService from '../utils/githubService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
 import SourcingSession from '../models/SourcingSession.js';
@@ -292,6 +294,8 @@ export const sourceCandidates = async (req, res) => {
     enrichContacts = false,
     enrichTopN = 0,
     autoSave = true,
+    discoverGithub = false,   // Phase 2: run secondary Apify batch for LinkedIn slug → GitHub
+    enrichGithub = false,     // Phase 3: call GitHub API to get stats for candidates with githubUrl
   } = req.body || {};
 
   const userId = req.user?._id;
@@ -325,9 +329,12 @@ export const sourceCandidates = async (req, res) => {
 
       // ── Apify path — batches all queries into one actor run ─────────────
       dataSource = 'apify';
-      logger.info(`[Apify] Using Apify for candidate discovery — ${searchQueries.length} queries`);
+      // Add GitHub + Stack Overflow dorking queries to the same Apify run
+      const osintQueries = aiSourcingService.generateOsintQueries(parsed);
+      const allQueries = [...searchQueries, ...osintQueries];
+      logger.info(`[Apify] Using Apify for candidate discovery — ${searchQueries.length} LinkedIn + ${osintQueries.length} OSINT queries`);
       const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
-      allResults = await apifyService.runGoogleSearch(searchQueries, apifyResultsPerQuery);
+      allResults = await apifyService.runGoogleSearch(allQueries, apifyResultsPerQuery);
 
       if (allResults.length === 0) {
         return res.status(200).json({
@@ -340,6 +347,28 @@ export const sourceCandidates = async (req, res) => {
 
       candidates = extractCandidates(allResults, targetCountries, searchQueries);
       candidates = deduplicateCandidates(candidates);
+
+      // ── Phase 1: Merge GitHub/SO URLs found in OSINT results ─────────────
+      candidates = mergeOsintData(candidates, allResults);
+
+      // ── Phase 2: LinkedIn slug → GitHub correlation (opt-in) ─────────────
+      if (discoverGithub && candidates.length > 0) {
+        const slugQueries = candidates
+          .slice(0, 10)
+          .map((c) => c.linkedInUrl)
+          .filter(Boolean)
+          .map((url) => {
+            const slug = url.split('/in/')[1]?.replace(/\/$/, '');
+            return slug ? `site:github.com "${slug}"` : null;
+          })
+          .filter(Boolean);
+
+        if (slugQueries.length > 0) {
+          logger.info(`[OSINT] Phase 2 — running ${slugQueries.length} LinkedIn slug → GitHub queries`);
+          const slugResults = await apifyService.runGoogleSearch(slugQueries, 3);
+          candidates = mergeOsintData(candidates, slugResults);
+        }
+      }
 
       // OpenAI snippet enrichment
       const aiMap = await aiEnrichCandidates(allResults);
@@ -494,6 +523,15 @@ export const sourceCandidates = async (req, res) => {
         } catch (error) {
           logger.debug(`Enrichment failed for ${candidates[i]?.name}: ${error.message}`);
         }
+      }
+    }
+
+    // ── Phase 3: GitHub API stats enrichment (opt-in) ────────────────────
+    if (enrichGithub) {
+      const githubCandidatesCount = candidates.filter((c) => c.githubUrl).length;
+      if (githubCandidatesCount > 0) {
+        logger.info(`[GitHub] Phase 3 — fetching stats for ${Math.min(githubCandidatesCount, 10)} candidates`);
+        candidates = await githubService.enrichCandidates(candidates, 10);
       }
     }
 

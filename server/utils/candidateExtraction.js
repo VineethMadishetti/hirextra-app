@@ -484,6 +484,87 @@ export function deduplicateCandidates(candidates) {
   return deduped;
 }
 
+/**
+ * Extract GitHub profile URL from a result link.
+ * Matches top-level user profile URLs only (not repos or orgs).
+ */
+export function extractGithubUrl(link) {
+  if (!link) return null;
+  const match = link.match(/^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9_-]{1,39})\/?(?:\?.*)?$/);
+  if (match && !['features', 'topics', 'trending', 'marketplace', 'explore', 'about', 'contact', 'pricing', 'login', 'signup', 'orgs', 'apps', 'settings'].includes(match[1].toLowerCase())) {
+    return `https://github.com/${match[1]}`;
+  }
+  return null;
+}
+
+/**
+ * Extract Stack Overflow user profile URL from a result link.
+ */
+export function extractStackOverflowUrl(link) {
+  if (!link) return null;
+  const match = link.match(/^https?:\/\/(?:www\.)?stackoverflow\.com\/users\/(\d+)(?:\/([A-Za-z0-9_-]+))?\/?/);
+  if (match) return `https://stackoverflow.com/users/${match[1]}${match[2] ? '/' + match[2] : ''}`;
+  return null;
+}
+
+function _extractNameFromPlatformTitle(title) {
+  if (!title) return null;
+  const cleaned = String(title)
+    .replace(/·?\s*(GitHub|Stack Overflow)\s*$/i, '')
+    .trim();
+  // "johndoe (John Doe)" — the display name is in parens
+  const parenMatch = cleaned.match(/\(([^)]{3,60})\)/);
+  if (parenMatch && parenMatch[1].includes(' ')) return parenMatch[1].trim();
+  // "John Doe - GitHub" or "John Doe - Stack Overflow"
+  const parts = cleaned.split(/\s*[-–|]\s*/);
+  const candidate = parts[0].trim();
+  if (candidate.split(' ').length >= 2 && candidate.length >= 4) return candidate;
+  return null;
+}
+
+/**
+ * Scan all raw search results for GitHub and Stack Overflow URLs,
+ * then merge them onto LinkedIn candidates by name match.
+ */
+export function mergeOsintData(candidates, allResults) {
+  if (!Array.isArray(allResults) || allResults.length === 0) return candidates;
+
+  const githubMap = new Map();
+  const soMap = new Map();
+
+  for (const result of allResults) {
+    const link = result.link || '';
+    const ghUrl = extractGithubUrl(link);
+    if (ghUrl) {
+      const name = _extractNameFromPlatformTitle(result.title);
+      if (name) githubMap.set(name.toLowerCase(), ghUrl);
+    }
+    const soUrl = extractStackOverflowUrl(link);
+    if (soUrl) {
+      const name = _extractNameFromPlatformTitle(result.title);
+      if (name) soMap.set(name.toLowerCase(), soUrl);
+    }
+  }
+
+  if (githubMap.size === 0 && soMap.size === 0) return candidates;
+  logger.info(`[OSINT] Merging — ${githubMap.size} GitHub profiles, ${soMap.size} SO profiles found in results`);
+
+  return candidates.map((c) => {
+    const nameLower = String(c.name || '').toLowerCase().trim();
+    if (!nameLower) return c;
+    const updated = { ...c };
+    if (!updated.githubUrl && githubMap.has(nameLower)) {
+      updated.githubUrl = githubMap.get(nameLower);
+      logger.debug(`[OSINT] Matched GitHub for ${c.name}: ${updated.githubUrl}`);
+    }
+    if (!updated.stackOverflowUrl && soMap.has(nameLower)) {
+      updated.stackOverflowUrl = soMap.get(nameLower);
+      logger.debug(`[OSINT] Matched SO for ${c.name}: ${updated.stackOverflowUrl}`);
+    }
+    return updated;
+  });
+}
+
 export function formatCandidates(candidates) {
   return candidates.map((c) => ({
     linkedInUrl: c.linkedInUrl,
@@ -523,6 +604,10 @@ export function formatCandidates(candidates) {
     headline: c.headline || null,
     dataSource: c.dataSource || null,
     experienceYears: c.experienceYears ?? null,
+    // OSINT-enriched fields
+    githubUrl: c.githubUrl || null,
+    stackOverflowUrl: c.stackOverflowUrl || null,
+    githubStats: c.githubStats || null,
   }));
 }
 
@@ -533,6 +618,9 @@ export default {
   extractLocation,
   extractLinkedInUrl,
   extractEducationFromText,
+  extractGithubUrl,
+  extractStackOverflowUrl,
+  mergeOsintData,
   filterCandidates,
   rankCandidates,
   deduplicateCandidates,
