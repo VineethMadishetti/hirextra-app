@@ -498,6 +498,24 @@ function _levelFromHeadline(headline) {
 }
 
 /**
+ * Normalize a location value that may be a string or a HarvestAPI location object.
+ * e.g. { linkedinText: "Bengaluru, Karnataka, India", parsed: { city: "Bengaluru", ... } }
+ */
+function _extractLocationString(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'object') {
+    return (
+      value.linkedinText ||
+      value.parsed?.text ||
+      [value.parsed?.city, value.parsed?.state, value.parsed?.country].filter(Boolean).join(', ') ||
+      null
+    );
+  }
+  return null;
+}
+
+/**
  * Convert structured HarvestAPI LinkedIn Profile Search output into our
  * internal candidate format. Skips regex extraction — data is already structured.
  */
@@ -534,7 +552,7 @@ export function normalizeLinkedInProfiles(profiles) {
       name: fullName,
       jobTitle: jobTitle || null,
       company: company || null,
-      location: p.location || p.geoLocation || p.locationName || p.city || null,
+      location: _extractLocationString(p.location || p.geoLocation || p.locationName || p.city),
       level: _levelFromHeadline(headline),
       education: null,
       snippet: headline,
