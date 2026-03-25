@@ -2,7 +2,26 @@ import logger from './logger.js';
 import {
   canonicalizeCandidateProfile,
   mergeCandidateWithAi,
+  normalizeJobTitleText,
+  normalizeCompanyText,
+  normalizeSkills,
 } from './candidateProfileNormalizer.js';
+
+// Regex imported here for local use in normalizeLinkedInProfiles
+const TITLE_HINT_RE = /\b(engineer|developer|architect|manager|lead|principal|staff|consultant|analyst|specialist|recruiter|designer|director|head|officer|administrator|scientist|qa|sdet|tester|product|project|sales|marketing|operations|support|devops|sre|frontend|front-end|backend|back-end|full stack|full-stack|software|programmer|sde|java|python|react|node|data|ml|ai|cloud|security|talent|staffing)\b/i;
+
+/**
+ * Find the candidate's current job from their experience array.
+ * Prefers entries explicitly marked current or with no end date.
+ */
+function _findCurrentExperience(experience) {
+  if (!Array.isArray(experience) || experience.length === 0) return null;
+  return (
+    experience.find((e) => e.current === true || e.isCurrent === true) ||
+    experience.find((e) => !e.endDate || e.endDate === null || e.endDate === '') ||
+    experience[0]
+  );
+}
 
 /**
  * Candidate extraction and deduplication utilities for AI sourcing results.
@@ -520,8 +539,8 @@ function _extractLocationString(value) {
 }
 
 /**
- * Convert structured HarvestAPI LinkedIn Profile Search output into our
- * internal candidate format. Skips regex extraction — data is already structured.
+ * Convert structured HarvestAPI LinkedIn output into our internal candidate format.
+ * Validates every field before assignment so data never bleeds across fields.
  */
 export function normalizeLinkedInProfiles(profiles) {
   if (!Array.isArray(profiles)) return [];
@@ -530,56 +549,127 @@ export function normalizeLinkedInProfiles(profiles) {
   const result = [];
 
   for (const p of profiles) {
+    // ── LinkedIn URL ─────────────────────────────────────────────────────────
     const linkedInUrl = p.profileUrl || p.linkedInUrl || p.linkedinUrl || p.url || null;
-    if (!linkedInUrl || !linkedInUrl.includes('linkedin.com')) continue;
+    if (!linkedInUrl || !linkedInUrl.includes('linkedin.com/in/')) continue;
 
     const normalized = linkedInUrl.split('?')[0].replace(/\/$/, '').toLowerCase();
     if (seen.has(normalized)) continue;
     seen.add(normalized);
 
-    const fullName = p.fullName ||
+    // ── Name ─────────────────────────────────────────────────────────────────
+    const fullName = (
+      p.fullName ||
       [p.firstName, p.lastName].filter(Boolean).join(' ').trim() ||
-      null;
+      null
+    );
     if (!fullName) continue;
 
-    const headline = String(p.headline || '');
-    const currentExp = Array.isArray(p.experience) ? p.experience[0] : null;
+    const headline = String(p.headline || '').replace(/[•·]/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // company may be an object { name, positions } or a plain string
-    const rawCompany = p.company || p.currentCompany || currentExp?.company || null;
-    const company = rawCompany
-      ? (typeof rawCompany === 'object' ? (rawCompany.name || null) : String(rawCompany))
+    // ── Current experience — find the active job, not just index 0 ───────────
+    const currentExp = _findCurrentExperience(p.experience || p.positions || p.workExperience);
+
+    // ── Job title — prefer structured field, validate before using ───────────
+    // Never derive title from raw headline to avoid storing skills or location
+    // as the job title. Only fall back to headline if the portion before " at "
+    // clearly looks like a role (contains a title-hint keyword).
+    const rawTitleValue =
+      currentExp?.title ||
+      currentExp?.position ||
+      currentExp?.role ||
+      p.currentJobTitle ||
+      p.jobTitle ||
+      p.title ||
+      null;
+
+    let jobTitle = null;
+    if (rawTitleValue) {
+      const titleStr = typeof rawTitleValue === 'object'
+        ? (rawTitleValue.name || rawTitleValue.title || rawTitleValue.text || null)
+        : String(rawTitleValue).trim();
+      jobTitle = normalizeJobTitleText(titleStr, {});
+    }
+
+    // Safe headline fallback: use only the part before " at " and only when it
+    // matches a role-hint keyword (avoids storing skills / locations as title).
+    if (!jobTitle && headline) {
+      const beforeAt = headline.split(/\s+at\s+/i)[0].split(/\s*[|·]\s*/)[0].trim();
+      if (beforeAt && TITLE_HINT_RE.test(beforeAt) && beforeAt.split(/\s+/).length <= 6) {
+        jobTitle = normalizeJobTitleText(beforeAt, {});
+      }
+    }
+
+    // ── Company — prefer current experience, validate to reject title strings ─
+    const rawCompanyValue =
+      currentExp?.company ||
+      currentExp?.companyName ||
+      currentExp?.organizationName ||
+      p.currentCompanyName ||
+      p.currentCompany ||
+      p.company ||
+      null;
+
+    let company = null;
+    if (rawCompanyValue) {
+      const companyStr = typeof rawCompanyValue === 'object'
+        ? (rawCompanyValue.name || rawCompanyValue.companyName || rawCompanyValue.title || null)
+        : String(rawCompanyValue).trim();
+      company = normalizeCompanyText(companyStr);
+    }
+
+    // ── Location — handle string or HarvestAPI location object ──────────────
+    const locationRaw =
+      p.location ||
+      p.geoLocation ||
+      p.locationName ||
+      p.city ||
+      p.geo ||
+      null;
+    const location = _extractLocationString(locationRaw);
+
+    // ── Skills — map to strings then validate so non-skill text is rejected ──
+    const rawSkillsArr = Array.isArray(p.skills)
+      ? p.skills
+      : Array.isArray(p.topSkills)
+        ? p.topSkills
+        : [];
+    const rawSkillStrings = rawSkillsArr
+      .map((s) => (s && typeof s === 'object' ? (s.name || s.skill || '') : String(s || '')))
+      .filter(Boolean);
+    const skills = normalizeSkills(rawSkillStrings, { jobTitle, company, location });
+
+    // ── Education — first entry from education array ──────────────────────────
+    const firstEdu = Array.isArray(p.education) ? p.education[0] : null;
+    const education = firstEdu
+      ? (firstEdu.schoolName || firstEdu.school || firstEdu.institution || firstEdu.degree || null)
       : null;
 
-    const rawTitle = currentExp?.title || p.jobTitle || p.title || null;
-    const jobTitle = rawTitle
-      ? (typeof rawTitle === 'object' ? (rawTitle.name || null) : String(rawTitle))
-      : (headline.split(' at ')[0].split(' | ')[0].trim() || null);
-
-    // skills may be strings or objects { name }
-    const rawSkills = Array.isArray(p.skills) ? p.skills : [];
-    const skills = rawSkills
-      .slice(0, 10)
-      .map((s) => (s && typeof s === 'object' ? s.name : s))
-      .filter((s) => s && typeof s === 'string');
+    // ── Total experience — derive from experience array duration ─────────────
+    let totalExperience = null;
+    if (typeof p.totalExperienceYears === 'number' && p.totalExperienceYears > 0) {
+      totalExperience = `${p.totalExperienceYears}+ years`;
+    } else if (typeof p.experienceYears === 'number' && p.experienceYears > 0) {
+      totalExperience = `${p.experienceYears}+ years`;
+    }
 
     result.push(canonicalizeCandidateProfile({
       linkedInUrl,
       normalizedUrl: normalized,
       name: fullName,
-      jobTitle: jobTitle || null,
-      company: company || null,
-      location: _extractLocationString(p.location || p.geoLocation || p.locationName || p.city),
+      jobTitle,
+      company,
+      location,
       level: _levelFromHeadline(headline),
-      education: null,
+      education,
       snippet: headline,
       foundIn: '',
       sourceCountry: '',
-      about: p.about || p.summary || null,
+      about: p.about || p.summary || p.description || null,
       skills,
-      profilePic: p.imageUrl || p.profilePicture || null,
+      profilePic: p.imageUrl || p.profilePicture || p.photo || null,
       headline: headline || null,
-      totalExperience: null,
+      totalExperience,
       sources: [{
         country: '',
         query: 'linkedin-search',

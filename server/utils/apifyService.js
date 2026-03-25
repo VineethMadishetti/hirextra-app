@@ -11,7 +11,7 @@ import logger from './logger.js';
 
 const APIFY_BASE           = 'https://api.apify.com/v2';
 const ACTOR_ID             = 'apify~google-search-scraper';
-const LINKEDIN_ACTOR_ID    = 'harvestapi~linkedin-profile-search';
+const LINKEDIN_ACTOR_ID    = 'harvestapi/linkedin-company-employees';
 const POLL_INTERVAL        = 3000;   // ms between status polls
 const MAX_WAIT_MS          = 180000; // 3-minute hard timeout
 
@@ -66,26 +66,32 @@ class ApifyService {
   }
 
   /**
-   * HarvestAPI LinkedIn Profile Search — main candidate discovery.
-   * Accepts structured LinkedIn filter params (not keyword queries).
+   * HarvestAPI LinkedIn Company Employees — main candidate discovery.
+   * Uses currentJobTitles filter (Lead search endpoint) to return real profiles,
+   * bypassing the "LinkedIn Member" anonymization that searchQuery triggers.
    *
    * @param {Object} params - Structured search params from buildLinkedInSearchParams()
-   *   {searchQuery, currentJobTitles, locations, yearsOfExperienceIds,
-   *    seniorityLevelIds, industryIds, profileScraperMode, takePages, postFilteringMongoQuery}
+   *   {currentJobTitles, locations, yearsOfExperienceIds,
+   *    seniorityLevelIds, industryIds, profileScraperMode, takePages}
    * @returns {Promise<Array>} - Raw HarvestAPI profile objects
    */
   async runLinkedInSearch(params = {}) {
     const token = this.getApiKey();
-    if (!token || !params || !params.searchQuery) return [];
+    if (!token || !params) return [];
+
+    const currentJobTitles = params.currentJobTitles || [];
+    if (currentJobTitles.length === 0) {
+      logger.warn('[Apify] runLinkedInSearch called with no currentJobTitles — skipping');
+      return [];
+    }
 
     const takePages = Math.min(Math.max(Number(params.takePages) || 4, 1), 20);
     logger.info(
-      `[Apify] LinkedIn search — "${params.searchQuery}" | loc=${(params.locations || []).join(',')} | seniority=${(params.seniorityLevelIds || []).join(',')} | pages=${takePages}`
+      `[Apify] LinkedIn search — titles=${currentJobTitles.join('|')} | loc=${(params.locations || []).join(',')} | seniority=${(params.seniorityLevelIds || []).join(',')} | pages=${takePages}`
     );
 
     const body = {
-      searchQuery:           params.searchQuery,
-      currentJobTitles:      params.currentJobTitles      || [],
+      currentJobTitles,
       locations:             params.locations              || [],
       yearsOfExperienceIds:  params.yearsOfExperienceIds  || [],
       seniorityLevelIds:     params.seniorityLevelIds      || [],

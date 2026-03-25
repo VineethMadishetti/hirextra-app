@@ -29,16 +29,41 @@ const SKILL_ALIASES = {
 };
 
 const LOCATION_SYNONYMS = {
-  bangalore: ['bengaluru', 'bangalore'],
-  bengaluru: ['bengaluru', 'bangalore'],
-  delhi: ['delhi', 'new delhi'],
+  bangalore:   ['bengaluru', 'bangalore'],
+  bengaluru:   ['bengaluru', 'bangalore'],
+  delhi:       ['delhi', 'new delhi'],
   'new delhi': ['delhi', 'new delhi'],
-  mumbai: ['mumbai', 'bombay'],
-  bombay: ['mumbai', 'bombay'],
-  chennai: ['chennai', 'madras'],
-  madras: ['chennai', 'madras'],
-  kolkata: ['kolkata', 'calcutta'],
-  calcutta: ['kolkata', 'calcutta'],
+  mumbai:      ['mumbai', 'bombay'],
+  bombay:      ['mumbai', 'bombay'],
+  chennai:     ['chennai', 'madras'],
+  madras:      ['chennai', 'madras'],
+  kolkata:     ['kolkata', 'calcutta'],
+  calcutta:    ['kolkata', 'calcutta'],
+  hyderabad:   ['hyderabad'],
+  pune:        ['pune'],
+  gurgaon:     ['gurgaon', 'gurugram'],
+  gurugram:    ['gurgaon', 'gurugram'],
+  noida:       ['noida'],
+  ahmedabad:   ['ahmedabad'],
+  jaipur:      ['jaipur'],
+  kochi:       ['kochi', 'cochin'],
+  cochin:      ['kochi', 'cochin'],
+  coimbatore:  ['coimbatore'],
+  nagpur:      ['nagpur'],
+  indore:      ['indore'],
+  chandigarh:  ['chandigarh'],
+  london:      ['london'],
+  berlin:      ['berlin'],
+  toronto:     ['toronto'],
+  sydney:      ['sydney'],
+  singapore:   ['singapore'],
+  dubai:       ['dubai'],
+  amsterdam:   ['amsterdam'],
+  'new york':  ['new york', 'nyc'],
+  nyc:         ['new york', 'nyc'],
+  'san francisco': ['san francisco', 'sf', 'bay area'],
+  seattle:     ['seattle'],
+  austin:      ['austin'],
 };
 
 const WEIGHT = {
@@ -110,10 +135,15 @@ function sortValue(candidate) {
   const hasPhone = Boolean(candidate.contact?.phone || candidate.phone);
   const completeness = computeCandidateCompleteness(candidate);
   const expYears = parseExperienceYears(candidate.experienceYears || candidate.totalExperience || candidate.experience);
+  const mustHaveCount = candidate.matchedMustHave?.length || 0;
+  const requiredCount = candidate.matchedRequired?.length || 0;
 
+  // Primary key: match score (0-100) scaled to dominate all tie-breakers
+  // Secondary: must-have count > required count > completeness > contact > experience
   return (
-    (Number(candidate.matchScore) || 0) * 1000 +
-    (candidate.matchedSkills?.length || 0) * 100 +
+    (Number(candidate.matchScore) || 0) * 10000 +
+    mustHaveCount * 500 +
+    requiredCount * 100 +
     completeness * 15 +
     (hasEmail ? 12 : 0) +
     (hasPhone ? 8 : 0) +
@@ -145,40 +175,51 @@ export function scoreCandidate(candidate, requirements) {
   const skillsArr = Array.isArray(candidate.skills)
     ? candidate.skills
     : String(candidate.skills || '').split(/[,;|·]+/).map((skill) => skill.trim()).filter(Boolean);
-  const candidateSkills = [
+
+  // For must-have AND gate: match strictly against the skills array + job title only.
+  // This prevents a passing mention in an unrelated about/summary from counting.
+  const strictHaystack = [
     ...skillsArr,
     String(candidate.jobTitle || candidate.title || ''),
-    String(candidate.about || ''),
     String(candidate.headline || ''),
+  ].join(' ');
+
+  // For required (OR gate) and preferred: also search about/snippet for broader recall.
+  const broadHaystack = [
+    strictHaystack,
+    String(candidate.about || ''),
     String(candidate.snippet || ''),
   ].join(' ');
 
   const candidateLocation = String(candidate.location || candidate.locality || '');
   const candidateExp = candidate.experience || candidate.totalExperience || candidate.experienceYears || 0;
 
-  const matchedMustHave = mustHaveSkills.filter((skill) => skillMatches(candidateSkills, skill));
-  const missingMustHave = mustHaveSkills.filter((skill) => !skillMatches(candidateSkills, skill));
-  const matchedRequired = requiredSkills.filter((skill) => skillMatches(candidateSkills, skill));
-  const missingRequired = requiredSkills.filter((skill) => !skillMatches(candidateSkills, skill));
-  const matchedPreferred = preferredSkills.filter((skill) => skillMatches(candidateSkills, skill));
+  // AND gate: ALL must-have skills must appear in strict haystack
+  const matchedMustHave = mustHaveSkills.filter((skill) => skillMatches(strictHaystack, skill));
+  const missingMustHave = mustHaveSkills.filter((skill) => !skillMatches(strictHaystack, skill));
+
+  // OR gate: at least one required skill must appear
+  const matchedRequired = requiredSkills.filter((skill) => skillMatches(broadHaystack, skill));
+  const missingRequired = requiredSkills.filter((skill) => !skillMatches(broadHaystack, skill));
+
+  // Preferred: scoring bonus only
+  const matchedPreferred = preferredSkills.filter((skill) => skillMatches(broadHaystack, skill));
 
   const locMatch = locationMatches(candidateLocation, reqLocation);
   const candExpYears = parseExperienceYears(candidateExp);
   const expMatch = reqExpYears > 0 ? candExpYears >= reqExpYears : true;
 
-  const hasSkillRequirements = mustHaveSkills.length > 0 || requiredSkills.length > 0 || preferredSkills.length > 0;
-  const totalSkillsMatched = matchedMustHave.length + matchedRequired.length + matchedPreferred.length;
-
+  // AND gate: any missing must-have → disqualify
   const mustHaveFail = mustHaveSkills.length > 0 && missingMustHave.length > 0;
-  const requiredFail = mustHaveSkills.length === 0 && requiredSkills.length > 0 && matchedRequired.length === 0;
-  const zeroSkillMatch = hasSkillRequirements && totalSkillsMatched === 0;
-  const disqualified = mustHaveFail || requiredFail || zeroSkillMatch;
+  // OR gate: required skills specified but zero matched → disqualify
+  const requiredFail = requiredSkills.length > 0 && matchedRequired.length === 0;
+  const disqualified = mustHaveFail || requiredFail;
 
   if (disqualified) {
     return {
       score: 0,
       matchCategory: 'WEAK',
-      matchedMustHave: [],
+      matchedMustHave,
       missingMustHave,
       matchedRequired,
       missingRequired,
@@ -234,6 +275,8 @@ export function scoreCandidates(candidates, requirements, options = {}) {
         ...candidate,
         matchScore: result.score,
         matchCategory: result.matchCategory,
+        matchedMustHave: result.matchedMustHave,
+        matchedRequired: result.matchedRequired,
         matchedSkills: [...new Set([...result.matchedMustHave, ...result.matchedRequired, ...result.matchedPreferred])],
         missingSkills: [...new Set([...result.missingMustHave, ...result.missingRequired])],
         locationMatch: result.locationMatch,

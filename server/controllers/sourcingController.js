@@ -1,12 +1,12 @@
 import mammoth from 'mammoth';
 import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
-import cseService from '../utils/cseService.js';
+// import cseService from '../utils/cseService.js';   // commented out — using HarvestAPI only
 import apifyService from '../utils/apifyService.js';
-import apolloService from '../utils/apolloService.js';
+// import apolloService from '../utils/apolloService.js';  // commented out — using HarvestAPI only
 import {
   normalizeLinkedInProfiles,
-  normalizeApolloProfiles,
+  // normalizeApolloProfiles,  // commented out — Apollo not in use
   deduplicateCandidates,
   formatCandidates,
   mergeOsintData,
@@ -324,118 +324,50 @@ export const sourceCandidates = async (req, res) => {
     let allResults = [];
     let linkedInProfiles = [];
 
-    if (apolloService.isConfigured() || apifyService.isConfigured()) {
+    if (apifyService.isConfigured()) {
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       const osintQueries = aiSourcingService.generateOsintQueries(parsed);
 
-      // ── Apollo.io — primary source (returns email directly) ──────────────
-      if (apolloService.isConfigured()) {
-        dataSource = 'apollo';
-        const apolloParams = aiSourcingService.buildApolloSearchParams(parsed);
-        logger.info(
-          `[Apollo] titles=${apolloParams.personTitles.length} loc=${apolloParams.personLocations.join('|')} ` +
-          `seniority=${apolloParams.personSeniorities.join(',')} keywords="${apolloParams.keywords}"`
+      // ── HarvestAPI LinkedIn Company Employees — primary source ───────────
+      // Uses currentJobTitles filter (Lead search endpoint) to return real profiles,
+      // bypassing the "LinkedIn Member" anonymization that searchQuery triggers.
+      dataSource = 'apify';
+      const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
+      logger.info(
+        `[HarvestAPI] titles=${linkedInParams.currentJobTitles.join('|')} ` +
+        `loc=${linkedInParams.locations.join(',')} seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
+      );
+
+      linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+
+      if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
+        logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
+        linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
+      }
+
+      if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
+        logger.info('[HarvestAPI] 0 results — retrying without location filter');
+        linkedInProfiles = await apifyService.runLinkedInSearch({
+          ...linkedInParams,
+          locations: [],
+          seniorityLevelIds: [],
+          takePages: 8,
+        });
+      }
+
+      candidates = normalizeLinkedInProfiles(linkedInProfiles);
+
+      // ── Hard location gate — applied immediately after normalization ──────
+      // Ensures no out-of-location candidates continue regardless of which retry
+      // strategy fetched them (including broad retries with locations: []).
+      // Candidates with no location data are excluded when a location is required.
+      const _requiredLoc = parsed.location || '';
+      if (_requiredLoc && !/unspecified|not specified|remote/i.test(_requiredLoc)) {
+        const beforeLoc = candidates.length;
+        candidates = candidates.filter((c) =>
+          locationMatches(c.location || c.locality || '', _requiredLoc)
         );
-
-        const { people, total } = await apolloService.searchPeopleMultiPage(apolloParams, maxCandidatesSafe);
-        logger.info(`[Apollo] ${total} total in DB, fetched ${people.length} profiles`);
-        linkedInProfiles = people;
-        candidates = normalizeApolloProfiles(people);
-
-        if (candidates.length === 0 && apolloParams.personSeniorities.length > 0) {
-          logger.info('[Apollo] 0 results - retrying without seniority filter');
-          const { people: retryPeople } = await apolloService.searchPeopleMultiPage(
-            { ...apolloParams, personSeniorities: [] }, maxCandidatesSafe
-          );
-          linkedInProfiles = retryPeople;
-          candidates = normalizeApolloProfiles(retryPeople);
-        }
-
-        const apolloError = apolloService.getLastError?.();
-        if (candidates.length === 0 && apifyService.isConfigured() && (apolloError?.status === 403 || apolloError?.code === 'API_INACCESSIBLE')) {
-          logger.warn('[Apollo] Current plan cannot access people search - falling back to HarvestAPI');
-          dataSource = 'apify';
-          const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
-          logger.info(
-            `[HarvestAPI] searchQuery="${linkedInParams.searchQuery}" titles=${linkedInParams.currentJobTitles.length} ` +
-            `seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
-          );
-
-          linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
-
-          if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
-            logger.info('[HarvestAPI] 0 results - retrying without seniorityLevelIds');
-            linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
-          }
-
-          if (linkedInProfiles.length < 10 && linkedInParams.postFilteringMongoQuery) {
-            logger.info(`[HarvestAPI] ${linkedInProfiles.length} results - retrying without postFilteringMongoQuery`);
-            linkedInProfiles = await apifyService.runLinkedInSearch({
-              ...linkedInParams,
-              seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
-              postFilteringMongoQuery: null,
-              takePages: 8,
-            });
-          }
-
-          if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
-            logger.info('[HarvestAPI] 0 results - retrying with broad recall search (no actor-side location/seniority filters)');
-            linkedInProfiles = await apifyService.runLinkedInSearch({
-              ...linkedInParams,
-              currentJobTitles: [],
-              locations: [],
-              yearsOfExperienceIds: [],
-              seniorityLevelIds: [],
-              industryIds: [],
-              postFilteringMongoQuery: null,
-              takePages: 10,
-            });
-          }
-
-          candidates = normalizeLinkedInProfiles(linkedInProfiles);
-        }
-
-      // HarvestAPI fallback when Apollo not configured
-      } else {
-        dataSource = 'apify';
-        const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
-        logger.info(
-          `[HarvestAPI] searchQuery="${linkedInParams.searchQuery}" titles=${linkedInParams.currentJobTitles.length} ` +
-          `seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
-        );
-
-        linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
-
-        if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
-          logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
-          linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
-        }
-
-        if (linkedInProfiles.length < 10 && linkedInParams.postFilteringMongoQuery) {
-          logger.info(`[HarvestAPI] ${linkedInProfiles.length} results — retrying without postFilteringMongoQuery`);
-          linkedInProfiles = await apifyService.runLinkedInSearch({
-            ...linkedInParams,
-            seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
-            postFilteringMongoQuery: null,
-            takePages: 8,
-          });
-        }
-
-        if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
-          logger.info('[HarvestAPI] 0 results - retrying with broad recall search (no actor-side location/seniority filters)');
-          linkedInProfiles = await apifyService.runLinkedInSearch({
-            ...linkedInParams,
-            currentJobTitles: [],
-            locations: [],
-            yearsOfExperienceIds: [],
-            seniorityLevelIds: [],
-            industryIds: [],
-            postFilteringMongoQuery: null,
-            takePages: 10,
-          });
-        }
-
-        candidates = normalizeLinkedInProfiles(linkedInProfiles);
+        logger.info(`[Location gate] ${candidates.length}/${beforeLoc} candidates match "${_requiredLoc}"`);
       }
 
       candidates = deduplicateCandidates(candidates);
@@ -443,9 +375,7 @@ export const sourceCandidates = async (req, res) => {
       if (candidates.length === 0) {
         return res.status(200).json({
           success: true, parseOnly: false,
-          message: (apolloService.getLastError?.()?.status === 403 || apolloService.getLastError?.()?.code === 'API_INACCESSIBLE') && !apifyService.isConfigured()
-            ? 'Apollo People Search is not available on the current Apollo plan. Add APIFY_API_KEY or upgrade Apollo.'
-            : 'No candidate profiles found for this requirement set.',
+          message: 'No candidate profiles found for this requirement set.',
           parsedRequirements: structured, candidates: [], results: [],
           summary: { totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0, totalSaved: 0, timeMs: Date.now() - startedAt },
         });
@@ -494,14 +424,13 @@ export const sourceCandidates = async (req, res) => {
       }
 
     } else {
-      // ── No source available or all fell through ─────────────────────────────
-      searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
+      // ── No source available ───────────────────────────────────────────────
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       return res.status(200).json({
         success: true, parseOnly: true,
-        message: 'Requirements extracted. Add APOLLO_API_KEY or APIFY_API_KEY to run candidate discovery.',
+        message: 'Requirements extracted. Add APIFY_API_KEY to run candidate discovery.',
         parsedRequirements: structured,
-        searchPlan: { queries: searchQueries, countries: targetCountries },
+        searchPlan: { countries: targetCountries },
         candidates: [], results: [],
         summary: { totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0, totalSaved: 0, timeMs: Date.now() - startedAt },
       });
@@ -536,21 +465,9 @@ export const sourceCandidates = async (req, res) => {
       excludeDisqualified: true,
     });
 
-    // Step 3: Strict location filter.
-    // Only keep candidates whose extracted location matches the requested location.
-    const requiredLocation = parsed.location || '';
-    if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
-      const beforeCount = candidates.length;
-      candidates = candidates.filter((candidate) =>
-        locationMatches(candidate.location || candidate.locality || '', requiredLocation)
-      );
-      logger.info(`Location filter [${requiredLocation}]: ${candidates.length}/${beforeCount} matched`);
-    }
-
     candidates = candidates.slice(0, maxCandidatesSafe);
 
-    // Apollo already includes email — only run Skrapp for non-Apollo candidates
-    if (enrichContacts && dataSource !== 'apollo') {
+    if (enrichContacts) {
       const enrichCount = Math.min(candidates.length, enrichTopNSafe);
       for (let i = 0; i < enrichCount; i += 1) {
         try {

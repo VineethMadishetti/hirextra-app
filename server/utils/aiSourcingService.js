@@ -646,31 +646,19 @@ function expandLocationForLinkedIn(city) {
 
 /**
  * Build structured LinkedIn search parameters for the HarvestAPI actor.
- * Converts parsed JD requirements into LinkedIn-native filter IDs and search terms.
+ * Uses currentJobTitles filter (Lead search endpoint) instead of searchQuery to bypass
+ * the "LinkedIn Member" anonymization that the basic searchQuery endpoint returns.
  */
 export function buildLinkedInSearchParams(parsedInput) {
   const parsed = normalizeParsedRequirements(parsedInput);
   const aliases = buildAliases(parsed);
 
-  const titleTerms = uniqueStrings(
-    aliases.titleAliases.length ? aliases.titleAliases : [parsed.job_title.main],
-    4
+  // currentJobTitles triggers the Lead search endpoint — returns real profiles with URLs.
+  // Include main title, synonyms, and derived aliases for broad recall.
+  const currentJobTitles = uniqueStrings(
+    [parsed.job_title.main, ...parsed.job_title.synonyms, ...aliases.titleAliases],
+    6
   );
-  const skillTerms = uniqueStrings(
-    parsed.must_have_skills.length ? parsed.must_have_skills : parsed.required_skills,
-    3
-  );
-
-  const titleClause = titleTerms.length
-    ? `(${titleTerms.map((title) => `"${title}"`).join(' OR ')})`
-    : `"${parsed.job_title.main}"`;
-  const skillClause = skillTerms.length
-    ? `(${skillTerms.map((skill) => `"${skill}"`).join(' OR ')})`
-    : '';
-  const searchQuery = [titleClause, skillClause].filter(Boolean).join(' AND ');
-
-  // Avoid exact title filters. Real candidate titles vary too much for currentJobTitles to be reliable.
-  const currentJobTitles = [];
 
   // Expand each city to full LinkedIn location string so HarvestAPI can resolve it.
   // "Hyderabad" → "Hyderabad, Telangana, India"  |  "Bangalore, India" → kept as-is
@@ -681,10 +669,7 @@ export function buildLinkedInSearchParams(parsedInput) {
   const seniorityLevelIds = mapExperienceLevelToSeniorityIds(parsed.experience_level);
   const industryIds = [];
 
-  const postFilteringMongoQuery = null;
-
   return {
-    searchQuery,
     currentJobTitles,
     locations,
     yearsOfExperienceIds,
@@ -692,7 +677,7 @@ export function buildLinkedInSearchParams(parsedInput) {
     industryIds,
     profileScraperMode: 'Full',
     takePages: 4,
-    postFilteringMongoQuery,
+    postFilteringMongoQuery: null,
   };
 }
 
