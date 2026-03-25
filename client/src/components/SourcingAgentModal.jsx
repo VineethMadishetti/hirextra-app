@@ -99,6 +99,78 @@ function availabilityBadge(availability) {
   }
 }
 
+// ── Animated loading steps component ────────────────────────────────────────
+function LoadingSteps({ steps, stepIdx, onSetStepIdx, onCancel }) {
+  useEffect(() => {
+    if (stepIdx >= steps.length - 1) return;
+    const timer = setTimeout(() => onSetStepIdx(stepIdx + 1), steps[stepIdx].duration);
+    return () => clearTimeout(timer);
+  }, [stepIdx, steps, onSetStepIdx]);
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      {/* Spinner */}
+      <div className="relative mb-8">
+        <div className="w-16 h-16 rounded-full border-2 border-[#432DD7]/20 flex items-center justify-center">
+          <Loader2 size={32} className="animate-spin text-[#A99BFF]" />
+        </div>
+        <div className="absolute inset-0 rounded-full bg-[#432DD7]/10 animate-ping" style={{ animationDuration: '2s' }} />
+      </div>
+
+      {/* Current step */}
+      <p className="text-xl font-bold text-slate-100 text-center">{steps[stepIdx]?.label}</p>
+      <p className="text-sm text-slate-400 mt-1.5 text-center max-w-sm">{steps[stepIdx]?.sub}</p>
+
+      {/* Step progress dots */}
+      <div className="flex items-center gap-2 mt-8">
+        {steps.map((s, i) => (
+          <div
+            key={i}
+            className={`rounded-full transition-all duration-500 ${
+              i < stepIdx  ? 'w-2 h-2 bg-[#432DD7]' :
+              i === stepIdx ? 'w-4 h-2 bg-[#A99BFF]' :
+                              'w-2 h-2 bg-slate-700'
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Step list */}
+      <div className="mt-8 w-full max-w-sm space-y-2">
+        {steps.slice(0, -1).map((s, i) => (
+          <div key={i} className={`flex items-center gap-3 text-sm transition-all duration-300 ${
+            i < stepIdx  ? 'text-slate-500' :
+            i === stepIdx ? 'text-slate-100 font-medium' :
+                            'text-slate-700'
+          }`}>
+            <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+              i < stepIdx  ? 'border-[#432DD7] bg-[#432DD7]' :
+              i === stepIdx ? 'border-[#A99BFF] bg-transparent' :
+                              'border-slate-700 bg-transparent'
+            }`}>
+              {i < stepIdx
+                ? <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                : i === stepIdx
+                  ? <div className="w-1.5 h-1.5 rounded-full bg-[#A99BFF] animate-pulse" />
+                  : null
+              }
+            </div>
+            {s.label}
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={onCancel}
+        className="mt-8 inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+      >
+        <ChevronLeft size={16} /> Cancel
+      </button>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const CARD_FONT = { fontFamily: '"Plus Jakarta Sans","Segoe UI",sans-serif' };
 
 
@@ -242,6 +314,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [preferredRaw, setPreferredRaw] = useState('');
   const [internetData, setInternetData] = useState(null);
   const [error, setError] = useState('');
+  const [loadingStepIdx, setLoadingStepIdx] = useState(0);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCards, setExpandedCards] = useState(new Set());
@@ -464,6 +537,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     searchAbortRef.current = controller;
 
     setSearchingInternet(true);
+    setLoadingStepIdx(0);
     setView('sourcing');
     try {
       const { data } = await api.post('/ai-source', {
@@ -961,23 +1035,29 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
             </div>
           )}
 
-          {view === 'sourcing' && (
-            <div className="py-20 text-center">
-              <Loader2 size={44} className="animate-spin mx-auto text-[#A99BFF]" />
-              <p className="mt-4 text-lg font-semibold text-slate-100">Searching Internet</p>
-              <p className="text-sm text-slate-400 mt-1">Generating LinkedIn queries and extracting profiles across countries.</p>
-              <button
-                onClick={() => {
+          {view === 'sourcing' && (() => {
+            const LOADING_STEPS = [
+              { label: 'Parsing job requirements',     sub: 'Extracting skills, location and seniority from your JD…',          duration: 6000  },
+              { label: 'Searching LinkedIn profiles',  sub: 'Sending search to HarvestAPI with job title filters…',              duration: 10000 },
+              { label: 'Fetching candidate profiles',  sub: 'Waiting for LinkedIn to return matching profiles…',                 duration: 22000 },
+              { label: 'Running OSINT enrichment',     sub: 'Scanning GitHub and Stack Overflow for matching profiles…',         duration: 20000 },
+              { label: 'AI enriching candidates',      sub: 'Using OpenAI to normalise and fill missing profile fields…',        duration: 12000 },
+              { label: 'Scoring & matching',           sub: 'Ranking candidates by skill match, location and experience…',       duration: 8000  },
+              { label: 'Finalising results',           sub: 'Saving to database and preparing your candidate list…',             duration: 99999 },
+            ];
+            return (
+              <LoadingSteps
+                steps={LOADING_STEPS}
+                stepIdx={loadingStepIdx}
+                onSetStepIdx={setLoadingStepIdx}
+                onCancel={() => {
                   if (searchAbortRef.current) { searchAbortRef.current.abort(); searchAbortRef.current = null; }
                   setSearchingInternet(false);
                   setView('compose');
                 }}
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all cursor-pointer"
-              >
-                <ChevronLeft size={16} /> Cancel
-              </button>
-            </div>
-          )}
+              />
+            );
+          })()}
 
           {view === 'results' && (
             <div className="space-y-5">

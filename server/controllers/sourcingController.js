@@ -436,24 +436,9 @@ export const sourceCandidates = async (req, res) => {
       });
     }
 
-    // ── Step 1: Experience hard filter ────────────────────────────────────────
-    // Rejects anyone clearly below the required minimum.
-    const minExpYears = Number(parsed.experience_years || 0);
-    if (minExpYears > 0) {
-      const beforeExp = candidates.length;
-      candidates = candidates.filter(c => {
-        if (typeof c.experienceYears === 'number' && c.experienceYears > 0) {
-          return c.experienceYears >= minExpYears;
-        }
-        // Serper fallback: parse the text field
-        const expStr = String(c.totalExperience || c.experience || '');
-        const match = expStr.match(/(\d+(\.\d+)?)/);
-        if (match) return parseFloat(match[1]) >= minExpYears;
-        // No experience data at all — keep the candidate (don't discard unknowns)
-        return true;
-      });
-      logger.info(`Experience filter (>=${minExpYears} yrs): ${candidates.length}/${beforeExp} passed`);
-    }
+    // Experience is surfaced as experienceMatch flag on each candidate (set by scoreCandidates).
+    // We do not hard-filter here — HarvestAPI returns few profiles and dropping them all
+    // produces zero results. The match score and experienceMatch flag inform the recruiter.
 
     // Step 2: Boolean match scoring.
     // Match score is skill-only:
