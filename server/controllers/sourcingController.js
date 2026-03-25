@@ -342,9 +342,8 @@ export const sourceCandidates = async (req, res) => {
         linkedInProfiles = people;
         candidates = normalizeApolloProfiles(people);
 
-        // Auto-retry: 0 results → remove seniority filter
         if (candidates.length === 0 && apolloParams.personSeniorities.length > 0) {
-          logger.info('[Apollo] 0 results — retrying without seniority filter');
+          logger.info('[Apollo] 0 results - retrying without seniority filter');
           const { people: retryPeople } = await apolloService.searchPeopleMultiPage(
             { ...apolloParams, personSeniorities: [] }, maxCandidatesSafe
           );
@@ -352,7 +351,37 @@ export const sourceCandidates = async (req, res) => {
           candidates = normalizeApolloProfiles(retryPeople);
         }
 
-      // ── HarvestAPI — fallback when Apollo not configured ─────────────────
+        const apolloError = apolloService.getLastError?.();
+        if (candidates.length === 0 && apifyService.isConfigured() && (apolloError?.status === 403 || apolloError?.code === 'API_INACCESSIBLE')) {
+          logger.warn('[Apollo] Current plan cannot access people search - falling back to HarvestAPI');
+          dataSource = 'apify';
+          const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
+          logger.info(
+            `[HarvestAPI] searchQuery="${linkedInParams.searchQuery}" titles=${linkedInParams.currentJobTitles.length} ` +
+            `seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
+          );
+
+          linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+
+          if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
+            logger.info('[HarvestAPI] 0 results - retrying without seniorityLevelIds');
+            linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
+          }
+
+          if (linkedInProfiles.length < 10 && linkedInParams.postFilteringMongoQuery) {
+            logger.info(`[HarvestAPI] ${linkedInProfiles.length} results - retrying without postFilteringMongoQuery`);
+            linkedInProfiles = await apifyService.runLinkedInSearch({
+              ...linkedInParams,
+              seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
+              postFilteringMongoQuery: null,
+              takePages: 8,
+            });
+          }
+
+          candidates = normalizeLinkedInProfiles(linkedInProfiles);
+        }
+
+      // HarvestAPI fallback when Apollo not configured
       } else {
         dataSource = 'apify';
         const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
@@ -386,7 +415,9 @@ export const sourceCandidates = async (req, res) => {
       if (candidates.length === 0) {
         return res.status(200).json({
           success: true, parseOnly: false,
-          message: 'No candidate profiles found for this requirement set.',
+          message: (apolloService.getLastError?.()?.status === 403 || apolloService.getLastError?.()?.code === 'API_INACCESSIBLE') && !apifyService.isConfigured()
+            ? 'Apollo People Search is not available on the current Apollo plan. Add APIFY_API_KEY or upgrade Apollo.'
+            : 'No candidate profiles found for this requirement set.',
           parsedRequirements: structured, candidates: [], results: [],
           summary: { totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0, totalSaved: 0, timeMs: Date.now() - startedAt },
         });

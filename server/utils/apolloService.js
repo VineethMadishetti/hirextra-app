@@ -4,6 +4,10 @@ import logger from './logger.js';
 const APOLLO_BASE = 'https://api.apollo.io/api/v1';
 
 class ApolloService {
+  constructor() {
+    this.lastError = null;
+  }
+
   getApiKey() {
     return String(process.env.APOLLO_API_KEY || '').trim();
   }
@@ -12,9 +16,14 @@ class ApolloService {
     return Boolean(this.getApiKey());
   }
 
+  getLastError() {
+    return this.lastError;
+  }
+
   async searchPeople(params = {}, page = 1) {
     const key = this.getApiKey();
     if (!key) return { people: [], total: 0 };
+    this.lastError = null;
 
     const perPage = Math.min(Math.max(Number(params.perPage) || 25, 1), 100);
     const personTitles = Array.isArray(params.personTitles) ? params.personTitles : [];
@@ -52,7 +61,13 @@ class ApolloService {
       return { people, total };
     } catch (err) {
       const status = err.response?.status;
-      const errBody = JSON.stringify(err.response?.data || {});
+      const errData = err.response?.data || {};
+      const errBody = JSON.stringify(errData);
+      this.lastError = {
+        status: status || null,
+        code: errData?.error_code || null,
+        message: errData?.error || err.message,
+      };
       logger.error(`[Apollo] Search failed: HTTP ${status || '?'} - ${errBody}`);
       return { people: [], total: 0 };
     }
