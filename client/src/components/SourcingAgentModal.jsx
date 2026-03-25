@@ -1021,7 +1021,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const experience  = candidate.experience || candidate.totalExperience || (candidate.experienceYears ? `${candidate.experienceYears}+ years` : '');
                     const education   = candidate.education || extractEducationFromSnippet(candidate.snippet);
                     const location    = candidate.location || candidate.locality || '';
-                    const summaryText = candidate.about || candidate.snippet || '';
 
                     // Skills: DB candidates have a comma string; internet candidates have an array
                     const rawSkills = candidate.skills;
@@ -1039,137 +1038,122 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const snippetBadges = extractBadgesFromSnippet(candidate.snippet);
                     const badges = dbAvail ? [dbAvail, ...snippetBadges.filter(b => b.type === 'fresher')] : snippetBadges;
 
-                    return (
-                      <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 transition-all duration-200 hover:border-[#6B5AF0]/70 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.22)]">
+                    const initials = fullName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                    const cardKey = linkedInUrl || fullName;
+                    const isExpanded = expandedCards.has(cardKey);
+                    const hasExpandable = candidate.about || candidate.headline || candidate.languages?.length > 0;
 
-                        {/* Row 1: Rank · Name · Seniority · Availability · IIT/NIT badge · Match Badge */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400">
-                              {globalIndex}
-                            </span>
-                            <div className="min-w-0">
-                              {/* Name + inline badges */}
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <h4 className="text-base font-bold text-slate-100 leading-tight">
-                                  {fullName}
-                                </h4>
-                                {seniority && (
-                                  <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold">
-                                    {seniority}
-                                  </span>
-                                )}
-                                {badges.map((b) => (
-                                  <span key={b.label} className={`inline-flex items-center text-[10px] rounded-full border px-2 py-0.5 font-semibold ${
-                                    b.type === 'immediate'    ? 'border-sky-700/50 bg-sky-950/35 text-sky-300' :
-                                    b.type === 'availability' ? 'border-emerald-700/50 bg-emerald-950/35 text-emerald-300' :
-                                    b.type === 'fresher'      ? 'border-blue-700/40 bg-blue-950/30 text-blue-300' :
-                                                                 'border-slate-600 bg-slate-800 text-slate-300'
-                                  }`}>
-                                    {b.label}
-                                  </span>
-                                ))}
-                                {isPremiumInstitute(education) && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-500/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
-                                    <GraduationCap size={9} />
-                                    {education}
-                                  </span>
-                                )}
-                              </div>
-                              {/* Job Title · Company */}
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                                {jobTitle && (
-                                  <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
-                                    <Briefcase size={11} className="text-[#8B7FE8] shrink-0" />
-                                    {jobTitle}
-                                  </span>
-                                )}
-                                {company && (
-                                  <span className="flex items-center gap-1 text-sm text-slate-400">
-                                    <Building2 size={11} className="text-slate-500 shrink-0" />
-                                    {company}
-                                  </span>
-                                )}
+                    return (
+                      <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-900/80 overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)]">
+
+                        {/* ── Card body ─────────────────────────────────── */}
+                        <div className="p-4">
+                          <div className="flex items-start gap-3">
+
+                            {/* Avatar */}
+                            <div className="shrink-0 w-12 h-12 rounded-full overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-base select-none">
+                              {candidate.profilePic
+                                ? <img src={candidate.profilePic} alt={fullName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                : <span>{initials}</span>
+                              }
+                            </div>
+
+                            {/* Name / title / meta */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  {/* Name + badges */}
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <h4 className="text-base font-bold text-slate-100 leading-tight">{fullName}</h4>
+                                    {candidate.openToWork && (
+                                      <span className="inline-flex items-center text-[10px] rounded-full border border-emerald-600/50 bg-emerald-950/40 text-emerald-300 px-2 py-0.5 font-semibold">#OpenToWork</span>
+                                    )}
+                                    {seniority && (
+                                      <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold">{seniority}</span>
+                                    )}
+                                    {badges.filter(b => !(b.type === 'availability' && candidate.openToWork)).map((b) => (
+                                      <span key={b.label} className={`inline-flex items-center text-[10px] rounded-full border px-2 py-0.5 font-semibold ${
+                                        b.type === 'immediate'    ? 'border-sky-700/50 bg-sky-950/35 text-sky-300' :
+                                        b.type === 'availability' ? 'border-emerald-700/50 bg-emerald-950/35 text-emerald-300' :
+                                        b.type === 'fresher'      ? 'border-blue-700/40 bg-blue-950/30 text-blue-300' :
+                                                                     'border-slate-600 bg-slate-800 text-slate-300'
+                                      }`}>{b.label}</span>
+                                    ))}
+                                    {isPremiumInstitute(education) && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-500/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
+                                        <GraduationCap size={9} />{education}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Title @ Company */}
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
+                                    {jobTitle && (
+                                      <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
+                                        <Briefcase size={11} className="text-[#8B7FE8] shrink-0" />{jobTitle}
+                                      </span>
+                                    )}
+                                    {company && (
+                                      <>
+                                        {jobTitle && <span className="text-slate-600 text-xs">·</span>}
+                                        <span className="flex items-center gap-1 text-sm text-slate-400">
+                                          <Building2 size={11} className="text-slate-500 shrink-0" />{company}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Meta row */}
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
+                                    {location && (
+                                      <span className={`flex items-center gap-1 ${candidate.locationUnverified ? 'text-amber-500/80' : ''}`}>
+                                        <MapPin size={11} className={candidate.locationUnverified ? 'text-amber-500/70' : 'text-slate-500'} />
+                                        {location}
+                                        {candidate.locationUnverified && <span className="italic text-[10px] text-amber-500/60">(unverified)</span>}
+                                      </span>
+                                    )}
+                                    {experience && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock size={11} className="text-slate-500" />{experience}
+                                      </span>
+                                    )}
+                                    {education && !isPremiumInstitute(education) && (
+                                      <span className="flex items-center gap-1">
+                                        <GraduationCap size={11} />{education}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <MatchBadge score={candidate.matchScore} category={candidate.matchCategory} />
                               </div>
                             </div>
                           </div>
-                          <MatchBadge score={candidate.matchScore} category={candidate.matchCategory} />
-                        </div>
 
-                        {/* Row 2: Location · Experience · Education (non-premium) */}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 ml-8.5 text-xs text-slate-400">
-                          {location && (
-                            <span className={`flex items-center gap-1 ${candidate.locationUnverified ? 'text-amber-500/80' : ''}`}>
-                              <MapPin size={11} className={candidate.locationUnverified ? 'text-amber-500/70' : 'text-slate-500'} />
-                              {location}
-                              {candidate.locationUnverified && (
-                                <span className="italic text-[10px] text-amber-500/60">(unverified)</span>
-                              )}
-                            </span>
+                          {/* Skills */}
+                          {skills.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {skills.map((skill) => {
+                                const isMatched = candidate.matchedSkills?.some(m => m.toLowerCase() === skill.toLowerCase());
+                                return (
+                                  <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 ${
+                                    isMatched
+                                      ? 'border-[#A89EFF] bg-[#432DD7]/30 text-white font-semibold'
+                                      : 'border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF]'
+                                  }`}>{skill}</span>
+                                );
+                              })}
+                            </div>
                           )}
-                          {!location && candidate.locationUnverified && (
-                            <span className="flex items-center gap-1 text-amber-500/70 italic">
-                              <MapPin size={11} className="text-amber-500/70" />
-                              Location unverified
-                            </span>
+                          {candidate.missingSkills?.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {candidate.missingSkills.map((skill) => (
+                                <span key={skill} className="text-[10px] rounded-md border border-red-700/40 bg-red-950/20 text-red-400 px-2 py-0.5 italic">missing: {skill}</span>
+                              ))}
+                            </div>
                           )}
-                          {experience && (
-                            <span className="flex items-center gap-1">
-                              <Clock size={11} className="text-slate-500" />
-                              {experience}
-                            </span>
-                          )}
-                          {education && !isPremiumInstitute(education) && (
-                            <span className="flex items-center gap-1">
-                              <GraduationCap size={11} />
-                              {education}
-                            </span>
-                          )}
-                        </div>
 
-                        {/* Skills */}
-                        {skills.length > 0 && (
-                          <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {skills.map((skill) => {
-                              const isMatched = candidate.matchedSkills?.some(
-                                (m) => m.toLowerCase() === skill.toLowerCase()
-                              );
-                              return (
-                                <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 ${
-                                  isMatched
-                                    ? 'border-[#A89EFF] bg-[#432DD7]/30 text-white font-semibold'
-                                    : 'border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF]'
-                                }`}>
-                                  {skill}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {/* Missing required skills */}
-                        {candidate.missingSkills?.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {candidate.missingSkills.map((skill) => (
-                              <span key={skill} className="text-[10px] rounded-md border border-red-700/40 bg-red-950/20 text-red-400 px-2 py-0.5 italic">
-                                missing: {skill}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {summaryText && (
-                          <div className="mt-2.5 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5">
-                            <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Summary</p>
-                            <p className="text-xs leading-relaxed text-slate-300">
-                              {summaryText}
-                            </p>
-                          </div>
-                        )}
-                        {/* Full profile — expandable */}
-                        {(candidate.about || candidate.languages?.length > 0) && (() => {
-                          const cardKey = linkedInUrl || candidate.name;
-                          const isExpanded = expandedCards.has(cardKey);
-                          const aboutText = candidate.about || null;
-                          return (
+                          {/* Expandable: Headline · About · Languages */}
+                          {hasExpandable && (
                             <div className="mt-2.5">
                               <button
                                 onClick={() => toggleCard(cardKey)}
@@ -1179,15 +1163,19 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 {isExpanded ? 'Hide full profile' : 'View full profile'}
                               </button>
                               {isExpanded && (
-                                <div className="mt-2 space-y-3 border-t border-slate-700/40 pt-2.5 text-xs text-slate-300">
-                                  {/* About / Snippet */}
-                                  {aboutText && (
+                                <div className="mt-2 space-y-3 border-t border-slate-700/40 pt-2.5 text-xs">
+                                  {candidate.headline && (
                                     <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
-                                      <p className="text-slate-400 leading-relaxed whitespace-pre-line">{aboutText}</p>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Headline</p>
+                                      <p className="text-slate-400 leading-relaxed">{candidate.headline}</p>
                                     </div>
                                   )}
-                                  {/* Languages */}
+                                  {candidate.about && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
+                                      <p className="text-slate-400 leading-relaxed whitespace-pre-line">{candidate.about}</p>
+                                    </div>
+                                  )}
                                   {candidate.languages?.length > 0 && (
                                     <div>
                                       <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Languages</p>
@@ -1201,27 +1189,37 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 </div>
                               )}
                             </div>
-                          );
-                        })()}
-
-                        {/* Footer: LinkedIn | contact (fetched) or Get Contact button */}
-                        <div className="mt-3 border-t border-slate-700/50 pt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-                          {linkedInUrl ? (
-                            <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
-                              🔗 View LinkedIn
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-600">No profile URL</span>
                           )}
-                          {/* Separator dot */}
-                          {linkedInUrl && <span className="text-slate-600 text-xs">·</span>}
-                          {/* If contact already fetched, show inline; otherwise show Get Contact button */}
+                        </div>
+
+                        {/* ── Footer ──────────────────────────────────── */}
+                        <div className="px-4 py-2.5 border-t border-slate-800 bg-slate-950/50 flex flex-wrap items-center gap-x-3 gap-y-2">
+                          {/* Left: LinkedIn + GitHub */}
+                          <div className="flex items-center gap-3">
+                            {linkedInUrl ? (
+                              <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
+                                🔗 LinkedIn
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-600">No profile URL</span>
+                            )}
+                            {candidate.githubUrl && (
+                              <>
+                                <span className="text-slate-700 text-xs">·</span>
+                                <a href={candidate.githubUrl} target="_blank" rel="noreferrer" className="text-xs text-slate-400 hover:text-white hover:underline font-medium">
+                                  GitHub
+                                </a>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Right: contact */}
                           {candidate.email || candidate.phone ? (
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1">
                               {candidate.email && (
                                 <a href={`mailto:${candidate.email}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 min-w-0">
                                   <Mail size={11} className="shrink-0" />
-                                  <span className="truncate max-w-55">{candidate.email}</span>
+                                  <span className="truncate max-w-[200px]">{candidate.email}</span>
                                 </a>
                               )}
                               {candidate.phone && (

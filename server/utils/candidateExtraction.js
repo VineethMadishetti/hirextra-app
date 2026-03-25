@@ -683,6 +683,8 @@ export function normalizeLinkedInProfiles(profiles) {
       headline: headline || null,
       totalExperience,
       openToWork: p.openToWork === true,
+      email: p.email || p.emailAddress || null,
+      phone: p.phone || p.phoneNumber || null,
       sources: [{ country: '', query: 'linkedin-search', snippetPreview: headline.substring(0, 100) }],
     }));
   }
@@ -797,8 +799,8 @@ export function formatCandidates(candidates) {
       : [],
     totalExperience: _str(c.totalExperience),
     about: _str(c.about),
-    email: c.contact?.email || null,
-    phone: c.contact?.phone || null,
+    email: c.contact?.email || c.email || null,
+    phone: c.contact?.phone || c.phone || null,
     enrichmentSource: c.contact?.source || null,
     enrichmentConfidence: c.contact?.confidence || null,
     sourceCountry: c.sourceCountry || c.foundIn || null,
@@ -827,6 +829,7 @@ export function formatCandidates(candidates) {
     stackOverflowUrl: c.stackOverflowUrl || null,
     githubStats: c.githubStats || null,
     completenessScore: c.completenessScore ?? null,
+    openToWork: c.openToWork === true,
   });
   });
 }
