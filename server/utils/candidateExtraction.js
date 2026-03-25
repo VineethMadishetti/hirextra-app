@@ -724,9 +724,76 @@ export function formatCandidates(candidates) {
   }));
 }
 
+/**
+ * Convert Apollo.io People Search response into internal candidate format.
+ * Apollo includes email/phone directly — no separate enrichment needed.
+ */
+export function normalizeApolloProfiles(people) {
+  if (!Array.isArray(people)) return [];
+
+  const seen = new Set();
+  const result = [];
+
+  for (const p of people) {
+    const linkedInUrl = p.linkedin_url || null;
+    if (!linkedInUrl) continue;
+
+    const normalized = linkedInUrl.split('?')[0].replace(/\/$/, '').toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    const fullName = p.name || [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || null;
+    if (!fullName) continue;
+
+    const email = p.email && p.email_status !== 'invalid' ? p.email : null;
+    const phone = p.phone_numbers?.[0]?.sanitized_number || null;
+
+    const location = [p.city, p.state, p.country].filter(Boolean).join(', ') || null;
+
+    const skills = Array.isArray(p.skills)
+      ? p.skills.map((s) => (typeof s === 'object' ? s.name || s : s)).filter(Boolean).slice(0, 15)
+      : [];
+
+    // Build experience text from employment history
+    const latestJob = Array.isArray(p.employment_history) ? p.employment_history[0] : null;
+    const company = p.organization?.name || latestJob?.organization_name || null;
+
+    result.push({
+      linkedInUrl,
+      normalizedUrl: normalized,
+      name: fullName,
+      jobTitle: _str(p.title),
+      company: _str(company),
+      location,
+      level: p.seniority || null,
+      education: null,
+      snippet: p.title || '',
+      foundIn: p.country || '',
+      sourceCountry: p.country || '',
+      about: null,
+      skills,
+      totalExperience: null,
+      experienceYears: null,
+      contact: email || phone
+        ? {
+            email: email || '',
+            phone: phone || '',
+            source: 'apollo',
+            confidence: p.email_status === 'verified' ? 95 : 70,
+          }
+        : null,
+      sources: [{ country: p.country || '', query: 'apollo-search', snippetPreview: p.title || '' }],
+    });
+  }
+
+  logger.info(`[Apollo] Normalized ${result.length} profiles`);
+  return result;
+}
+
 export default {
   extractCandidates,
   normalizeLinkedInProfiles,
+  normalizeApolloProfiles,
   extractName,
   extractJobInfo,
   extractLocation,

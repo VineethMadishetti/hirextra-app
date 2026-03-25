@@ -3,9 +3,11 @@ import { createRequire } from 'module';
 import aiSourcingService from '../utils/aiSourcingService.js';
 import cseService from '../utils/cseService.js';
 import apifyService from '../utils/apifyService.js';
+import apolloService from '../utils/apolloService.js';
 import {
   extractCandidates,
   normalizeLinkedInProfiles,
+  normalizeApolloProfiles,
   deduplicateCandidates,
   formatCandidates,
   mergeOsintData,
@@ -322,41 +324,66 @@ export const sourceCandidates = async (req, res) => {
     let allResults = [];
     let linkedInProfiles = [];
 
-    if (apifyService.isConfigured()) {
+    if (apolloService.isConfigured() || apifyService.isConfigured()) {
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
-
-      // ── HarvestAPI LinkedIn Profile Search — main candidate discovery ────
-      dataSource = 'apify';
-      const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
       const osintQueries = aiSourcingService.generateOsintQueries(parsed);
-      logger.info(
-        `[HarvestAPI] searchQuery="${linkedInParams.searchQuery}" titles=${linkedInParams.currentJobTitles.length} ` +
-        `seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages} | OSINT=${osintQueries.length} queries`
-      );
 
-      linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+      // ── Apollo.io — primary source (returns email directly) ──────────────
+      if (apolloService.isConfigured()) {
+        dataSource = 'apollo';
+        const apolloParams = aiSourcingService.buildApolloSearchParams(parsed);
+        logger.info(
+          `[Apollo] titles=${apolloParams.personTitles.length} loc=${apolloParams.personLocations.join('|')} ` +
+          `seniority=${apolloParams.personSeniorities.join(',')} keywords="${apolloParams.keywords}"`
+        );
 
-      // Auto-retry 1: 0 results → remove seniorityLevelIds (too restrictive)
-      if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
-        logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
-        linkedInProfiles = await apifyService.runLinkedInSearch({
-          ...linkedInParams,
-          seniorityLevelIds: [],
-        });
+        const { people, total } = await apolloService.searchPeopleMultiPage(apolloParams, maxCandidatesSafe);
+        logger.info(`[Apollo] ${total} total in DB, fetched ${people.length} profiles`);
+        linkedInProfiles = people;
+        candidates = normalizeApolloProfiles(people);
+
+        // Auto-retry: 0 results → remove seniority filter
+        if (candidates.length === 0 && apolloParams.personSeniorities.length > 0) {
+          logger.info('[Apollo] 0 results — retrying without seniority filter');
+          const { people: retryPeople } = await apolloService.searchPeopleMultiPage(
+            { ...apolloParams, personSeniorities: [] }, maxCandidatesSafe
+          );
+          linkedInProfiles = retryPeople;
+          candidates = normalizeApolloProfiles(retryPeople);
+        }
+
+      // ── HarvestAPI — fallback when Apollo not configured ─────────────────
+      } else {
+        dataSource = 'apify';
+        const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
+        logger.info(
+          `[HarvestAPI] searchQuery="${linkedInParams.searchQuery}" titles=${linkedInParams.currentJobTitles.length} ` +
+          `seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
+        );
+
+        linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+
+        if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
+          logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
+          linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
+        }
+
+        if (linkedInProfiles.length < 10 && linkedInParams.postFilteringMongoQuery) {
+          logger.info(`[HarvestAPI] ${linkedInProfiles.length} results — retrying without postFilteringMongoQuery`);
+          linkedInProfiles = await apifyService.runLinkedInSearch({
+            ...linkedInParams,
+            seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
+            postFilteringMongoQuery: null,
+            takePages: 8,
+          });
+        }
+
+        candidates = normalizeLinkedInProfiles(linkedInProfiles);
       }
 
-      // Auto-retry 2: <10 results → remove postFilteringMongoQuery + double pages
-      if (linkedInProfiles.length < 10 && linkedInParams.postFilteringMongoQuery) {
-        logger.info(`[HarvestAPI] ${linkedInProfiles.length} results — retrying without postFilteringMongoQuery`);
-        linkedInProfiles = await apifyService.runLinkedInSearch({
-          ...linkedInParams,
-          seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
-          postFilteringMongoQuery: null,
-          takePages: 8,
-        });
-      }
+      candidates = deduplicateCandidates(candidates);
 
-      if (linkedInProfiles.length === 0) {
+      if (candidates.length === 0) {
         return res.status(200).json({
           success: true, parseOnly: false,
           message: 'No candidate profiles found for this requirement set.',
@@ -364,9 +391,6 @@ export const sourceCandidates = async (req, res) => {
           summary: { totalDiscovered: 0, totalExtracted: 0, totalEnriched: 0, totalSaved: 0, timeMs: Date.now() - startedAt },
         });
       }
-
-      candidates = normalizeLinkedInProfiles(linkedInProfiles);
-      candidates = deduplicateCandidates(candidates);
 
       // ── OSINT: GitHub + Stack Overflow dorking (same Apify account) ──────
       if (osintQueries.length > 0) {
@@ -548,11 +572,13 @@ export const sourceCandidates = async (req, res) => {
 
     candidates = candidates.slice(0, maxCandidatesSafe);
 
-    if (enrichContacts) {
+    // Apollo already includes email — only run Skrapp for non-Apollo candidates
+    if (enrichContacts && dataSource !== 'apollo') {
       const enrichCount = Math.min(candidates.length, enrichTopNSafe);
       for (let i = 0; i < enrichCount; i += 1) {
         try {
           const candidate = candidates[i];
+          if (candidate.contact?.email) continue; // already has email, skip
           const enriched = await contactEnrichmentService.enrichCandidate({
             linkedInUrl: candidate.linkedInUrl,
             name: candidate.name,

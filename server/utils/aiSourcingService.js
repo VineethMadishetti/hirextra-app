@@ -658,6 +658,45 @@ export function buildLinkedInSearchParams(parsedInput) {
   };
 }
 
+// Apollo.io seniority values
+const APOLLO_SENIORITY_MAP = {
+  junior:    ['entry', 'individual_contributor'],
+  mid:       ['individual_contributor', 'senior'],
+  senior:    ['senior'],
+  lead:      ['senior', 'manager'],
+  executive: ['director', 'vp', 'c_suite'],
+};
+
+/**
+ * Build Apollo.io People Search parameters from parsed JD requirements.
+ */
+export function buildApolloSearchParams(parsedInput) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+
+  const personTitles = uniqueStrings(
+    [parsed.job_title.main, ...parsed.job_title.synonyms],
+    5
+  );
+
+  const personLocations = parseMultipleLocations(parsed.location).map(expandLocationForLinkedIn);
+
+  const level = parsed.experience_level.toLowerCase();
+  const personSeniorities = APOLLO_SENIORITY_MAP[level] || ['senior'];
+
+  const keywords = uniqueStrings(
+    parsed.must_have_skills.length ? parsed.must_have_skills : parsed.required_skills,
+    4
+  ).join(' ');
+
+  return {
+    personTitles,
+    personLocations,
+    personSeniorities,
+    keywords,
+    perPage: 25,
+  };
+}
+
 export function determineTargetCountries(location, isRemote) {
   const normalized = String(location || '').toLowerCase();
 
@@ -703,6 +742,7 @@ export default {
   buildAliases,
   buildBooleanQueries,
   generateSearchQueries,
+  buildApolloSearchParams,
   generateLinkedInQueries,
   generateOsintQueries,
   buildLinkedInSearchParams,
