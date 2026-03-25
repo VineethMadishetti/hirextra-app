@@ -679,10 +679,32 @@ export function normalizeLinkedInProfiles(profiles) {
       sourceCountry: '',
       about: p.about || p.summary || null,
       skills,
-      profilePic: p.profilePictureUrl || p.imageUrl || p.profilePicture || null,
+      profilePic: p.photo || p.profilePicture?.url || null,
       headline: headline || null,
       totalExperience,
       openToWork: p.openToWork === true,
+      premium: p.premium === true,
+      verified: p.verified === true,
+      connectionsCount: typeof p.connectionsCount === 'number' ? p.connectionsCount : null,
+      workplaceType: currentExp?.workplaceType || currentPos?.workplaceType || null,
+      certifications: Array.isArray(p.certifications)
+        ? p.certifications.slice(0, 3).map((cert) => ({
+            title: cert.title || null,
+            issuedBy: cert.issuedBy || null,
+            issuedAt: cert.issuedAt || null,
+          }))
+        : [],
+      experienceTimeline: Array.isArray(p.experience)
+        ? p.experience.slice(0, 5).map((e) => ({
+            title: e.title || e.position || null,
+            company: e.companyName || e.company || null,
+            duration: e.duration || null,
+            startDate: e.startDate || null,
+            endDate: e.endDate || null,
+            isCurrent: e.isCurrent === true,
+            workplaceType: e.workplaceType || null,
+          }))
+        : [],
       email: p.email || p.emailAddress || null,
       phone: p.phone || p.phoneNumber || null,
       sources: [{ country: '', query: 'linkedin-search', snippetPreview: headline.substring(0, 100) }],
@@ -830,6 +852,12 @@ export function formatCandidates(candidates) {
     githubStats: c.githubStats || null,
     completenessScore: c.completenessScore ?? null,
     openToWork: c.openToWork === true,
+    premium: c.premium === true,
+    verified: c.verified === true,
+    connectionsCount: c.connectionsCount ?? null,
+    workplaceType: c.workplaceType || null,
+    certifications: Array.isArray(c.certifications) ? c.certifications : [],
+    experienceTimeline: Array.isArray(c.experienceTimeline) ? c.experienceTimeline : [],
   });
   });
 }

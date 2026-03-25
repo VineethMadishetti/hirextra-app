@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Award,
+  BadgeCheck,
   Briefcase,
   Building2,
   Bot,
@@ -17,8 +19,11 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Monitor,
   Phone,
+  Star,
   UploadCloud,
+  Users,
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
@@ -1121,7 +1126,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const initials = fullName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
                     const cardKey = linkedInUrl || fullName;
                     const isExpanded = expandedCards.has(cardKey);
-                    const hasExpandable = candidate.about || candidate.headline || candidate.languages?.length > 0;
+                    const hasExpandable = candidate.about || candidate.headline || candidate.languages?.length > 0 || candidate.certifications?.length > 0 || candidate.experienceTimeline?.length > 0;
 
                     return (
                       <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-900/80 overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)]">
@@ -1150,6 +1155,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     )}
                                     {seniority && (
                                       <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold">{seniority}</span>
+                                    )}
+                                    {candidate.premium && (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] rounded-full border border-yellow-600/60 bg-yellow-950/40 text-yellow-300 px-2 py-0.5 font-bold">
+                                        <Star size={9} className="fill-yellow-400 text-yellow-400" />Premium
+                                      </span>
+                                    )}
+                                    {candidate.verified && (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] rounded-full border border-sky-600/50 bg-sky-950/30 text-sky-300 px-2 py-0.5 font-bold">
+                                        <BadgeCheck size={10} />Verified
+                                      </span>
                                     )}
                                     {badges.filter(b => !(b.type === 'availability' && candidate.openToWork)).map((b) => (
                                       <span key={b.label} className={`inline-flex items-center text-[10px] rounded-full border px-2 py-0.5 font-semibold ${
@@ -1200,6 +1215,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     {education && !isPremiumInstitute(education) && (
                                       <span className="flex items-center gap-1">
                                         <GraduationCap size={11} />{education}
+                                      </span>
+                                    )}
+                                    {candidate.workplaceType && (
+                                      <span className="flex items-center gap-1">
+                                        <Monitor size={11} className="text-slate-500" />{candidate.workplaceType}
+                                      </span>
+                                    )}
+                                    {candidate.connectionsCount > 0 && (
+                                      <span className="flex items-center gap-1">
+                                        <Users size={11} className="text-slate-500" />{candidate.connectionsCount.toLocaleString()} connections
                                       </span>
                                     )}
                                   </div>
@@ -1262,6 +1287,45 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                       <div className="flex flex-wrap gap-1.5">
                                         {candidate.languages.map((lang, i) => (
                                           <span key={i} className="text-[11px] rounded-md border border-slate-600 bg-slate-800 text-slate-300 px-2 py-0.5">{lang}</span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {candidate.experienceTimeline?.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-2">Experience</p>
+                                      <div className="space-y-2">
+                                        {candidate.experienceTimeline.map((exp, i) => (
+                                          <div key={i} className="flex gap-2.5">
+                                            <div className="flex flex-col items-center shrink-0 pt-0.5">
+                                              <div className={`w-2 h-2 rounded-full border ${exp.isCurrent ? 'border-indigo-400 bg-indigo-500' : 'border-slate-600 bg-slate-700'}`} />
+                                              {i < candidate.experienceTimeline.length - 1 && <div className="w-px flex-1 bg-slate-700/60 mt-1" />}
+                                            </div>
+                                            <div className="pb-2 min-w-0">
+                                              <p className="text-slate-200 font-medium text-xs leading-tight">{exp.title || '—'}</p>
+                                              <p className="text-slate-400 text-[11px] mt-0.5">{exp.company || ''}</p>
+                                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                                                {exp.duration && <span>{exp.duration}</span>}
+                                                {exp.workplaceType && <span className="border border-slate-700 rounded px-1">{exp.workplaceType}</span>}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {candidate.certifications?.length > 0 && (
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Certifications</p>
+                                      <div className="space-y-1.5">
+                                        {candidate.certifications.map((cert, i) => (
+                                          <div key={i} className="flex items-start gap-2">
+                                            <Award size={11} className="text-amber-400 shrink-0 mt-0.5" />
+                                            <div className="min-w-0">
+                                              <p className="text-slate-300 text-[11px] font-medium leading-tight">{cert.title || '—'}</p>
+                                              {cert.issuedBy && <p className="text-slate-500 text-[10px]">{cert.issuedBy}{cert.issuedAt ? ` · ${cert.issuedAt}` : ''}</p>}
+                                            </div>
+                                          </div>
                                         ))}
                                       </div>
                                     </div>
