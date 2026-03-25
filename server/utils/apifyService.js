@@ -2,8 +2,8 @@
  * apifyService.js
  *
  * Two Apify actors:
- *   1. harvestapi~linkedin-profile-search  — main candidate discovery (structured profiles)
- *   2. apify~google-search-scraper         — OSINT only (GitHub/SO dorking)
+ *   1. harvestapi/linkedin-company-employees  — main candidate discovery (structured profiles)
+ *   2. apify/google-search-scraper            — OSINT only (GitHub/SO dorking)
  */
 
 import axios from 'axios';

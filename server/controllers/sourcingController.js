@@ -315,7 +315,7 @@ export const sourceCandidates = async (req, res) => {
 
     // ── Candidate Discovery ───────────────────────────────────────────────────
     //
-    // Apify (Google search) — Boolean queries + OpenAI snippet enrichment.
+    // HarvestAPI LinkedIn Company Employees — structured profile discovery.
     //
     let candidates = [];
     let dataSource = 'unknown';
@@ -411,7 +411,7 @@ export const sourceCandidates = async (req, res) => {
       // We still run it if the snippet (headline) has useful info to parse.
       const aiMap = await aiEnrichCandidates(linkedInProfiles.map(p => ({
         title: p.headline || '',
-        link:  p.profileUrl || p.linkedInUrl || '',
+        link:  p.linkedinUrl || '',
         snippet: p.about || p.headline || '',
         query: 'linkedin-search',
       })));
@@ -437,7 +437,6 @@ export const sourceCandidates = async (req, res) => {
     }
 
     // ── Step 1: Experience hard filter ────────────────────────────────────────
-    // Serper: text like "5+ years" parsed as a number.
     // Rejects anyone clearly below the required minimum.
     const minExpYears = Number(parsed.experience_years || 0);
     if (minExpYears > 0) {
