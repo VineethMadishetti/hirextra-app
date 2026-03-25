@@ -609,28 +609,33 @@ function expandLocationForLinkedIn(city) {
 export function buildLinkedInSearchParams(parsedInput) {
   const parsed = normalizeParsedRequirements(parsedInput);
 
-  // Short searchQuery: title + top skill, max 10 words total
+  // Short searchQuery: title + top skill, with duplicate words removed
   const topSkill = parsed.must_have_skills[0] || parsed.required_skills[0] || '';
-  const searchQuery = [parsed.job_title.main, topSkill]
-    .filter(Boolean)
-    .join(' ')
-    .split(' ')
-    .slice(0, 10)
+  const searchQuery = [...new Set(
+    [parsed.job_title.main, topSkill]
+      .filter(Boolean)
+      .join(' ')
+      .split(/\s+/)
+      .map((word) => word.trim())
+      .filter(Boolean)
+  )]
+    .slice(0, 8)
     .join(' ');
 
-  // currentJobTitles: main + synonyms (max 5)
+  // currentJobTitles: main + synonyms (max 3) to avoid over-constraining the actor
   const currentJobTitles = uniqueStrings(
     [parsed.job_title.main, ...parsed.job_title.synonyms],
-    5
+    3
   );
 
   // Expand each city to full LinkedIn location string so HarvestAPI can resolve it.
   // "Hyderabad" → "Hyderabad, Telangana, India"  |  "Bangalore, India" → kept as-is
   const locations = parseMultipleLocations(parsed.location).map(expandLocationForLinkedIn);
 
-  const yearsOfExperienceIds = mapExperienceYearsToIds(parsed.experience_years);
+  // Keep actor-side recall broad. Experience and industry are filtered/scored server-side.
+  const yearsOfExperienceIds = [];
   const seniorityLevelIds = mapExperienceLevelToSeniorityIds(parsed.experience_level);
-  const industryIds = mapIndustryToIds(parsed.industry);
+  const industryIds = [];
 
   // postFilteringMongoQuery: narrow by top 1-2 must-have skills (relaxed OR filter)
   let postFilteringMongoQuery = null;

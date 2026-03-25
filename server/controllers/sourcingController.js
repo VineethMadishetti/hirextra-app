@@ -378,6 +378,21 @@ export const sourceCandidates = async (req, res) => {
             });
           }
 
+          if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
+            logger.info('[HarvestAPI] 0 results - retrying with broad recall search (no actor-side location/seniority filters)');
+            linkedInProfiles = await apifyService.runLinkedInSearch({
+              ...linkedInParams,
+              searchQuery: parsed.job_title.main,
+              currentJobTitles: [parsed.job_title.main],
+              locations: [],
+              yearsOfExperienceIds: [],
+              seniorityLevelIds: [],
+              industryIds: [],
+              postFilteringMongoQuery: null,
+              takePages: 10,
+            });
+          }
+
           candidates = normalizeLinkedInProfiles(linkedInProfiles);
         }
 
@@ -404,6 +419,21 @@ export const sourceCandidates = async (req, res) => {
             seniorityLevelIds: linkedInProfiles.length === 0 ? [] : linkedInParams.seniorityLevelIds,
             postFilteringMongoQuery: null,
             takePages: 8,
+          });
+        }
+
+        if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
+          logger.info('[HarvestAPI] 0 results - retrying with broad recall search (no actor-side location/seniority filters)');
+          linkedInProfiles = await apifyService.runLinkedInSearch({
+            ...linkedInParams,
+            searchQuery: parsed.job_title.main,
+            currentJobTitles: [parsed.job_title.main],
+            locations: [],
+            yearsOfExperienceIds: [],
+            seniorityLevelIds: [],
+            industryIds: [],
+            postFilteringMongoQuery: null,
+            takePages: 10,
           });
         }
 
@@ -465,7 +495,7 @@ export const sourceCandidates = async (req, res) => {
         logger.info(`[OpenAI] Candidate normalization merge complete for ${aiMap.size} profiles`);
       }
 
-    } else if (candidates.length === 0) {
+    } else {
       // ── No source available or all fell through ─────────────────────────────
       searchQueries = aiSourcingService.generateSearchQueries(parsed, maxQueriesSafe);
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
