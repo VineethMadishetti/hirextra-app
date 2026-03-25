@@ -658,14 +658,49 @@ export function buildLinkedInSearchParams(parsedInput) {
   };
 }
 
-// Apollo.io seniority values
+// Apollo.io valid seniority values: owner, founder, c_suite, partner, vp, head, director, manager, senior, entry, intern
 const APOLLO_SENIORITY_MAP = {
-  junior:    ['entry', 'individual_contributor'],
-  mid:       ['individual_contributor', 'senior'],
+  junior:    ['entry'],
+  mid:       ['entry', 'senior'],
   senior:    ['senior'],
   lead:      ['senior', 'manager'],
   executive: ['director', 'vp', 'c_suite'],
 };
+
+// Apollo uses simpler location strings than LinkedIn.
+// Apollo recognizes: "Hyderabad, India", "Pune, India", "Bangalore, India" etc.
+const CITY_TO_APOLLO_LOCATION = {
+  bangalore:   'Bangalore, India',
+  bengaluru:   'Bangalore, India',
+  hyderabad:   'Hyderabad, India',
+  pune:        'Pune, India',
+  mumbai:      'Mumbai, India',
+  delhi:       'Delhi, India',
+  'new delhi': 'New Delhi, India',
+  chennai:     'Chennai, India',
+  kolkata:     'Kolkata, India',
+  gurgaon:     'Gurgaon, India',
+  gurugram:    'Gurgaon, India',
+  noida:       'Noida, India',
+  ahmedabad:   'Ahmedabad, India',
+  jaipur:      'Jaipur, India',
+  kochi:       'Kochi, India',
+  coimbatore:  'Coimbatore, India',
+  nagpur:      'Nagpur, India',
+  indore:      'Indore, India',
+  chandigarh:  'Chandigarh, India',
+  london:      'London, United Kingdom',
+  berlin:      'Berlin, Germany',
+  toronto:     'Toronto, Canada',
+  sydney:      'Sydney, Australia',
+  singapore:   'Singapore',
+  dubai:       'Dubai, United Arab Emirates',
+};
+
+function expandLocationForApollo(city) {
+  const key = city.trim().toLowerCase().split(',')[0].trim();
+  return CITY_TO_APOLLO_LOCATION[key] || city;
+}
 
 /**
  * Build Apollo.io People Search parameters from parsed JD requirements.
@@ -678,7 +713,7 @@ export function buildApolloSearchParams(parsedInput) {
     5
   );
 
-  const personLocations = parseMultipleLocations(parsed.location).map(expandLocationForLinkedIn);
+  const personLocations = parseMultipleLocations(parsed.location).map(expandLocationForApollo);
 
   const level = parsed.experience_level.toLowerCase();
   const personSeniorities = APOLLO_SENIORITY_MAP[level] || ['senior'];

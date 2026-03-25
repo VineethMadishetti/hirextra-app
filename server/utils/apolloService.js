@@ -39,14 +39,16 @@ class ApolloService {
     const perPage = Math.min(Math.max(Number(params.perPage) || 25, 1), 100);
 
     const body = {
-      api_key:            key,
-      person_titles:      params.personTitles      || [],
-      person_locations:   params.personLocations   || [],
-      person_seniorities: params.personSeniorities || [],
-      q_keywords:         params.keywords          || '',
-      per_page:           perPage,
+      api_key:  key,
+      per_page: perPage,
       page,
     };
+
+    // Only include non-empty arrays — Apollo returns 422 on some empty array fields
+    if (params.personTitles?.length)      body.person_titles      = params.personTitles;
+    if (params.personLocations?.length)   body.person_locations   = params.personLocations;
+    if (params.personSeniorities?.length) body.person_seniorities = params.personSeniorities;
+    if (params.keywords?.trim())          body.q_keywords         = params.keywords.trim();
 
     logger.info(
       `[Apollo] Searching — titles=${body.person_titles.length} loc=${body.person_locations.join('|')} ` +
@@ -64,9 +66,9 @@ class ApolloService {
       logger.info(`[Apollo] ${total} total profiles found, received ${people.length} on page ${page}`);
       return { people, total };
     } catch (err) {
-      const status = err.response?.status;
-      const msg    = err.response?.data?.message || err.message;
-      logger.error(`[Apollo] Search failed: HTTP ${status || '?'} — ${msg}`);
+      const status  = err.response?.status;
+      const errBody = JSON.stringify(err.response?.data || {});
+      logger.error(`[Apollo] Search failed: HTTP ${status || '?'} — ${errBody}`);
       return { people: [], total: 0 };
     }
   }
