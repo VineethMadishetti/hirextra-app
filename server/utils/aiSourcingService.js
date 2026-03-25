@@ -98,6 +98,45 @@ function expandByAliasMap(items, aliasMap) {
   return uniqueStrings(expanded, 20);
 }
 
+function deriveTitleVariants(title) {
+  const clean = String(title || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+
+  const variants = [clean];
+  const noSeniority = clean
+    .replace(/\b(senior|sr\.?|junior|jr\.?|lead|principal|staff|associate|mid|mid-level|mid level)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (noSeniority && noSeniority.toLowerCase() !== clean.toLowerCase()) {
+    variants.push(noSeniority);
+  }
+
+  const normalized = noSeniority || clean;
+  const lower = normalized.toLowerCase();
+
+  if (/\bbackend\b/.test(lower)) {
+    variants.push('Backend Developer', 'Backend Engineer');
+  }
+  if (/\bfrontend\b|\bfront end\b/.test(lower)) {
+    variants.push('Frontend Developer', 'Frontend Engineer');
+  }
+  if (/\bfull\s*stack\b/.test(lower)) {
+    variants.push('Full Stack Developer', 'Full Stack Engineer');
+  }
+  if (/\bjava\b/.test(lower)) {
+    variants.push('Java Developer', 'Java Engineer');
+    if (/\bbackend\b/.test(lower)) {
+      variants.push('Java Backend Developer');
+    }
+  }
+  if (/\breact\b/.test(lower)) {
+    variants.push('React Developer', 'Frontend Developer');
+  }
+
+  return uniqueStrings(variants, 10);
+}
+
 export function normalizeParsedRequirements(raw = {}) {
   const job_title = normalizeTitleObject({
     ...(raw.job_title || {}),
@@ -271,7 +310,10 @@ Your JSON Output:
 }
 
 export function buildAliases(parsed) {
-  const titleBase = [parsed?.job_title?.main, ...(parsed?.job_title?.synonyms || [])];
+  const titleBase = [
+    ...deriveTitleVariants(parsed?.job_title?.main),
+    ...(parsed?.job_title?.synonyms || []),
+  ];
   const titleAliases = expandByAliasMap(uniqueStrings(titleBase, 6), TITLE_ALIAS_MAP);
 
   const skillBase = uniqueStrings(
@@ -608,25 +650,27 @@ function expandLocationForLinkedIn(city) {
  */
 export function buildLinkedInSearchParams(parsedInput) {
   const parsed = normalizeParsedRequirements(parsedInput);
+  const aliases = buildAliases(parsed);
 
-  // Short searchQuery: title + top skill, with duplicate words removed
-  const topSkill = parsed.must_have_skills[0] || parsed.required_skills[0] || '';
-  const searchQuery = [...new Set(
-    [parsed.job_title.main, topSkill]
-      .filter(Boolean)
-      .join(' ')
-      .split(/\s+/)
-      .map((word) => word.trim())
-      .filter(Boolean)
-  )]
-    .slice(0, 8)
-    .join(' ');
-
-  // currentJobTitles: main + synonyms (max 3) to avoid over-constraining the actor
-  const currentJobTitles = uniqueStrings(
-    [parsed.job_title.main, ...parsed.job_title.synonyms],
+  const titleTerms = uniqueStrings(
+    aliases.titleAliases.length ? aliases.titleAliases : [parsed.job_title.main],
+    4
+  );
+  const skillTerms = uniqueStrings(
+    parsed.must_have_skills.length ? parsed.must_have_skills : parsed.required_skills,
     3
   );
+
+  const titleClause = titleTerms.length
+    ? `(${titleTerms.map((title) => `"${title}"`).join(' OR ')})`
+    : `"${parsed.job_title.main}"`;
+  const skillClause = skillTerms.length
+    ? `(${skillTerms.map((skill) => `"${skill}"`).join(' OR ')})`
+    : '';
+  const searchQuery = [titleClause, skillClause].filter(Boolean).join(' AND ');
+
+  // Avoid exact title filters. Real candidate titles vary too much for currentJobTitles to be reliable.
+  const currentJobTitles = [];
 
   // Expand each city to full LinkedIn location string so HarvestAPI can resolve it.
   // "Hyderabad" → "Hyderabad, Telangana, India"  |  "Bangalore, India" → kept as-is
@@ -637,18 +681,7 @@ export function buildLinkedInSearchParams(parsedInput) {
   const seniorityLevelIds = mapExperienceLevelToSeniorityIds(parsed.experience_level);
   const industryIds = [];
 
-  // postFilteringMongoQuery: narrow by top 1-2 must-have skills (relaxed OR filter)
-  let postFilteringMongoQuery = null;
-  const filterSkills = parsed.must_have_skills.slice(0, 2);
-  if (filterSkills.length === 1) {
-    postFilteringMongoQuery = JSON.stringify({
-      skills: { $regex: filterSkills[0], $options: 'i' },
-    });
-  } else if (filterSkills.length >= 2) {
-    postFilteringMongoQuery = JSON.stringify({
-      $or: filterSkills.map((s) => ({ skills: { $regex: s, $options: 'i' } })),
-    });
-  }
+  const postFilteringMongoQuery = null;
 
   return {
     searchQuery,

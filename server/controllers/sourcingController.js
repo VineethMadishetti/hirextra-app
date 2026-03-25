@@ -382,8 +382,7 @@ export const sourceCandidates = async (req, res) => {
             logger.info('[HarvestAPI] 0 results - retrying with broad recall search (no actor-side location/seniority filters)');
             linkedInProfiles = await apifyService.runLinkedInSearch({
               ...linkedInParams,
-              searchQuery: parsed.job_title.main,
-              currentJobTitles: [parsed.job_title.main],
+              currentJobTitles: [],
               locations: [],
               yearsOfExperienceIds: [],
               seniorityLevelIds: [],
@@ -426,8 +425,7 @@ export const sourceCandidates = async (req, res) => {
           logger.info('[HarvestAPI] 0 results - retrying with broad recall search (no actor-side location/seniority filters)');
           linkedInProfiles = await apifyService.runLinkedInSearch({
             ...linkedInParams,
-            searchQuery: parsed.job_title.main,
-            currentJobTitles: [parsed.job_title.main],
+            currentJobTitles: [],
             locations: [],
             yearsOfExperienceIds: [],
             seniorityLevelIds: [],
