@@ -9,9 +9,9 @@ import {
   normalizeApolloProfiles,
   deduplicateCandidates,
   formatCandidates,
-  mergeCandidateWithAi,
   mergeOsintData,
 } from '../utils/candidateExtraction.js';
+import { mergeCandidateWithAi } from '../utils/candidateProfileNormalizer.js';
 import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import githubService from '../utils/githubService.js';
