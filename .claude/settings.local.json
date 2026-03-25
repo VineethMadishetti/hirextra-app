@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(node fix_final.mjs)",
-      "Bash(node -e \":*)",
-      "Bash(node patch_sourcing.js)"
-    ]
-  }
-}

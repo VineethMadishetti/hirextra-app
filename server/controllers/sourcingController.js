@@ -351,7 +351,7 @@ export const sourceCandidates = async (req, res) => {
           ...linkedInParams,
           locations: [],
           seniorityLevelIds: [],
-          takePages: 8,
+          takePages: 1,
         });
       }
 

@@ -2,7 +2,7 @@
  * apifyService.js
  *
  * Two Apify actors:
- *   1. harvestapi~linkedin-company-employees  — main candidate discovery (structured profiles)
+ *   1. harvestapi~linkedin-profile-search      — main candidate discovery (structured profiles)
  *   2. apify/google-search-scraper            — OSINT only (GitHub/SO dorking)
  */
 
@@ -11,7 +11,7 @@ import logger from './logger.js';
 
 const APIFY_BASE           = 'https://api.apify.com/v2';
 const ACTOR_ID             = 'apify~google-search-scraper';
-const LINKEDIN_ACTOR_ID    = 'harvestapi~linkedin-company-employees';
+const LINKEDIN_ACTOR_ID    = 'harvestapi~linkedin-profile-search';
 const POLL_INTERVAL        = 3000;   // ms between status polls
 const MAX_WAIT_MS          = 180000; // 3-minute hard timeout
 
@@ -85,7 +85,7 @@ class ApifyService {
       return [];
     }
 
-    const takePages = Math.min(Math.max(Number(params.takePages) || 4, 1), 20);
+    const takePages = Math.min(Math.max(Number(params.takePages) || 1, 1), 20);
     logger.info(
       `[Apify] LinkedIn search — titles=${currentJobTitles.join('|')} | loc=${(params.locations || []).join(',')} | seniority=${(params.seniorityLevelIds || []).join(',')} | pages=${takePages}`
     );
@@ -98,6 +98,7 @@ class ApifyService {
       industryIds:           params.industryIds            || [],
       profileScraperMode:    params.profileScraperMode    || 'Full',
       takePages,
+      maxItems:              3,
       proxy: { useApifyProxy: true },
     };
     if (params.postFilteringMongoQuery) {

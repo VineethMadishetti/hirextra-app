@@ -676,7 +676,7 @@ export function buildLinkedInSearchParams(parsedInput) {
     seniorityLevelIds,
     industryIds,
     profileScraperMode: 'Full',
-    takePages: 4,
+    takePages: 1,
     postFilteringMongoQuery: null,
   };
 }
