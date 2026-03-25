@@ -140,7 +140,7 @@ export const enrichContact = async (req, res) => {
           email: null,
           phone: null,
           source: 'error',
-          error: result.error || 'Contact enrichment providers not configured. Add PROXYCURL_API_KEY, SKRAPP_API_KEY, PDL_API_KEY, or LUSHA_API_KEY to server .env',
+          error: result.error || 'Contact enrichment providers not configured. Add APOLLO_API_KEY, SKRAPP_API_KEY, or import PDL contact data into the candidate database.',
         },
       });
     }
@@ -424,4 +424,3 @@ export const clearEnrichmentCache = async (req, res) => {
     });
   }
 };
-

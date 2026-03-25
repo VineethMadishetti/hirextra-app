@@ -1,4 +1,8 @@
 import logger from './logger.js';
+import {
+  canonicalizeCandidateProfile,
+  mergeCandidateWithAi,
+} from './candidateProfileNormalizer.js';
 
 /**
  * Candidate extraction and deduplication utilities for AI sourcing results.
@@ -559,7 +563,7 @@ export function normalizeLinkedInProfiles(profiles) {
       .map((s) => (s && typeof s === 'object' ? s.name : s))
       .filter((s) => s && typeof s === 'string');
 
-    result.push({
+    result.push(canonicalizeCandidateProfile({
       linkedInUrl,
       normalizedUrl: normalized,
       name: fullName,
@@ -581,7 +585,7 @@ export function normalizeLinkedInProfiles(profiles) {
         query: 'linkedin-search',
         snippetPreview: headline.substring(0, 100),
       }],
-    });
+    }));
   }
 
   logger.info(`[HarvestAPI] Normalized ${result.length} LinkedIn profiles`);
@@ -677,7 +681,9 @@ function _str(v) {
 }
 
 export function formatCandidates(candidates) {
-  return candidates.map((c) => ({
+  return candidates.map((candidate) => {
+    const c = canonicalizeCandidateProfile(candidate);
+    return ({
     linkedInUrl: c.linkedInUrl,
     linkedinUrl: c.linkedInUrl,
     name: _str(c.name),
@@ -721,7 +727,9 @@ export function formatCandidates(candidates) {
     githubUrl: c.githubUrl || null,
     stackOverflowUrl: c.stackOverflowUrl || null,
     githubStats: c.githubStats || null,
-  }));
+    completenessScore: c.completenessScore ?? null,
+  });
+  });
 }
 
 /**
@@ -758,7 +766,7 @@ export function normalizeApolloProfiles(people) {
     const latestJob = Array.isArray(p.employment_history) ? p.employment_history[0] : null;
     const company = p.organization?.name || latestJob?.organization_name || null;
 
-    result.push({
+    result.push(canonicalizeCandidateProfile({
       linkedInUrl,
       normalizedUrl: normalized,
       name: fullName,
@@ -779,11 +787,11 @@ export function normalizeApolloProfiles(people) {
             email: email || '',
             phone: phone || '',
             source: 'apollo',
-            confidence: p.email_status === 'verified' ? 95 : 70,
+            confidence: p.email_status === 'verified' ? 0.95 : 0.7,
           }
         : null,
       sources: [{ country: p.country || '', query: 'apollo-search', snippetPreview: p.title || '' }],
-    });
+    }));
   }
 
   logger.info(`[Apollo] Normalized ${result.length} profiles`);
@@ -791,6 +799,7 @@ export function normalizeApolloProfiles(people) {
 }
 
 export default {
+  canonicalizeCandidateProfile,
   extractCandidates,
   normalizeLinkedInProfiles,
   normalizeApolloProfiles,
@@ -806,4 +815,5 @@ export default {
   rankCandidates,
   deduplicateCandidates,
   formatCandidates,
+  mergeCandidateWithAi,
 };

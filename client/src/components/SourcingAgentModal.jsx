@@ -520,7 +520,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         })();
       }
       if (data?.parseOnly) {
-        toast('Requirements parsed. Add SERPER_API_KEY to enable candidate discovery.', { icon: 'ℹ️' });
+        toast('Requirements parsed. Add APOLLO_API_KEY or APIFY_API_KEY to enable candidate discovery.', { icon: 'ℹ️' });
       } else {
         toast.success(`Internet search complete. ${data?.summary?.totalExtracted || 0} candidates found.`);
       }
@@ -575,7 +575,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const handleExportCSV = () => {
     if (!candidates.length) return;
     const escape = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-    const headers = ['Name', 'Job Title', 'Company', 'Location', 'Skills', 'Education', 'Total Experience', 'LinkedIn URL', 'Email', 'Phone', 'Source Country', 'Pipeline Stage'];
+    const headers = ['Name', 'Job Title', 'Company', 'Location', 'Skills', 'Education', 'Total Experience', 'Match Score', 'About', 'LinkedIn URL', 'Email', 'Phone', 'Source Country', 'Pipeline Stage'];
     const rows = candidates.map((c) => [
       escape(c.name),
       escape(c.jobTitle || c.title),
@@ -584,6 +584,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       escape(Array.isArray(c.skills) ? c.skills.join(', ') : (c.skills || '')),
       escape(c.education),
       escape(c.totalExperience),
+      escape(c.matchScore),
+      escape(c.about || c.snippet || ''),
       escape(c.linkedInUrl || c.linkedinUrl),
       escape(c.email),
       escape(c.phone),
@@ -1002,7 +1004,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
               {parseOnly && (
                 <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-200">
-                  Candidate discovery is paused because `GOOGLE_CSE_API_KEY` is missing. Requirement extraction is complete.
+                  Candidate discovery is paused because no internet sourcing provider is configured. Add `APOLLO_API_KEY` or `APIFY_API_KEY`.
                 </div>
               )}
 
@@ -1016,9 +1018,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const fullName    = candidate.fullName || candidate.name || 'Unknown';
                     const jobTitle    = candidate.jobTitle || candidate.title || '';
                     const company     = candidate.company || '';
-                    const experience  = candidate.experience || candidate.totalExperience || '';
+                    const experience  = candidate.experience || candidate.totalExperience || (candidate.experienceYears ? `${candidate.experienceYears}+ years` : '');
                     const education   = candidate.education || extractEducationFromSnippet(candidate.snippet);
                     const location    = candidate.location || candidate.locality || '';
+                    const summaryText = candidate.about || candidate.snippet || '';
 
                     // Skills: DB candidates have a comma string; internet candidates have an array
                     const rawSkills = candidate.skills;
@@ -1151,6 +1154,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 missing: {skill}
                               </span>
                             ))}
+                          </div>
+                        )}
+                        {summaryText && (
+                          <div className="mt-2.5 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5">
+                            <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Summary</p>
+                            <p className="text-xs leading-relaxed text-slate-300">
+                              {summaryText}
+                            </p>
                           </div>
                         )}
                         {/* Full profile — expandable */}
@@ -1320,4 +1331,3 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     </div>
   );
 }
-

@@ -5,11 +5,11 @@ import cseService from '../utils/cseService.js';
 import apifyService from '../utils/apifyService.js';
 import apolloService from '../utils/apolloService.js';
 import {
-  extractCandidates,
   normalizeLinkedInProfiles,
   normalizeApolloProfiles,
   deduplicateCandidates,
   formatCandidates,
+  mergeCandidateWithAi,
   mergeOsintData,
 } from '../utils/candidateExtraction.js';
 import { aiEnrichCandidates } from '../utils/aiCandidateExtraction.js';
@@ -18,7 +18,7 @@ import githubService from '../utils/githubService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
 import SourcingSession from '../models/SourcingSession.js';
-import { scoreCandidates, bucketByMatchCategory } from '../utils/matchScorer.js';
+import { scoreCandidates, bucketByMatchCategory, locationMatches } from '../utils/matchScorer.js';
 
 const require = createRequire(import.meta.url);
 
@@ -427,34 +427,11 @@ export const sourceCandidates = async (req, res) => {
         query: 'linkedin-search',
       })));
       if (aiMap && aiMap.size > 0) {
-        candidates = candidates.map((c) => {
-          const ai = aiMap.get(c.normalizedUrl);
-          if (!ai) return c;
-          return {
-            ...c,
-            name:      (ai.name?.trim())      || c.name,
-            jobTitle:  (ai.jobTitle?.trim())  || c.jobTitle,
-            company:   (ai.company?.trim())   || c.company,
-            location:  (ai.location?.trim())  || c.location,
-            education: (ai.education?.trim()) || c.education,
-            skills: Array.isArray(ai.skills)
-              ? ai.skills
-                  .filter(Boolean)
-                  .map(s => String(s).trim())
-                  .filter(s =>
-                    s.length >= 2 && s.length <= 40 &&
-                    !/\b(pvt|ltd|inc|corp|llc|llp|limited|solutions|technologies|systems|services|consulting|group|software|infotech)\b/i.test(s) &&
-                    !/\b(india|usa|uk|canada|germany|singapore|australia|bangalore|bengaluru|hyderabad|mumbai|delhi|chennai|pune|kolkata|gurgaon|noida|london|berlin|new york|toronto|sydney)\b/i.test(s) &&
-                    !/^\d+\s*\+?\s*(year|yr|month|mo)/i.test(s) &&
-                    !s.includes(',')
-                  )
-                  .slice(0, 8)
-              : (c.skills || []),
-            totalExperience: ai.totalExperience || c.totalExperience || null,
-            about: (ai.about?.trim()) || c.about || null,
-          };
-        });
-        logger.info(`[Serper] OpenAI enrichment: ${aiMap.size} candidates enriched`);
+        candidates = candidates.map((candidate) => mergeCandidateWithAi(
+          candidate,
+          aiMap.get(candidate.normalizedUrl) || null
+        ));
+        logger.info(`[OpenAI] Candidate normalization merge complete for ${aiMap.size} profiles`);
       }
 
     } else if (candidates.length === 0) {
@@ -463,7 +440,7 @@ export const sourceCandidates = async (req, res) => {
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       return res.status(200).json({
         success: true, parseOnly: true,
-        message: 'Requirements extracted. Add APIFY_API_KEY or SERPER_API_KEY to run candidate discovery.',
+        message: 'Requirements extracted. Add APOLLO_API_KEY or APIFY_API_KEY to run candidate discovery.',
         parsedRequirements: structured,
         searchPlan: { queries: searchQueries, countries: targetCountries },
         candidates: [], results: [],
@@ -492,82 +469,23 @@ export const sourceCandidates = async (req, res) => {
     }
 
     // Step 2: Boolean match scoring.
-    // For HarvestAPI (apify) sourcing: LinkedIn native filters already pre-screen by seniority,
-    // experience IDs and keywords — score for ranking only, do NOT hard-exclude on score.
-    // For fallback text-search (serper): apply a 30-point floor since we have no upstream filter.
-    const isPreFiltered = dataSource === 'apify';
+    // Match score is skill-only:
+    // - must-have skills = AND gate
+    // - required skills = OR gate
     candidates = scoreCandidates(candidates, parsed, {
-      minScore: isPreFiltered ? 0 : 30,
-      excludeDisqualified: !isPreFiltered,
+      minScore: 0,
+      excludeDisqualified: true,
     });
 
-    // Step 3: Strict location filter — two-tier approach.
-    //
-    // Tier 1 (city-confirmed): c.location contains the required city.
-    //   e.g. AI-extracted location → PASS if city found in string
-    //
-    // Tier 2 (country-fallback): city not in c.location but country matches.
-    //   e.g. required="Hyderabad", c.country="India" → PASS (flagged as location unverified)
+    // Step 3: Strict location filter.
+    // Only keep candidates whose extracted location matches the requested location.
     const requiredLocation = parsed.location || '';
     if (requiredLocation && !/unspecified|not specified|remote/i.test(requiredLocation)) {
-      const CITY_SYNONYMS = {
-        bangalore: ['bengaluru', 'bangalore'], bengaluru: ['bengaluru', 'bangalore'],
-        'new delhi': ['new delhi', 'delhi'],   delhi: ['delhi', 'new delhi'],
-        mumbai: ['mumbai', 'bombay'],          bombay: ['mumbai', 'bombay'],
-        kolkata: ['kolkata', 'calcutta'],      calcutta: ['kolkata', 'calcutta'],
-        chennai: ['chennai', 'madras'],        madras: ['chennai', 'madras'],
-      };
-      const CITY_TO_COUNTRY = {
-        hyderabad: 'india', bangalore: 'india', bengaluru: 'india', mumbai: 'india',
-        delhi: 'india', 'new delhi': 'india', chennai: 'india', pune: 'india',
-        kolkata: 'india', gurgaon: 'india', noida: 'india', ahmedabad: 'india', hyderabad: 'india',
-        london: 'united kingdom', manchester: 'united kingdom',
-        berlin: 'germany', munich: 'germany',
-        toronto: 'canada', vancouver: 'canada',
-        sydney: 'australia', melbourne: 'australia',
-        singapore: 'singapore',
-        'new york': 'united states', 'san francisco': 'united states', seattle: 'united states',
-        dubai: 'united arab emirates', amsterdam: 'netherlands',
-      };
-
-      // Support multiple cities: "Bangalore / Pune / Hyderabad"
-      const requestedCities = aiSourcingService.parseMultipleLocations(requiredLocation)
-        .map((c) => c.split(',')[0].trim().toLowerCase());
-
-      // Expand each city to include spelling synonyms
-      const allCityVariants = [...new Set(
-        requestedCities.flatMap((city) => CITY_SYNONYMS[city] || [city])
-      )];
-
-      // Countries that match any of the requested cities (for fallback)
-      const allCountries = [...new Set(
-        requestedCities.map((city) => CITY_TO_COUNTRY[city]).filter(Boolean)
-      )];
-
       const beforeCount = candidates.length;
-      const cityConfirmed = [];
-      const countryFallback = [];
-
-      for (const c of candidates) {
-        const currentLocation = String(c.location || '').toLowerCase();
-
-        if (allCityVariants.some((v) => currentLocation.includes(v))) {
-          cityConfirmed.push(c);
-        } else if (!currentLocation && isPreFiltered) {
-          // No location string — trust HarvestAPI's native location filter
-          cityConfirmed.push(c);
-        } else if (allCountries.length > 0) {
-          const countryStr = String(c.foundIn || c.sourceCountry || c.country || currentLocation).toLowerCase();
-          if (allCountries.some((country) => countryStr.includes(country))) {
-            countryFallback.push({ ...c, locationUnverified: true });
-          } else if (isPreFiltered) {
-            countryFallback.push({ ...c, locationUnverified: true });
-          }
-        }
-      }
-
-      candidates = [...cityConfirmed, ...countryFallback];
-      logger.info(`Location filter [${requestedCities.join(', ')}]: ${cityConfirmed.length} confirmed + ${countryFallback.length} fallback (${candidates.length}/${beforeCount} total)`);
+      candidates = candidates.filter((candidate) =>
+        locationMatches(candidate.location || candidate.locality || '', requiredLocation)
+      );
+      logger.info(`Location filter [${requiredLocation}]: ${candidates.length}/${beforeCount} matched`);
     }
 
     candidates = candidates.slice(0, maxCandidatesSafe);
@@ -1204,10 +1122,16 @@ export const searchInternalDb = async (req, res) => {
     }
 
     // ── 3. Score & rank ───────────────────────────────────────────────────
-    const scored = scoreCandidates(rawCandidates, parsed, {
+    let scored = scoreCandidates(rawCandidates, parsed, {
       minScore: minScoreSafe,
       excludeDisqualified: true,
     });
+
+    if (hasLocation) {
+      scored = scored.filter((candidate) =>
+        locationMatches(candidate.location || candidate.locality || '', reqLocation)
+      );
+    }
 
     // ── 4. Bucket and trim ────────────────────────────────────────────────
     const allBucketed = bucketByMatchCategory(scored);

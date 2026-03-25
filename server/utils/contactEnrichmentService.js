@@ -2,11 +2,14 @@ import axios from 'axios';
 import logger from './logger.js';
 
 /**
- * Contact Enrichment Service — Skrapp only
+ * Contact Enrichment Service
+ * Order: Apollo enrichment -> Skrapp fallback
  */
 
 class ContactEnricher {
   constructor() {
+    this.apolloKey = null;
+    this.apolloEndpoint = 'https://api.apollo.io/api/v1/people/match';
     this.skrappKey = null;
     this.skrappEndpoint = 'https://api.skrapp.io/api/v2/find';
     this.skrappLegacyEndpoint = 'https://api.skrapp.io/api/v2/accounts/find';
@@ -26,6 +29,9 @@ class ContactEnricher {
   }
 
   _refreshApiKeys() {
+    this.apolloKey = this._readEnvKey(
+      'APOLLO_API_KEY', 'APOLLO_KEY', 'VITE_APOLLO_API_KEY'
+    );
     this.skrappKey = this._readEnvKey(
       'SKRAPP_API_KEY', 'SKRAPP_KEY', 'SKRAPP_API_LEY', 'SKRAPP_API_TOKEN', 'VITE_SKRAPP_API_KEY'
     );
@@ -41,29 +47,112 @@ class ContactEnricher {
     const fullName = candidate.fullName || candidate.name;
     const company = candidate.company || candidate.company_name;
 
-    if (!this.skrappKey) {
-      const errorMessage = 'Contact enrichment not configured. Add SKRAPP_API_KEY to server .env.';
+    if (!this.apolloKey && !this.skrappKey) {
+      const errorMessage = 'Contact enrichment not configured. Add APOLLO_API_KEY or SKRAPP_API_KEY to server .env.';
       logger.error(errorMessage);
       return { email: null, phone: null, source: 'error', confidence: 0, error: errorMessage };
     }
 
-    logger.info(`🔍 Skrapp lookup for candidate ${candidateId}`);
+    logger.info(`Contact lookup for candidate ${candidateId}`);
 
     try {
+      if (this.apolloKey) {
+        const apolloResult = await this._apolloLookup({ linkedinUrl, fullName, company });
+        if (apolloResult && (apolloResult.email || apolloResult.phone)) {
+          logger.info(`  Apollo found contact for ${candidateId}`);
+          return { ...apolloResult, source: 'apollo', confidence: apolloResult.confidence || 0.9 };
+        }
+      }
+
+      if (!this.skrappKey) {
+        return {
+          email: null,
+          phone: null,
+          source: 'failed',
+          confidence: 0,
+          error: 'No contact found from Apollo and SKRAPP_API_KEY is not configured for fallback.',
+        };
+      }
+
       const result = await this._skrappLookup({ linkedinUrl, fullName, company });
       if (result && result.email) {
-        logger.info(`  ✅ Skrapp found contact for ${candidateId}`);
+        logger.info(`  Skrapp found contact for ${candidateId}`);
         return { ...result, source: 'skrapp', confidence: 0.85 };
       }
 
-      logger.warn(`  ❌ Skrapp found no contact for ${candidateId}`);
+      logger.warn(`  No contact found for ${candidateId}`);
       return {
         email: null, phone: null, source: 'failed', confidence: 0,
-        error: 'No contact found. Skrapp requires a valid name + company/domain (or a supported LinkedIn URL).',
+        error: 'No contact found. Apollo and Skrapp both require a valid name plus company/domain or LinkedIn URL.',
       };
     } catch (error) {
-      logger.error(`❌ Enrichment error for ${candidateId}:`, error.message);
+      logger.error(`Enrichment error for ${candidateId}:`, error.message);
       return { email: null, phone: null, source: 'error', confidence: 0, error: error.message };
+    }
+  }
+
+  async _apolloLookup({ linkedinUrl, fullName, company }) {
+    if (!this.apolloKey) return null;
+
+    const parsedName = this._splitName(fullName);
+    const domain = this._extractDomain(company);
+
+    try {
+      const response = await axios.post(
+        this.apolloEndpoint,
+        null,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'X-Api-Key': this.apolloKey,
+            accept: 'application/json',
+          },
+          params: {
+            linkedin_url: this._isValidLinkedInUrl(linkedinUrl) ? linkedinUrl : undefined,
+            name: fullName || undefined,
+            first_name: parsedName.firstName || undefined,
+            last_name: parsedName.lastName || undefined,
+            domain: domain || undefined,
+            reveal_personal_emails: true,
+            reveal_phone_number: true,
+          },
+          timeout: 10000,
+        }
+      );
+
+      const person = response?.data?.person || response?.data || null;
+      if (!person) return null;
+
+      const email =
+        person.email ||
+        person.personal_email ||
+        person.email_address ||
+        (Array.isArray(person.email_addresses) ? person.email_addresses.find(Boolean) : null) ||
+        null;
+
+      const phone =
+        person.phone ||
+        person.mobile_phone ||
+        person.direct_dial ||
+        (Array.isArray(person.phone_numbers)
+          ? person.phone_numbers.find((entry) => entry?.sanitized_number || entry?.raw_number)?.sanitized_number ||
+            person.phone_numbers.find((entry) => entry?.sanitized_number || entry?.raw_number)?.raw_number
+          : null) ||
+        null;
+
+      if (!email && !phone) return null;
+
+      return {
+        email: email || null,
+        phone: phone || null,
+        linkedinUrl: linkedinUrl || person.linkedin_url || null,
+        verifiedAt: new Date(),
+        confidence: person.email_status === 'verified' ? 0.95 : 0.8,
+      };
+    } catch (error) {
+      logger.warn(`Apollo enrichment error: ${error.response?.status || error.message}`);
+      return null;
     }
   }
 
