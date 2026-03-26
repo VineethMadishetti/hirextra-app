@@ -319,28 +319,56 @@ function buildResumeHTML(c) {
   const skills = Array.isArray(c.skills) ? c.skills : [];
   const experience = Array.isArray(c.experienceTimeline) ? c.experienceTimeline : [];
   const certifications = Array.isArray(c.certifications) ? c.certifications : [];
-  const languages = Array.isArray(c.languages) ? c.languages : [];
+  const allEducation = Array.isArray(c.allEducation) && c.allEducation.length > 0 ? c.allEducation : null;
   const edu = c.education || '';
   const eduGrade = c.educationGrade || '';
   const eduYear = c.educationYear || '';
   const totalExp = c.totalExperience || (c.experienceYears ? `${c.experienceYears} years` : '');
 
-  const section = (title, content) => content ? `
+  // ── Skill categorisation ────────────────────────────────────────────────────
+  const LANG_RE = /\b(JavaScript|TypeScript|Python|Java|Go|Golang|Rust|Swift|Kotlin|Ruby|PHP|C\+\+|C#|Scala|Dart|R\b|Bash|Shell|HTML|CSS|SQL)\b/i;
+  const BACKEND_RE = /\b(Node\.js|Express|NestJS|Spring|Django|Flask|FastAPI|Laravel|Rails|\.NET|ASP\.NET|Gin|Fiber|gRPC|REST|GraphQL|Kafka|RabbitMQ|Celery|Microservices|Serverless)\b/i;
+  const DB_RE = /\b(MongoDB|PostgreSQL|MySQL|Redis|Cassandra|DynamoDB|Elasticsearch|SQLite|Oracle|Firebase|Supabase|Neo4j|InfluxDB|MariaDB|MS SQL)\b/i;
+  const TOOLS_RE = /\b(Docker|Kubernetes|AWS|Azure|GCP|Terraform|Ansible|Jenkins|GitHub Actions|GitLab CI|CI\/CD|Linux|Git|Nginx|Apache|Prometheus|Grafana|Datadog|Jira|Figma|Postman|Webpack|Vite|Next\.js|React|Angular|Vue|Flutter|React Native|TensorFlow|PyTorch|Spark|Hadoop|Power BI|Tableau|Salesforce|SAP|Agile|Scrum)\b/i;
+
+  const catLang = skills.filter(s => LANG_RE.test(s));
+  const catBackend = skills.filter(s => !LANG_RE.test(s) && BACKEND_RE.test(s));
+  const catDB = skills.filter(s => !LANG_RE.test(s) && !BACKEND_RE.test(s) && DB_RE.test(s));
+  const catTools = skills.filter(s => !LANG_RE.test(s) && !BACKEND_RE.test(s) && !DB_RE.test(s) && TOOLS_RE.test(s));
+  const catOther = skills.filter(s => !LANG_RE.test(s) && !BACKEND_RE.test(s) && !DB_RE.test(s) && !TOOLS_RE.test(s));
+
+  const skillCatHTML = [
+    catLang.length   ? `<div class="skill-cat"><span class="skill-cat-label">Languages</span><div class="skills-wrap">${catLang.map(s=>`<span class="skill-chip">${s}</span>`).join('')}</div></div>` : '',
+    catBackend.length? `<div class="skill-cat"><span class="skill-cat-label">Backend & Frameworks</span><div class="skills-wrap">${catBackend.map(s=>`<span class="skill-chip">${s}</span>`).join('')}</div></div>` : '',
+    catDB.length     ? `<div class="skill-cat"><span class="skill-cat-label">Databases</span><div class="skills-wrap">${catDB.map(s=>`<span class="skill-chip skill-chip-db">${s}</span>`).join('')}</div></div>` : '',
+    catTools.length  ? `<div class="skill-cat"><span class="skill-cat-label">Tools & Technologies</span><div class="skills-wrap">${catTools.map(s=>`<span class="skill-chip skill-chip-tool">${s}</span>`).join('')}</div></div>` : '',
+    catOther.length  ? `<div class="skill-cat"><span class="skill-cat-label">Other</span><div class="skills-wrap">${catOther.map(s=>`<span class="skill-chip skill-chip-other">${s}</span>`).join('')}</div></div>` : '',
+  ].filter(Boolean).join('');
+
+  // ── Key Highlights from about text ─────────────────────────────────────────
+  const highlights = about
+    ? about.split(/\n+/).map(l => l.trim()).filter(l => l.length > 30).slice(0, 5)
+    : [];
+
+  // ── Section helper ──────────────────────────────────────────────────────────
+  const section = (heading, content) => content ? `
     <div class="section">
-      <div class="section-title">${title}</div>
+      <div class="section-title">${heading}</div>
       <div class="section-body">${content}</div>
     </div>` : '';
 
+  // ── Experience HTML ─────────────────────────────────────────────────────────
   const expHTML = experience.map(e => {
     const dateStr = e.startDateText ? `${e.startDateText} – ${e.endDateText || 'Present'}` : '';
     const meta = [e.employmentType, e.workplaceType].filter(Boolean).join(' · ');
+    const expLocation = e.location || '';
     return `
       <div class="exp-item">
         <div class="exp-header">
           ${e.companyLogo ? `<img src="${e.companyLogo}" class="company-logo" alt="${e.company||''}" />` : '<div class="company-logo-placeholder"></div>'}
           <div class="exp-info">
             <div class="exp-title">${e.title || ''}</div>
-            <div class="exp-company">${e.company || ''}</div>
+            <div class="exp-company">${e.company || ''}${expLocation ? ` <span class="exp-loc">· ${expLocation}</span>` : ''}</div>
           </div>
           <div class="exp-dates">
             <span class="exp-date">${dateStr}</span>${e.duration ? `<span class="exp-duration"> · ${e.duration}</span>` : ''}
@@ -351,23 +379,62 @@ function buildResumeHTML(c) {
       </div>`;
   }).join('');
 
-  const skillsHTML = skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
+  // ── Education HTML (all entries) ────────────────────────────────────────────
+  const eduHTML = allEducation
+    ? allEducation.map(ed => {
+        const deg = [ed.degree, ed.fieldOfStudy].filter(Boolean).join(' in ');
+        const school = ed.schoolName || '';
+        const period = ed.period || [ed.startYear, ed.endYear].filter(Boolean).join(' – ');
+        return `
+        <div class="edu-item">
+          <div class="edu-left">
+            ${ed.schoolLogo ? `<img src="${ed.schoolLogo}" class="edu-logo" alt="${school}" />` : ''}
+            <div>
+              <div class="edu-degree">${school}</div>
+              <div class="edu-sub">${deg || ''}</div>
+            </div>
+          </div>
+          <div class="edu-right">
+            ${period ? `<span class="edu-meta">${period}</span>` : ''}
+            ${ed.grade ? `<span class="edu-grade">${ed.grade}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')
+    : edu
+    ? `<div class="edu-item">
+        <div class="edu-left"><div>
+          <div class="edu-degree">${edu}</div>
+        </div></div>
+        <div class="edu-right">
+          ${eduYear ? `<span class="edu-meta">${eduYear}</span>` : ''}
+          ${eduGrade ? `<span class="edu-grade">${eduGrade}</span>` : ''}
+        </div>
+      </div>`
+    : '';
 
+  // ── Certifications HTML ─────────────────────────────────────────────────────
   const certsHTML = certifications.map(cert => `
     <div class="cert-item">
       <span class="cert-title">${cert.title || ''}</span>
       ${cert.issuedBy ? `<span class="cert-issuer"> — ${cert.issuedBy}${cert.issuedAt ? ` (${cert.issuedAt})` : ''}</span>` : ''}
     </div>`).join('');
 
-  const langHTML = languages.length ? languages.join(', ') : '';
-
+  // ── Contact row ─────────────────────────────────────────────────────────────
   const contactParts = [
-    email ? `<a href="mailto:${email}">${email}</a>` : '',
-    phone ? `<a href="tel:${phone}">${phone}</a>` : '',
+    email    ? `<a href="mailto:${email}">${email}</a>` : '',
+    phone    ? `<a href="tel:${phone}">${phone}</a>` : '',
     location ? `<span>📍 ${location}</span>` : '',
     linkedin ? `<a href="${linkedin}" target="_blank">LinkedIn</a>` : '',
-    github ? `<a href="${github}" target="_blank">GitHub</a>` : '',
+    github   ? `<a href="${github}" target="_blank">GitHub</a>` : '',
   ].filter(Boolean).join('<span class="sep">|</span>');
+
+  // ── Additional Information ──────────────────────────────────────────────────
+  const addlParts = [
+    c.connectionsCount ? `<span class="addl-item">🔗 ${c.connectionsCount}+ LinkedIn connections</span>` : '',
+    c.followerCount    ? `<span class="addl-item">👥 ${c.followerCount} followers</span>` : '',
+    c.openToWork       ? `<span class="addl-item addl-otw">✅ Open to Work</span>` : '',
+    c.premium          ? `<span class="addl-item addl-premium">⭐ LinkedIn Premium</span>` : '',
+  ].filter(Boolean).join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -381,39 +448,62 @@ function buildResumeHTML(c) {
   .page{max-width:820px;margin:0 auto;padding:40px 48px 48px}
   .header{border-bottom:3px solid #432DD7;padding-bottom:18px;margin-bottom:22px}
   .header-top{display:flex;align-items:flex-start;gap:20px}
-  .avatar{width:80px;height:80px;border-radius:10px;object-fit:cover;border:2px solid #e5e7eb;flex-shrink:0}
-  .avatar-placeholder{width:80px;height:80px;border-radius:10px;background:linear-gradient(135deg,#432DD7,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-weight:700;flex-shrink:0}
+  .avatar{width:88px;height:88px;border-radius:10px;object-fit:cover;border:2px solid #e5e7eb;flex-shrink:0}
+  .avatar-placeholder{width:88px;height:88px;border-radius:10px;background:linear-gradient(135deg,#432DD7,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:700;flex-shrink:0}
   .header-info{flex:1}
-  .name{font-size:26px;font-weight:800;color:#1a1a2e;letter-spacing:-0.3px;line-height:1.1}
+  .name{font-size:27px;font-weight:800;color:#1a1a2e;letter-spacing:-0.3px;line-height:1.1}
   .headline{font-size:14px;color:#432DD7;font-weight:600;margin-top:4px}
   .sub-headline{font-size:12px;color:#64748b;margin-top:2px}
   .contact-row{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:11.5px;color:#475569}
   .contact-row a{color:#432DD7;text-decoration:none}
   .sep{color:#cbd5e1;margin:0 2px}
-  .total-exp{display:inline-block;margin-top:8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 10px;font-size:11px;color:#3730a3;font-weight:600}
+  .total-exp{display:inline-block;margin-top:8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:3px 12px;font-size:11.5px;color:#3730a3;font-weight:600}
   .section{margin-bottom:20px}
   .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#432DD7;border-bottom:1px solid #e0e7ff;padding-bottom:5px;margin-bottom:12px}
   .section-body{font-size:13px;color:#374151;line-height:1.65}
-  .exp-item{margin-bottom:14px}
+  /* Highlights */
+  .highlights-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:6px}
+  .highlights-list li{padding-left:18px;position:relative;font-size:13px;color:#374151;line-height:1.6}
+  .highlights-list li::before{content:"▸";position:absolute;left:0;color:#432DD7;font-size:12px;top:1px}
+  /* Experience */
+  .exp-item{margin-bottom:16px}
   .exp-header{display:flex;align-items:flex-start;gap:12px}
   .company-logo{width:36px;height:36px;object-fit:contain;border-radius:5px;border:1px solid #e5e7eb;background:#f9fafb;flex-shrink:0}
   .company-logo-placeholder{width:36px;height:36px;border-radius:5px;border:1px solid #e5e7eb;background:#f1f5f9;flex-shrink:0}
   .exp-info{flex:1}
   .exp-title{font-weight:700;font-size:13.5px;color:#111827}
   .exp-company{color:#6b7280;font-size:12.5px;margin-top:1px}
+  .exp-loc{color:#9ca3af;font-size:11.5px}
   .exp-dates{text-align:right;flex-shrink:0;font-size:11.5px;color:#6b7280}
   .exp-duration{color:#9ca3af}
   .exp-meta{font-size:11px;color:#9ca3af;margin-top:2px}
-  .exp-desc{font-size:12px;color:#6b7280;margin-top:6px;padding-left:48px;line-height:1.55}
-  .skills-wrap{display:flex;flex-wrap:wrap;gap:6px}
+  .exp-desc{font-size:12.5px;color:#6b7280;margin-top:7px;padding-left:48px;line-height:1.6}
+  /* Skills */
+  .skill-cat{margin-bottom:10px}
+  .skill-cat-label{display:block;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+  .skills-wrap{display:flex;flex-wrap:wrap;gap:5px}
   .skill-chip{background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:3px 10px;font-size:11.5px;color:#3730a3;font-weight:500}
-  .edu-item{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px}
-  .edu-degree{font-weight:600;color:#111827;font-size:13px}
+  .skill-chip-db{background:#fdf4ff;border-color:#e9d5ff;color:#6b21a8}
+  .skill-chip-tool{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+  .skill-chip-other{background:#fafafa;border-color:#e5e7eb;color:#374151}
+  /* Education */
+  .edu-item{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .edu-left{display:flex;align-items:flex-start;gap:10px}
+  .edu-logo{width:32px;height:32px;object-fit:contain;border-radius:4px;border:1px solid #e5e7eb;flex-shrink:0}
+  .edu-degree{font-weight:700;color:#111827;font-size:13px}
+  .edu-sub{font-size:12px;color:#6b7280;margin-top:2px}
+  .edu-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
   .edu-meta{font-size:11.5px;color:#6b7280}
-  .edu-grade{background:#d1fae5;border:1px solid #6ee7b7;border-radius:4px;padding:1px 7px;font-size:11px;color:#065f46;font-weight:600;margin-left:8px}
-  .cert-item{margin-bottom:5px;font-size:12.5px}
+  .edu-grade{background:#d1fae5;border:1px solid #6ee7b7;border-radius:4px;padding:1px 8px;font-size:11px;color:#065f46;font-weight:600}
+  /* Certifications */
+  .cert-item{margin-bottom:6px;font-size:12.5px}
   .cert-title{font-weight:600;color:#111827}
   .cert-issuer{color:#6b7280}
+  /* Additional info */
+  .addl-wrap{display:flex;flex-wrap:wrap;gap:8px 18px}
+  .addl-item{font-size:12.5px;color:#374151}
+  .addl-otw{color:#065f46;font-weight:600}
+  .addl-premium{color:#92400e;font-weight:600}
   @media print{
     body{background:#fff}
     .page{padding:20px 28px 28px;max-width:100%}
@@ -424,7 +514,6 @@ function buildResumeHTML(c) {
 </head>
 <body>
 <div class="page">
-  <!-- Print / Download buttons -->
   <div class="no-print" style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:20px">
     <button onclick="window.print()" style="background:#432DD7;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer">⬇ Download PDF</button>
     <button onclick="window.close()" style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button>
@@ -445,24 +534,17 @@ function buildResumeHTML(c) {
     </div>
   </div>
 
-  ${section('Professional Summary', about ? `<p>${about}</p>` : '')}
+  ${highlights.length ? section('Key Highlights', `<ul class="highlights-list">${highlights.map(h=>`<li>${h}</li>`).join('')}</ul>`) : section('Professional Summary', about ? `<p>${about}</p>` : '')}
 
   ${experience.length ? section('Work Experience', expHTML) : ''}
 
-  ${edu ? section('Education', `
-    <div class="edu-item">
-      <div>
-        <span class="edu-degree">${edu}</span>
-        ${eduGrade ? `<span class="edu-grade">${eduGrade}</span>` : ''}
-      </div>
-      <span class="edu-meta">${eduYear || ''}</span>
-    </div>`) : ''}
+  ${eduHTML ? section('Education', eduHTML) : ''}
 
-  ${skills.length ? section('Skills', `<div class="skills-wrap">${skillsHTML}</div>`) : ''}
+  ${skillCatHTML ? section('Skills', skillCatHTML) : ''}
 
   ${certifications.length ? section('Certifications', certsHTML) : ''}
 
-  ${langHTML ? section('Languages', langHTML) : ''}
+  ${addlParts ? section('Additional Information', `<div class="addl-wrap">${addlParts}</div>`) : ''}
 </div>
 </body>
 </html>`;

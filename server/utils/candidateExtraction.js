@@ -650,20 +650,31 @@ export function normalizeLinkedInProfiles(profiles) {
     }
     const skills = normalizeSkills(skillNames, { jobTitle, company, location });
 
-    // ── Education: "B.Tech in CSE — JNTU Hyderabad" ──────────────────────────
+    // ── Education ─────────────────────────────────────────────────────────────
     const firstEdu = Array.isArray(p.education) ? p.education[0] : null;
     let education = null;
     let educationGrade = null;
     let educationYear = null;
+    // Full structured list for resume (all entries)
+    const allEducation = Array.isArray(p.education)
+      ? p.education.map((edu) => ({
+          degree: edu.degree || null,
+          fieldOfStudy: edu.fieldOfStudy || null,
+          schoolName: edu.schoolName || edu.school || null,
+          schoolLogo: edu.schoolLogo?.url || null,
+          startYear: edu.startDate?.year || edu.startDate?.text || null,
+          endYear: edu.endDate?.year || edu.endDate?.text || null,
+          period: edu.period || null,
+          grade: edu.insights || null,
+        }))
+      : [];
     if (firstEdu) {
       const degParts = [firstEdu.degree, firstEdu.fieldOfStudy].filter(Boolean);
       const school = firstEdu.schoolName || firstEdu.school || '';
       education = degParts.length > 0
         ? `${degParts.join(' in ')}${school ? ` — ${school}` : ''}`
         : school || null;
-      // "Grade: 9.4" or "Grade: A" from insights field
       educationGrade = firstEdu.insights || null;
-      // graduation year from endDate
       educationYear = firstEdu.endDate?.year || firstEdu.endDate?.text?.match(/\d{4}/)?.[0] || null;
     }
 
@@ -696,6 +707,7 @@ export function normalizeLinkedInProfiles(profiles) {
       workplaceType: currentExp?.workplaceType || currentPos?.workplaceType || null,
       educationGrade,
       educationYear,
+      allEducation,
       certifications: Array.isArray(p.certifications)
         ? p.certifications.slice(0, 3).map((cert) => ({
             title: cert.title || null,
@@ -716,6 +728,7 @@ export function normalizeLinkedInProfiles(profiles) {
               startDateText: e.startDate?.text || null,
               endDateText: isCurrent ? 'Present' : (e.endDate?.text || null),
               isCurrent,
+              location: e.location || null,
               workplaceType: e.workplaceType || null,
               description: e.description ? String(e.description).substring(0, 200) : null,
             };
@@ -875,6 +888,7 @@ export function formatCandidates(candidates) {
     workplaceType: c.workplaceType || null,
     educationGrade: c.educationGrade || null,
     educationYear: c.educationYear || null,
+    allEducation: Array.isArray(c.allEducation) ? c.allEducation : [],
     certifications: Array.isArray(c.certifications) ? c.certifications : [],
     experienceTimeline: Array.isArray(c.experienceTimeline) ? c.experienceTimeline : [],
   });
