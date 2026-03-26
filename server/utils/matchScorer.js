@@ -213,8 +213,10 @@ export function scoreCandidate(candidate, requirements) {
 
   // AND gate: any missing must-have → disqualify
   const mustHaveFail = mustHaveSkills.length > 0 && missingMustHave.length > 0;
-  // OR gate: required skills specified but zero matched → disqualify
-  const requiredFail = requiredSkills.length > 0 && matchedRequired.length === 0;
+  // Threshold gate: fewer than 30% of required skills matched → disqualify
+  const REQUIRED_THRESHOLD = 0.30;
+  const requiredMatchRatio = requiredSkills.length > 0 ? matchedRequired.length / requiredSkills.length : 1;
+  const requiredFail = requiredSkills.length > 0 && requiredMatchRatio < REQUIRED_THRESHOLD;
   const disqualified = mustHaveFail || requiredFail;
 
   // Always compute the actual skill-match score regardless of disqualification.
