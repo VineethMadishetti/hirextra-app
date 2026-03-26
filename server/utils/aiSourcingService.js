@@ -158,7 +158,8 @@ export function normalizeParsedRequirements(raw = {}) {
   );
 
   const must_have_skills = uniqueStrings(raw.must_have_skills || raw.mustHaveSkills || required_skills, 6);
-  const experience_years = normalizeNumber(raw.experience_years || raw.experienceYears || raw.yearsOfExperience, 0);
+  const experience_years     = normalizeNumber(raw.experience_years     || raw.experienceYears    || raw.yearsOfExperience, 0);
+  const max_experience_years = normalizeNumber(raw.max_experience_years || raw.maxExperienceYears  || 0, 0);
   const experience_level = String(
     raw.experience_level ||
       raw.experienceLevel ||
@@ -183,6 +184,7 @@ export function normalizeParsedRequirements(raw = {}) {
     duration_type,
     location,
     experience_years,
+    max_experience_years,
     experience_level,
     organization_hierarchy,
     salary_package,
@@ -248,6 +250,7 @@ Return ONLY valid JSON with this exact schema:
   "duration_type": "string",
   "location": "string",
   "experience_years": number,
+  "max_experience_years": number,
   "experience_level": "Junior|Mid|Senior|Lead|Executive",
   "organization_hierarchy": "string",
   "salary_package": "string",
@@ -264,7 +267,8 @@ Extraction policy:
 - Keep concise and precise.
 - Extract from text only; do not invent.
 - Required skills <= 12, preferred skills <= 10, must-have <= 6.
-- If missing, use "Not Specified" for string fields and 0 for experience_years.
+- If missing, use "Not Specified" for string fields and 0 for experience_years / max_experience_years.
+- For experience ranges like "4-7 years", set experience_years=4 and max_experience_years=7. For "5+ years", set experience_years=5 and max_experience_years=0 (no upper limit).
 - Return JSON only.
 
 Example:
@@ -276,6 +280,7 @@ Your JSON Output:
   "duration_type": "Full-time",
   "location": "London",
   "experience_years": 8,
+  "max_experience_years": 0,
   "experience_level": "Senior",
   "organization_hierarchy": "Not Specified",
   "salary_package": "Not Specified",
@@ -374,6 +379,7 @@ export function toStructuredRequirements(parsedInput) {
     durationType: parsed.duration_type,
     location: parsed.location,
     experienceYears: parsed.experience_years,
+    maxExperienceYears: parsed.max_experience_years,
     experienceLevel: parsed.experience_level,
     organizationHierarchy: parsed.organization_hierarchy,
     salaryPackage: parsed.salary_package,

@@ -171,8 +171,9 @@ export function scoreCandidate(candidate, requirements) {
     : Array.isArray(req.preferredSkills)
       ? req.preferredSkills
       : [];
-  const reqLocation = String(req.location || '');
-  const reqExpYears = Number(req.experience_years || req.experienceYears || 0);
+  const reqLocation    = String(req.location || '');
+  const reqExpYears    = Number(req.experience_years    || req.experienceYears    || 0);
+  const reqMaxExpYears = Number(req.max_experience_years || req.maxExperienceYears || 0);
 
   const skillsArr = Array.isArray(candidate.skills)
     ? candidate.skills
@@ -217,7 +218,13 @@ export function scoreCandidate(candidate, requirements) {
   const REQUIRED_THRESHOLD = 0.30;
   const requiredMatchRatio = requiredSkills.length > 0 ? matchedRequired.length / requiredSkills.length : 1;
   const requiredFail = requiredSkills.length > 0 && requiredMatchRatio < REQUIRED_THRESHOLD;
-  const disqualified = mustHaveFail || requiredFail;
+  // Experience range gate: only fires when candidate experience is known (> 0).
+  // Too junior: more than 1 year below the minimum — hard disqualify.
+  // Too senior: more than 2 years above the max (if a max was specified) — hard disqualify.
+  const tooJunior = candExpYears > 0 && reqExpYears > 0 && candExpYears < reqExpYears - 1;
+  const tooSenior = candExpYears > 0 && reqMaxExpYears > 0 && candExpYears > reqMaxExpYears + 2;
+  const expFail = tooJunior || tooSenior;
+  const disqualified = mustHaveFail || requiredFail || expFail;
 
   // Always compute the actual skill-match score regardless of disqualification.
   // Disqualified candidates still surface with their real partial score so the
