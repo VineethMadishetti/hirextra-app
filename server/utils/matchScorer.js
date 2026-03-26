@@ -110,6 +110,7 @@ function skillMatches(candidateSkills, requiredSkill) {
   return false;
 }
 
+
 export function locationMatches(candidateLocation, requiredLocation) {
   if (!requiredLocation || /unspecified|not specified|remote/i.test(requiredLocation)) return true;
   if (!candidateLocation) return false;
