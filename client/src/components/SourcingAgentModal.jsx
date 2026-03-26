@@ -168,13 +168,6 @@ function findRelevantOverlap(candidate, parsedRequirements, jdText) {
   return [...found];
 }
 
-const PIPELINE_STAGES = [
-  { key: 'SHORTLISTED',  label: 'Shortlisted',  color: 'bg-indigo-900/50 text-indigo-300 border-indigo-700/50' },
-  { key: 'CONTACTED',    label: 'Contacted',    color: 'bg-sky-900/40 text-sky-300 border-sky-700/50' },
-  { key: 'RESPONDED',    label: 'Responded',    color: 'bg-teal-900/40 text-teal-300 border-teal-700/50' },
-  { key: 'INTERVIEWING', label: 'Interviewing', color: 'bg-violet-900/40 text-violet-300 border-violet-700/50' },
-  { key: 'REJECTED',     label: 'Rejected',     color: 'bg-red-950/40 text-red-400 border-red-800/40' },
-];
 
 /** Extract seniority label from job title string */
 function extractSeniority(title) {
@@ -221,43 +214,44 @@ function LoadingSteps({ steps, stepIdx, onSetStepIdx, onCancel }) {
       <p className="text-xl font-bold text-slate-100 text-center">{steps[stepIdx]?.label}</p>
       <p className="text-sm text-slate-400 mt-1.5 text-center max-w-sm">{steps[stepIdx]?.sub}</p>
 
-      {/* Step progress dots */}
-      <div className="flex items-center gap-2 mt-8">
-        {steps.map((s, i) => (
+      {/* Horizontal step track */}
+      <div className="mt-10 w-full max-w-2xl px-2">
+        <div className="flex items-start justify-between relative">
+          {/* Connector line behind the dots */}
+          <div className="absolute top-[14px] left-0 right-0 h-px bg-slate-700/60 z-0" />
           <div
-            key={i}
-            className={`rounded-full transition-all duration-500 ${
-              i < stepIdx  ? 'w-2 h-2 bg-[#432DD7]' :
-              i === stepIdx ? 'w-4 h-2 bg-[#A99BFF]' :
-                              'w-2 h-2 bg-slate-700'
-            }`}
+            className="absolute top-[14px] left-0 h-px bg-[#432DD7] z-0 transition-all duration-700"
+            style={{ width: `${(stepIdx / (steps.length - 1)) * 100}%` }}
           />
-        ))}
-      </div>
 
-      {/* Step list */}
-      <div className="mt-8 w-full max-w-sm space-y-2">
-        {steps.slice(0, -1).map((s, i) => (
-          <div key={i} className={`flex items-center gap-3 text-sm transition-all duration-300 ${
-            i < stepIdx  ? 'text-slate-500' :
-            i === stepIdx ? 'text-slate-100 font-medium' :
+          {steps.slice(0, -1).map((_, i) => {
+            const done    = i < stepIdx;
+            const current = i === stepIdx;
+            return (
+              <div key={i} className="flex flex-col items-center gap-2 z-10" style={{ flex: 1 }}>
+                {/* Dot */}
+                <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
+                  done    ? 'border-[#432DD7] bg-[#432DD7]' :
+                  current ? 'border-[#A99BFF] bg-slate-900' :
+                            'border-slate-700 bg-slate-900'
+                }`}>
+                  {done
+                    ? <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    : current
+                      ? <div className="w-2 h-2 rounded-full bg-[#A99BFF] animate-pulse" />
+                      : <div className="w-2 h-2 rounded-full bg-slate-600" />
+                  }
+                </div>
+                {/* Label */}
+                <span className={`text-[10px] font-semibold text-center leading-tight transition-colors duration-300 ${
+                  done    ? 'text-slate-500' :
+                  current ? 'text-[#C4B8FF]' :
                             'text-slate-700'
-          }`}>
-            <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-all ${
-              i < stepIdx  ? 'border-[#432DD7] bg-[#432DD7]' :
-              i === stepIdx ? 'border-[#A99BFF] bg-transparent' :
-                              'border-slate-700 bg-transparent'
-            }`}>
-              {i < stepIdx
-                ? <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                : i === stepIdx
-                  ? <div className="w-1.5 h-1.5 rounded-full bg-[#A99BFF] animate-pulse" />
-                  : null
-              }
-            </div>
-            {s.label}
-          </div>
-        ))}
+                }`}>{s.label}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <button
@@ -715,10 +709,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [resumeCandidate, setResumeCandidate] = useState(null);
   const searchAbortRef = useRef(null);
 
-  // ── Feature state: bulk select, stage, notes, outreach ───────────────────
-  const [selectedCandidates, setSelectedCandidates] = useState(new Set());
+  // ── Feature state: outreach ───────────────────────────────────────────────
   const [stageMap, setStageMap] = useState({});      // linkedinUrl → pipelineStage
-  const [notesMap, setNotesMap] = useState({});      // linkedinUrl → notes string
   const [outreachCandidate, setOutreachCandidate] = useState(null);
   const [outreachMessage, setOutreachMessage] = useState('');
   const [outreachLoading, setOutreachLoading] = useState(false);
@@ -1071,16 +1063,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  // ── Notes save ───────────────────────────────────────────────────────────
-  const handleNotesSave = async (linkedInUrl, notes) => {
-    if (!linkedInUrl) return;
-    try {
-      await api.post('/ai-source/notes', { linkedinUrl: linkedInUrl, notes });
-    } catch {
-      toast.error('Failed to save notes');
-    }
-  };
-
   // ── Generate outreach message ─────────────────────────────────────────────
   const handleGenerateOutreach = async (candidate) => {
     setOutreachCandidate(candidate);
@@ -1099,29 +1081,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     } finally {
       setOutreachLoading(false);
     }
-  };
-
-  // ── Bulk actions ─────────────────────────────────────────────────────────
-  const toggleSelectCandidate = (key) => {
-    setSelectedCandidates(prev => {
-      const n = new Set(prev);
-      n.has(key) ? n.delete(key) : n.add(key);
-      return n;
-    });
-  };
-
-  const handleBulkShortlist = async () => {
-    const toShortlist = candidates.filter(c => selectedCandidates.has(c.linkedinUrl || c.linkedInUrl || c.fullName || c.name));
-    await Promise.all(toShortlist.map(c => handleStageChange(c, 'SHORTLISTED')));
-    setSelectedCandidates(new Set());
-    toast.success(`Shortlisted ${toShortlist.length} candidates`);
-  };
-
-  const handleBulkReject = async () => {
-    const toReject = candidates.filter(c => selectedCandidates.has(c.linkedinUrl || c.linkedInUrl || c.fullName || c.name));
-    await Promise.all(toReject.map(c => handleStageChange(c, 'REJECTED')));
-    setSelectedCandidates(new Set());
-    toast.success(`Rejected ${toReject.length} candidates`);
   };
 
   const handleExportCSV = () => {
@@ -1516,13 +1475,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
           {view === 'sourcing' && (() => {
             const LOADING_STEPS = [
-              { label: 'Parsing job requirements',     sub: 'Extracting skills, location and seniority from your JD…',          duration: 6000  },
-              { label: 'Searching LinkedIn profiles',  sub: 'Sending search to HarvestAPI with job title filters…',              duration: 10000 },
-              { label: 'Fetching candidate profiles',  sub: 'Waiting for LinkedIn to return matching profiles…',                 duration: 22000 },
-              { label: 'Running OSINT enrichment',     sub: 'Scanning GitHub and Stack Overflow for matching profiles…',         duration: 20000 },
-              { label: 'AI enriching candidates',      sub: 'Using OpenAI to normalise and fill missing profile fields…',        duration: 12000 },
-              { label: 'Scoring & matching',           sub: 'Ranking candidates by skill match, location and experience…',       duration: 8000  },
-              { label: 'Finalising results',           sub: 'Saving to database and preparing your candidate list…',             duration: 99999 },
+              { label: 'Analysing Role',      sub: 'Understanding the position, skills and requirements…',   duration: 6000  },
+              { label: 'Finding Talent',      sub: 'Discovering candidates that fit your role criteria…',    duration: 10000 },
+              { label: 'Building Profiles',   sub: 'Compiling full career history and background data…',     duration: 22000 },
+              { label: 'Deep Research',       sub: 'Gathering additional professional signals and context…', duration: 20000 },
+              { label: 'Qualifying',          sub: 'Evaluating experience, skills and culture fit…',         duration: 12000 },
+              { label: 'Ranking',             sub: 'Sorting candidates by best match for your role…',        duration: 8000  },
+              { label: 'Ready',               sub: 'Preparing your shortlist…',                              duration: 99999 },
             ];
             return (
               <LoadingSteps
@@ -1578,7 +1537,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 <div className="space-y-3">
                   {pageCandidates.map((candidate, index) => {
                     const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
-                    const globalIndex = (currentPage - 1) * CANDIDATES_PER_PAGE + index + 1;
 
                     // ── Field resolution (handles both internet-sourced & internal DB) ──
                     const fullName    = candidate.fullName || candidate.name || 'Unknown';
@@ -1609,13 +1567,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const isExpanded = expandedCards.has(cardKey);
                     const hasExpandable = candidate.about || candidate.headline || candidate.languages?.length > 0 || candidate.certifications?.length > 0 || candidate.experienceTimeline?.length > 0;
                     const isJobHopper = detectJobHopper(candidate.experienceTimeline);
-                    const outreachScore = computeOutreachScore(candidate);
                     const relevantOverlap = (candidate.matchScore === 0 || !candidate.matchedSkills?.length)
                       ? findRelevantOverlap(candidate, parsedRequirements, jobDescription)
                       : [];
-                    const isSelected = selectedCandidates.has(cardKey);
-                    const currentStage = stageMap[cardKey] || candidate.pipelineStage || null;
-                    const currentNotes = notesMap[cardKey] !== undefined ? notesMap[cardKey] : (candidate.recruiterNotes || '');
 
                     return (
                       <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-900/80 overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)]">
