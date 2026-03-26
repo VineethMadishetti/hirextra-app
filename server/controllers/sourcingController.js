@@ -19,6 +19,7 @@ import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
 import SourcingSession from '../models/SourcingSession.js';
 import { scoreCandidates, bucketByMatchCategory, locationMatches } from '../utils/matchScorer.js';
+import { saveToPool, searchPool } from '../utils/candidatePoolService.js';
 
 const require = createRequire(import.meta.url);
 

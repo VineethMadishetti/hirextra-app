@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   AlertCircle,
   Award,
@@ -13,7 +13,9 @@ import {
   Database,
   Download,
   FileSearch,
+  FileText,
   Globe,
+  X,
   GraduationCap,
   History,
   Linkedin,
@@ -303,6 +305,223 @@ function BucketSummary({ bucketCounts }) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Resume HTML generator ─────────────────────────────────────────────────────
+function buildResumeHTML(c) {
+  const name = c.name || c.fullName || 'Candidate';
+  const title = c.jobTitle || c.title || '';
+  const company = c.company || '';
+  const location = c.location || '';
+  const email = c.email || '';
+  const phone = c.phone || '';
+  const linkedin = c.linkedInUrl || c.linkedinUrl || '';
+  const github = c.githubUrl || '';
+  const about = c.about || '';
+  const skills = Array.isArray(c.skills) ? c.skills : [];
+  const experience = Array.isArray(c.experienceTimeline) ? c.experienceTimeline : [];
+  const certifications = Array.isArray(c.certifications) ? c.certifications : [];
+  const languages = Array.isArray(c.languages) ? c.languages : [];
+  const edu = c.education || '';
+  const eduGrade = c.educationGrade || '';
+  const eduYear = c.educationYear || '';
+  const totalExp = c.totalExperience || (c.experienceYears ? `${c.experienceYears} years` : '');
+
+  const section = (title, content) => content ? `
+    <div class="section">
+      <div class="section-title">${title}</div>
+      <div class="section-body">${content}</div>
+    </div>` : '';
+
+  const expHTML = experience.map(e => {
+    const dateStr = e.startDateText ? `${e.startDateText} – ${e.endDateText || 'Present'}` : '';
+    const meta = [e.employmentType, e.workplaceType].filter(Boolean).join(' · ');
+    return `
+      <div class="exp-item">
+        <div class="exp-header">
+          ${e.companyLogo ? `<img src="${e.companyLogo}" class="company-logo" alt="${e.company||''}" />` : '<div class="company-logo-placeholder"></div>'}
+          <div class="exp-info">
+            <div class="exp-title">${e.title || ''}</div>
+            <div class="exp-company">${e.company || ''}</div>
+          </div>
+          <div class="exp-dates">
+            <span class="exp-date">${dateStr}</span>${e.duration ? `<span class="exp-duration"> · ${e.duration}</span>` : ''}
+            ${meta ? `<div class="exp-meta">${meta}</div>` : ''}
+          </div>
+        </div>
+        ${e.description ? `<div class="exp-desc">${e.description}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  const skillsHTML = skills.map(s => `<span class="skill-chip">${s}</span>`).join('');
+
+  const certsHTML = certifications.map(cert => `
+    <div class="cert-item">
+      <span class="cert-title">${cert.title || ''}</span>
+      ${cert.issuedBy ? `<span class="cert-issuer"> — ${cert.issuedBy}${cert.issuedAt ? ` (${cert.issuedAt})` : ''}</span>` : ''}
+    </div>`).join('');
+
+  const langHTML = languages.length ? languages.join(', ') : '';
+
+  const contactParts = [
+    email ? `<a href="mailto:${email}">${email}</a>` : '',
+    phone ? `<a href="tel:${phone}">${phone}</a>` : '',
+    location ? `<span>📍 ${location}</span>` : '',
+    linkedin ? `<a href="${linkedin}" target="_blank">LinkedIn</a>` : '',
+    github ? `<a href="${github}" target="_blank">GitHub</a>` : '',
+  ].filter(Boolean).join('<span class="sep">|</span>');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${name} — Resume</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1a1a2e;background:#fff;padding:0}
+  .page{max-width:820px;margin:0 auto;padding:40px 48px 48px}
+  .header{border-bottom:3px solid #432DD7;padding-bottom:18px;margin-bottom:22px}
+  .header-top{display:flex;align-items:flex-start;gap:20px}
+  .avatar{width:80px;height:80px;border-radius:10px;object-fit:cover;border:2px solid #e5e7eb;flex-shrink:0}
+  .avatar-placeholder{width:80px;height:80px;border-radius:10px;background:linear-gradient(135deg,#432DD7,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-weight:700;flex-shrink:0}
+  .header-info{flex:1}
+  .name{font-size:26px;font-weight:800;color:#1a1a2e;letter-spacing:-0.3px;line-height:1.1}
+  .headline{font-size:14px;color:#432DD7;font-weight:600;margin-top:4px}
+  .sub-headline{font-size:12px;color:#64748b;margin-top:2px}
+  .contact-row{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:11.5px;color:#475569}
+  .contact-row a{color:#432DD7;text-decoration:none}
+  .sep{color:#cbd5e1;margin:0 2px}
+  .total-exp{display:inline-block;margin-top:8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 10px;font-size:11px;color:#3730a3;font-weight:600}
+  .section{margin-bottom:20px}
+  .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#432DD7;border-bottom:1px solid #e0e7ff;padding-bottom:5px;margin-bottom:12px}
+  .section-body{font-size:13px;color:#374151;line-height:1.65}
+  .exp-item{margin-bottom:14px}
+  .exp-header{display:flex;align-items:flex-start;gap:12px}
+  .company-logo{width:36px;height:36px;object-fit:contain;border-radius:5px;border:1px solid #e5e7eb;background:#f9fafb;flex-shrink:0}
+  .company-logo-placeholder{width:36px;height:36px;border-radius:5px;border:1px solid #e5e7eb;background:#f1f5f9;flex-shrink:0}
+  .exp-info{flex:1}
+  .exp-title{font-weight:700;font-size:13.5px;color:#111827}
+  .exp-company{color:#6b7280;font-size:12.5px;margin-top:1px}
+  .exp-dates{text-align:right;flex-shrink:0;font-size:11.5px;color:#6b7280}
+  .exp-duration{color:#9ca3af}
+  .exp-meta{font-size:11px;color:#9ca3af;margin-top:2px}
+  .exp-desc{font-size:12px;color:#6b7280;margin-top:6px;padding-left:48px;line-height:1.55}
+  .skills-wrap{display:flex;flex-wrap:wrap;gap:6px}
+  .skill-chip{background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:3px 10px;font-size:11.5px;color:#3730a3;font-weight:500}
+  .edu-item{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px}
+  .edu-degree{font-weight:600;color:#111827;font-size:13px}
+  .edu-meta{font-size:11.5px;color:#6b7280}
+  .edu-grade{background:#d1fae5;border:1px solid #6ee7b7;border-radius:4px;padding:1px 7px;font-size:11px;color:#065f46;font-weight:600;margin-left:8px}
+  .cert-item{margin-bottom:5px;font-size:12.5px}
+  .cert-title{font-weight:600;color:#111827}
+  .cert-issuer{color:#6b7280}
+  @media print{
+    body{background:#fff}
+    .page{padding:20px 28px 28px;max-width:100%}
+    .no-print{display:none!important}
+    a{color:inherit;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Print / Download buttons -->
+  <div class="no-print" style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:20px">
+    <button onclick="window.print()" style="background:#432DD7;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer">⬇ Download PDF</button>
+    <button onclick="window.close()" style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button>
+  </div>
+
+  <div class="header">
+    <div class="header-top">
+      ${c.profilePic
+        ? `<img src="${c.profilePic}" class="avatar" alt="${name}" />`
+        : `<div class="avatar-placeholder">${name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`}
+      <div class="header-info">
+        <div class="name">${name}</div>
+        ${title ? `<div class="headline">${title}${company ? ` · ${company}` : ''}</div>` : ''}
+        ${c.headline && c.headline !== title ? `<div class="sub-headline">${c.headline}</div>` : ''}
+        <div class="contact-row">${contactParts}</div>
+        ${totalExp ? `<span class="total-exp">⏱ ${totalExp} experience</span>` : ''}
+      </div>
+    </div>
+  </div>
+
+  ${section('Professional Summary', about ? `<p>${about}</p>` : '')}
+
+  ${experience.length ? section('Work Experience', expHTML) : ''}
+
+  ${edu ? section('Education', `
+    <div class="edu-item">
+      <div>
+        <span class="edu-degree">${edu}</span>
+        ${eduGrade ? `<span class="edu-grade">${eduGrade}</span>` : ''}
+      </div>
+      <span class="edu-meta">${eduYear || ''}</span>
+    </div>`) : ''}
+
+  ${skills.length ? section('Skills', `<div class="skills-wrap">${skillsHTML}</div>`) : ''}
+
+  ${certifications.length ? section('Certifications', certsHTML) : ''}
+
+  ${langHTML ? section('Languages', langHTML) : ''}
+</div>
+</body>
+</html>`;
+}
+
+function ResumeModal({ candidate, onClose }) {
+  const iframeRef = useRef(null);
+
+  useEffect(() => {
+    const html = buildResumeHTML(candidate);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    if (iframeRef.current) iframeRef.current.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [candidate]);
+
+  const handleDownload = useCallback(() => {
+    const html = buildResumeHTML(candidate);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) {
+      win.onload = () => {
+        setTimeout(() => { win.print(); URL.revokeObjectURL(url); }, 400);
+      };
+    }
+  }, [candidate]);
+
+  const name = candidate.name || candidate.fullName || 'Candidate';
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <FileText size={17} className="text-[#432DD7]" />
+            <span className="font-bold text-slate-800 text-sm">{name} — Resume Preview</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 rounded-lg bg-[#432DD7] text-white px-4 py-1.5 text-xs font-semibold hover:bg-[#3621c0] transition-colors cursor-pointer"
+            >
+              <Download size={13} /> Download PDF
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer text-slate-500">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        {/* Preview */}
+        <iframe ref={iframeRef} title="Resume Preview" className="flex-1 w-full border-0 bg-white" style={{ minHeight: '75vh' }} />
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
   const [view, setView] = useState('compose'); // compose | sourcing | results | recent
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
@@ -323,6 +542,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCards, setExpandedCards] = useState(new Set());
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const [resumeCandidate, setResumeCandidate] = useState(null);
   const searchAbortRef = useRef(null);
 
   // ── Recent Sessions ───────────────────────────────────────────────────────
@@ -1369,7 +1589,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
                         {/* ── Footer ──────────────────────────────────── */}
                         <div className="px-4 py-2.5 border-t border-slate-800 bg-slate-950/50 flex flex-wrap items-center gap-x-3 gap-y-2">
-                          {/* Left: LinkedIn + GitHub */}
+                          {/* Left: LinkedIn + GitHub + Resume */}
                           <div className="flex items-center gap-3">
                             {linkedInUrl ? (
                               <a href={linkedInUrl} target="_blank" rel="noreferrer" className="text-xs text-[#B9AEFF] hover:text-white hover:underline font-medium shrink-0">
@@ -1386,6 +1606,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 </a>
                               </>
                             )}
+                            <span className="text-slate-700 text-xs">·</span>
+                            <button
+                              onClick={() => setResumeCandidate(candidate)}
+                              className="flex items-center gap-1 text-xs text-violet-300 hover:text-white font-medium cursor-pointer transition-colors"
+                            >
+                              <FileText size={12} /> Resume
+                            </button>
                           </div>
 
                           {/* Right: contact */}
@@ -1502,5 +1729,10 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         </div>
       </div>
     </div>
+
+    {/* Resume preview modal */}
+    {resumeCandidate && (
+      <ResumeModal candidate={resumeCandidate} onClose={() => setResumeCandidate(null)} />
+    )}
   );
 }
