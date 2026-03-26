@@ -132,6 +132,29 @@ function parseExperienceYears(exp) {
   return extractExperienceYears(exp);
 }
 
+// 0=intern/junior  1=mid  2=senior  3=lead  4=principal  5=director+  -1=unknown
+function extractSeniorityLevel(text) {
+  const t = String(text || '').toLowerCase();
+  if (/\b(vp|vice president|director|head of|chief|cto|ceo|cfo|coo)\b/.test(t)) return 5;
+  if (/\b(principal|staff|architect)\b/.test(t)) return 4;
+  if (/\b(lead|manager)\b/.test(t)) return 3;
+  if (/\b(senior|sr\.?)\b/.test(t)) return 2;
+  if (/\b(mid[- ]?level|mid)\b/.test(t)) return 1;
+  if (/\b(junior|jr\.?|intern|associate|fresher|trainee|entry[- ]?level)\b/.test(t)) return 0;
+  return -1;
+}
+
+// Build a haystack from the most recent 1–2 experienceTimeline entries
+function getRecentHaystack(candidate) {
+  const timeline = Array.isArray(candidate.experienceTimeline) ? candidate.experienceTimeline : [];
+  if (timeline.length === 0) return '';
+  return timeline
+    .slice(0, 2)
+    .map(e => [e.title, e.company, e.description].filter(Boolean).join(' '))
+    .join(' ')
+    .toLowerCase();
+}
+
 function sortValue(candidate) {
   const hasEmail = Boolean(candidate.contact?.email || candidate.email);
   const hasPhone = Boolean(candidate.contact?.phone || candidate.phone);
@@ -229,9 +252,21 @@ export function scoreCandidate(candidate, requirements) {
   // Always compute the actual skill-match score regardless of disqualification.
   // Disqualified candidates still surface with their real partial score so the
   // recruiter can see how close they were (e.g. 80% but missing one must-have).
-  const mustHavePts  = matchedMustHave.length  * WEIGHT.mustHave;
-  const requiredPts  = matchedRequired.length   * WEIGHT.required;
-  const preferredPts = matchedPreferred.length  * WEIGHT.preferred;
+
+  // Recency bonus: skills found in the most recent 1-2 jobs get +30% weight bonus.
+  const recentHaystack = getRecentHaystack(candidate);
+  const mustHavePts  = matchedMustHave.reduce((sum, skill) => {
+    const bonus = recentHaystack && skillMatches(recentHaystack, skill) ? WEIGHT.mustHave * 0.3 : 0;
+    return sum + WEIGHT.mustHave + bonus;
+  }, 0);
+  const requiredPts  = matchedRequired.reduce((sum, skill) => {
+    const bonus = recentHaystack && skillMatches(recentHaystack, skill) ? WEIGHT.required * 0.3 : 0;
+    return sum + WEIGHT.required + bonus;
+  }, 0);
+  const preferredPts = matchedPreferred.reduce((sum, skill) => {
+    const bonus = recentHaystack && skillMatches(recentHaystack, skill) ? WEIGHT.preferred * 0.3 : 0;
+    return sum + WEIGHT.preferred + bonus;
+  }, 0);
   const rawScore     = mustHavePts + requiredPts + preferredPts;
 
   const maxPossible =
@@ -239,8 +274,21 @@ export function scoreCandidate(candidate, requirements) {
     requiredSkills.length  * WEIGHT.required +
     preferredSkills.length * WEIGHT.preferred;
 
+  // Seniority penalty: if JD asks for Senior+ but candidate title is Junior/Intern,
+  // deduct up to 25 points based on the seniority gap (gap ≥ 2 levels).
+  const reqSeniority  = extractSeniorityLevel(req.title || req.jobTitle || req.job_title || '');
+  const candSeniority = extractSeniorityLevel(
+    String(candidate.jobTitle || candidate.title || candidate.headline || '')
+  );
+  let seniorityPenalty = 0;
+  if (reqSeniority >= 2 && candSeniority >= 0) {
+    const gap = reqSeniority - candSeniority;
+    if (gap >= 2) seniorityPenalty = Math.min(gap * 8, 25); // 2 levels→16, 3+→25 cap
+  }
+
   // If no skill requirements exist score all candidates at 100 (no constraint).
-  const score = maxPossible > 0 ? Math.round((rawScore / maxPossible) * 100) : 100;
+  const baseScore = maxPossible > 0 ? Math.round((rawScore / maxPossible) * 100) : 100;
+  const score = Math.max(0, Math.min(100, baseScore - seniorityPenalty));
 
   let matchCategory;
   if (score >= 90) matchCategory = 'PERFECT';
@@ -259,8 +307,8 @@ export function scoreCandidate(candidate, requirements) {
     matchedPreferred,
     locationMatch: locMatch,
     experienceMatch: expMatch,
-    breakdown: { mustHavePts, requiredPts, preferredPts, locationPts: 0, experiencePts: 0 },
-    disqualified: false,
+    breakdown: { mustHavePts, requiredPts, preferredPts, locationPts: 0, experiencePts: 0, seniorityPenalty },
+    disqualified,
   };
 }
 

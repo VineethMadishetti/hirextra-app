@@ -8,12 +8,17 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CheckSquare,
+  Check,
   Clock,
+  Copy,
   Database,
   Download,
   FileSearch,
   FileText,
   Globe,
+  MessageSquare,
+  StickyNote,
   X,
   GraduationCap,
   History,
@@ -21,7 +26,9 @@ import {
   Mail,
   MapPin,
   Phone,
+  Square,
   UploadCloud,
+  Zap,
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
@@ -78,6 +85,46 @@ function extractBadgesFromSnippet(snippet) {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
+/** Parse a duration string like "1 yr 3 mos" or "6 mos" → total months */
+function parseTenureMonths(duration) {
+  if (!duration) return null;
+  const d = String(duration).toLowerCase();
+  const years = (d.match(/(\d+)\s*yr/) || d.match(/(\d+)\s*year/))?.[1];
+  const months = (d.match(/(\d+)\s*mo/) || d.match(/(\d+)\s*month/))?.[1];
+  const total = (parseInt(years || 0, 10) * 12) + parseInt(months || 0, 10);
+  return total > 0 ? total : null;
+}
+
+/** Returns true if average tenure across experienceTimeline < 12 months */
+function detectJobHopper(experienceTimeline) {
+  if (!Array.isArray(experienceTimeline) || experienceTimeline.length < 3) return false;
+  const tenures = experienceTimeline
+    .map(e => parseTenureMonths(e.duration))
+    .filter(m => m !== null && m > 0);
+  if (tenures.length < 3) return false;
+  const avg = tenures.reduce((s, m) => s + m, 0) / tenures.length;
+  return avg < 12;
+}
+
+/**
+ * Outreach readiness: 0–3 based on reachability signals.
+ * +1 email, +1 phone, +1 openToWork
+ */
+function computeOutreachScore(candidate) {
+  let score = 0;
+  if (candidate.email) score++;
+  if (candidate.phone) score++;
+  if (candidate.openToWork) score++;
+  return score;
+}
+
+const PIPELINE_STAGES = [
+  { key: 'SHORTLISTED',  label: 'Shortlisted',  color: 'bg-indigo-900/50 text-indigo-300 border-indigo-700/50' },
+  { key: 'CONTACTED',    label: 'Contacted',    color: 'bg-sky-900/40 text-sky-300 border-sky-700/50' },
+  { key: 'RESPONDED',    label: 'Responded',    color: 'bg-teal-900/40 text-teal-300 border-teal-700/50' },
+  { key: 'INTERVIEWING', label: 'Interviewing', color: 'bg-violet-900/40 text-violet-300 border-violet-700/50' },
+  { key: 'REJECTED',     label: 'Rejected',     color: 'bg-red-950/40 text-red-400 border-red-800/40' },
+];
 
 /** Extract seniority label from job title string */
 function extractSeniority(title) {
@@ -618,6 +665,15 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [resumeCandidate, setResumeCandidate] = useState(null);
   const searchAbortRef = useRef(null);
 
+  // ── Feature state: bulk select, stage, notes, outreach ───────────────────
+  const [selectedCandidates, setSelectedCandidates] = useState(new Set());
+  const [stageMap, setStageMap] = useState({});      // linkedinUrl → pipelineStage
+  const [notesMap, setNotesMap] = useState({});      // linkedinUrl → notes string
+  const [outreachCandidate, setOutreachCandidate] = useState(null);
+  const [outreachMessage, setOutreachMessage] = useState('');
+  const [outreachLoading, setOutreachLoading] = useState(false);
+  const [outreachCopied, setOutreachCopied] = useState(false);
+
   // ── Recent Sessions ───────────────────────────────────────────────────────
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -941,6 +997,81 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       if (!silent) toast.error(err.response?.data?.error || 'Failed to save candidate');
       return null;
     }
+  };
+
+  // ── Stage update ─────────────────────────────────────────────────────────
+  const handleStageChange = async (candidate, stage) => {
+    const linkedInUrl = candidate.linkedinUrl || candidate.linkedInUrl;
+    if (!linkedInUrl) return;
+    const prev = stageMap[linkedInUrl];
+    setStageMap(m => ({ ...m, [linkedInUrl]: stage }));
+    try {
+      await api.post('/ai-source/candidate-stage', {
+        linkedinUrl: linkedInUrl,
+        stage,
+        fullName: candidate.fullName || candidate.name,
+        company: candidate.company,
+        jobTitle: candidate.jobTitle || candidate.title,
+        location: candidate.location,
+      });
+      toast.success(`Stage: ${stage}`, { duration: 1500 });
+    } catch {
+      setStageMap(m => ({ ...m, [linkedInUrl]: prev }));
+      toast.error('Failed to update stage');
+    }
+  };
+
+  // ── Notes save ───────────────────────────────────────────────────────────
+  const handleNotesSave = async (linkedInUrl, notes) => {
+    if (!linkedInUrl) return;
+    try {
+      await api.post('/ai-source/notes', { linkedinUrl: linkedInUrl, notes });
+    } catch {
+      toast.error('Failed to save notes');
+    }
+  };
+
+  // ── Generate outreach message ─────────────────────────────────────────────
+  const handleGenerateOutreach = async (candidate) => {
+    setOutreachCandidate(candidate);
+    setOutreachMessage('');
+    setOutreachCopied(false);
+    setOutreachLoading(true);
+    try {
+      const { data } = await api.post('/ai-source/generate-message', {
+        candidate,
+        jobDescription,
+        recruiterName: '',
+      });
+      setOutreachMessage(data?.message || '');
+    } catch {
+      toast.error('Failed to generate message');
+    } finally {
+      setOutreachLoading(false);
+    }
+  };
+
+  // ── Bulk actions ─────────────────────────────────────────────────────────
+  const toggleSelectCandidate = (key) => {
+    setSelectedCandidates(prev => {
+      const n = new Set(prev);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  };
+
+  const handleBulkShortlist = async () => {
+    const toShortlist = candidates.filter(c => selectedCandidates.has(c.linkedinUrl || c.linkedInUrl || c.fullName || c.name));
+    await Promise.all(toShortlist.map(c => handleStageChange(c, 'SHORTLISTED')));
+    setSelectedCandidates(new Set());
+    toast.success(`Shortlisted ${toShortlist.length} candidates`);
+  };
+
+  const handleBulkReject = async () => {
+    const toReject = candidates.filter(c => selectedCandidates.has(c.linkedinUrl || c.linkedInUrl || c.fullName || c.name));
+    await Promise.all(toReject.map(c => handleStageChange(c, 'REJECTED')));
+    setSelectedCandidates(new Set());
+    toast.success(`Rejected ${toReject.length} candidates`);
   };
 
   const handleExportCSV = () => {
@@ -1393,6 +1524,33 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 </div>
               )}
 
+              {/* Bulk action bar */}
+              {selectedCandidates.size > 0 && (
+                <div className="flex items-center gap-3 rounded-xl border border-indigo-600/50 bg-indigo-950/30 px-4 py-2.5">
+                  <span className="text-sm font-semibold text-indigo-300">{selectedCandidates.size} selected</span>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={handleBulkShortlist}
+                      className="rounded-lg border border-indigo-600/60 bg-indigo-900/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-800/50 cursor-pointer"
+                    >
+                      <Check size={12} className="inline mr-1" />Shortlist All
+                    </button>
+                    <button
+                      onClick={handleBulkReject}
+                      className="rounded-lg border border-red-700/50 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-900/40 cursor-pointer"
+                    >
+                      <X size={12} className="inline mr-1" />Reject All
+                    </button>
+                    <button
+                      onClick={() => setSelectedCandidates(new Set())}
+                      className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!parseOnly && candidates.length > 0 && (
                 <div className="space-y-3">
                   {pageCandidates.map((candidate, index) => {
@@ -1427,9 +1585,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const cardKey = linkedInUrl || fullName;
                     const isExpanded = expandedCards.has(cardKey);
                     const hasExpandable = candidate.about || candidate.headline || candidate.languages?.length > 0 || candidate.certifications?.length > 0 || candidate.experienceTimeline?.length > 0;
+                    const isJobHopper = detectJobHopper(candidate.experienceTimeline);
+                    const outreachScore = computeOutreachScore(candidate);
+                    const isSelected = selectedCandidates.has(cardKey);
+                    const currentStage = stageMap[cardKey] || candidate.pipelineStage || null;
+                    const currentNotes = notesMap[cardKey] !== undefined ? notesMap[cardKey] : (candidate.recruiterNotes || '');
 
                     return (
-                      <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-900/80 overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)]">
+                      <div key={`${linkedInUrl || fullName}-${index}`} className={`rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)] ${isSelected ? 'border-indigo-500/70 bg-indigo-950/30' : 'border-slate-700/80 bg-slate-900/80'}`}>
 
                         {/* ── Card body ─────────────────────────────────── */}
                         <div className="p-4">
@@ -1437,13 +1600,24 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           {/* Top section: avatar left + identity right */}
                           <div className="flex items-start gap-4">
 
+                            {/* Checkbox + Avatar column */}
+                            <div className="shrink-0 flex flex-col items-center gap-2">
+                              <button
+                                onClick={() => toggleSelectCandidate(cardKey)}
+                                className="text-slate-500 hover:text-indigo-300 transition-colors cursor-pointer"
+                                title={isSelected ? 'Deselect' : 'Select'}
+                              >
+                                {isSelected ? <CheckSquare size={18} className="text-indigo-400" /> : <Square size={18} />}
+                              </button>
+
                             {/* Avatar — larger */}
-                            <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-xl select-none">
+                            <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-xl select-none">
                               {candidate.profilePic
                                 ? <img src={candidate.profilePic} alt={fullName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 : <span>{initials}</span>
                               }
                             </div>
+                            </div>{/* end checkbox+avatar col */}
 
                             {/* Identity: name, title, company, badges */}
                             <div className="min-w-0 flex-1">
@@ -1464,6 +1638,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                         <GraduationCap size={9} />{education}
                                       </span>
                                     )}
+                                    {isJobHopper && (
+                                      <span title="Average tenure < 12 months" className="inline-flex items-center gap-0.5 text-[10px] rounded-full border border-orange-700/50 bg-orange-950/40 text-orange-400 px-2 py-0.5 font-semibold">
+                                        ⚡ Job Hopper
+                                      </span>
+                                    )}
+                                    {/* Outreach readiness: 0 dots = no contact info, 3 = fully reachable */}
+                                    <span title={`Outreach readiness: ${outreachScore}/3`} className="inline-flex items-center gap-0.5">
+                                      {[0,1,2].map(i => (
+                                        <span key={i} className={`w-2 h-2 rounded-full ${i < outreachScore ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+                                      ))}
+                                    </span>
                                   </div>
 
                                   {/* Job title · Company */}
@@ -1551,6 +1736,25 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               ))}
                             </div>
                           )}
+
+                          {/* Pipeline stage pills */}
+                          <div className="mt-3 flex flex-wrap gap-1.5 items-center">
+                            <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">Stage:</span>
+                            {PIPELINE_STAGES.map(s => (
+                              <button
+                                key={s.key}
+                                onClick={() => handleStageChange(candidate, s.key)}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                                  currentStage === s.key
+                                    ? s.color + ' opacity-100 ring-1 ring-current'
+                                    : 'border-slate-700/50 bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                                }`}
+                              >
+                                {currentStage === s.key && <Check size={9} className="inline mr-0.5" />}
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
 
                           {/* Expandable: Headline · About · Languages */}
                           {hasExpandable && (
@@ -1643,6 +1847,21 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                       </div>
                                     </div>
                                   )}
+
+                                  {/* Recruiter Notes */}
+                                  <div>
+                                    <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5 flex items-center gap-1">
+                                      <StickyNote size={11} /> Recruiter Notes
+                                    </p>
+                                    <textarea
+                                      value={currentNotes}
+                                      onChange={(e) => setNotesMap(m => ({ ...m, [cardKey]: e.target.value }))}
+                                      onBlur={(e) => { if (linkedInUrl) handleNotesSave(linkedInUrl, e.target.value); }}
+                                      placeholder="Add private notes about this candidate…"
+                                      rows={3}
+                                      className="w-full rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-indigo-500/70 resize-none"
+                                    />
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -1674,6 +1893,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               className="flex items-center gap-1 text-xs text-violet-300 hover:text-white font-medium cursor-pointer transition-colors"
                             >
                               <FileText size={12} /> Resume
+                            </button>
+                            <span className="text-slate-700 text-xs">·</span>
+                            <button
+                              onClick={() => handleGenerateOutreach(candidate)}
+                              className="flex items-center gap-1 text-xs text-sky-300 hover:text-white font-medium cursor-pointer transition-colors"
+                              title="Generate LinkedIn outreach message"
+                            >
+                              <MessageSquare size={12} /> Outreach
                             </button>
                           </div>
 
@@ -1795,6 +2022,60 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     {/* Resume preview modal */}
     {resumeCandidate && (
       <ResumeModal candidate={resumeCandidate} onClose={() => setResumeCandidate(null)} />
+    )}
+
+    {/* Outreach message modal */}
+    {outreachCandidate && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
+        <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <MessageSquare size={16} className="text-sky-400" />
+              <span className="font-bold text-slate-100 text-sm">LinkedIn Outreach Message</span>
+              <span className="text-xs text-slate-500">— {outreachCandidate.fullName || outreachCandidate.name}</span>
+            </div>
+            <button onClick={() => setOutreachCandidate(null)} className="text-slate-500 hover:text-white cursor-pointer">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="p-5 space-y-4">
+            {outreachLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-400 text-sm">
+                <Loader2 size={18} className="animate-spin" /> Generating message…
+              </div>
+            ) : outreachMessage ? (
+              <>
+                <textarea
+                  readOnly
+                  value={outreachMessage}
+                  rows={7}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-800/70 px-4 py-3 text-sm text-slate-200 focus:outline-none resize-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(outreachMessage);
+                      setOutreachCopied(true);
+                      setTimeout(() => setOutreachCopied(false), 2000);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-sky-700/50 bg-sky-900/30 px-4 py-2.5 text-sm font-semibold text-sky-200 hover:bg-sky-800/40 cursor-pointer"
+                  >
+                    {outreachCopied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy Message</>}
+                  </button>
+                  <button
+                    onClick={() => handleGenerateOutreach(outreachCandidate)}
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700 cursor-pointer"
+                  >
+                    Regenerate
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-center text-sm text-slate-500 py-8">No message generated.</p>
+            )}
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

@@ -53,6 +53,18 @@ function stageToStatus(stage) {
   if (normalized === 'SHORTLISTED') {
     return { pipelineStage: 'SHORTLISTED', sequenceStatus: 'QUEUED', callStatus: 'QUEUED' };
   }
+  if (normalized === 'CONTACTED') {
+    return { pipelineStage: 'CONTACTED', sequenceStatus: 'SENT', callStatus: 'NOT_SCHEDULED' };
+  }
+  if (normalized === 'RESPONDED') {
+    return { pipelineStage: 'RESPONDED', sequenceStatus: 'SENT', callStatus: 'NOT_SCHEDULED' };
+  }
+  if (normalized === 'INTERVIEWING') {
+    return { pipelineStage: 'INTERVIEWING', sequenceStatus: 'SENT', callStatus: 'COMPLETED' };
+  }
+  if (normalized === 'REJECTED') {
+    return { pipelineStage: 'REJECTED', sequenceStatus: 'NOT_STARTED', callStatus: 'NOT_SCHEDULED' };
+  }
   return { pipelineStage: 'DISCOVERED', sequenceStatus: 'NOT_STARTED', callStatus: 'NOT_SCHEDULED' };
 }
 
@@ -1220,6 +1232,91 @@ export const getSessionById = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/ai-source/notes
+ * Save recruiter notes for a candidate (upsert by linkedinUrl).
+ */
+export const updateCandidateNotes = async (req, res) => {
+  const userId = req.user?._id;
+  const { linkedinUrl, linkedInUrl, notes } = req.body || {};
+  const resolvedLinkedin = linkedinUrl || linkedInUrl;
+
+  if (!resolvedLinkedin) {
+    return res.status(400).json({ success: false, error: 'linkedinUrl is required' });
+  }
+
+  try {
+    const doc = await Candidate.findOneAndUpdate(
+      { linkedinUrl: resolvedLinkedin },
+      { $set: { recruiterNotes: String(notes || '') } },
+      { upsert: false, new: true }
+    ).lean();
+
+    if (!doc) {
+      return res.status(404).json({ success: false, error: 'Candidate not found' });
+    }
+
+    return res.status(200).json({ success: true, recruiterNotes: doc.recruiterNotes });
+  } catch (error) {
+    logger.error(`Failed to update candidate notes: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to save notes', message: error.message });
+  }
+};
+
+/**
+ * POST /api/ai-source/generate-message
+ * Generate a personalized LinkedIn outreach message using OpenAI.
+ */
+export const generateOutreachMessage = async (req, res) => {
+  const { candidate, jobDescription, recruiterName } = req.body || {};
+
+  if (!candidate) {
+    return res.status(400).json({ success: false, error: 'candidate is required' });
+  }
+
+  try {
+    const name = candidate.fullName || candidate.name || 'there';
+    const title = candidate.jobTitle || candidate.title || '';
+    const company = candidate.company || '';
+    const skills = Array.isArray(candidate.skills)
+      ? candidate.skills.slice(0, 8).join(', ')
+      : String(candidate.skills || '').split(/[,;|]/).slice(0, 8).join(', ');
+    const jd = String(jobDescription || '').slice(0, 800);
+    const recruiter = String(recruiterName || 'our team');
+
+    const prompt = `You are a recruiter writing a short, personalized LinkedIn outreach message.
+
+Candidate: ${name}${title ? `, ${title}` : ''}${company ? ` at ${company}` : ''}
+Key skills: ${skills || 'not specified'}
+Job description summary: ${jd || 'a relevant role at our company'}
+Recruiter/company: ${recruiter}
+
+Write a concise, friendly LinkedIn message (max 150 words).
+- Start with the candidate's first name
+- Mention 1-2 specific skills or experiences from their profile
+- Briefly describe the opportunity
+- End with a soft call-to-action (e.g., "Would love to connect")
+- Do NOT use generic phrases like "I came across your profile"
+- Sound human, not like a template`;
+
+    const OpenAI = (await import('openai')).default;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 220,
+      temperature: 0.7,
+    });
+
+    const message = response.choices?.[0]?.message?.content?.trim() || '';
+    return res.status(200).json({ success: true, message });
+  } catch (error) {
+    logger.error(`Failed to generate outreach message: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to generate message', message: error.message });
+  }
+};
+
 export default {
   extractRequirements,
   sourceCandidates,
@@ -1233,4 +1330,6 @@ export default {
   exportCandidatesAsCSV,
   getSourcingSessions,
   getSessionById,
+  updateCandidateNotes,
+  generateOutreachMessage,
 };

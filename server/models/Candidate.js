@@ -46,7 +46,7 @@ const candidateSchema = new mongoose.Schema(
     },
     pipelineStage: {
       type: String,
-      enum: ['DISCOVERED', 'CONTACT_ENRICHED', 'SEQUENCED', 'CALL_QUEUED', 'SHORTLISTED'],
+      enum: ['DISCOVERED', 'CONTACT_ENRICHED', 'SEQUENCED', 'CALL_QUEUED', 'SHORTLISTED', 'CONTACTED', 'RESPONDED', 'INTERVIEWING', 'REJECTED'],
       default: 'DISCOVERED',
     },
     sequenceStatus: {

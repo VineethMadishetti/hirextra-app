@@ -14,6 +14,8 @@ import {
   exportCandidatesAsCSV,
   getSourcingSessions,
   getSessionById,
+  updateCandidateNotes,
+  generateOutreachMessage,
 } from '../controllers/sourcingController.js';
 
 const router = express.Router();
@@ -60,5 +62,11 @@ router.get('/stats', protect, getSourcingStats);
 // Recent search sessions
 router.get('/sessions', protect, getSourcingSessions);
 router.get('/sessions/:id', protect, getSessionById);
+
+// Save/update recruiter notes for a candidate
+router.post('/notes', protect, updateCandidateNotes);
+
+// Generate personalized LinkedIn outreach message
+router.post('/generate-message', protect, generateOutreachMessage);
 
 export default router;
