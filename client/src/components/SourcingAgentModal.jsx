@@ -16,14 +16,13 @@ import {
   Globe,
   GraduationCap,
   History,
+  Linkedin,
   Loader2,
   Mail,
   MapPin,
-  Monitor,
   Phone,
   Star,
   UploadCloud,
-  Users,
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
@@ -1133,23 +1132,45 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
                         {/* ── Card body ─────────────────────────────────── */}
                         <div className="p-4">
-                          <div className="flex items-start gap-3">
 
-                            {/* Avatar */}
-                            <div className="shrink-0 w-12 h-12 rounded-full overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-base select-none">
+                          {/* Top section: avatar left + identity right */}
+                          <div className="flex items-start gap-4">
+
+                            {/* Avatar — larger */}
+                            <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-xl select-none">
                               {candidate.profilePic
                                 ? <img src={candidate.profilePic} alt={fullName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 : <span>{initials}</span>
                               }
                             </div>
 
-                            {/* Name / title / meta */}
+                            {/* Identity: name, title, company, badges */}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  {/* Name + badges */}
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <h4 className="text-base font-bold text-slate-100 leading-tight">{fullName}</h4>
+
+                                  {/* Full name */}
+                                  <h4 className="text-base font-bold text-slate-100 leading-tight">{fullName}</h4>
+
+                                  {/* Job title · Company */}
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
+                                    {jobTitle && (
+                                      <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
+                                        <Briefcase size={12} className="text-[#8B7FE8] shrink-0" />{jobTitle}
+                                      </span>
+                                    )}
+                                    {company && (
+                                      <>
+                                        {jobTitle && <span className="text-slate-600 text-xs">·</span>}
+                                        <span className="flex items-center gap-1 text-sm text-slate-400">
+                                          <Building2 size={12} className="text-slate-500 shrink-0" />{company}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Badges row */}
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                                     {candidate.openToWork && (
                                       <span className="inline-flex items-center text-[10px] rounded-full border border-emerald-600/50 bg-emerald-950/40 text-emerald-300 px-2 py-0.5 font-semibold">#OpenToWork</span>
                                     )}
@@ -1180,58 +1201,50 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                       </span>
                                     )}
                                   </div>
-
-                                  {/* Title @ Company */}
-                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
-                                    {jobTitle && (
-                                      <span className="flex items-center gap-1 text-sm text-slate-200 font-medium">
-                                        <Briefcase size={11} className="text-[#8B7FE8] shrink-0" />{jobTitle}
-                                      </span>
-                                    )}
-                                    {company && (
-                                      <>
-                                        {jobTitle && <span className="text-slate-600 text-xs">·</span>}
-                                        <span className="flex items-center gap-1 text-sm text-slate-400">
-                                          <Building2 size={11} className="text-slate-500 shrink-0" />{company}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-
-                                  {/* Meta row */}
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
-                                    {education && !isPremiumInstitute(education) && (
-                                      <span className="flex items-center gap-1">
-                                        <GraduationCap size={11} />{education}
-                                      </span>
-                                    )}
-                                    {location && (
-                                      <span className={`flex items-center gap-1 ${candidate.locationUnverified ? 'text-amber-500/80' : ''}`}>
-                                        <MapPin size={11} className={candidate.locationUnverified ? 'text-amber-500/70' : 'text-slate-500'} />
-                                        {location}
-                                        {candidate.locationUnverified && <span className="italic text-[10px] text-amber-500/60">(unverified)</span>}
-                                      </span>
-                                    )}
-                                    {experience && (
-                                      <span className="flex items-center gap-1">
-                                        <Clock size={11} className="text-slate-500" />{experience}
-                                      </span>
-                                    )}
-                                    {candidate.workplaceType && (
-                                      <span className="flex items-center gap-1">
-                                        <Monitor size={11} className="text-slate-500" />{candidate.workplaceType}
-                                      </span>
-                                    )}
-                                    {candidate.connectionsCount > 0 && (
-                                      <span className="flex items-center gap-1">
-                                        <Users size={11} className="text-slate-500" />{candidate.connectionsCount.toLocaleString()} connections
-                                      </span>
-                                    )}
-                                  </div>
                                 </div>
                                 <MatchBadge score={candidate.matchScore} category={candidate.matchCategory} />
                               </div>
                             </div>
+                          </div>
+
+                          {/* Meta rows — below image, full width, left-aligned */}
+                          <div className="flex flex-col gap-y-1.5 mt-3 text-xs text-slate-400">
+                            {/* Education */}
+                            {education && !isPremiumInstitute(education) && (
+                              <span className="flex items-center gap-1.5 flex-wrap">
+                                <GraduationCap size={13} className="text-[#A99BFF] shrink-0" />
+                                <span>{education}</span>
+                                {candidate.educationYear && <span className="text-slate-500">· {candidate.educationYear}</span>}
+                                {candidate.educationGrade && <span className="text-emerald-400 font-medium">{candidate.educationGrade}</span>}
+                              </span>
+                            )}
+                            {/* Experience + Connections */}
+                            {(experience || candidate.connectionsCount > 0) && (
+                              <div className="flex items-center gap-x-4 flex-wrap gap-y-1">
+                                {experience && (
+                                  <span className="flex items-center gap-1.5">
+                                    <Clock size={13} className="text-emerald-400 shrink-0" />
+                                    <span className="text-slate-500 font-medium">Total Experience:</span>
+                                    <span className="text-slate-300">{experience}</span>
+                                  </span>
+                                )}
+                                {candidate.connectionsCount > 0 && (
+                                  <span className="flex items-center gap-1.5">
+                                    <Linkedin size={13} className="text-[#0A66C2] shrink-0" />
+                                    <span className="text-slate-300">{candidate.connectionsCount.toLocaleString()} connections</span>
+                                    {candidate.followerCount > 0 && <span className="text-slate-500">· {candidate.followerCount.toLocaleString()} followers</span>}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {/* Location */}
+                            {location && (
+                              <span className={`flex items-center gap-1.5 ${candidate.locationUnverified ? 'text-amber-500/80' : ''}`}>
+                                <MapPin size={13} className={candidate.locationUnverified ? 'text-amber-400 shrink-0' : 'text-rose-400 shrink-0'} />
+                                <span className={candidate.locationUnverified ? '' : 'text-slate-300'}>{location}</span>
+                                {candidate.locationUnverified && <span className="italic text-[10px] text-amber-500/60">(unverified)</span>}
+                              </span>
+                            )}
                           </div>
 
                           {/* Skills */}
@@ -1296,32 +1309,34 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                       <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-2">Experience</p>
                                       <div className="space-y-0">
                                         {candidate.experienceTimeline.map((exp, i) => {
-                                          const fmtDate = (d) => {
-                                            if (!d) return null;
-                                            if (typeof d === 'string') return d;
-                                            if (typeof d === 'object' && d.month && d.year) {
-                                              return new Date(d.year, d.month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                                            }
-                                            return null;
-                                          };
-                                          const start = fmtDate(exp.startDate);
-                                          const end = exp.isCurrent ? 'Present' : fmtDate(exp.endDate);
-                                          const dateRange = start ? `${start} – ${end || 'Present'}` : null;
+                                          const dateRange = exp.startDateText
+                                            ? `${exp.startDateText} – ${exp.endDateText || 'Present'}`
+                                            : null;
                                           const timeLabel = [dateRange, exp.duration].filter(Boolean).join(' · ');
                                           return (
                                             <div key={i} className="flex gap-3">
+                                              {/* Timeline spine */}
                                               <div className="flex flex-col items-center shrink-0 pt-1">
                                                 <div className={`w-2.5 h-2.5 rounded-full border-2 ${exp.isCurrent ? 'border-indigo-400 bg-indigo-500' : 'border-slate-500 bg-slate-700'}`} />
                                                 {i < candidate.experienceTimeline.length - 1 && <div className="w-px flex-1 bg-slate-700/50 my-1" style={{ minHeight: '20px' }} />}
                                               </div>
-                                              <div className="pb-3 min-w-0">
+                                              {/* Company logo */}
+                                              {exp.companyLogo && (
+                                                <img src={exp.companyLogo} alt={exp.company || ''} className="w-8 h-8 rounded object-contain bg-white/5 border border-slate-700 shrink-0 mt-0.5" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                              )}
+                                              {/* Content */}
+                                              <div className="pb-3 min-w-0 flex-1">
                                                 <p className="text-sm text-slate-100 font-semibold leading-tight">{exp.title || '—'}</p>
-                                                <p className="text-sm text-slate-400 mt-0.5">{exp.company || ''}</p>
-                                                {timeLabel && (
-                                                  <p className="text-xs text-slate-500 mt-0.5">{timeLabel}</p>
-                                                )}
+                                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                                                  {exp.company && <p className="text-sm text-slate-400">{exp.company}</p>}
+                                                  {exp.employmentType && <span className="text-[11px] text-slate-500">· {exp.employmentType}</span>}
+                                                </div>
+                                                {timeLabel && <p className="text-xs text-slate-500 mt-0.5">{timeLabel}</p>}
                                                 {exp.workplaceType && (
                                                   <span className="mt-1 inline-block text-[11px] border border-slate-700 rounded px-1.5 py-0.5 text-slate-500">{exp.workplaceType}</span>
+                                                )}
+                                                {exp.description && (
+                                                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">{exp.description}</p>
                                                 )}
                                               </div>
                                             </div>

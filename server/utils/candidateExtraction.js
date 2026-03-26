@@ -653,12 +653,18 @@ export function normalizeLinkedInProfiles(profiles) {
     // ── Education: "B.Tech in CSE — JNTU Hyderabad" ──────────────────────────
     const firstEdu = Array.isArray(p.education) ? p.education[0] : null;
     let education = null;
+    let educationGrade = null;
+    let educationYear = null;
     if (firstEdu) {
       const degParts = [firstEdu.degree, firstEdu.fieldOfStudy].filter(Boolean);
       const school = firstEdu.schoolName || firstEdu.school || '';
       education = degParts.length > 0
         ? `${degParts.join(' in ')}${school ? ` — ${school}` : ''}`
         : school || null;
+      // "Grade: 9.4" or "Grade: A" from insights field
+      educationGrade = firstEdu.insights || null;
+      // graduation year from endDate
+      educationYear = firstEdu.endDate?.year || firstEdu.endDate?.text?.match(/\d{4}/)?.[0] || null;
     }
 
     // ── Total experience: sum experience[].duration strings ───────────────────
@@ -686,7 +692,10 @@ export function normalizeLinkedInProfiles(profiles) {
       premium: p.premium === true,
       verified: p.verified === true,
       connectionsCount: typeof p.connectionsCount === 'number' ? p.connectionsCount : null,
+      followerCount: typeof p.followerCount === 'number' ? p.followerCount : null,
       workplaceType: currentExp?.workplaceType || currentPos?.workplaceType || null,
+      educationGrade,
+      educationYear,
       certifications: Array.isArray(p.certifications)
         ? p.certifications.slice(0, 3).map((cert) => ({
             title: cert.title || null,
@@ -695,15 +704,22 @@ export function normalizeLinkedInProfiles(profiles) {
           }))
         : [],
       experienceTimeline: Array.isArray(p.experience)
-        ? p.experience.slice(0, 5).map((e) => ({
-            title: e.title || e.position || null,
-            company: e.companyName || e.company || null,
-            duration: e.duration || null,
-            startDate: e.startDate || null,
-            endDate: e.endDate || null,
-            isCurrent: e.isCurrent === true,
-            workplaceType: e.workplaceType || null,
-          }))
+        ? p.experience.slice(0, 5).map((e) => {
+            const endText = e.endDate?.text || '';
+            const isCurrent = !e.endDate?.year && (!endText || /present/i.test(endText));
+            return {
+              title: e.title || e.position || null,
+              company: e.companyName || e.company || null,
+              companyLogo: e.companyLogo?.url || null,
+              employmentType: e.employmentType || null,
+              duration: e.duration || null,
+              startDateText: e.startDate?.text || null,
+              endDateText: isCurrent ? 'Present' : (e.endDate?.text || null),
+              isCurrent,
+              workplaceType: e.workplaceType || null,
+              description: e.description ? String(e.description).substring(0, 200) : null,
+            };
+          })
         : [],
       email: p.email || p.emailAddress || null,
       phone: p.phone || p.phoneNumber || null,
@@ -855,7 +871,10 @@ export function formatCandidates(candidates) {
     premium: c.premium === true,
     verified: c.verified === true,
     connectionsCount: c.connectionsCount ?? null,
+    followerCount: c.followerCount ?? null,
     workplaceType: c.workplaceType || null,
+    educationGrade: c.educationGrade || null,
+    educationYear: c.educationYear || null,
     certifications: Array.isArray(c.certifications) ? c.certifications : [],
     experienceTimeline: Array.isArray(c.experienceTimeline) ? c.experienceTimeline : [],
   });
