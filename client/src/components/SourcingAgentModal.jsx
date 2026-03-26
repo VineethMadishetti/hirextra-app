@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CheckSquare,
   Check,
   Clock,
   Copy,
@@ -18,7 +17,6 @@ import {
   FileText,
   Globe,
   MessageSquare,
-  StickyNote,
   X,
   GraduationCap,
   History,
@@ -26,9 +24,7 @@ import {
   Mail,
   MapPin,
   Phone,
-  Square,
   UploadCloud,
-  Zap,
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
@@ -1524,33 +1520,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 </div>
               )}
 
-              {/* Bulk action bar */}
-              {selectedCandidates.size > 0 && (
-                <div className="flex items-center gap-3 rounded-xl border border-indigo-600/50 bg-indigo-950/30 px-4 py-2.5">
-                  <span className="text-sm font-semibold text-indigo-300">{selectedCandidates.size} selected</span>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <button
-                      onClick={handleBulkShortlist}
-                      className="rounded-lg border border-indigo-600/60 bg-indigo-900/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-800/50 cursor-pointer"
-                    >
-                      <Check size={12} className="inline mr-1" />Shortlist All
-                    </button>
-                    <button
-                      onClick={handleBulkReject}
-                      className="rounded-lg border border-red-700/50 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-900/40 cursor-pointer"
-                    >
-                      <X size={12} className="inline mr-1" />Reject All
-                    </button>
-                    <button
-                      onClick={() => setSelectedCandidates(new Set())}
-                      className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {!parseOnly && candidates.length > 0 && (
                 <div className="space-y-3">
                   {pageCandidates.map((candidate, index) => {
@@ -1592,7 +1561,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const currentNotes = notesMap[cardKey] !== undefined ? notesMap[cardKey] : (candidate.recruiterNotes || '');
 
                     return (
-                      <div key={`${linkedInUrl || fullName}-${index}`} className={`rounded-2xl border overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)] ${isSelected ? 'border-indigo-500/70 bg-indigo-950/30' : 'border-slate-700/80 bg-slate-900/80'}`}>
+                      <div key={`${linkedInUrl || fullName}-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-900/80 overflow-hidden transition-all duration-200 hover:border-[#6B5AF0]/60 hover:shadow-[0_0_0_1px_rgba(67,45,215,0.18)]">
 
                         {/* ── Card body ─────────────────────────────────── */}
                         <div className="p-4">
@@ -1600,24 +1569,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           {/* Top section: avatar left + identity right */}
                           <div className="flex items-start gap-4">
 
-                            {/* Checkbox + Avatar column */}
-                            <div className="shrink-0 flex flex-col items-center gap-2">
-                              <button
-                                onClick={() => toggleSelectCandidate(cardKey)}
-                                className="text-slate-500 hover:text-indigo-300 transition-colors cursor-pointer"
-                                title={isSelected ? 'Deselect' : 'Select'}
-                              >
-                                {isSelected ? <CheckSquare size={18} className="text-indigo-400" /> : <Square size={18} />}
-                              </button>
-
-                            {/* Avatar — larger */}
-                            <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-xl select-none">
+                            {/* Avatar */}
+                            <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-xl select-none">
                               {candidate.profilePic
                                 ? <img src={candidate.profilePic} alt={fullName} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                 : <span>{initials}</span>
                               }
                             </div>
-                            </div>{/* end checkbox+avatar col */}
 
                             {/* Identity: name, title, company, badges */}
                             <div className="min-w-0 flex-1">
@@ -1643,12 +1601,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                         ⚡ Job Hopper
                                       </span>
                                     )}
-                                    {/* Outreach readiness: 0 dots = no contact info, 3 = fully reachable */}
-                                    <span title={`Outreach readiness: ${outreachScore}/3`} className="inline-flex items-center gap-0.5">
-                                      {[0,1,2].map(i => (
-                                        <span key={i} className={`w-2 h-2 rounded-full ${i < outreachScore ? 'bg-emerald-400' : 'bg-slate-700'}`} />
-                                      ))}
-                                    </span>
                                   </div>
 
                                   {/* Job title · Company */}
@@ -1693,7 +1645,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 <GraduationCap size={13} className="text-[#A99BFF] shrink-0" />
                                 <span>{education}</span>
                                 {candidate.educationYear && <span className="text-slate-500">· {candidate.educationYear}</span>}
-                                {candidate.educationGrade && <span className="text-emerald-400 font-medium">{candidate.educationGrade}</span>}
+                                {candidate.educationGrade && (() => { const g = String(candidate.educationGrade).match(/^[\d.]+/)?.[0]; return g ? <span className="text-emerald-400 font-medium">· Grade: {g}</span> : null; })()}
                               </span>
                             )}
                             {/* Experience */}
@@ -1736,25 +1688,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               ))}
                             </div>
                           )}
-
-                          {/* Pipeline stage pills */}
-                          <div className="mt-3 flex flex-wrap gap-1.5 items-center">
-                            <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">Stage:</span>
-                            {PIPELINE_STAGES.map(s => (
-                              <button
-                                key={s.key}
-                                onClick={() => handleStageChange(candidate, s.key)}
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
-                                  currentStage === s.key
-                                    ? s.color + ' opacity-100 ring-1 ring-current'
-                                    : 'border-slate-700/50 bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:border-slate-600'
-                                }`}
-                              >
-                                {currentStage === s.key && <Check size={9} className="inline mr-0.5" />}
-                                {s.label}
-                              </button>
-                            ))}
-                          </div>
 
                           {/* Expandable: Headline · About · Languages */}
                           {hasExpandable && (
@@ -1848,20 +1781,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     </div>
                                   )}
 
-                                  {/* Recruiter Notes */}
-                                  <div>
-                                    <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5 flex items-center gap-1">
-                                      <StickyNote size={11} /> Recruiter Notes
-                                    </p>
-                                    <textarea
-                                      value={currentNotes}
-                                      onChange={(e) => setNotesMap(m => ({ ...m, [cardKey]: e.target.value }))}
-                                      onBlur={(e) => { if (linkedInUrl) handleNotesSave(linkedInUrl, e.target.value); }}
-                                      placeholder="Add private notes about this candidate…"
-                                      rows={3}
-                                      className="w-full rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-indigo-500/70 resize-none"
-                                    />
-                                  </div>
                                 </div>
                               )}
                             </div>
