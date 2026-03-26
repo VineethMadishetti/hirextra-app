@@ -446,7 +446,7 @@ export const sourceCandidates = async (req, res) => {
     // - required skills = OR gate
     candidates = scoreCandidates(candidates, parsed, {
       minScore: 0,
-      excludeDisqualified: true,
+      excludeDisqualified: false,
     });
 
     candidates = candidates.slice(0, maxCandidatesSafe);
