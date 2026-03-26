@@ -444,10 +444,13 @@ export const sourceCandidates = async (req, res) => {
     // Match score is skill-only:
     // - must-have skills = AND gate
     // - required skills = OR gate
-    candidates = scoreCandidates(candidates, parsed, {
-      minScore: 0,
-      excludeDisqualified: false,
-    });
+    // AND gate enforced: disqualified candidates are excluded when enough pass.
+    // If ALL candidates fail (Apify returned poor matches), show them anyway so
+    // the recruiter never sees a blank page — missing skills are clearly flagged.
+    const strictScored = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: true });
+    candidates = strictScored.length > 0
+      ? strictScored
+      : scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
 
     candidates = candidates.slice(0, maxCandidatesSafe);
 
