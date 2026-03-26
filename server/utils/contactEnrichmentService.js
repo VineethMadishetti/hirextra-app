@@ -56,6 +56,16 @@ class ContactEnricher {
     logger.info(`Contact lookup for candidate ${candidateId}`);
 
     try {
+      // Skrapp is primary — try it first
+      if (this.skrappKey) {
+        const skrappResult = await this._skrappLookup({ linkedinUrl, fullName, company });
+        if (skrappResult && skrappResult.email) {
+          logger.info(`  Skrapp found contact for ${candidateId}`);
+          return { ...skrappResult, source: 'skrapp', confidence: 0.85 };
+        }
+      }
+
+      // Apollo is fallback
       if (this.apolloKey) {
         const apolloResult = await this._apolloLookup({ linkedinUrl, fullName, company });
         if (apolloResult && (apolloResult.email || apolloResult.phone)) {
@@ -64,26 +74,10 @@ class ContactEnricher {
         }
       }
 
-      if (!this.skrappKey) {
-        return {
-          email: null,
-          phone: null,
-          source: 'failed',
-          confidence: 0,
-          error: 'No contact found from Apollo and SKRAPP_API_KEY is not configured for fallback.',
-        };
-      }
-
-      const result = await this._skrappLookup({ linkedinUrl, fullName, company });
-      if (result && result.email) {
-        logger.info(`  Skrapp found contact for ${candidateId}`);
-        return { ...result, source: 'skrapp', confidence: 0.85 };
-      }
-
       logger.warn(`  No contact found for ${candidateId}`);
       return {
         email: null, phone: null, source: 'failed', confidence: 0,
-        error: 'No contact found. Apollo and Skrapp both require a valid name plus company/domain or LinkedIn URL.',
+        error: 'No contact found. Skrapp and Apollo both require a valid name plus company/domain or LinkedIn URL.',
       };
     } catch (error) {
       logger.error(`Enrichment error for ${candidateId}:`, error.message);

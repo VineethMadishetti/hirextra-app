@@ -217,33 +217,21 @@ export function scoreCandidate(candidate, requirements) {
   const requiredFail = requiredSkills.length > 0 && matchedRequired.length === 0;
   const disqualified = mustHaveFail || requiredFail;
 
-  if (disqualified) {
-    return {
-      score: 0,
-      matchCategory: 'WEAK',
-      matchedMustHave,
-      missingMustHave,
-      matchedRequired,
-      missingRequired,
-      matchedPreferred,
-      locationMatch: locMatch,
-      experienceMatch: expMatch,
-      breakdown: { mustHavePts: 0, requiredPts: 0, preferredPts: 0, locationPts: 0, experiencePts: 0 },
-      disqualified: true,
-    };
-  }
-
-  const mustHavePts = matchedMustHave.length * WEIGHT.mustHave;
-  const requiredPts = matchedRequired.length * WEIGHT.required;
-  const preferredPts = matchedPreferred.length * WEIGHT.preferred;
-  const rawScore = mustHavePts + requiredPts + preferredPts;
+  // Always compute the actual skill-match score regardless of disqualification.
+  // Disqualified candidates still surface with their real partial score so the
+  // recruiter can see how close they were (e.g. 80% but missing one must-have).
+  const mustHavePts  = matchedMustHave.length  * WEIGHT.mustHave;
+  const requiredPts  = matchedRequired.length   * WEIGHT.required;
+  const preferredPts = matchedPreferred.length  * WEIGHT.preferred;
+  const rawScore     = mustHavePts + requiredPts + preferredPts;
 
   const maxPossible =
-    mustHaveSkills.length * WEIGHT.mustHave +
-    requiredSkills.length * WEIGHT.required +
+    mustHaveSkills.length  * WEIGHT.mustHave +
+    requiredSkills.length  * WEIGHT.required +
     preferredSkills.length * WEIGHT.preferred;
 
-  const score = maxPossible > 0 ? Math.round((rawScore / maxPossible) * 100) : 0;
+  // If no skill requirements exist score all candidates at 100 (no constraint).
+  const score = maxPossible > 0 ? Math.round((rawScore / maxPossible) * 100) : 100;
 
   let matchCategory;
   if (score >= 90) matchCategory = 'PERFECT';

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   AlertCircle,
   Award,
-  BadgeCheck,
   Briefcase,
   Building2,
   Bot,
@@ -18,12 +17,10 @@ import {
   X,
   GraduationCap,
   History,
-  Linkedin,
   Loader2,
   Mail,
   MapPin,
   Phone,
-  Star,
   UploadCloud,
 } from 'lucide-react';
 import api from '../api/axios';
@@ -1486,18 +1483,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     )}
                                   </div>
 
-                                  {/* Secondary badges row — premium / verified / availability */}
+                                  {/* Secondary badges row — availability */}
                                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                    {candidate.premium && (
-                                      <span className="inline-flex items-center gap-0.5 text-[10px] rounded-full border border-yellow-600/60 bg-yellow-950/40 text-yellow-300 px-2 py-0.5 font-bold">
-                                        <Star size={9} className="fill-yellow-400 text-yellow-400" />Premium
-                                      </span>
-                                    )}
-                                    {candidate.verified && (
-                                      <span className="inline-flex items-center gap-0.5 text-[10px] rounded-full border border-sky-600/50 bg-sky-950/30 text-sky-300 px-2 py-0.5 font-bold">
-                                        <BadgeCheck size={10} />Verified
-                                      </span>
-                                    )}
                                     {badges.filter(b => !(b.type === 'availability' && candidate.openToWork)).map((b) => (
                                       <span key={b.label} className={`inline-flex items-center text-[10px] rounded-full border px-2 py-0.5 font-semibold ${
                                         b.type === 'immediate'    ? 'border-sky-700/50 bg-sky-950/35 text-sky-300' :
@@ -1524,23 +1511,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 {candidate.educationGrade && <span className="text-emerald-400 font-medium">{candidate.educationGrade}</span>}
                               </span>
                             )}
-                            {/* Experience + Connections */}
-                            {(experience || candidate.connectionsCount > 0) && (
-                              <div className="flex items-center gap-x-4 flex-wrap gap-y-1">
-                                {experience && (
-                                  <span className="flex items-center gap-1.5">
-                                    <Clock size={13} className="text-emerald-400 shrink-0" />
-                                    <span className="text-slate-200 font-semibold">Total Experience:</span>
-                                    <span className="text-slate-100 font-medium">{experience}</span>
-                                  </span>
-                                )}
-                                {candidate.connectionsCount > 0 && (
-                                  <span className="flex items-center gap-1.5">
-                                    <Linkedin size={13} className="text-[#0A66C2] shrink-0" />
-                                    <span className="text-slate-300">{candidate.connectionsCount.toLocaleString()} connections</span>
-                                  </span>
-                                )}
-                              </div>
+                            {/* Experience */}
+                            {experience && (
+                              <span className="flex items-center gap-1.5">
+                                <Clock size={13} className="text-emerald-400 shrink-0" />
+                                <span className="text-slate-200 font-semibold">Total Experience:</span>
+                                <span className="text-slate-100 font-medium">{experience}</span>
+                              </span>
                             )}
                             {/* Location */}
                             {location && (
@@ -1548,13 +1525,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 <MapPin size={13} className={candidate.locationUnverified ? 'text-amber-400 shrink-0' : 'text-rose-400 shrink-0'} />
                                 <span className={candidate.locationUnverified ? '' : 'text-slate-300'}>{location}</span>
                                 {candidate.locationUnverified && <span className="italic text-[10px] text-amber-500/60">(unverified)</span>}
-                              </span>
-                            )}
-                            {/* Followers — below location */}
-                            {candidate.followerCount > 0 && (
-                              <span className="flex items-center gap-1.5">
-                                <Linkedin size={13} className="text-[#0A66C2] shrink-0" />
-                                <span className="text-slate-300">{candidate.followerCount.toLocaleString()} followers</span>
                               </span>
                             )}
                           </div>
