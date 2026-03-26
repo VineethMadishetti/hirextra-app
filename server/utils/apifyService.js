@@ -98,7 +98,7 @@ class ApifyService {
       industryIds:           params.industryIds            || [],
       profileScraperMode:    params.profileScraperMode    || 'Full',
       takePages,
-      maxItems:              3,
+      maxItems:              25,
       proxy: { useApifyProxy: true },
     };
     if (params.postFilteringMongoQuery) {
