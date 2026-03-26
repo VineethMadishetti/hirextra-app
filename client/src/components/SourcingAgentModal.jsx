@@ -114,6 +114,60 @@ function computeOutreachScore(candidate) {
   return score;
 }
 
+/**
+ * Find JD keywords that appear somewhere in the candidate's full profile text
+ * but were NOT already counted as matched skills.
+ * Returns up to 8 relevant terms — shown as amber "relevant:" chips for weak/0% candidates.
+ */
+function findRelevantOverlap(candidate, parsedRequirements, jdText) {
+  if (!parsedRequirements) return [];
+
+  // Build the candidate's full text profile
+  const profileText = [
+    Array.isArray(candidate.skills) ? candidate.skills.join(' ') : String(candidate.skills || ''),
+    candidate.jobTitle || candidate.title || '',
+    candidate.headline || '',
+    candidate.about || '',
+    candidate.snippet || '',
+    ...(Array.isArray(candidate.experienceTimeline)
+      ? candidate.experienceTimeline.map(e => [e.title, e.description].filter(Boolean).join(' '))
+      : []),
+  ].join(' ').toLowerCase();
+
+  if (!profileText.trim()) return [];
+
+  // All JD requirement terms to check
+  const allTerms = [
+    ...(parsedRequirements.mustHaveSkills || parsedRequirements.must_have_skills || []),
+    ...(parsedRequirements.requiredSkills  || parsedRequirements.required_skills  || []),
+    ...(parsedRequirements.preferredSkills || parsedRequirements.preferred_skills || []),
+  ];
+
+  // Also extract multi-word phrases from JD text (2+ word phrases)
+  if (jdText) {
+    const jdLower = jdText.toLowerCase();
+    const phrases = jdLower.match(/\b[a-z]+(?:\s[a-z]+){1,3}\b/g) || [];
+    // Only keep phrases 3+ chars that appear in profile
+    phrases.filter(p => p.length > 5).forEach(p => allTerms.push(p));
+  }
+
+  const alreadyMatched = new Set(
+    (candidate.matchedSkills || []).map(s => s.toLowerCase())
+  );
+
+  const found = new Set();
+  for (const term of allTerms) {
+    const t = String(term || '').toLowerCase().trim();
+    if (!t || t.length < 3) continue;
+    if (alreadyMatched.has(t)) continue;
+    if (found.has(t)) continue;
+    if (profileText.includes(t)) found.add(term); // keep original casing
+    if (found.size >= 8) break;
+  }
+
+  return [...found];
+}
+
 const PIPELINE_STAGES = [
   { key: 'SHORTLISTED',  label: 'Shortlisted',  color: 'bg-indigo-900/50 text-indigo-300 border-indigo-700/50' },
   { key: 'CONTACTED',    label: 'Contacted',    color: 'bg-sky-900/40 text-sky-300 border-sky-700/50' },
@@ -1556,6 +1610,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const hasExpandable = candidate.about || candidate.headline || candidate.languages?.length > 0 || candidate.certifications?.length > 0 || candidate.experienceTimeline?.length > 0;
                     const isJobHopper = detectJobHopper(candidate.experienceTimeline);
                     const outreachScore = computeOutreachScore(candidate);
+                    const relevantOverlap = (candidate.matchScore === 0 || !candidate.matchedSkills?.length)
+                      ? findRelevantOverlap(candidate, parsedRequirements, jobDescription)
+                      : [];
                     const isSelected = selectedCandidates.has(cardKey);
                     const currentStage = stageMap[cardKey] || candidate.pipelineStage || null;
                     const currentNotes = notesMap[cardKey] !== undefined ? notesMap[cardKey] : (candidate.recruiterNotes || '');
@@ -1687,6 +1744,19 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 <span key={skill} className="text-[10px] rounded-md border border-red-700/40 bg-red-950/20 text-red-400 px-2 py-0.5 italic">missing: {skill}</span>
                               ))}
                             </div>
+                          )}
+
+                          {/* Relevant overlap for 0%/unmatched candidates */}
+                          {relevantOverlap.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] text-amber-500/70 font-semibold uppercase tracking-wide">Relevant:</span>
+                              {relevantOverlap.map((term) => (
+                                <span key={term} className="text-[10px] rounded-md border border-amber-700/40 bg-amber-950/20 text-amber-300 px-2 py-0.5">{term}</span>
+                              ))}
+                            </div>
+                          )}
+                          {candidate.matchScore === 0 && (
+                            <p className="mt-1.5 text-[10px] text-slate-600 italic">Shown as fallback — no scored skill match with JD</p>
                           )}
 
                           {/* Expandable: Headline · About · Languages */}
