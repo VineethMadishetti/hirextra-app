@@ -1295,7 +1295,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                   Back
                 </button>
 
-                <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates</p>
+                  {activeData?.servedFromPool && (
+                    <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-emerald-700/50 bg-emerald-950/40 text-emerald-300 px-2.5 py-0.5 font-semibold">
+                      <Database size={10} /> Served from cache · 0 credits used
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Bucket summary bar */}

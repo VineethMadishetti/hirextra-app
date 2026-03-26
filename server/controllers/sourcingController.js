@@ -329,39 +329,66 @@ export const sourceCandidates = async (req, res) => {
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       const osintQueries = aiSourcingService.generateOsintQueries(parsed);
 
-      // ── HarvestAPI LinkedIn Company Employees — primary source ───────────
-      // Uses currentJobTitles filter (Lead search endpoint) to return real profiles,
-      // bypassing the "LinkedIn Member" anonymization that searchQuery triggers.
+      // ── Step 1: Check local candidate pool before spending Apify credits ──
       dataSource = 'apify';
       const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
-      logger.info(
-        `[HarvestAPI] titles=${linkedInParams.currentJobTitles.join('|')} ` +
-        `loc=${linkedInParams.locations.join(',')} seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
-      );
+      const POOL_THRESHOLD = 3; // skip Apify if pool has this many matching candidates
 
-      linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+      const poolRaw = await searchPool(parsed, linkedInParams.currentJobTitles, maxCandidatesSafe);
+      const poolSkipsApify = poolRaw.length >= POOL_THRESHOLD;
 
-      if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
-        logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
-        linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
-      }
+      if (poolSkipsApify) {
+        logger.info(`[CandidatePool] ${poolRaw.length} cached profiles found — skipping Apify call`);
+        dataSource = 'pool';
+        linkedInProfiles = poolRaw;
+      } else {
+        // ── Step 2: HarvestAPI LinkedIn search (primary source) ────────────
+        if (poolRaw.length > 0) {
+          logger.info(`[CandidatePool] Only ${poolRaw.length} cached — supplementing with Apify`);
+        }
+        logger.info(
+          `[HarvestAPI] titles=${linkedInParams.currentJobTitles.join('|')} ` +
+          `loc=${linkedInParams.locations.join(',')} seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
+        );
 
-      if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
-        logger.info('[HarvestAPI] 0 results — retrying without location filter');
-        linkedInProfiles = await apifyService.runLinkedInSearch({
-          ...linkedInParams,
-          locations: [],
-          seniorityLevelIds: [],
-          takePages: 1,
-        });
+        linkedInProfiles = await apifyService.runLinkedInSearch(linkedInParams);
+
+        if (linkedInProfiles.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
+          logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
+          linkedInProfiles = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
+        }
+
+        if (linkedInProfiles.length === 0 && linkedInParams.locations?.length > 0) {
+          logger.info('[HarvestAPI] 0 results — retrying without location filter');
+          linkedInProfiles = await apifyService.runLinkedInSearch({
+            ...linkedInParams,
+            locations: [],
+            seniorityLevelIds: [],
+            takePages: 1,
+          });
+        }
+
+        // ── Step 3: Save fresh Apify results to pool (fire-and-forget) ─────
+        if (linkedInProfiles.length > 0) {
+          saveToPool(linkedInProfiles).catch(err =>
+            logger.warn(`[CandidatePool] background save failed: ${err.message}`)
+          );
+        }
+
+        // Merge any pool results that weren't returned by Apify this time
+        if (poolRaw.length > 0) {
+          const apifyUrls = new Set(linkedInProfiles.map(p => (p.linkedinUrl || '').toLowerCase()));
+          const poolOnly = poolRaw.filter(p => !apifyUrls.has((p.linkedinUrl || '').toLowerCase()));
+          linkedInProfiles = [...linkedInProfiles, ...poolOnly];
+          if (poolOnly.length > 0) {
+            logger.info(`[CandidatePool] Merged ${poolOnly.length} additional cached profiles`);
+          }
+        }
       }
 
       candidates = normalizeLinkedInProfiles(linkedInProfiles);
 
-      // ── Hard location gate — applied immediately after normalization ──────
-      // Ensures no out-of-location candidates continue regardless of which retry
-      // strategy fetched them (including broad retries with locations: []).
-      // Candidates with no location data are excluded when a location is required.
+      // ── Hard location gate ────────────────────────────────────────────────
       const _requiredLoc = parsed.location || '';
       if (_requiredLoc && !/unspecified|not specified|remote/i.test(_requiredLoc)) {
         const beforeLoc = candidates.length;
@@ -382,8 +409,8 @@ export const sourceCandidates = async (req, res) => {
         });
       }
 
-      // ── OSINT: GitHub + Stack Overflow dorking (same Apify account) ──────
-      if (osintQueries.length > 0) {
+      // ── OSINT: GitHub + Stack Overflow dorking (skip when serving from pool) ──
+      if (!poolSkipsApify && osintQueries.length > 0) {
         const apifyResultsPerQuery = Math.min(resultsPerCountrySafe * Math.max(targetCountries.length, 1), 50);
         allResults = await apifyService.runGoogleSearch(osintQueries, apifyResultsPerQuery);
         candidates = mergeOsintData(candidates, allResults);
@@ -535,6 +562,7 @@ export const sourceCandidates = async (req, res) => {
       success: true,
       source: 'internet',
       dataSource,
+      servedFromPool: dataSource === 'pool',
       parseOnly: false,
       message: 'AI sourcing completed successfully.',
       parsedRequirements: structured,
