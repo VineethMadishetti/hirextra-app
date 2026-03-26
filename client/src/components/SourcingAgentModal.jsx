@@ -431,7 +431,6 @@ function buildResumeHTML(c) {
   // ── Additional Information ──────────────────────────────────────────────────
   const addlParts = [
     c.connectionsCount ? `<span class="addl-item">🔗 ${c.connectionsCount}+ LinkedIn connections</span>` : '',
-    c.followerCount    ? `<span class="addl-item">👥 ${c.followerCount} followers</span>` : '',
     c.openToWork       ? `<span class="addl-item addl-otw">✅ Open to Work</span>` : '',
     c.premium          ? `<span class="addl-item addl-premium">⭐ LinkedIn Premium</span>` : '',
   ].filter(Boolean).join('');
@@ -514,11 +513,6 @@ function buildResumeHTML(c) {
 </head>
 <body>
 <div class="page">
-  <div class="no-print" style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:20px">
-    <button onclick="window.print()" style="background:#432DD7;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer">⬇ Download PDF</button>
-    <button onclick="window.close()" style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button>
-  </div>
-
   <div class="header">
     <div class="header-top">
       ${c.profilePic
@@ -1459,8 +1453,21 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
 
-                                  {/* Full name */}
-                                  <h4 className="text-base font-bold text-slate-100 leading-tight">{fullName}</h4>
+                                  {/* Full name + inline key badges */}
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <h4 className="text-base font-bold text-slate-100 leading-tight">{fullName}</h4>
+                                    {candidate.openToWork && (
+                                      <span className="inline-flex items-center text-[10px] rounded-full border border-emerald-600/50 bg-emerald-950/40 text-emerald-300 px-2 py-0.5 font-semibold">#OpenToWork</span>
+                                    )}
+                                    {seniority && (
+                                      <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold">{seniority}</span>
+                                    )}
+                                    {isPremiumInstitute(education) && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-500/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
+                                        <GraduationCap size={9} />{education}
+                                      </span>
+                                    )}
+                                  </div>
 
                                   {/* Job title · Company */}
                                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5">
@@ -1479,14 +1486,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     )}
                                   </div>
 
-                                  {/* Badges row */}
+                                  {/* Secondary badges row — premium / verified / availability */}
                                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                    {candidate.openToWork && (
-                                      <span className="inline-flex items-center text-[10px] rounded-full border border-emerald-600/50 bg-emerald-950/40 text-emerald-300 px-2 py-0.5 font-semibold">#OpenToWork</span>
-                                    )}
-                                    {seniority && (
-                                      <span className="inline-flex items-center text-[10px] rounded-full border border-amber-700/40 bg-amber-950/30 text-amber-300 px-2 py-0.5 font-semibold">{seniority}</span>
-                                    )}
                                     {candidate.premium && (
                                       <span className="inline-flex items-center gap-0.5 text-[10px] rounded-full border border-yellow-600/60 bg-yellow-950/40 text-yellow-300 px-2 py-0.5 font-bold">
                                         <Star size={9} className="fill-yellow-400 text-yellow-400" />Premium
@@ -1505,11 +1506,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                                                      'border-slate-600 bg-slate-800 text-slate-300'
                                       }`}>{b.label}</span>
                                     ))}
-                                    {isPremiumInstitute(education) && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-500/50 bg-amber-950/40 text-amber-300 px-2 py-0.5 font-bold">
-                                        <GraduationCap size={9} />{education}
-                                      </span>
-                                    )}
                                   </div>
                                 </div>
                                 <MatchBadge score={candidate.matchScore} category={candidate.matchCategory} />
@@ -1534,15 +1530,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 {experience && (
                                   <span className="flex items-center gap-1.5">
                                     <Clock size={13} className="text-emerald-400 shrink-0" />
-                                    <span className="text-slate-500 font-medium">Total Experience:</span>
-                                    <span className="text-slate-300">{experience}</span>
+                                    <span className="text-slate-200 font-semibold">Total Experience:</span>
+                                    <span className="text-slate-100 font-medium">{experience}</span>
                                   </span>
                                 )}
                                 {candidate.connectionsCount > 0 && (
                                   <span className="flex items-center gap-1.5">
                                     <Linkedin size={13} className="text-[#0A66C2] shrink-0" />
                                     <span className="text-slate-300">{candidate.connectionsCount.toLocaleString()} connections</span>
-                                    {candidate.followerCount > 0 && <span className="text-slate-500">· {candidate.followerCount.toLocaleString()} followers</span>}
                                   </span>
                                 )}
                               </div>
@@ -1553,6 +1548,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 <MapPin size={13} className={candidate.locationUnverified ? 'text-amber-400 shrink-0' : 'text-rose-400 shrink-0'} />
                                 <span className={candidate.locationUnverified ? '' : 'text-slate-300'}>{location}</span>
                                 {candidate.locationUnverified && <span className="italic text-[10px] text-amber-500/60">(unverified)</span>}
+                              </span>
+                            )}
+                            {/* Followers — below location */}
+                            {candidate.followerCount > 0 && (
+                              <span className="flex items-center gap-1.5">
+                                <Linkedin size={13} className="text-[#0A66C2] shrink-0" />
+                                <span className="text-slate-300">{candidate.followerCount.toLocaleString()} followers</span>
                               </span>
                             )}
                           </div>
@@ -1636,17 +1638,17 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                               )}
                                               {/* Content */}
                                               <div className="pb-3 min-w-0 flex-1">
-                                                <p className="text-sm text-slate-100 font-semibold leading-tight">{exp.title || '—'}</p>
+                                                <p className="text-sm text-white font-semibold leading-tight">{exp.title || '—'}</p>
                                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                                                  {exp.company && <p className="text-sm text-slate-400">{exp.company}</p>}
-                                                  {exp.employmentType && <span className="text-[11px] text-slate-500">· {exp.employmentType}</span>}
+                                                  {exp.company && <p className="text-sm text-slate-200">{exp.company}</p>}
+                                                  {exp.employmentType && <span className="text-[11px] text-slate-400">· {exp.employmentType}</span>}
                                                 </div>
-                                                {timeLabel && <p className="text-xs text-slate-500 mt-0.5">{timeLabel}</p>}
+                                                {timeLabel && <p className="text-xs text-slate-400 mt-0.5">{timeLabel}</p>}
                                                 {exp.workplaceType && (
-                                                  <span className="mt-1 inline-block text-[11px] border border-slate-700 rounded px-1.5 py-0.5 text-slate-500">{exp.workplaceType}</span>
+                                                  <span className="mt-1 inline-block text-[11px] border border-slate-600 rounded px-1.5 py-0.5 text-slate-300">{exp.workplaceType}</span>
                                                 )}
                                                 {exp.description && (
-                                                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">{exp.description}</p>
+                                                  <p className="mt-1.5 text-[13px] text-slate-200 leading-relaxed">{exp.description}</p>
                                                 )}
                                               </div>
                                             </div>

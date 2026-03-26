@@ -66,9 +66,11 @@ const LOCATION_SYNONYMS = {
   austin:      ['austin'],
 };
 
+// Weights per matched skill — must-have >> required >> preferred.
+// Location is mandatory (gates search params) but adds 0 score points.
 const WEIGHT = {
-  mustHave: 30,
-  required: 12,
+  mustHave: 60,  // 12× preferred — any missing must-have already disqualifies
+  required: 15,  // 3× preferred
   preferred: 5,
 };
 
