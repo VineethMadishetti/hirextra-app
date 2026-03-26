@@ -224,7 +224,7 @@ function LoadingSteps({ steps, stepIdx, onSetStepIdx, onCancel }) {
             style={{ width: `${(stepIdx / (steps.length - 1)) * 100}%` }}
           />
 
-          {steps.slice(0, -1).map((_, i) => {
+          {steps.slice(0, -1).map((s, i) => {
             const done    = i < stepIdx;
             const current = i === stepIdx;
             return (
