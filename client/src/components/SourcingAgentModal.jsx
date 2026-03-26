@@ -1200,6 +1200,11 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
                                   {/* Meta row */}
                                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
+                                    {education && !isPremiumInstitute(education) && (
+                                      <span className="flex items-center gap-1">
+                                        <GraduationCap size={11} />{education}
+                                      </span>
+                                    )}
                                     {location && (
                                       <span className={`flex items-center gap-1 ${candidate.locationUnverified ? 'text-amber-500/80' : ''}`}>
                                         <MapPin size={11} className={candidate.locationUnverified ? 'text-amber-500/70' : 'text-slate-500'} />
@@ -1210,11 +1215,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                     {experience && (
                                       <span className="flex items-center gap-1">
                                         <Clock size={11} className="text-slate-500" />{experience}
-                                      </span>
-                                    )}
-                                    {education && !isPremiumInstitute(education) && (
-                                      <span className="flex items-center gap-1">
-                                        <GraduationCap size={11} />{education}
                                       </span>
                                     )}
                                     {candidate.workplaceType && (
@@ -1268,62 +1268,78 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                                 {isExpanded ? 'Hide full profile' : 'View full profile'}
                               </button>
                               {isExpanded && (
-                                <div className="mt-2 space-y-3 border-t border-slate-700/40 pt-2.5 text-xs">
+                                <div className="mt-2 space-y-4 border-t border-slate-700/40 pt-3">
                                   {candidate.headline && (
                                     <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Headline</p>
-                                      <p className="text-slate-400 leading-relaxed">{candidate.headline}</p>
+                                      <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Headline</p>
+                                      <p className="text-sm text-slate-300 leading-relaxed">{candidate.headline}</p>
                                     </div>
                                   )}
                                   {candidate.about && (
                                     <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
-                                      <p className="text-slate-400 leading-relaxed whitespace-pre-line">{candidate.about}</p>
+                                      <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1">About</p>
+                                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{candidate.about}</p>
                                     </div>
                                   )}
                                   {candidate.languages?.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Languages</p>
+                                      <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Languages</p>
                                       <div className="flex flex-wrap gap-1.5">
                                         {candidate.languages.map((lang, i) => (
-                                          <span key={i} className="text-[11px] rounded-md border border-slate-600 bg-slate-800 text-slate-300 px-2 py-0.5">{lang}</span>
+                                          <span key={i} className="text-xs rounded-md border border-slate-600 bg-slate-800 text-slate-300 px-2 py-0.5">{lang}</span>
                                         ))}
                                       </div>
                                     </div>
                                   )}
                                   {candidate.experienceTimeline?.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-2">Experience</p>
-                                      <div className="space-y-2">
-                                        {candidate.experienceTimeline.map((exp, i) => (
-                                          <div key={i} className="flex gap-2.5">
-                                            <div className="flex flex-col items-center shrink-0 pt-0.5">
-                                              <div className={`w-2 h-2 rounded-full border ${exp.isCurrent ? 'border-indigo-400 bg-indigo-500' : 'border-slate-600 bg-slate-700'}`} />
-                                              {i < candidate.experienceTimeline.length - 1 && <div className="w-px flex-1 bg-slate-700/60 mt-1" />}
-                                            </div>
-                                            <div className="pb-2 min-w-0">
-                                              <p className="text-slate-200 font-medium text-xs leading-tight">{exp.title || '—'}</p>
-                                              <p className="text-slate-400 text-[11px] mt-0.5">{exp.company || ''}</p>
-                                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
-                                                {exp.duration && <span>{exp.duration}</span>}
-                                                {exp.workplaceType && <span className="border border-slate-700 rounded px-1">{exp.workplaceType}</span>}
+                                      <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-2">Experience</p>
+                                      <div className="space-y-0">
+                                        {candidate.experienceTimeline.map((exp, i) => {
+                                          const fmtDate = (d) => {
+                                            if (!d) return null;
+                                            if (typeof d === 'string') return d;
+                                            if (typeof d === 'object' && d.month && d.year) {
+                                              return new Date(d.year, d.month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                            }
+                                            return null;
+                                          };
+                                          const start = fmtDate(exp.startDate);
+                                          const end = exp.isCurrent ? 'Present' : fmtDate(exp.endDate);
+                                          const dateRange = start ? `${start} – ${end || 'Present'}` : null;
+                                          const timeLabel = [dateRange, exp.duration].filter(Boolean).join(' · ');
+                                          return (
+                                            <div key={i} className="flex gap-3">
+                                              <div className="flex flex-col items-center shrink-0 pt-1">
+                                                <div className={`w-2.5 h-2.5 rounded-full border-2 ${exp.isCurrent ? 'border-indigo-400 bg-indigo-500' : 'border-slate-500 bg-slate-700'}`} />
+                                                {i < candidate.experienceTimeline.length - 1 && <div className="w-px flex-1 bg-slate-700/50 my-1" style={{ minHeight: '20px' }} />}
+                                              </div>
+                                              <div className="pb-3 min-w-0">
+                                                <p className="text-sm text-slate-100 font-semibold leading-tight">{exp.title || '—'}</p>
+                                                <p className="text-sm text-slate-400 mt-0.5">{exp.company || ''}</p>
+                                                {timeLabel && (
+                                                  <p className="text-xs text-slate-500 mt-0.5">{timeLabel}</p>
+                                                )}
+                                                {exp.workplaceType && (
+                                                  <span className="mt-1 inline-block text-[11px] border border-slate-700 rounded px-1.5 py-0.5 text-slate-500">{exp.workplaceType}</span>
+                                                )}
                                               </div>
                                             </div>
-                                          </div>
-                                        ))}
+                                          );
+                                        })}
                                       </div>
                                     </div>
                                   )}
                                   {candidate.certifications?.length > 0 && (
                                     <div>
-                                      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">Certifications</p>
-                                      <div className="space-y-1.5">
+                                      <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-2">Certifications</p>
+                                      <div className="space-y-2">
                                         {candidate.certifications.map((cert, i) => (
                                           <div key={i} className="flex items-start gap-2">
-                                            <Award size={11} className="text-amber-400 shrink-0 mt-0.5" />
+                                            <Award size={13} className="text-amber-400 shrink-0 mt-0.5" />
                                             <div className="min-w-0">
-                                              <p className="text-slate-300 text-[11px] font-medium leading-tight">{cert.title || '—'}</p>
-                                              {cert.issuedBy && <p className="text-slate-500 text-[10px]">{cert.issuedBy}{cert.issuedAt ? ` · ${cert.issuedAt}` : ''}</p>}
+                                              <p className="text-sm text-slate-300 font-medium leading-tight">{cert.title || '—'}</p>
+                                              {cert.issuedBy && <p className="text-xs text-slate-500 mt-0.5">{cert.issuedBy}{cert.issuedAt ? ` · ${cert.issuedAt}` : ''}</p>}
                                             </div>
                                           </div>
                                         ))}
