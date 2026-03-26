@@ -914,6 +914,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     : 'mx-auto h-full max-w-7xl overflow-hidden rounded-t-2xl border border-slate-800 bg-slate-950';
 
   return (
+    <>
     <div className={outerShellClass} style={CARD_FONT}>
       <div className={contentShellClass}>
         <div className="bg-[linear-gradient(110deg,#1a1440,#432DD7)] border-b border-slate-800 text-white px-6 py-5 flex items-center justify-between">
@@ -1741,5 +1742,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     {resumeCandidate && (
       <ResumeModal candidate={resumeCandidate} onClose={() => setResumeCandidate(null)} />
     )}
+    </>
   );
 }
