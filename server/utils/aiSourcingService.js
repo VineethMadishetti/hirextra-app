@@ -687,6 +687,24 @@ export function buildLinkedInSearchParams(parsedInput) {
   };
 }
 
+/**
+ * Build a free-text searchQuery from the JD's must-have + required skills.
+ * Used as a fallback / parallel search when job titles are too niche to return results.
+ * Returns null if no skills are available.
+ */
+export function buildSkillSearchQuery(parsedInput) {
+  const parsed = normalizeParsedRequirements(parsedInput);
+  const skills = uniqueStrings(
+    [
+      ...(parsed.must_have_skills || []),
+      ...(parsed.required_skills  || []).slice(0, 4),
+    ],
+    6
+  );
+  if (skills.length === 0) return null;
+  return skills.join(' ');
+}
+
 export function determineTargetCountries(location, isRemote) {
   const normalized = String(location || '').toLowerCase();
 
@@ -735,6 +753,7 @@ export default {
   generateLinkedInQueries,
   generateOsintQueries,
   buildLinkedInSearchParams,
+  buildSkillSearchQuery,
   parseMultipleLocations,
   determineTargetCountries,
 };

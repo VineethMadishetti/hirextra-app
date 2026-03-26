@@ -135,6 +135,57 @@ class ApifyService {
   }
 
   /**
+   * HarvestAPI LinkedIn — skill/keyword-based search using free-text searchQuery.
+   * Use this when job title is too niche/rare to return results.
+   * searchQuery searches across the entire LinkedIn profile (title, about, skills, experience).
+   *
+   * @param {Object} params - { searchQuery: string, locations: string[], takePages: number }
+   * @returns {Promise<Array>} - Raw HarvestAPI profile objects
+   */
+  async runLinkedInSkillSearch(params = {}) {
+    const token = this.getApiKey();
+    if (!token) return [];
+
+    const { searchQuery, locations = [], takePages = 1 } = params;
+    if (!searchQuery) return [];
+
+    logger.info(`[Apify] LinkedIn skill search — query="${searchQuery}" | loc=${locations.join(',')}`);
+
+    const body = {
+      searchQuery,
+      locations,
+      profileScraperMode: 'Full',
+      takePages: Math.min(Math.max(Number(takePages) || 1, 1), 5),
+      maxItems: 25,
+      proxy: { useApifyProxy: true },
+    };
+
+    let runId, datasetId;
+    try {
+      const resp = await axios.post(
+        `${APIFY_BASE}/acts/${LINKEDIN_ACTOR_ID}/runs?token=${token}`,
+        body,
+        { timeout: 30000 }
+      );
+      runId     = resp.data?.data?.id;
+      datasetId = resp.data?.data?.defaultDatasetId;
+    } catch (err) {
+      logger.error(`[Apify] Failed to start LinkedIn skill search: HTTP ${err.response?.status || '?'} — ${err.message}`);
+      return [];
+    }
+
+    if (!runId) { logger.error('[Apify] LinkedIn skill search returned no runId'); return []; }
+    logger.info(`[Apify] LinkedIn skill search run started — runId=${runId}`);
+
+    const succeeded = await this._pollRun(runId, 'LinkedInSkill');
+    if (!succeeded) return [];
+
+    const profiles = await this._fetchDataset(datasetId);
+    logger.info(`[Apify] LinkedIn skill search complete — ${profiles.length} profiles returned`);
+    return profiles;
+  }
+
+  /**
    * Run the Google Search Scraper for an array of queries.
    * Returns an array of normalised result objects.
    *

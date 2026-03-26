@@ -341,43 +341,66 @@ export const sourceCandidates = async (req, res) => {
       targetCountries = aiSourcingService.determineTargetCountries(structured.location, structured.remote);
       const osintQueries = aiSourcingService.generateOsintQueries(parsed);
 
-      // ── Step 1: Run cache lookup + Apify search in parallel ──────────────
+      // ── Step 1: Run cache lookup + Apify searches in parallel ────────────
+      // Two parallel Apify searches:
+      //   a) Title search  — uses currentJobTitles (Lead endpoint, best profile quality)
+      //   b) Skill search  — uses searchQuery with key skills (fallback for niche job titles)
       dataSource = 'apify';
       const linkedInParams = aiSourcingService.buildLinkedInSearchParams(parsed);
+      const skillQuery     = aiSourcingService.buildSkillSearchQuery(parsed);
 
       logger.info(
         `[HarvestAPI] titles=${linkedInParams.currentJobTitles.join('|')} ` +
         `loc=${linkedInParams.locations.join(',')} seniority=${linkedInParams.seniorityLevelIds.join(',')} pages=${linkedInParams.takePages}`
       );
+      if (skillQuery) logger.info(`[HarvestAPI] Skill search query: "${skillQuery}"`);
 
-      // Fire both simultaneously — cache is instant, Apify takes ~30 s
-      const [poolRaw, apifyResults] = await Promise.all([
+      // Fire all three simultaneously — cache is instant, Apify takes ~30 s
+      const [poolRaw, titleResults, skillResults] = await Promise.all([
         searchPool(parsed, linkedInParams.currentJobTitles, maxCandidatesSafe),
         apifyService.runLinkedInSearch(linkedInParams).catch(err => {
-          logger.warn(`[HarvestAPI] Primary search error: ${err.message}`);
+          logger.warn(`[HarvestAPI] Title search error: ${err.message}`);
           return [];
         }),
+        skillQuery
+          ? apifyService.runLinkedInSkillSearch({
+              searchQuery: skillQuery,
+              locations: linkedInParams.locations,
+              takePages: 1,
+            }).catch(err => {
+              logger.warn(`[HarvestAPI] Skill search error: ${err.message}`);
+              return [];
+            })
+          : Promise.resolve([]),
       ]);
 
       logger.info(`[CandidatePool] ${poolRaw.length} cached profiles found`);
+      logger.info(`[HarvestAPI] titleSearch=${titleResults.length} skillSearch=${skillResults.length}`);
 
-      let apifyFinal = apifyResults;
+      // Merge title + skill results, deduplicate by LinkedIn URL
+      const titleUrls = new Set(titleResults.map(p => (p.linkedinUrl || '').toLowerCase()));
+      const uniqueSkillResults = skillResults.filter(p => !titleUrls.has((p.linkedinUrl || '').toLowerCase()));
+      let apifyFinal = [...titleResults, ...uniqueSkillResults];
 
-      // Retry without seniority if Apify returned nothing
-      if (apifyFinal.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
-        logger.info('[HarvestAPI] 0 results — retrying without seniorityLevelIds');
-        apifyFinal = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
+      // Retry title search without seniority if title search returned nothing
+      if (titleResults.length === 0 && linkedInParams.seniorityLevelIds.length > 0) {
+        logger.info('[HarvestAPI] 0 title results — retrying without seniorityLevelIds');
+        const retried = await apifyService.runLinkedInSearch({ ...linkedInParams, seniorityLevelIds: [] });
+        const retriedUrls = new Set(apifyFinal.map(p => (p.linkedinUrl || '').toLowerCase()));
+        apifyFinal = [...apifyFinal, ...retried.filter(p => !retriedUrls.has((p.linkedinUrl || '').toLowerCase()))];
       }
 
-      // Retry without location if still nothing
-      if (apifyFinal.length === 0 && linkedInParams.locations?.length > 0) {
-        logger.info('[HarvestAPI] 0 results — retrying without location filter');
-        apifyFinal = await apifyService.runLinkedInSearch({
+      // Retry title search without location if still no title results
+      if (titleResults.length === 0 && linkedInParams.locations?.length > 0 && apifyFinal.length < 3) {
+        logger.info('[HarvestAPI] still low results — retrying title search without location filter');
+        const retried = await apifyService.runLinkedInSearch({
           ...linkedInParams,
           locations: [],
           seniorityLevelIds: [],
           takePages: 1,
         });
+        const retriedUrls = new Set(apifyFinal.map(p => (p.linkedinUrl || '').toLowerCase()));
+        apifyFinal = [...apifyFinal, ...retried.filter(p => !retriedUrls.has((p.linkedinUrl || '').toLowerCase()))];
       }
 
       // ── Step 2: Save fresh Apify results to pool (fire-and-forget) ────────
