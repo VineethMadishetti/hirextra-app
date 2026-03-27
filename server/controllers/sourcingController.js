@@ -506,14 +506,13 @@ export const sourceCandidates = async (req, res) => {
     // produces zero results. The match score and experienceMatch flag inform the recruiter.
 
     // Step 2: Boolean match scoring.
-    // must-have skills = hard AND gate — candidates missing ANY must-have are always excluded.
-    // required skills = OR gate with 30% threshold.
-    // When no must-have skills are defined, fall back to showing all candidates so the
-    // recruiter never sees a blank page. When must-haves ARE defined, strict mode is enforced
-    // unconditionally — disqualified candidates are never surfaced.
-    const hasMustHave = (parsed.must_have_skills || []).length > 0;
+    // must-have skills = hard AND gate — missing any must-have disqualifies a candidate.
+    // required skills = OR gate with 40% threshold.
+    // If strict scoring returns 0 results (all candidates failed), fall back to showing
+    // all candidates scored but with a warning flag — recruiter should never see a blank page.
     const strictScored = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: true });
-    candidates = (hasMustHave || strictScored.length > 0)
+    const allFailed = strictScored.length === 0 && candidates.length > 0;
+    candidates = strictScored.length > 0
       ? strictScored
       : scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
 
@@ -601,7 +600,10 @@ export const sourceCandidates = async (req, res) => {
       dataSource,
       servedFromPool: dataSource === 'pool',
       parseOnly: false,
-      message: 'AI sourcing completed successfully.',
+      allFailed,
+      message: allFailed
+        ? 'Candidates found but none fully matched the must-have skills. Showing closest matches.'
+        : 'AI sourcing completed successfully.',
       parsedRequirements: structured,
       searchPlan: {
         queries: searchQueries,

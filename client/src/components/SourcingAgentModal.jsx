@@ -2139,6 +2139,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 </div>
               )}
 
+              {activeData?.allFailed && candidates.length > 0 && (
+                <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 px-4 py-3 flex items-start gap-3 text-sm">
+                  <span className="text-amber-400 mt-0.5 shrink-0">⚠</span>
+                  <div>
+                    <p className="text-amber-300 font-semibold">No candidates fully matched the must-have skills.</p>
+                    <p className="text-amber-400/70 text-xs mt-0.5">Showing closest matches — check the highlighted missing skills on each card.</p>
+                  </div>
+                </div>
+              )}
+
               {!parseOnly && candidates.length === 0 && (
                 <div className="py-8 text-center text-slate-400">No candidates found for this requirement set.</div>
               )}
