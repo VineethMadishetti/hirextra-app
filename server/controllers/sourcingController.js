@@ -17,6 +17,7 @@ import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import githubService from '../utils/githubService.js';
 import logger from '../utils/logger.js';
 import Candidate from '../models/Candidate.js';
+import CandidatePool from '../models/CandidatePool.js';
 import SourcingSession from '../models/SourcingSession.js';
 import { scoreCandidates, bucketByMatchCategory, locationMatches } from '../utils/matchScorer.js';
 import { saveToPool, searchPool } from '../utils/candidatePoolService.js';
@@ -1340,6 +1341,56 @@ Write a concise, friendly LinkedIn message (max 150 words).
   }
 };
 
+/**
+ * GET /api/ai-source/pool
+ * Browse all profiles in the CandidatePool with optional keyword search.
+ * Query params: q (search text), page (default 1), limit (default 20)
+ */
+export const getCandidatePool = async (req, res) => {
+  try {
+    const q     = String(req.query.q || '').trim();
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip  = (page - 1) * limit;
+
+    let filter = {};
+    if (q) {
+      const regex = new RegExp(q, 'i');
+      filter = {
+        $or: [
+          { name:      regex },
+          { jobTitle:  regex },
+          { company:   regex },
+          { location:  regex },
+          { headline:  regex },
+          { skills:    regex },
+        ],
+      };
+    }
+
+    const [profiles, total] = await Promise.all([
+      CandidatePool.find(filter)
+        .select('name jobTitle company location headline skills profilePic linkedinUrl totalExperience experienceYears openToWork fetchedAt')
+        .sort({ fetchedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      CandidatePool.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      profiles,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    logger.error(`getCandidatePool error: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to fetch candidate pool' });
+  }
+};
+
 export default {
   extractRequirements,
   sourceCandidates,
@@ -1355,4 +1406,5 @@ export default {
   getSessionById,
   updateCandidateNotes,
   generateOutreachMessage,
+  getCandidatePool,
 };

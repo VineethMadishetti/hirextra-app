@@ -16,6 +16,7 @@ import {
   getSessionById,
   updateCandidateNotes,
   generateOutreachMessage,
+  getCandidatePool,
 } from '../controllers/sourcingController.js';
 
 const router = express.Router();
@@ -68,5 +69,8 @@ router.post('/notes', protect, updateCandidateNotes);
 
 // Generate personalized LinkedIn outreach message
 router.post('/generate-message', protect, generateOutreachMessage);
+
+// Browse all profiles in the candidate pool (searchable)
+router.get('/pool', protect, getCandidatePool);
 
 export default router;
