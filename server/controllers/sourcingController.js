@@ -1221,10 +1221,17 @@ export const searchInternalDb = async (req, res) => {
  */
 export const getSourcingSessions = async (req, res) => {
   const userId = req.user?._id;
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const q      = String(req.query.q || '').trim();
+  const limit  = Math.min(Number(req.query.limit) || 500, 1000);
+
+  let filter = { userId };
+  if (q) {
+    const regex = new RegExp(q, 'i');
+    filter.$or = [{ jobTitle: regex }, { location: regex }];
+  }
 
   try {
-    const sessions = await SourcingSession.find({ userId })
+    const sessions = await SourcingSession.find(filter)
       .select('jobTitle location dataSource candidateCount createdAt')
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -1370,7 +1377,7 @@ export const getCandidatePool = async (req, res) => {
 
     const [profiles, total] = await Promise.all([
       CandidatePool.find(filter)
-        .select('name jobTitle company location headline skills profilePic linkedinUrl totalExperience experienceYears openToWork fetchedAt')
+        .select('name jobTitle company location headline about skills profilePic linkedinUrl totalExperience experienceYears openToWork experienceTimeline certifications education educationGrade educationYear languages fetchedAt')
         .sort({ fetchedAt: -1 })
         .skip(skip)
         .limit(limit)
