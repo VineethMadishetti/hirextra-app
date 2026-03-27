@@ -203,16 +203,26 @@ function sortValue(candidate) {
   const expYears = parseExperienceYears(candidate.experienceYears || candidate.totalExperience || candidate.experience);
   const mustHaveCount = candidate.matchedMustHave?.length || 0;
   const requiredCount = candidate.matchedRequired?.length || 0;
+  const preferredCount = candidate.matchedPreferred?.length || 0;
 
-  // Primary key: match score (0-100) scaled to dominate all tie-breakers
-  // Secondary: must-have count > required count > completeness > contact > experience
+  // Recency: count skills found in the most recent 1–2 jobs as a tiebreaker.
+  // (Skills are already on the candidate object from scoreCandidate — no re-computation needed.)
+  const recentHaystack = getRecentHaystack(candidate);
+  const recentScore = recentHaystack
+    ? (candidate.matchedMustHave || []).filter(s => skillMatches(recentHaystack, s)).length * 3
+      + (candidate.matchedRequired || []).filter(s => skillMatches(recentHaystack, s)).length
+    : 0;
+
+  // Primary: match score · Secondary: must-have → required → preferred → recency → completeness → contact
   return (
-    (Number(candidate.matchScore) || 0) * 10000 +
-    mustHaveCount * 500 +
-    requiredCount * 100 +
-    completeness * 15 +
-    (hasEmail ? 12 : 0) +
-    (hasPhone ? 8 : 0) +
+    (Number(candidate.matchScore) || 0) * 100000 +
+    mustHaveCount * 5000 +
+    requiredCount * 1000 +
+    preferredCount * 200 +
+    recentScore * 50 +
+    completeness * 10 +
+    (hasEmail ? 8 : 0) +
+    (hasPhone ? 5 : 0) +
     expYears
   );
 }
@@ -310,47 +320,40 @@ export function scoreCandidate(candidate, requirements) {
   const expFail = tooJunior || tooSenior;
   const disqualified = mustHaveFail || requiredFail || expFail;
 
-  // Always compute the actual skill-match score regardless of disqualification.
-  // Disqualified candidates still surface with their real partial score so the
-  // recruiter can see how close they were (e.g. 80% but missing one must-have).
+  // ── Score calculation ─────────────────────────────────────────────────────
+  // Rule: 100% = has ALL must-have skills + ALL required skills.
+  // Preferred skills are a small bonus ON TOP — they never reduce the score.
+  // Recency is used only for sort ordering, not the displayed percentage.
+  //
+  // maxPossible is based on must-have + required ONLY (not preferred),
+  // so a candidate who has every critical skill always reaches 100%.
 
-  // Recency bonus: skills found in the most recent 1-2 jobs get +30% weight bonus.
-  const recentHaystack = getRecentHaystack(candidate);
-  const mustHavePts  = matchedMustHave.reduce((sum, skill) => {
-    const bonus = recentHaystack && skillMatches(recentHaystack, skill) ? WEIGHT.mustHave * 0.3 : 0;
-    return sum + WEIGHT.mustHave + bonus;
-  }, 0);
-  const requiredPts  = matchedRequired.reduce((sum, skill) => {
-    const bonus = recentHaystack && skillMatches(recentHaystack, skill) ? WEIGHT.required * 0.3 : 0;
-    return sum + WEIGHT.required + bonus;
-  }, 0);
-  const preferredPts = matchedPreferred.reduce((sum, skill) => {
-    const bonus = recentHaystack && skillMatches(recentHaystack, skill) ? WEIGHT.preferred * 0.3 : 0;
-    return sum + WEIGHT.preferred + bonus;
-  }, 0);
-  const rawScore     = mustHavePts + requiredPts + preferredPts;
+  const basePossible =
+    mustHaveSkills.length * WEIGHT.mustHave +
+    dedupRequired.length  * WEIGHT.required;
 
-  // maxPossible uses deduplicated required/preferred so the denominator matches the numerator.
-  const maxPossible =
-    mustHaveSkills.length  * WEIGHT.mustHave +
-    dedupRequired.length   * WEIGHT.required +
-    dedupPreferred.length  * WEIGHT.preferred;
+  const baseRaw =
+    matchedMustHave.length * WEIGHT.mustHave +
+    matchedRequired.length * WEIGHT.required;
 
-  // Seniority penalty: if JD asks for Senior+ but candidate title is Junior/Intern,
-  // deduct up to 25 points based on the seniority gap (gap ≥ 2 levels).
-  const reqSeniority  = extractSeniorityLevel(req.title || req.jobTitle || req.job_title || '');
-  const candSeniority = extractSeniorityLevel(
-    String(candidate.jobTitle || candidate.title || candidate.headline || '')
-  );
-  let seniorityPenalty = 0;
-  if (reqSeniority >= 2 && candSeniority >= 0) {
-    const gap = reqSeniority - candSeniority;
-    if (gap >= 2) seniorityPenalty = Math.min(gap * 8, 25); // 2 levels→16, 3+→25 cap
-  }
+  // Preferred adds up to 5 points each as a bonus, score capped at 100.
+  const preferredBonus = matchedPreferred.length * WEIGHT.preferred;
 
-  // If no skill requirements exist score all candidates at 100 (no constraint).
-  const baseScore = maxPossible > 0 ? Math.round((rawScore / maxPossible) * 100) : 100;
-  const score = Math.max(0, Math.min(100, baseScore - seniorityPenalty));
+  const rawScore = baseRaw + preferredBonus;
+  const maxPossible = basePossible + preferredBonus; // denominator grows with matched preferred so bonus never inflates %
+
+  // If no skill requirements at all, everyone scores 100 (no constraint to measure against).
+  const baseScore = basePossible > 0 ? Math.round((baseRaw / basePossible) * 100) : 100;
+  // Apply preferred as a display bonus only if not already at 100
+  const preferredPct = basePossible > 0 && baseScore < 100
+    ? Math.round((preferredBonus / basePossible) * 100)
+    : 0;
+  const score = Math.min(100, baseScore + preferredPct);
+
+  // Store pts for sorting tiebreaker (recency still used in sortValue via matchedMustHave count)
+  const mustHavePts  = matchedMustHave.length  * WEIGHT.mustHave;
+  const requiredPts  = matchedRequired.length  * WEIGHT.required;
+  const preferredPts = matchedPreferred.length * WEIGHT.preferred;
 
   let matchCategory;
   if (score >= 90) matchCategory = 'PERFECT';
@@ -369,7 +372,7 @@ export function scoreCandidate(candidate, requirements) {
     matchedPreferred,
     locationMatch: locMatch,
     experienceMatch: expMatch,
-    breakdown: { mustHavePts, requiredPts, preferredPts, locationPts: 0, experiencePts: 0, seniorityPenalty },
+    breakdown: { mustHavePts, requiredPts, preferredPts, locationPts: 0, experiencePts: 0 },
     disqualified,
   };
 }
@@ -386,6 +389,7 @@ export function scoreCandidates(candidates, requirements, options = {}) {
         matchCategory: result.matchCategory,
         matchedMustHave: result.matchedMustHave,
         matchedRequired: result.matchedRequired,
+        matchedPreferred: result.matchedPreferred,
         matchedSkills: [...new Set([...result.matchedMustHave, ...result.matchedRequired, ...result.matchedPreferred])],
         missingSkills: [...new Set([...result.missingMustHave, ...result.missingRequired])],
         locationMatch: result.locationMatch,
