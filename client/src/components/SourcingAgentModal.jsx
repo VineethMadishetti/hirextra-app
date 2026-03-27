@@ -724,6 +724,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionLoading, setSessionLoading]   = useState(false);
   const [sessionSearch, setSessionSearch]     = useState('');
+  const [sessionPage, setSessionPage]         = useState(1);
+  const SESSIONS_PER_PAGE                     = 10;
   const sessionSearchRef                      = useRef(null);
   const [poolProfiles, setPoolProfiles]     = useState([]);
   const [poolTotal, setPoolTotal]           = useState(0);
@@ -803,6 +805,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const openRecentView = () => {
     setView('recent');
     setRecentSubView('sessions');
+    setSessionPage(1);
+    setSessionSearch('');
     loadSessions();
   };
 
@@ -1246,8 +1250,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                 <button
                   onClick={() => {
                     setRecentSubView('pool');
-                    if (poolProfiles.length === 0) loadPool('', 1);
                     setPoolSearch('');
+                    loadPool('', 1);
                   }}
                   className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-all cursor-pointer ${
                     recentSubView === 'pool'
@@ -1271,11 +1275,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search by job title or location…"
+                      placeholder="Search by job title, location, skills…"
                       value={sessionSearch}
                       onChange={e => {
                         const q = e.target.value;
                         setSessionSearch(q);
+                        setSessionPage(1);
                         clearTimeout(sessionSearchRef.current?._t);
                         if (sessionSearchRef.current) sessionSearchRef.current._t = setTimeout(() => loadSessions(q), 350);
                       }}
@@ -1283,7 +1288,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       className="w-full rounded-xl border border-slate-700 bg-slate-900/80 pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#6B5AF0] transition-colors"
                     />
                     {sessionSearch && (
-                      <button onClick={() => { setSessionSearch(''); loadSessions(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"><X size={13} /></button>
+                      <button onClick={() => { setSessionSearch(''); setSessionPage(1); loadSessions(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"><X size={13} /></button>
                     )}
                   </div>
 
@@ -1298,41 +1303,63 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       <p className="text-sm">{sessionSearch ? 'No searches match your query.' : 'No recent searches yet. Run a sourcing search to see it here.'}</p>
                     </div>
                   )}
-                  {!sessionsLoading && sessions.length > 0 && (
-                    <>
-                      <p className="text-xs text-slate-600">{sessions.length} search{sessions.length !== 1 ? 'es' : ''}{sessionSearch ? ` matching "${sessionSearch}"` : ' total'}</p>
-                      <div className="space-y-2">
-                        {sessions.map((s) => (
-                          <button
-                            key={s._id}
-                            onClick={() => restoreSession(s._id)}
-                            disabled={sessionLoading}
-                            className="w-full text-left rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-3 hover:border-[#6B5AF0]/70 hover:bg-slate-800/70 transition-all cursor-pointer disabled:opacity-60 group"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0 flex items-center gap-3">
-                                <div className="w-8 h-8 shrink-0 rounded-lg bg-indigo-900/50 border border-indigo-700/30 flex items-center justify-center">
-                                  <History size={14} className="text-indigo-400" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-sm text-slate-100 truncate group-hover:text-[#A99BFF] transition-colors">
-                                    {s.jobTitle || 'Untitled Search'}
-                                  </p>
-                                  <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
-                                    {s.location && <span className="flex items-center gap-1"><MapPin size={10} />{s.location}</span>}
-                                    <span className="flex items-center gap-1"><Clock size={10} />{new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  {!sessionsLoading && sessions.length > 0 && (() => {
+                    const totalSessionPages = Math.ceil(sessions.length / SESSIONS_PER_PAGE);
+                    const pagedSessions = sessions.slice((sessionPage - 1) * SESSIONS_PER_PAGE, sessionPage * SESSIONS_PER_PAGE);
+                    return (
+                      <>
+                        <p className="text-xs text-slate-500">
+                          {sessions.length} search{sessions.length !== 1 ? 'es' : ''}{sessionSearch ? ` matching "${sessionSearch}"` : ''}
+                          {totalSessionPages > 1 && ` · page ${sessionPage} of ${totalSessionPages}`}
+                        </p>
+                        <div className="space-y-2">
+                          {pagedSessions.map((s) => (
+                            <button
+                              key={s._id}
+                              onClick={() => restoreSession(s._id)}
+                              disabled={sessionLoading}
+                              className="w-full text-left rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-3 hover:border-[#6B5AF0]/70 hover:bg-slate-800/70 transition-all cursor-pointer disabled:opacity-60 group"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0 flex items-center gap-3">
+                                  <div className="w-8 h-8 shrink-0 rounded-lg bg-indigo-900/50 border border-indigo-700/30 flex items-center justify-center">
+                                    <History size={14} className="text-indigo-400" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-sm text-slate-100 truncate group-hover:text-[#A99BFF] transition-colors">
+                                      {s.jobTitle || 'Untitled Search'}
+                                    </p>
+                                    <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
+                                      {s.location && <span className="flex items-center gap-1"><MapPin size={10} />{s.location}</span>}
+                                      <span className="flex items-center gap-1"><Clock size={10} />{new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                    </div>
                                   </div>
                                 </div>
+                                <span className="shrink-0 rounded-full bg-indigo-950/60 border border-indigo-700/40 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-300">
+                                  {s.candidateCount} candidate{s.candidateCount !== 1 ? 's' : ''}
+                                </span>
                               </div>
-                              <span className="shrink-0 rounded-full bg-indigo-950/60 border border-indigo-700/40 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-300">
-                                {s.candidateCount} candidate{s.candidateCount !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                            </button>
+                          ))}
+                        </div>
+                        {totalSessionPages > 1 && (
+                          <div className="flex items-center justify-between pt-1">
+                            <button
+                              disabled={sessionPage <= 1}
+                              onClick={() => setSessionPage(p => Math.max(1, p - 1))}
+                              className="px-4 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 disabled:opacity-40 hover:border-slate-500 cursor-pointer disabled:cursor-default transition-colors"
+                            >← Prev</button>
+                            <span className="text-xs text-slate-500">{sessionPage} / {totalSessionPages}</span>
+                            <button
+                              disabled={sessionPage >= totalSessionPages}
+                              onClick={() => setSessionPage(p => Math.min(totalSessionPages, p + 1))}
+                              className="px-4 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 disabled:opacity-40 hover:border-slate-500 cursor-pointer disabled:cursor-default transition-colors"
+                            >Next →</button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                   {sessionLoading && (
                     <div className="flex items-center justify-center py-6 text-slate-400 text-sm gap-2">
                       <Loader2 size={16} className="animate-spin" /> Loading session…
@@ -1344,112 +1371,75 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               {/* ── Pool sub-view ───────────────────────────────────── */}
               {recentSubView === 'pool' && (
                 <>
-                  {/* Search bar + open full cards button */}
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Search by name, job title, location, skill…"
-                        value={poolSearch}
-                        onChange={e => {
-                          const q = e.target.value;
-                          setPoolSearch(q);
-                          clearTimeout(poolSearchRef.current?._t);
-                          if (poolSearchRef.current) poolSearchRef.current._t = setTimeout(() => { setPoolPage(1); loadPool(q, 1); }, 400);
-                        }}
-                        ref={poolSearchRef}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900/80 pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#6B5AF0] transition-colors"
-                      />
-                      {poolSearch && (
-                        <button onClick={() => { setPoolSearch(''); loadPool('', 1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"><X size={13} /></button>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => openPoolResults(poolSearch)}
-                      disabled={poolLoading}
-                      className="shrink-0 flex items-center gap-2 rounded-xl border border-[#6B5AF0]/60 bg-[#432DD7]/20 px-4 py-2.5 text-sm font-semibold text-[#C4B8FF] hover:bg-[#432DD7]/30 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <FileSearch size={14} />
-                      View Full Cards
-                    </button>
+                  {/* Search bar */}
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, job title, location, skill…"
+                      value={poolSearch}
+                      onChange={e => {
+                        const q = e.target.value;
+                        setPoolSearch(q);
+                        clearTimeout(poolSearchRef.current?._t);
+                        if (poolSearchRef.current) poolSearchRef.current._t = setTimeout(() => loadPool(q, 1), 400);
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') openPoolResults(poolSearch); }}
+                      ref={poolSearchRef}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900/80 pl-9 pr-10 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#6B5AF0] transition-colors"
+                    />
+                    {poolSearch
+                      ? <button onClick={() => { setPoolSearch(''); loadPool('', 1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"><X size={13} /></button>
+                      : null
+                    }
                   </div>
 
-                  {/* Stats */}
-                  {poolTotal > 0 && (
-                    <p className="text-xs text-slate-600">
-                      {poolSearch ? `${poolTotal} result${poolTotal !== 1 ? 's' : ''} for "${poolSearch}"` : `${poolTotal} candidate${poolTotal !== 1 ? 's' : ''} in talent pool`}
-                      {poolPages > 1 && ` · page ${poolPage} of ${poolPages}`}
-                    </p>
-                  )}
-
-                  {/* Loading */}
-                  {poolLoading && (
-                    <div className="flex items-center justify-center py-12 text-slate-400">
-                      <Loader2 size={22} className="animate-spin mr-3" /> Loading…
+                  {/* Stats row */}
+                  {poolLoading ? (
+                    <div className="flex items-center justify-center py-4 text-slate-400 text-sm gap-2">
+                      <Loader2 size={16} className="animate-spin" /> Searching pool…
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-slate-500">
+                        {poolTotal > 0
+                          ? (poolSearch
+                              ? `${poolTotal} result${poolTotal !== 1 ? 's' : ''} for "${poolSearch}"`
+                              : `${poolTotal} candidate${poolTotal !== 1 ? 's' : ''} in talent pool`)
+                          : (poolSearch ? 'No candidates match your search.' : 'No candidates in the pool yet.')
+                        }
+                      </p>
+                      {poolTotal > 0 && (
+                        <button
+                          onClick={() => openPoolResults(poolSearch)}
+                          className="flex items-center gap-1.5 rounded-lg border border-[#6B5AF0]/50 bg-[#432DD7]/15 px-3 py-1.5 text-xs font-semibold text-[#C4B8FF] hover:bg-[#432DD7]/25 transition-all cursor-pointer"
+                        >
+                          <FileSearch size={12} />
+                          Browse {poolTotal} Candidates →
+                        </button>
+                      )}
                     </div>
                   )}
 
-                  {/* Empty */}
-                  {!poolLoading && poolProfiles.length === 0 && (
+                  {/* Empty state */}
+                  {!poolLoading && poolTotal === 0 && (
                     <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-10 text-center text-slate-400">
                       <Users size={32} className="mx-auto mb-3 opacity-40" />
                       <p className="text-sm">{poolSearch ? 'No candidates match your search.' : 'No candidates in the pool yet. Run a sourcing search to populate it.'}</p>
                     </div>
                   )}
 
-                  {/* Compact preview cards */}
-                  {!poolLoading && poolProfiles.length > 0 && (
-                    <div className="space-y-2">
-                      {poolProfiles.map((p) => (
-                        <div
-                          key={p._id}
-                          onClick={() => openPoolResults(poolSearch)}
-                          className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3 hover:border-[#6B5AF0]/60 hover:bg-slate-800/60 transition-all cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 shrink-0 rounded-lg overflow-hidden border border-slate-700 bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center text-white font-bold text-sm select-none">
-                              {p.profilePic
-                                ? <img src={p.profilePic} alt={p.name || ''} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display='none'; }} />
-                                : (p.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
-                              }
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className="font-semibold text-sm text-slate-100 group-hover:text-[#C4B8FF] transition-colors">{p.name || 'Unknown'}</p>
-                                {p.openToWork && <span className="text-[10px] rounded-full border border-emerald-600/50 bg-emerald-950/40 text-emerald-300 px-1.5 py-0.5">#OpenToWork</span>}
-                              </div>
-                              <p className="text-xs text-slate-400 truncate mt-0.5">{[p.jobTitle, p.company].filter(Boolean).join(' · ')}</p>
-                              {p.location && <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5"><MapPin size={10} />{p.location}</p>}
-                            </div>
-                            <div className="shrink-0 text-right">
-                              {(p.totalExperience || p.experienceYears) && (
-                                <p className="text-[11px] text-slate-400 font-medium">{p.totalExperience || `${p.experienceYears}y`}</p>
-                              )}
-                              {p.linkedinUrl && (
-                                <a href={p.linkedinUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[10px] text-[#B9AEFF] hover:underline">LinkedIn</a>
-                              )}
-                            </div>
-                          </div>
-                          {Array.isArray(p.skills) && p.skills.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {p.skills.slice(0, 7).map((sk, i) => (
-                                <span key={i} className="text-[10px] rounded border border-[#6B5AF0]/25 bg-[#432DD7]/10 text-[#C4B8FF] px-1.5 py-0.5">{sk}</span>
-                              ))}
-                              {p.skills.length > 7 && <span className="text-[10px] text-slate-600">+{p.skills.length - 7}</span>}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Pagination */}
-                  {poolPages > 1 && !poolLoading && (
-                    <div className="flex items-center justify-center gap-2 pt-1">
-                      <button disabled={poolPage <= 1} onClick={() => { const p = poolPage-1; setPoolPage(p); loadPool(poolSearch, p); }} className="px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 disabled:opacity-40 hover:border-slate-500 cursor-pointer disabled:cursor-default">← Prev</button>
-                      <span className="text-xs text-slate-500">{poolPage} / {poolPages}</span>
-                      <button disabled={poolPage >= poolPages} onClick={() => { const p = poolPage+1; setPoolPage(p); loadPool(poolSearch, p); }} className="px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 disabled:opacity-40 hover:border-slate-500 cursor-pointer disabled:cursor-default">Next →</button>
+                  {/* CTA hint */}
+                  {!poolLoading && poolTotal > 0 && (
+                    <div
+                      onClick={() => openPoolResults(poolSearch)}
+                      className="rounded-2xl border border-[#6B5AF0]/20 bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-6 text-center cursor-pointer hover:border-[#6B5AF0]/50 hover:from-indigo-950/60 transition-all group"
+                    >
+                      <Users size={28} className="mx-auto mb-3 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+                      <p className="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">
+                        {poolSearch ? `View ${poolTotal} matching candidates` : `Browse all ${poolTotal} sourced candidates`}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">Full candidate cards · 10 per page · Export CSV</p>
                     </div>
                   )}
                 </>
