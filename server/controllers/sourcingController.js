@@ -506,14 +506,14 @@ export const sourceCandidates = async (req, res) => {
     // produces zero results. The match score and experienceMatch flag inform the recruiter.
 
     // Step 2: Boolean match scoring.
-    // Match score is skill-only:
-    // - must-have skills = AND gate
-    // - required skills = OR gate
-    // AND gate enforced: disqualified candidates are excluded when enough pass.
-    // If ALL candidates fail (Apify returned poor matches), show them anyway so
-    // the recruiter never sees a blank page — missing skills are clearly flagged.
+    // must-have skills = hard AND gate — candidates missing ANY must-have are always excluded.
+    // required skills = OR gate with 30% threshold.
+    // When no must-have skills are defined, fall back to showing all candidates so the
+    // recruiter never sees a blank page. When must-haves ARE defined, strict mode is enforced
+    // unconditionally — disqualified candidates are never surfaced.
+    const hasMustHave = (parsed.must_have_skills || []).length > 0;
     const strictScored = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: true });
-    candidates = strictScored.length > 0
+    candidates = (hasMustHave || strictScored.length > 0)
       ? strictScored
       : scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
 
@@ -1357,7 +1357,7 @@ export const getCandidatePool = async (req, res) => {
   try {
     const q     = String(req.query.q || '').trim();
     const page  = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 20));
     const skip  = (page - 1) * limit;
 
     let filter = {};

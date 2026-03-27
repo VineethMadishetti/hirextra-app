@@ -26,6 +26,46 @@ const SKILL_ALIASES = {
   fastapi: ['fastapi', 'fast api'],
   redis: ['redis', 'redis cache'],
   elasticsearch: ['elasticsearch', 'elastic search', 'es'],
+  // Data integration & ETL tools
+  'oracle data integrator': ['odi', 'oracle data integration', 'oracle di'],
+  'azure data factory': ['adf', 'azure data factory'],
+  'sql server integration services': ['ssis', 'sql server integration'],
+  'sql server reporting services': ['ssrs'],
+  'sql server analysis services': ['ssas'],
+  snaplogic: ['snap logic', 'snaplogic'],
+  informatica: ['informatica powercenter', 'iics', 'informatica cloud', 'informatica idmc'],
+  talend: ['talend open studio', 'talend data integration'],
+  mulesoft: ['mule esb', 'anypoint platform', 'mule', 'mulesoft anypoint'],
+  boomi: ['dell boomi', 'boomi atomsphere'],
+  kafka: ['apache kafka', 'kafka streaming'],
+  spark: ['apache spark', 'pyspark', 'spark streaming'],
+  databricks: ['databricks', 'databricks notebooks'],
+  snowflake: ['snowflake dw', 'snowflake data warehouse'],
+  dbt: ['dbt core', 'data build tool'],
+  airflow: ['apache airflow', 'airflow dag'],
+  nifi: ['apache nifi'],
+  pentaho: ['pentaho data integration', 'kettle'],
+  'azure synapse': ['azure synapse analytics', 'synapse analytics'],
+  'google bigquery': ['bigquery', 'bq'],
+  'amazon redshift': ['redshift'],
+  'power bi': ['powerbi', 'power bi desktop'],
+  tableau: ['tableau desktop', 'tableau server'],
+  sap: ['sap hana', 'sap bw', 'sap bo', 'sap business objects'],
+  oracle: ['oracle database', 'oracle db', 'oracle 19c', 'oracle 12c'],
+  teradata: ['teradata sql'],
+  // Cloud & DevOps
+  'google cloud': ['gcp', 'google cloud platform'],
+  'amazon web services': ['aws', 'amazon aws'],
+  'microsoft azure': ['azure', 'ms azure'],
+  terraform: ['terraform iac', 'hashicorp terraform'],
+  ansible: ['ansible automation'],
+  jenkins: ['jenkins ci', 'jenkins pipeline'],
+  gitlab: ['gitlab ci', 'gitlab ci/cd'],
+  // Languages
+  scala: ['scala lang'],
+  golang: ['go lang', 'go programming'],
+  'c#': ['csharp', 'c sharp', '.net c#'],
+  '.net': ['dotnet', '.net core', 'asp.net'],
 };
 
 const LOCATION_SYNONYMS = {
@@ -203,18 +243,31 @@ export function scoreCandidate(candidate, requirements) {
     ? candidate.skills
     : String(candidate.skills || '').split(/[,;|·]+/).map((skill) => skill.trim()).filter(Boolean);
 
-  // For must-have AND gate: match strictly against the skills array + job title only.
-  // This prevents a passing mention in an unrelated about/summary from counting.
+  // Build full-profile text from all structured sections so skills mentioned only in
+  // experience descriptions or certifications are not missed.
+  const experienceText = (Array.isArray(candidate.experienceTimeline) ? candidate.experienceTimeline : [])
+    .map(e => [e.title, e.company, e.description, Array.isArray(e.skills) ? e.skills.join(' ') : ''].filter(Boolean).join(' '))
+    .join(' ');
+  const certText = (Array.isArray(candidate.certifications) ? candidate.certifications : [])
+    .map(c => [c.name, c.issuer, c.description].filter(Boolean).join(' '))
+    .join(' ');
+
+  // strictHaystack: used for must-have AND gate.
+  // Includes skills + title + headline + about + all experience + certifications.
+  // "strict" means we trust everything on a LinkedIn profile — not just the skills array —
+  // because candidates routinely list tools only in job descriptions, not the skills section.
   const strictHaystack = [
     ...skillsArr,
     String(candidate.jobTitle || candidate.title || ''),
     String(candidate.headline || ''),
+    String(candidate.about || ''),
+    experienceText,
+    certText,
   ].join(' ');
 
-  // For required (OR gate) and preferred: also search about/snippet for broader recall.
+  // broadHaystack: required + preferred scoring — also include snippet/summary
   const broadHaystack = [
     strictHaystack,
-    String(candidate.about || ''),
     String(candidate.snippet || ''),
   ].join(' ');
 
@@ -225,12 +278,19 @@ export function scoreCandidate(candidate, requirements) {
   const matchedMustHave = mustHaveSkills.filter((skill) => skillMatches(strictHaystack, skill));
   const missingMustHave = mustHaveSkills.filter((skill) => !skillMatches(strictHaystack, skill));
 
-  // OR gate: at least one required skill must appear
-  const matchedRequired = requiredSkills.filter((skill) => skillMatches(broadHaystack, skill));
-  const missingRequired = requiredSkills.filter((skill) => !skillMatches(broadHaystack, skill));
+  // Deduplicate required: remove skills already in must_have so they are not double-counted.
+  // GPT typically puts must-have skills in both lists; scoring them twice inflates scores
+  // and makes the requiredFail threshold trivially easy to pass via must-have matches alone.
+  const mustHaveSet = new Set(mustHaveSkills.map((s) => s.toLowerCase()));
+  const dedupRequired = requiredSkills.filter((s) => !mustHaveSet.has(s.toLowerCase()));
+  const dedupPreferred = preferredSkills.filter((s) => !mustHaveSet.has(s.toLowerCase()));
 
-  // Preferred: scoring bonus only
-  const matchedPreferred = preferredSkills.filter((skill) => skillMatches(broadHaystack, skill));
+  // OR gate: required skills (excluding must-haves)
+  const matchedRequired = dedupRequired.filter((skill) => skillMatches(broadHaystack, skill));
+  const missingRequired = dedupRequired.filter((skill) => !skillMatches(broadHaystack, skill));
+
+  // Preferred: scoring bonus only (also deduplicated)
+  const matchedPreferred = dedupPreferred.filter((skill) => skillMatches(broadHaystack, skill));
 
   const locMatch = locationMatches(candidateLocation, reqLocation);
   const candExpYears = parseExperienceYears(candidateExp);
@@ -238,10 +298,10 @@ export function scoreCandidate(candidate, requirements) {
 
   // AND gate: any missing must-have → disqualify
   const mustHaveFail = mustHaveSkills.length > 0 && missingMustHave.length > 0;
-  // Threshold gate: fewer than 30% of required skills matched → disqualify
-  const REQUIRED_THRESHOLD = 0.30;
-  const requiredMatchRatio = requiredSkills.length > 0 ? matchedRequired.length / requiredSkills.length : 1;
-  const requiredFail = requiredSkills.length > 0 && requiredMatchRatio < REQUIRED_THRESHOLD;
+  // Threshold gate: fewer than 40% of required skills (excl. must-haves) matched → disqualify
+  const REQUIRED_THRESHOLD = 0.40;
+  const requiredMatchRatio = dedupRequired.length > 0 ? matchedRequired.length / dedupRequired.length : 1;
+  const requiredFail = dedupRequired.length > 0 && requiredMatchRatio < REQUIRED_THRESHOLD;
   // Experience range gate: only fires when candidate experience is known (> 0).
   // Too junior: more than 1 year below the minimum — hard disqualify.
   // Too senior: more than 2 years above the max (if a max was specified) — hard disqualify.
@@ -270,10 +330,11 @@ export function scoreCandidate(candidate, requirements) {
   }, 0);
   const rawScore     = mustHavePts + requiredPts + preferredPts;
 
+  // maxPossible uses deduplicated required/preferred so the denominator matches the numerator.
   const maxPossible =
     mustHaveSkills.length  * WEIGHT.mustHave +
-    requiredSkills.length  * WEIGHT.required +
-    preferredSkills.length * WEIGHT.preferred;
+    dedupRequired.length   * WEIGHT.required +
+    dedupPreferred.length  * WEIGHT.preferred;
 
   // Seniority penalty: if JD asks for Senior+ but candidate title is Junior/Intern,
   // deduct up to 25 points based on the seniority gap (gap ≥ 2 levels).

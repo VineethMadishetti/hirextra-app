@@ -1919,12 +1919,26 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                           {skills.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-1.5">
                               {skills.map((skill) => {
-                                const isMatched = candidate.matchedSkills?.some(m => m.toLowerCase() === skill.toLowerCase());
+                                const s = skill.toLowerCase();
+                                const fuzzy = (term) => s.includes(term.toLowerCase()) || term.toLowerCase().includes(s);
+                                const mustHaveList = (parsedRequirements?.must_have_skills || parsedRequirements?.mustHaveSkills || []);
+                                const requiredList = (parsedRequirements?.required_skills  || parsedRequirements?.requiredSkills  || []);
+                                const preferredList = (parsedRequirements?.preferred_skills || parsedRequirements?.preferredSkills || []);
+                                // also check backend-scored arrays for alias-resolved matches
+                                const mMH  = (candidate.matchedMustHave  || []);
+                                const mReq = (candidate.matchedRequired   || []);
+                                const isMustHave  = mustHaveList.some(fuzzy) || mMH.some(fuzzy);
+                                const isRequired  = !isMustHave && (requiredList.some(fuzzy) || mReq.some(fuzzy));
+                                const isPreferred = !isMustHave && !isRequired && preferredList.some(fuzzy);
                                 return (
-                                  <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 ${
-                                    isMatched
-                                      ? 'border-[#A89EFF] bg-[#432DD7]/30 text-white font-semibold'
-                                      : 'border-[#6B5AF0]/40 bg-[#432DD7]/15 text-[#C4B8FF]'
+                                  <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 font-medium ${
+                                    isMustHave
+                                      ? 'border-emerald-500/70 bg-emerald-900/40 text-emerald-300 font-semibold'
+                                      : isRequired
+                                        ? 'border-[#A89EFF]/70 bg-[#432DD7]/30 text-white font-semibold'
+                                        : isPreferred
+                                          ? 'border-amber-500/50 bg-amber-900/20 text-amber-300'
+                                          : 'border-[#6B5AF0]/30 bg-[#432DD7]/10 text-[#C4B8FF]/70'
                                   }`}>{skill}</span>
                                 );
                               })}

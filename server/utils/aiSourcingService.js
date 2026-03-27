@@ -157,7 +157,10 @@ export function normalizeParsedRequirements(raw = {}) {
     10
   );
 
-  const must_have_skills = uniqueStrings(raw.must_have_skills || raw.mustHaveSkills || required_skills, 6);
+  // must_have_skills must stay independent of required_skills.
+  // Falling back to required_skills turns every skill into a hard gate and disqualifies
+  // all candidates who are missing even one skill from a 10-skill required list.
+  const must_have_skills = uniqueStrings(raw.must_have_skills || raw.mustHaveSkills || [], 6);
   const experience_years     = normalizeNumber(raw.experience_years     || raw.experienceYears    || raw.yearsOfExperience, 0);
   const max_experience_years = normalizeNumber(raw.max_experience_years || raw.maxExperienceYears  || 0, 0);
   const experience_level = String(
