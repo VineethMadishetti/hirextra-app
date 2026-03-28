@@ -380,19 +380,14 @@ export function scoreCandidate(candidate, requirements) {
     matchedMustHave.length * WEIGHT.mustHave +
     matchedRequired.length * WEIGHT.required;
 
-  // Preferred adds up to 5 points each as a bonus, score capped at 100.
-  const preferredBonus = matchedPreferred.length * WEIGHT.preferred;
-
-  const rawScore = baseRaw + preferredBonus;
-  const maxPossible = basePossible + preferredBonus; // denominator grows with matched preferred so bonus never inflates %
-
   // If no skill requirements at all, everyone scores 100 (no constraint to measure against).
   const baseScore = basePossible > 0 ? Math.round((baseRaw / basePossible) * 100) : 100;
-  // Apply preferred as a display bonus only if not already at 100
-  const preferredPct = basePossible > 0 && baseScore < 100
-    ? Math.round((preferredBonus / basePossible) * 100)
-    : 0;
-  const score = Math.min(100, baseScore + preferredPct);
+
+  // Preferred skills add a small fixed bonus (max 5 pts) — they must NEVER compensate
+  // for missing required skills or push a weak candidate above a strong one.
+  const preferredBonus = baseScore < 100 && matchedPreferred.length > 0 ? Math.min(5, matchedPreferred.length * 2) : 0;
+
+  const score = Math.min(100, baseScore + preferredBonus);
 
   // Store pts for sorting tiebreaker (recency still used in sortValue via matchedMustHave count)
   const mustHavePts  = matchedMustHave.length  * WEIGHT.mustHave;
