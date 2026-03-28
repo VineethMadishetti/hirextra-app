@@ -185,6 +185,50 @@ function extractSeniorityLevel(text) {
   return -1;
 }
 
+// Extract skills from a headline like "Python | Java | Node.js | React.js | Enthusiast"
+// Splits on | , ; · and keeps tokens that look like tech skills (≤ 4 words, no filler phrases).
+const HEADLINE_FILLER = /\b(enthusiast|passionate|about|lover|aspiring|fresher|learner|seeker|looking|open|to|work|hire|and|with|for|at|in|the|a|an)\b/i;
+function extractSkillsFromHeadline(headline) {
+  if (!headline) return [];
+  return headline
+    .split(/[|,;·\-–]+/)
+    .map(t => t.trim())
+    .filter(t => {
+      if (!t || t.length < 2) return false;
+      const words = t.split(/\s+/);
+      if (words.length > 4) return false;               // long phrases are job titles/descriptions
+      if (HEADLINE_FILLER.test(t) && words.length === 1) return false; // single filler words
+      if (/^\d+$/.test(t)) return false;                // pure numbers
+      return true;
+    });
+}
+
+// Extract known skills from free-form `about` text by matching against SKILL_ALIASES keys.
+function extractSkillsFromAbout(about) {
+  if (!about) return [];
+  const found = [];
+  for (const canonicalSkill of Object.keys(SKILL_ALIASES)) {
+    if (skillMatches(about, canonicalSkill)) {
+      found.push(canonicalSkill);
+    }
+  }
+  return found;
+}
+
+// Merge skills from headline + about into candidate.skills (deduplicated, case-preserved).
+function mergeImpliedSkills(candidate) {
+  const existing = Array.isArray(candidate.skills)
+    ? candidate.skills
+    : String(candidate.skills || '').split(/[,;|·]+/).map(s => s.trim()).filter(Boolean);
+  const fromHeadline = extractSkillsFromHeadline(candidate.headline || '');
+  const fromAbout    = extractSkillsFromAbout(candidate.about || '');
+  const extra = [...fromHeadline, ...fromAbout];
+  if (extra.length === 0) return existing;
+  const existingLower = new Set(existing.map(s => s.toLowerCase()));
+  const novel = extra.filter(s => !existingLower.has(s.toLowerCase()));
+  return [...existing, ...novel];
+}
+
 // Build a haystack from the most recent 1–2 experienceTimeline entries
 function getRecentHaystack(candidate) {
   const timeline = Array.isArray(candidate.experienceTimeline) ? candidate.experienceTimeline : [];
@@ -385,6 +429,7 @@ export function scoreCandidates(candidates, requirements, options = {}) {
       const result = scoreCandidate(candidate, requirements);
       return {
         ...candidate,
+        skills: mergeImpliedSkills(candidate),
         matchScore: result.score,
         matchCategory: result.matchCategory,
         matchedMustHave: result.matchedMustHave,
