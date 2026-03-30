@@ -422,9 +422,16 @@ export function scoreCandidates(candidates, requirements, options = {}) {
   return candidates
     .map((candidate) => {
       const result = scoreCandidate(candidate, requirements);
+      // All skills the scorer identified (from headline, about, experience, skills box)
+      // must be visible in the UI skill boxes — merge them into the skills array.
+      const baseSkills = mergeImpliedSkills(candidate);
+      const scorerIdentified = [...result.matchedMustHave, ...result.matchedRequired, ...result.matchedPreferred];
+      const baseSkillsLower = new Set(baseSkills.map(s => s.toLowerCase()));
+      const extraFromScorer = scorerIdentified.filter(s => !baseSkillsLower.has(s.toLowerCase()));
+      const mergedSkills = [...new Set([...baseSkills, ...extraFromScorer])];
       return {
         ...candidate,
-        skills: mergeImpliedSkills(candidate),
+        skills: mergedSkills,
         matchScore: result.score,
         matchCategory: result.matchCategory,
         matchedMustHave: result.matchedMustHave,
