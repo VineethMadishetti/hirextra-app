@@ -1920,16 +1920,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                             <div className="mt-3 flex flex-wrap gap-1.5">
                               {skills.map((skill) => {
                                 const s = skill.toLowerCase();
-                                const fuzzy = (term) => s.includes(term.toLowerCase()) || term.toLowerCase().includes(s);
-                                const mustHaveList = (parsedRequirements?.must_have_skills || parsedRequirements?.mustHaveSkills || []);
-                                const requiredList = (parsedRequirements?.required_skills  || parsedRequirements?.requiredSkills  || []);
-                                const preferredList = (parsedRequirements?.preferred_skills || parsedRequirements?.preferredSkills || []);
-                                // also check backend-scored arrays for alias-resolved matches
-                                const mMH  = (candidate.matchedMustHave  || []);
-                                const mReq = (candidate.matchedRequired   || []);
-                                const isMustHave  = mustHaveList.some(fuzzy) || mMH.some(fuzzy);
-                                const isRequired  = !isMustHave && (requiredList.some(fuzzy) || mReq.some(fuzzy));
-                                const isPreferred = !isMustHave && !isRequired && preferredList.some(fuzzy);
+                                // Trust backend arrays exclusively — they already resolved aliases and did proper word-boundary matching.
+                                // Exact case-insensitive match only: avoids "java" falsely matching "javascript", etc.
+                                // The backend already injects matched skill names into the candidate's skills array,
+                                // so every matched skill will have an exact counterpart here.
+                                const inList = (arr) => arr.some(m => m.toLowerCase() === s);
+                                const isMustHave  = inList(candidate.matchedMustHave  || []);
+                                const isRequired  = !isMustHave && inList(candidate.matchedRequired  || []);
+                                const isPreferred = !isMustHave && !isRequired && inList(candidate.matchedPreferred || []);
                                 return (
                                   <span key={skill} className={`text-[11px] rounded-md border px-2 py-0.5 font-medium ${
                                     isMustHave
