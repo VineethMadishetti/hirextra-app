@@ -362,7 +362,15 @@ export function scoreCandidate(candidate, requirements) {
   const tooJunior = candExpYears > 0 && reqExpYears > 0 && candExpYears < reqExpYears - 1;
   const tooSenior = candExpYears > 0 && reqMaxExpYears > 0 && candExpYears > reqMaxExpYears + 2;
   const expFail = tooJunior || tooSenior;
-  const disqualified = mustHaveFail || requiredFail || expFail;
+  // Availability gate — only fires when JD explicitly requires IMMEDIATE joiners.
+  // UNKNOWN candidates get benefit of the doubt (most profiles don't state availability).
+  const reqAvailability  = String(req.availability || 'ANY').toUpperCase();
+  const candAvailability = String(candidate.availability || 'UNKNOWN').toUpperCase();
+  const availFail = reqAvailability === 'IMMEDIATE' &&
+    candAvailability !== 'IMMEDIATE' &&
+    candAvailability !== 'UNKNOWN';
+
+  const disqualified = mustHaveFail || requiredFail || expFail || availFail;
 
   // ── Score calculation ─────────────────────────────────────────────────────
   // Rule: 100% = has ALL must-have skills + ALL required skills.

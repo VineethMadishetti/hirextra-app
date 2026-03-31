@@ -205,9 +205,14 @@ function fallbackParse(jd) {
   logger.warn('AI parsing failed, using regex-based fallback.');
   const lowerJd = jd.toLowerCase();
 
-  // Extract years of experience
+  // Extract years of experience — handle months (e.g. "6 months" → 0.5)
   const yearsMatch = lowerJd.match(/(\d+)\+?\s*years?/);
-  const years = yearsMatch ? parseInt(yearsMatch[1], 10) : 3;
+  const monthsMatch = !yearsMatch && lowerJd.match(/(\d+)\s*months?/);
+  const years = yearsMatch
+    ? parseInt(yearsMatch[1], 10)
+    : monthsMatch
+      ? Math.round((parseInt(monthsMatch[1], 10) / 12) * 10) / 10
+      : 3;
 
   // Common skills list
   const commonSkills = ['java', 'python', 'javascript', 'react', 'angular', 'node.js', 'aws', 'azure', 'docker', 'kubernetes', 'sql', 'mongodb', 'spring boot', 'microservices'];
@@ -272,6 +277,8 @@ Extraction policy:
 - Required skills <= 12, preferred skills <= 10, must-have <= 6.
 - If missing, use "Not Specified" for string fields and 0 for experience_years / max_experience_years.
 - For experience ranges like "4-7 years", set experience_years=4 and max_experience_years=7. For "5+ years", set experience_years=5 and max_experience_years=0 (no upper limit).
+- If experience is given in months only (e.g. "6 months"), set experience_years=0.5. For "6 months – 4 years", set experience_years=0.5 and max_experience_years=4.
+- For availability: output exactly one of "IMMEDIATE", "15_DAYS", "30_DAYS", "ANY". "Immediate joiners only" → "IMMEDIATE". "15 days notice" → "15_DAYS". "30 days / 1 month notice" → "30_DAYS". Not mentioned → "ANY".
 - Return JSON only.
 
 Example:

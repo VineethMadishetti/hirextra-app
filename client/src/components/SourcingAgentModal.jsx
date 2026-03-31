@@ -1646,36 +1646,51 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         />
                       </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-red-400">Must Have Skills <span className="text-slate-500 normal-case font-normal">(candidate rejected if ANY of these is missing)</span></label>
-                      <textarea
-                        value={mustHaveRaw}
-                        onChange={(e) => setMustHaveRaw(e.target.value)}
-                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), mustHaveSkills: parseSkillsText(mustHaveRaw) }))}
-                        placeholder="e.g. Node.js, Python, React"
-                        className="mt-1 h-16 w-full rounded-lg border border-red-800/50 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-red-600/60 focus:outline-none focus:ring-2 focus:ring-red-700/50"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Required Skills <span className="text-slate-500 normal-case font-normal">(at least 30% match required to show candidate)</span></label>
-                      <textarea
-                        value={requiredRaw}
-                        onChange={(e) => setRequiredRaw(e.target.value)}
-                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), requiredSkills: parseSkillsText(requiredRaw) }))}
-                        placeholder="e.g. Python, AWS, Docker"
-                        className="mt-1 h-16 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Preferred Skills <span className="text-slate-500 normal-case font-normal">(nice-to-have — 5 pts each)</span></label>
-                      <textarea
-                        value={preferredRaw}
-                        onChange={(e) => setPreferredRaw(e.target.value)}
-                        onBlur={() => setParsedDraft((prev) => ({ ...(prev || {}), preferredSkills: parseSkillsText(preferredRaw) }))}
-                        placeholder="e.g. GraphQL, Redis, Kubernetes"
-                        className="mt-1 h-16 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 transition-colors hover:border-[#6B5AF0]/70 focus:outline-none focus:ring-2 focus:ring-[#432DD7]"
-                      />
-                    </div>
+                    {/* ── Skill chip editors ── */}
+                    {[
+                      { key: 'mustHave',  label: 'Must Have Skills',  hint: 'candidate rejected if ANY is missing',      raw: mustHaveRaw,  setRaw: setMustHaveRaw,  draftKey: 'mustHaveSkills',  chipCls: 'border-red-600/60 bg-red-900/20 text-red-300',   inputCls: 'border-red-800/50 focus:ring-red-700/50' },
+                      { key: 'required',  label: 'Required Skills',   hint: 'at least 30% match required to show candidate', raw: requiredRaw,  setRaw: setRequiredRaw,  draftKey: 'requiredSkills',  chipCls: 'border-indigo-500/50 bg-indigo-900/20 text-indigo-300', inputCls: 'border-slate-700 focus:ring-[#432DD7]' },
+                      { key: 'preferred', label: 'Preferred Skills',  hint: 'nice-to-have — 5 pts each',                raw: preferredRaw, setRaw: setPreferredRaw, draftKey: 'preferredSkills', chipCls: 'border-amber-600/50 bg-amber-900/20 text-amber-300',  inputCls: 'border-slate-700 focus:ring-[#432DD7]' },
+                    ].map(({ key, label, hint, raw, setRaw, draftKey, chipCls, inputCls }) => {
+                      const skills = parseSkillsText(raw);
+                      const removeSkill = (skill) => {
+                        const next = skills.filter(s => s !== skill).join(', ');
+                        setRaw(next);
+                        setParsedDraft(prev => ({ ...(prev || {}), [draftKey]: parseSkillsText(next) }));
+                      };
+                      const addSkill = (val) => {
+                        const trimmed = val.trim().replace(/,$/, '');
+                        if (!trimmed) return;
+                        const next = skills.includes(trimmed) ? raw : [...skills, trimmed].join(', ');
+                        setRaw(next);
+                        setParsedDraft(prev => ({ ...(prev || {}), [draftKey]: parseSkillsText(next) }));
+                      };
+                      return (
+                        <div key={key} className="md:col-span-2">
+                          <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                            {key === 'mustHave' ? <span className="text-red-400">{label}</span> : label}
+                            <span className="text-slate-500 normal-case font-normal ml-1">({hint})</span>
+                          </label>
+                          <div className={`mt-1 min-h-[44px] w-full rounded-lg border bg-slate-950 px-3 py-2 flex flex-wrap gap-1.5 items-center transition-colors hover:border-opacity-80 ${inputCls.split(' ')[0]}`}>
+                            {skills.map(skill => (
+                              <span key={skill} className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${chipCls}`}>
+                                {skill}
+                                <button type="button" onClick={() => removeSkill(skill)} className="hover:text-white transition-colors cursor-pointer leading-none">×</button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              placeholder={skills.length === 0 ? `Add skill, press Enter` : '+'}
+                              className="flex-1 min-w-[80px] bg-transparent text-sm text-slate-100 placeholder-slate-600 focus:outline-none"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addSkill(e.target.value); e.target.value = ''; }
+                              }}
+                              onBlur={(e) => { if (e.target.value.trim()) { addSkill(e.target.value); e.target.value = ''; } }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">

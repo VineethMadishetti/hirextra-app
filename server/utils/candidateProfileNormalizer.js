@@ -80,6 +80,12 @@ export function extractExperienceYears(value) {
   const cleaned = cleanText(value);
   if (!cleaned) return 0;
 
+  // "X months" with no "years" mention → convert to fractional years (e.g. 6 months → 0.5)
+  const monthsOnly = cleaned.match(/(\d+)\s*months?/i);
+  if (monthsOnly && !/years?/i.test(cleaned)) {
+    return Math.round((Number(monthsOnly[1]) / 12) * 10) / 10;
+  }
+
   const rangeMatch = cleaned.match(/(\d+)\s*[-to]{1,3}\s*(\d+)/i);
   if (rangeMatch) {
     return Math.max(Number(rangeMatch[1]) || 0, Number(rangeMatch[2]) || 0);
