@@ -735,6 +735,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [poolPages, setPoolPages]           = useState(1);
   const poolSearchRef = useRef(null);
   const [isFromPool, setIsFromPool]         = useState(false);
+  const [dragSkill, setDragSkill]           = useState(null); // { skill, fromKey }
+  const [dragOverKey, setDragOverKey]       = useState(null);
 
   const normalizePoolProfile = (p) => ({
     ...p,
@@ -1646,51 +1648,93 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         />
                       </div>
                     </div>
-                    {/* ── Skill chip editors ── */}
-                    {[
-                      { key: 'mustHave',  label: 'Must Have Skills',  hint: 'candidate rejected if ANY is missing',      raw: mustHaveRaw,  setRaw: setMustHaveRaw,  draftKey: 'mustHaveSkills',  chipCls: 'border-red-600/60 bg-red-900/20 text-red-300',   inputCls: 'border-red-800/50 focus:ring-red-700/50' },
-                      { key: 'required',  label: 'Required Skills',   hint: 'at least 30% match required to show candidate', raw: requiredRaw,  setRaw: setRequiredRaw,  draftKey: 'requiredSkills',  chipCls: 'border-indigo-500/50 bg-indigo-900/20 text-indigo-300', inputCls: 'border-slate-700 focus:ring-[#432DD7]' },
-                      { key: 'preferred', label: 'Preferred Skills',  hint: 'nice-to-have — 5 pts each',                raw: preferredRaw, setRaw: setPreferredRaw, draftKey: 'preferredSkills', chipCls: 'border-amber-600/50 bg-amber-900/20 text-amber-300',  inputCls: 'border-slate-700 focus:ring-[#432DD7]' },
-                    ].map(({ key, label, hint, raw, setRaw, draftKey, chipCls, inputCls }) => {
-                      const skills = parseSkillsText(raw);
-                      const removeSkill = (skill) => {
-                        const next = skills.filter(s => s !== skill).join(', ');
-                        setRaw(next);
-                        setParsedDraft(prev => ({ ...(prev || {}), [draftKey]: parseSkillsText(next) }));
+                    {/* ── Skill chip editors with drag & drop ── */}
+                    {(() => {
+                      const sections = [
+                        { key: 'mustHave',  label: 'Must Have Skills',  hint: 'rejected if ANY is missing',           raw: mustHaveRaw,  setRaw: setMustHaveRaw,  draftKey: 'mustHaveSkills',
+                          chipCls: 'border-emerald-500/70 bg-emerald-900/30 text-emerald-300 font-semibold',
+                          zoneCls: 'border-emerald-700/50',  zoneOverCls: 'border-emerald-400 bg-emerald-900/20', labelCls: 'text-emerald-400' },
+                        { key: 'required',  label: 'Required Skills',   hint: 'at least 30% match to show candidate', raw: requiredRaw,  setRaw: setRequiredRaw,  draftKey: 'requiredSkills',
+                          chipCls: 'border-white/70 bg-white/5 text-white font-semibold',
+                          zoneCls: 'border-white/30',        zoneOverCls: 'border-white bg-white/5',             labelCls: 'text-slate-200' },
+                        { key: 'preferred', label: 'Preferred Skills',  hint: 'nice-to-have — 5 pts each',            raw: preferredRaw, setRaw: setPreferredRaw, draftKey: 'preferredSkills',
+                          chipCls: 'border-slate-600 bg-slate-800/60 text-slate-300',
+                          zoneCls: 'border-slate-700',       zoneOverCls: 'border-slate-400 bg-slate-800/40',    labelCls: 'text-slate-400' },
+                      ];
+
+                      const getRawAndSet = (k) => sections.find(s => s.key === k);
+
+                      const removeFromSection = (sec, skill) => {
+                        const current = parseSkillsText(sec.raw);
+                        const next = current.filter(s => s !== skill).join(', ');
+                        sec.setRaw(next);
+                        setParsedDraft(prev => ({ ...(prev || {}), [sec.draftKey]: parseSkillsText(next) }));
                       };
-                      const addSkill = (val) => {
-                        const trimmed = val.trim().replace(/,$/, '');
-                        if (!trimmed) return;
-                        const next = skills.includes(trimmed) ? raw : [...skills, trimmed].join(', ');
-                        setRaw(next);
-                        setParsedDraft(prev => ({ ...(prev || {}), [draftKey]: parseSkillsText(next) }));
+                      const addToSection = (sec, skill) => {
+                        const current = parseSkillsText(sec.raw);
+                        if (current.includes(skill)) return;
+                        const next = [...current, skill].join(', ');
+                        sec.setRaw(next);
+                        setParsedDraft(prev => ({ ...(prev || {}), [sec.draftKey]: parseSkillsText(next) }));
                       };
-                      return (
-                        <div key={key} className="md:col-span-2">
-                          <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                            {key === 'mustHave' ? <span className="text-red-400">{label}</span> : label}
-                            <span className="text-slate-500 normal-case font-normal ml-1">({hint})</span>
-                          </label>
-                          <div className={`mt-1 min-h-[44px] w-full rounded-lg border bg-slate-950 px-3 py-2 flex flex-wrap gap-1.5 items-center transition-colors hover:border-opacity-80 ${inputCls.split(' ')[0]}`}>
-                            {skills.map(skill => (
-                              <span key={skill} className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${chipCls}`}>
-                                {skill}
-                                <button type="button" onClick={() => removeSkill(skill)} className="hover:text-white transition-colors cursor-pointer leading-none">×</button>
-                              </span>
-                            ))}
-                            <input
-                              type="text"
-                              placeholder={skills.length === 0 ? `Add skill, press Enter` : '+'}
-                              className="flex-1 min-w-[80px] bg-transparent text-sm text-slate-100 placeholder-slate-600 focus:outline-none"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addSkill(e.target.value); e.target.value = ''; }
+
+                      return sections.map((sec) => {
+                        const skills = parseSkillsText(sec.raw);
+                        const isOver = dragOverKey === sec.key && dragSkill && dragSkill.fromKey !== sec.key;
+                        return (
+                          <div key={sec.key} className="md:col-span-2">
+                            <label className={`text-[11px] uppercase tracking-[0.16em] ${sec.labelCls}`}>
+                              {sec.label}
+                              <span className="text-slate-500 normal-case font-normal ml-1">({sec.hint})</span>
+                              <span className="ml-2 text-slate-600 normal-case font-normal text-[10px]">drag skills between sections</span>
+                            </label>
+                            <div
+                              className={`mt-1 min-h-[48px] w-full rounded-lg border bg-slate-950 px-3 py-2 flex flex-wrap gap-1.5 items-center transition-all ${isOver ? sec.zoneOverCls : sec.zoneCls}`}
+                              onDragOver={(e) => { e.preventDefault(); setDragOverKey(sec.key); }}
+                              onDragLeave={() => setDragOverKey(null)}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                setDragOverKey(null);
+                                if (!dragSkill || dragSkill.fromKey === sec.key) return;
+                                const fromSec = getRawAndSet(dragSkill.fromKey);
+                                removeFromSection(fromSec, dragSkill.skill);
+                                addToSection(sec, dragSkill.skill);
+                                setDragSkill(null);
                               }}
-                              onBlur={(e) => { if (e.target.value.trim()) { addSkill(e.target.value); e.target.value = ''; } }}
-                            />
+                            >
+                              {skills.map(skill => (
+                                <span
+                                  key={skill}
+                                  draggable
+                                  onDragStart={() => setDragSkill({ skill, fromKey: sec.key })}
+                                  onDragEnd={() => { setDragSkill(null); setDragOverKey(null); }}
+                                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing select-none ${sec.chipCls} ${dragSkill?.skill === skill && dragSkill?.fromKey === sec.key ? 'opacity-40' : ''}`}
+                                >
+                                  {skill}
+                                  <button type="button" onClick={() => removeFromSection(sec, skill)} className="hover:text-white transition-colors cursor-pointer leading-none ml-0.5">×</button>
+                                </span>
+                              ))}
+                              <input
+                                type="text"
+                                placeholder={skills.length === 0 ? 'Add skill, press Enter' : '+'}
+                                className="flex-1 min-w-[80px] bg-transparent text-sm text-slate-100 placeholder-slate-600 focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ',') {
+                                    e.preventDefault();
+                                    const v = e.target.value.trim().replace(/,$/, '');
+                                    if (v) { addToSection(sec, v); e.target.value = ''; }
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (v) { addToSection(sec, v); e.target.value = ''; }
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
 
                   <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">

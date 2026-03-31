@@ -1090,7 +1090,7 @@ export const searchInternalDb = async (req, res) => {
       jobDescription,
       parsedRequirements,
       maxResults = 5,
-      minScore = 30,
+      minScore = 25,
       includeWeak = false,
     } = req.body || {};
 
@@ -1105,7 +1105,7 @@ export const searchInternalDb = async (req, res) => {
     const hasLocation     = Boolean(reqLocation && !/unspecified|not specified/i.test(reqLocation));
 
     const maxResultsSafe = Math.max(Number(maxResults) || 5, 1);
-    const minScoreSafe   = Math.min(Math.max(Number(minScore)   || 30, 0), 100);
+    const minScoreSafe   = Math.min(Math.max(Number(minScore)   || 25, 0), 100);
 
     // ── 2. Build pre-filter using $text index ────────────────────────────
     // Internal DB stores skills as a comma-separated string e.g. "React, Node.js, Python"
