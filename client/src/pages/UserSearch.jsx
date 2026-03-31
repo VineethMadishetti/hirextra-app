@@ -2063,44 +2063,7 @@ const ProfileModal = React.memo(({ profile, onClose, onDownload }) => {
 								) : (
 									<p className="text-slate-400 italic">No skills listed</p>
 								)}
-								{/* Notes & Tags */}
-								<div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
-									<h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Recruiter Notes & Tags</h3>
-									<div>
-										<div className="flex flex-wrap gap-1.5 mb-2">
-											{tagList.map(tag => (
-												<span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
-													{tag}
-													<button onClick={() => removeTag(tag)} className="hover:text-rose-500 transition-colors cursor-pointer"><X size={11}/></button>
-												</span>
-											))}
-										</div>
-										<div className="flex gap-2">
-											<input
-												value={tagInput}
-												onChange={e => setTagInput(e.target.value)}
-												onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); } }}
-												placeholder="Add tag, press Enter"
-												className="flex-1 text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-											/>
-											<button onClick={() => addTag(tagInput)} className="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition cursor-pointer">Add</button>
-										</div>
-									</div>
-									<textarea
-										value={notes}
-										onChange={e => setNotes(e.target.value)}
-										placeholder="Add recruiter notes... e.g. Called, not available until April."
-										rows={3}
-										className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-									/>
-									<button
-										onClick={saveNotes}
-										disabled={notesSaving}
-										className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-400 text-white text-sm font-semibold transition cursor-pointer">
-										{notesSaving ? 'Saving...' : 'Save Notes & Tags'}
-									</button>
-								</div>
-								<div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+									<div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
 									<button
 										onClick={(e) => {
 											e.stopPropagation();

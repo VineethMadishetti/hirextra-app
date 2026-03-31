@@ -12,11 +12,12 @@ export const getUserStats = async (req, res) => {
         { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$owner', count: { $sum: 1 } } },
       ]),
-      // Count all uploaded files (UploadJob) per user regardless of deletion status
-      // (isDeleted=true is set after processing completes, not only when user deletes)
-      UploadJob.aggregate([
-        { $match: { uploadedBy: { $exists: true, $ne: null } } },
-        { $group: { _id: '$uploadedBy', count: { $sum: 1 } } },
+      // Sum candidateCount across all active databases per owner — this is the
+      // total number of uploaded candidates in each user's private databases.
+      // UploadJob has no privateDbId link so counting UploadJobs gives wrong results.
+      PrivateDatabase.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
+        { $group: { _id: '$owner', count: { $sum: '$candidateCount' } } },
       ]),
     ]);
 

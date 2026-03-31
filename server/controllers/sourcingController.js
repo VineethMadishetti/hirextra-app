@@ -1104,7 +1104,7 @@ export const searchInternalDb = async (req, res) => {
     const reqLocation     = String(parsed.location || '');
     const hasLocation     = Boolean(reqLocation && !/unspecified|not specified/i.test(reqLocation));
 
-    const maxResultsSafe = Math.min(Math.max(Number(maxResults) || 5, 1), 200);
+    const maxResultsSafe = Math.max(Number(maxResults) || 5, 1);
     const minScoreSafe   = Math.min(Math.max(Number(minScore)   || 30, 0), 100);
 
     // ── 2. Build pre-filter using $text index ────────────────────────────

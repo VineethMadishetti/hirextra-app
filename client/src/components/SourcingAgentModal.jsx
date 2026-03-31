@@ -877,6 +877,13 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   }, []);
 
+  // Load sessions whenever the recent view becomes active (handles both button click and localStorage restore)
+  useEffect(() => {
+    if (view === 'recent' && recentSubView === 'sessions') {
+      loadSessions(sessionSearch);
+    }
+  }, [view, recentSubView]);
+
   useEffect(() => {
     try {
       const snapshot = {
@@ -1217,9 +1224,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           </div>
           <button
             onClick={view === 'recent' ? () => setView('compose') : openRecentView}
-            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition-all cursor-pointer shrink-0"
+            className="flex items-center gap-2 rounded-xl border border-indigo-400 bg-indigo-500/30 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500/50 hover:border-indigo-300 transition-all cursor-pointer shrink-0 shadow-sm"
           >
-            <History size={15} />
+            <History size={15} className="text-indigo-200" />
             {view === 'recent' ? 'Back' : 'Recent Searches'}
           </button>
         </div>
