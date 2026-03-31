@@ -525,7 +525,8 @@ export const sourceCandidates = async (req, res) => {
     let scored = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
     candidates = scored.filter(c => (c.matchScore || 0) >= 25);
     // Never return a blank page — if all candidates score below 25%, show the top ones anyway
-    if (candidates.length === 0 && scored.length > 0) {
+    const allFailed = candidates.length === 0;
+    if (allFailed && scored.length > 0) {
       logger.info(`[Scoring] All candidates below 25% threshold — showing top ${Math.min(scored.length, 20)} by score`);
       candidates = scored.slice(0, 20);
     }
