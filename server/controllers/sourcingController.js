@@ -586,7 +586,7 @@ export const sourceCandidates = async (req, res) => {
         dataSource,
         candidateCount: formatted.length,
         parsedRequirements: structured,
-        candidates:     formatted.slice(0, 50),
+        candidates:     formatted,
       }).catch((err) => logger.warn(`[Session] Failed to persist sourcing session: ${err.message}`));
     }
 

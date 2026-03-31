@@ -4,7 +4,6 @@ import mongoose from 'mongoose';
  * SourcingSession
  *
  * Persists each AI sourcing run so users can revisit results.
- * Candidates are capped at 50 per session to keep documents small.
  * Sessions auto-expire after 60 days via TTL index.
  */
 const sourcingSessionSchema = new mongoose.Schema(
@@ -20,7 +19,7 @@ const sourcingSessionSchema = new mongoose.Schema(
     // Enough context to replay the search or display the requirements panel
     parsedRequirements: { type: mongoose.Schema.Types.Mixed, default: {} },
 
-    // Top candidates (capped at 50) — formatted shape from formatCandidates()
+    // All scored candidates — formatted shape from formatCandidates()
     candidates: { type: [mongoose.Schema.Types.Mixed], default: [] },
 
     // Auto-delete after 60 days
