@@ -1359,7 +1359,7 @@ export const getCandidatePool = async (req, res) => {
   try {
     const q     = String(req.query.q || '').trim();
     const page  = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 20));
+    const limit = Math.min(5000, Math.max(1, parseInt(req.query.limit) || 20));
     const skip  = (page - 1) * limit;
 
     let filter = {};

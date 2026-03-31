@@ -767,7 +767,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const openPoolResults = async (q = '') => {
     setPoolLoading(true);
     try {
-      const params = new URLSearchParams({ page: 1, limit: 200 });
+      // First fetch total count, then re-fetch with full limit so all profiles load
+      const countParams = new URLSearchParams({ page: 1, limit: 1 });
+      if (q) countParams.set('q', q);
+      const { data: countData } = await api.get(`/ai-source/pool?${countParams}`);
+      const fetchLimit = Math.max(countData?.total || 200, 200);
+      const params = new URLSearchParams({ page: 1, limit: fetchLimit });
       if (q) params.set('q', q);
       const { data } = await api.get(`/ai-source/pool?${params}`);
       const profiles = (data?.profiles || []).map(normalizePoolProfile);
