@@ -510,11 +510,11 @@ export const sourceCandidates = async (req, res) => {
     // required skills = OR gate with 40% threshold.
     // If strict scoring returns 0 results (all candidates failed), fall back to showing
     // all candidates scored but with a warning flag — recruiter should never see a blank page.
-    const strictScored = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: true });
-    const allFailed = strictScored.length === 0 && candidates.length > 0;
-    candidates = strictScored.length > 0
-      ? strictScored
-      : scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
+    // Internet sourcing: score all candidates, show only those with ≥25% match score.
+    // No separate disqualification gate — score is the only filter so the recruiter
+    // always sees a ranked list and never a blank page due to overly strict gates.
+    const allFailed = false;
+    candidates = scoreCandidates(candidates, parsed, { minScore: 25, excludeDisqualified: false });
 
     candidates = candidates.slice(0, maxCandidatesSafe);
 
