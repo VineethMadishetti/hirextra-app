@@ -425,14 +425,23 @@ export const sourceCandidates = async (req, res) => {
 
       candidates = normalizeLinkedInProfiles(linkedInProfiles);
 
-      // ── Hard location gate ────────────────────────────────────────────────
+      // ── Soft location gate ────────────────────────────────────────────────
+      // Only apply when it keeps at least 20% of candidates — prevents blank pages
+      // for multi-city locations like "London, UK & Chester, UK" where many profiles
+      // say "United Kingdom" instead of matching the exact city name.
       const _requiredLoc = parsed.location || '';
       if (_requiredLoc && !/unspecified|not specified|remote/i.test(_requiredLoc)) {
         const beforeLoc = candidates.length;
-        candidates = candidates.filter((c) =>
+        const locFiltered = candidates.filter((c) =>
           locationMatches(c.location || c.locality || '', _requiredLoc)
         );
-        logger.info(`[Location gate] ${candidates.length}/${beforeLoc} candidates match "${_requiredLoc}"`);
+        const keepRatio = beforeLoc > 0 ? locFiltered.length / beforeLoc : 0;
+        if (locFiltered.length >= 3 && keepRatio >= 0.15) {
+          candidates = locFiltered;
+          logger.info(`[Location gate] ${candidates.length}/${beforeLoc} candidates match "${_requiredLoc}"`);
+        } else {
+          logger.info(`[Location gate] skipped — only ${locFiltered.length}/${beforeLoc} matched "${_requiredLoc}", keeping all to avoid blank page`);
+        }
       }
 
       candidates = deduplicateCandidates(candidates);
@@ -513,8 +522,13 @@ export const sourceCandidates = async (req, res) => {
     // Internet sourcing: score all candidates, show only those with ≥25% match score.
     // No separate disqualification gate — score is the only filter so the recruiter
     // always sees a ranked list and never a blank page due to overly strict gates.
-    const allFailed = false;
-    candidates = scoreCandidates(candidates, parsed, { minScore: 25, excludeDisqualified: false });
+    let scored = scoreCandidates(candidates, parsed, { minScore: 0, excludeDisqualified: false });
+    candidates = scored.filter(c => (c.matchScore || 0) >= 25);
+    // Never return a blank page — if all candidates score below 25%, show the top ones anyway
+    if (candidates.length === 0 && scored.length > 0) {
+      logger.info(`[Scoring] All candidates below 25% threshold — showing top ${Math.min(scored.length, 20)} by score`);
+      candidates = scored.slice(0, 20);
+    }
 
     candidates = candidates.slice(0, maxCandidatesSafe);
 
