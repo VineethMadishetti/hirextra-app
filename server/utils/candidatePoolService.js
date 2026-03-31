@@ -88,7 +88,7 @@ export async function saveToPool(rawProfiles) {
  * Returns an array of raw-profile-shaped objects ready to pass to
  * normalizeLinkedInProfiles() — or an empty array if pool has no matches.
  */
-export async function searchPool(parsed, titleVariants, limit = 10) {
+export async function searchPool(parsed, titleVariants) {
   try {
     const mustHave  = Array.isArray(parsed.must_have_skills)  ? parsed.must_have_skills  : [];
     const required  = Array.isArray(parsed.required_skills)   ? parsed.required_skills   : [];
@@ -136,7 +136,6 @@ export async function searchPool(parsed, titleVariants, limit = 10) {
     const docs = await CandidatePool
       .find(query)
       .sort({ fetchedAt: -1 })
-      .limit(limit)
       .lean();
 
     if (docs.length === 0) return [];

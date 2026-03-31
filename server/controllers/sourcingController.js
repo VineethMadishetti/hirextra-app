@@ -322,7 +322,7 @@ export const sourceCandidates = async (req, res) => {
     const parsed = await toInternalParsed({ parsedRequirements, jobDescription });
     const structured = buildStructuredRequirements(parsed);
 
-    const maxCandidatesSafe = clampNumber(maxCandidates, 1, 120, 50);
+    const maxCandidatesSafe = clampNumber(maxCandidates, 1, 500, 100);
     const maxQueriesSafe = clampNumber(maxQueries, 1, 8, 6);
     const resultsPerCountrySafe = clampNumber(resultsPerCountry, 1, 10, 7);
     const enrichTopNSafe = clampNumber(enrichTopN, 1, 50, 15);
@@ -358,7 +358,7 @@ export const sourceCandidates = async (req, res) => {
 
       // Fire all three simultaneously — cache is instant, Apify takes ~30 s
       const [poolRaw, titleResults, skillResults] = await Promise.all([
-        searchPool(parsed, linkedInParams.currentJobTitles, maxCandidatesSafe),
+        searchPool(parsed, linkedInParams.currentJobTitles),
         apifyService.runLinkedInSearch(linkedInParams).catch(err => {
           logger.warn(`[HarvestAPI] Title search error: ${err.message}`);
           return [];

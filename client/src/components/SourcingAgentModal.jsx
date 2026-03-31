@@ -1019,7 +1019,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       const { data } = await api.post('/ai-source', {
         jobDescription: jobDescription.trim() || undefined,
         parsedRequirements,
-        maxCandidates: 60,
+        maxCandidates: 200,
         maxQueries: 6,
         resultsPerCountry: 10,
         enrichContacts: false,

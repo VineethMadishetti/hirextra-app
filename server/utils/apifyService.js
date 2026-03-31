@@ -98,7 +98,7 @@ class ApifyService {
       industryIds:           params.industryIds            || [],
       profileScraperMode:    params.profileScraperMode    || 'Full',
       takePages,
-      maxItems:              5,
+      maxItems:              25,
       proxy: { useApifyProxy: true },
     };
     if (params.postFilteringMongoQuery) {
@@ -156,7 +156,7 @@ class ApifyService {
       locations,
       profileScraperMode: 'Full',
       takePages: Math.min(Math.max(Number(takePages) || 1, 1), 5),
-      maxItems: 5,
+      maxItems: 25,
       proxy: { useApifyProxy: true },
     };
 
