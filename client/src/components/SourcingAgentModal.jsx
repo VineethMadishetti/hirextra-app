@@ -14,7 +14,9 @@ import {
   Database,
   Download,
   FileSearch,
+  FilePlus,
   FileText,
+  SlidersHorizontal,
   Globe,
   MessageSquare,
   X,
@@ -1216,29 +1218,74 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     <>
     <div className={outerShellClass} style={CARD_FONT}>
       <div className={contentShellClass}>
-        <div className="bg-[linear-gradient(110deg,#1a1440,#432DD7)] border-b border-slate-800 text-white px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <div className="bg-white/5 p-3 rounded-2xl border border-white/10 shadow-lg shrink-0">
-              <Bot size={36} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]" />
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Recruitment AI</p>
-              <h2 className="text-2xl md:text-3xl font-bold mt-1">
-                AI Sourcing Agent
-              </h2>
-              <p className="text-sm text-slate-300 mt-1">Fast candidate discovery from JD with immediate results.</p>
-            </div>
+        <div className="bg-[linear-gradient(110deg,#1a1440,#432DD7)] text-white px-6 py-5 flex items-center gap-5">
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 shadow-lg shrink-0">
+            <Bot size={36} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]" />
           </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-300">Recruitment AI</p>
+            <h2 className="text-2xl md:text-3xl font-bold mt-1">AI Sourcing Agent</h2>
+            <p className="text-sm text-slate-300 mt-1">Fast candidate discovery from JD with immediate results.</p>
+          </div>
+        </div>
+
+        {/* ── Tab Navigation ─────────────────────────────────────────────── */}
+        <div className="border-b border-slate-800 bg-slate-950/90 px-4 flex items-center gap-1 overflow-x-auto shrink-0">
+          {/* New Search */}
           <button
-            onClick={view === 'recent' ? () => setView('compose') : openRecentView}
-            className="flex items-center gap-2 rounded-xl border border-indigo-400 bg-indigo-500/30 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500/50 hover:border-indigo-300 transition-all cursor-pointer shrink-0 shadow-sm"
+            onClick={() => { setView('compose'); setComposeStep('input'); }}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+              view === 'compose' && composeStep === 'input'
+                ? 'border-[#6B5AF0] text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+            }`}
           >
-            <History size={15} className="text-indigo-200" />
-            {view === 'recent' ? 'Back' : 'Recent Searches'}
+            <FilePlus size={14} /> New Search
+          </button>
+          {/* Structured Filters */}
+          <button
+            onClick={() => { if (hasParsedDraft) { setView('compose'); setComposeStep('parsed'); } }}
+            disabled={!hasParsedDraft}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
+              view === 'compose' && composeStep === 'parsed'
+                ? 'border-[#6B5AF0] text-white cursor-pointer'
+                : hasParsedDraft
+                  ? 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600 cursor-pointer'
+                  : 'border-transparent text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            <SlidersHorizontal size={14} /> Structured Filters
+          </button>
+          {/* Results */}
+          {internetData && (
+            <button
+              onClick={() => setView('results')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                view === 'results'
+                  ? 'border-[#6B5AF0] text-white'
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+              }`}
+            >
+              <Users size={14} /> Results
+              {candidates.length > 0 && (
+                <span className="ml-1 rounded-full bg-indigo-700/50 px-2 py-0.5 text-[10px] text-indigo-200 font-semibold">{candidates.length}</span>
+              )}
+            </button>
+          )}
+          {/* Recent Searches */}
+          <button
+            onClick={() => { openRecentView(); }}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+              view === 'recent'
+                ? 'border-[#6B5AF0] text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+            }`}
+          >
+            <History size={14} /> Recent Searches
           </button>
         </div>
 
-        <div className="h-[calc(100%-102px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
+        <div className="h-[calc(100%-152px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
           {error && (
             <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
               <AlertCircle size={16} className="mt-0.5" />
@@ -1463,45 +1510,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
           {view === 'compose' && (
             <div className="mx-auto max-w-6xl">
-              {hasParsedDraft && (
-                <div className="mb-6 flex items-center justify-between px-1">
-                  {composeStep === 'parsed' ? (
-                    <button
-                      onClick={() => setComposeStep('input')}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
-                    >
-                      <ChevronLeft size={16} />
-                      Back
-                    </button>
-                  ) : (
-                    <div className="w-20" />
-                  )}
-
-                  <h3 className="text-xl font-bold tracking-tight uppercase text-[#5A45E5]">
-                    {composeStep === 'input' ? 'Requirements Input' : 'Structured Filters'}
-                  </h3>
-
-                  {composeStep === 'input' ? (
-                    <button
-                      onClick={() => setComposeStep('parsed')}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
-                    >
-                      Next
-                      <ChevronRight size={16} />
-                    </button>
-                  ) : internetData ? (
-                    <button
-                      onClick={() => setView('results')}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
-                    >
-                      Results
-                      <ChevronRight size={16} />
-                    </button>
-                  ) : (
-                    <div className="w-20" />
-                  )}
-                </div>
-              )}
 
               {composeStep === 'input' ? (
                 <div className="space-y-5">
@@ -1799,18 +1807,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
           {view === 'results' && (
             <div className="space-y-5">
-              {/* Top bar: Back + count + pool search bar */}
+              {/* Top bar: count + pool search + cache badge */}
               <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
-                <button
-                  onClick={() => {
-                    if (isFromPool) { setIsFromPool(false); setView('recent'); setRecentSubView('pool'); }
-                    else setView('compose');
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-all hover:border-slate-600 shadow-sm cursor-pointer"
-                >
-                  <ChevronLeft size={16} />
-                  {isFromPool ? 'Back to Recent' : 'Back'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates</p>
+                  {activeData?.servedFromPool && (
+                    <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-emerald-700/50 bg-emerald-950/40 text-emerald-300 px-2.5 py-0.5 font-semibold">
+                      <Database size={10} /> Served from cache · 0 credits used
+                    </span>
+                  )}
+                </div>
                 {isFromPool && (
                   <div className="relative flex-1 max-w-sm">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
@@ -1829,15 +1835,6 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     />
                   </div>
                 )}
-
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-300">{candidates.length} candidates</p>
-                  {activeData?.servedFromPool && (
-                    <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-emerald-700/50 bg-emerald-950/40 text-emerald-300 px-2.5 py-0.5 font-semibold">
-                      <Database size={10} /> Served from cache · 0 credits used
-                    </span>
-                  )}
-                </div>
               </div>
 
               {/* Bucket summary bar */}
