@@ -481,21 +481,9 @@ export const sourceCandidates = async (req, res) => {
         }
       }
 
-      // HarvestAPI already returns structured data — OpenAI enrichment is skipped.
-      // We still run it if the snippet (headline) has useful info to parse.
-      const aiMap = await aiEnrichCandidates(linkedInProfiles.map(p => ({
-        title: p.headline || '',
-        link:  p.linkedinUrl || '',
-        snippet: p.about || p.headline || '',
-        query: 'linkedin-search',
-      })));
-      if (aiMap && aiMap.size > 0) {
-        candidates = candidates.map((candidate) => mergeCandidateWithAi(
-          candidate,
-          aiMap.get(candidate.normalizedUrl) || null
-        ));
-        logger.info(`[OpenAI] Candidate normalization merge complete for ${aiMap.size} profiles`);
-      }
+      // HarvestAPI returns fully structured data (name, title, skills, experience, etc.)
+      // AI enrichment is skipped — it adds no value over structured profiles and
+      // causes multi-minute delays when processing 100+ candidates.
 
     } else {
       // ── No source available ───────────────────────────────────────────────
