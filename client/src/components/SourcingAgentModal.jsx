@@ -1526,19 +1526,31 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                         <UploadCloud size={18} className="text-[#A99BFF]" />
                         Upload Job Description
                       </h3>
-                      <label className="mt-4 flex-1 group block rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-6 text-center cursor-pointer transition-all hover:border-[#6B5AF0] hover:bg-slate-900">
-                        <UploadCloud size={22} className="mx-auto text-slate-400 group-hover:text-[#A99BFF] transition-colors" />
-                        <p className="text-sm font-semibold text-slate-200 mt-3">
-                          {jdFile ? jdFile.name : 'Click to upload'}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">PDF, DOCX, TXT</p>
-                        <input
-                          type="file"
-                          accept=".pdf,.docx,.txt"
-                          className="hidden"
-                          onChange={handleFileChange}
-                        />
-                      </label>
+                      <div className="mt-4 flex-1 relative">
+                        <label className="group block rounded-xl border border-dashed border-slate-600 bg-slate-950/60 p-6 text-center cursor-pointer transition-all hover:border-[#6B5AF0] hover:bg-slate-900">
+                          <UploadCloud size={22} className="mx-auto text-slate-400 group-hover:text-[#A99BFF] transition-colors" />
+                          <p className="text-sm font-semibold text-slate-200 mt-3">
+                            {jdFile ? jdFile.name : 'Click to upload'}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">PDF, DOCX, TXT</p>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.txt"
+                            className="hidden"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                        {jdFile && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setJdFile(null); }}
+                            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+                            title="Remove file"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
 
                       <div className="mt-4 text-xs text-slate-400 space-y-1.5">
                         <p className="font-semibold text-slate-300">How it works:</p>
@@ -1694,7 +1706,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                               <span className="ml-2 text-slate-600 normal-case font-normal text-[10px]">drag skills between sections</span>
                             </label>
                             <div
-                              className={`mt-1 min-h-[48px] w-full rounded-lg border bg-slate-950 px-3 py-2 flex flex-wrap gap-1.5 items-center transition-all ${isOver ? sec.zoneOverCls : sec.zoneCls}`}
+                              className={`mt-1 min-h-[48px] max-h-[120px] overflow-y-auto w-full rounded-lg border bg-slate-950 px-3 py-2 flex flex-wrap gap-1.5 items-start transition-all ${isOver ? sec.zoneOverCls : sec.zoneCls}`}
                               onDragOver={(e) => { e.preventDefault(); setDragOverKey(sec.key); }}
                               onDragLeave={() => setDragOverKey(null)}
                               onDrop={(e) => {
