@@ -703,7 +703,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [mustHaveRaw,  setMustHaveRaw]  = useState('');
   const [requiredRaw,  setRequiredRaw]  = useState('');
   const [preferredRaw, setPreferredRaw] = useState('');
-  const [internetData, setInternetData] = useState(null);
+  const [internetData, setInternetData] = useState(null);       // live search results only
+  const [sessionData, setSessionData]   = useState(null);       // session-restored results only
+  const [activeResultsSource, setActiveResultsSource] = useState('live'); // 'live' | 'session'
   const [error, setError] = useState('');
   const [loadingStepIdx, setLoadingStepIdx] = useState(0);
   const [savedCandidates, setSavedCandidates] = useState(new Set());
@@ -787,6 +789,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         parsedRequirements: null,
         servedFromPool: false,
       });
+      setActiveResultsSource('live');
       setIsFromPool(true);
       setCurrentPage(1);
       setView('results');
@@ -833,11 +836,14 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         parsedRequirements: session.parsedRequirements,
         dataSource: session.dataSource,
         summary: { totalExtracted: session.candidateCount },
+        _sessionLabel: session.jobTitle || 'Search session',
+        _sessionDate: session.createdAt,
       };
-      setInternetData(restoredData);
+      setSessionData(restoredData);
+      setActiveResultsSource('session');
       setCurrentPage(1);
       setView('results');
-      toast.success(`Restored: ${session.jobTitle || 'Search session'}`);
+      toast.success(`Loaded: ${session.jobTitle || 'Search session'}`);
     } catch {
       toast.error('Failed to load session.');
     } finally {
@@ -845,7 +851,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     }
   };
 
-  const activeData = internetData;
+  const activeData = activeResultsSource === 'session' ? sessionData : internetData;
 
   const parsedRequirements = parsedDraft || bundle?.parsedRequirements || activeData?.parsedRequirements || null;
   const canExtractRequirements = Boolean(jobDescription.trim()) || Boolean(jdFile);
@@ -878,6 +884,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       if (parsed?.bundle) setBundle(parsed.bundle);
       if (parsed?.parsedDraft) setParsedDraft(parsed.parsedDraft);
       if (parsed?.internetData) setInternetData(parsed.internetData);
+      if (parsed?.sessionData) setSessionData(parsed.sessionData);
+      if (parsed?.activeResultsSource) setActiveResultsSource(parsed.activeResultsSource);
       if (Array.isArray(parsed?.savedCandidates)) {
         setSavedCandidates(new Set(parsed.savedCandidates));
       }
@@ -902,13 +910,15 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         bundle,
         parsedDraft,
         internetData,
+        sessionData,
+        activeResultsSource,
         savedCandidates: Array.from(savedCandidates),
       };
       localStorage.setItem(AI_SOURCE_STATE_KEY, JSON.stringify(snapshot));
     } catch {
       // Ignore persistence errors
     }
-  }, [view, composeStep, jobDescription, bundle, parsedDraft, internetData, savedCandidates]);
+  }, [view, composeStep, jobDescription, bundle, parsedDraft, internetData, sessionData, activeResultsSource, savedCandidates]);
 
   const handleClose = () => {
     setView('compose');
@@ -920,6 +930,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
     setBundle(null);
     setParsedDraft(null);
     setInternetData(null);
+    setSessionData(null);
+    setActiveResultsSource('live');
     setError('');
     setSavedCandidates(new Set());
     onClose();
@@ -1034,6 +1046,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         autoSave: false,
       }, { signal: controller.signal });
       setInternetData(data);
+      setActiveResultsSource('live');
       setCurrentPage(1);
       const preSaved = new Set(
         (data?.candidates || [])
@@ -1060,6 +1073,16 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                     const url = c.linkedinUrl || c.linkedInUrl;
                     if (savedId && url) {
                       setInternetData((prev) => {
+                        if (!prev) return prev;
+                        const next = (prev.candidates || prev.results || []).map((row) =>
+                          (row.linkedinUrl || row.linkedInUrl) === url
+                            ? { ...row, savedCandidateId: savedId, savedToDatabase: true }
+                            : row
+                        );
+                        return { ...prev, candidates: next, results: next };
+                      });
+                      // also update session view if that's what's active
+                      setSessionData((prev) => {
                         if (!prev) return prev;
                         const next = (prev.candidates || prev.results || []).map((row) =>
                           (row.linkedinUrl || row.linkedInUrl) === url
@@ -1116,7 +1139,8 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           });
           return { ...prev, candidates: nextCandidates, results: nextCandidates };
         };
-        setInternetData(updater);
+        if (activeResultsSource === 'session') setSessionData(updater);
+        else setInternetData(updater);
         if (!silent) toast.success(`${candidate.name || candidate.fullName || 'Candidate'} saved.`);
         return savedId;
       } else {
@@ -1256,19 +1280,35 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           >
             <SlidersHorizontal size={14} /> Structured Filters
           </button>
-          {/* Results */}
+          {/* Results — Live Search */}
           {internetData && (
             <button
-              onClick={() => setView('results')}
+              onClick={() => { setActiveResultsSource('live'); setView('results'); setCurrentPage(1); }}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-                view === 'results'
+                view === 'results' && activeResultsSource === 'live'
                   ? 'border-[#6B5AF0] text-white'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
               }`}
             >
-              <Users size={14} /> Results
-              {candidates.length > 0 && (
-                <span className="ml-1 rounded-full bg-indigo-700/50 px-2 py-0.5 text-[10px] text-indigo-200 font-semibold">{candidates.length}</span>
+              <Users size={14} /> Live Results
+              {internetData.candidates?.length > 0 && (
+                <span className="ml-1 rounded-full bg-indigo-700/50 px-2 py-0.5 text-[10px] text-indigo-200 font-semibold">{internetData.candidates.length}</span>
+              )}
+            </button>
+          )}
+          {/* Results — Session */}
+          {sessionData && (
+            <button
+              onClick={() => { setActiveResultsSource('session'); setView('results'); setCurrentPage(1); }}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                view === 'results' && activeResultsSource === 'session'
+                  ? 'border-amber-400 text-amber-300'
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+              }`}
+            >
+              <History size={14} /> {sessionData._sessionLabel || 'Session'}
+              {sessionData.candidates?.length > 0 && (
+                <span className="ml-1 rounded-full bg-amber-700/40 px-2 py-0.5 text-[10px] text-amber-200 font-semibold">{sessionData.candidates.length}</span>
               )}
             </button>
           )}
