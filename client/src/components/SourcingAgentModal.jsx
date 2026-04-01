@@ -717,9 +717,19 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const scrollContainerRef = useRef(null);
   const outerScrollRef = useRef(null);
   const scrollToTop = () => {
-    // Try the inner content div first (modal mode), then the outer shell (inline mode)
+    // Try all possible scroll containers — window, outer shell, inner content div
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     outerScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // Walk up the DOM to find the actual scrolling ancestor and reset it
+    const el = scrollContainerRef.current;
+    if (el) {
+      let parent = el.parentElement;
+      while (parent) {
+        if (parent.scrollTop > 0) { parent.scrollTo({ top: 0, behavior: 'smooth' }); break; }
+        parent = parent.parentElement;
+      }
+    }
   };
 
   // ── Feature state: outreach ───────────────────────────────────────────────
