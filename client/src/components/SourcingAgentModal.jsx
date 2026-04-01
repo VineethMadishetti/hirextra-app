@@ -715,6 +715,15 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const [resumeCandidate, setResumeCandidate] = useState(null);
   const searchAbortRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const outerScrollRef = useRef(null);
+  const scrollToTop = () => {
+    // inline mode scrolls the outer shell; modal mode scrolls the inner content div
+    if (outerScrollRef.current?.scrollTop > 0) {
+      outerScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      scrollToTop();
+    }
+  };
 
   // ── Feature state: outreach ───────────────────────────────────────────────
   const [stageMap, setStageMap] = useState({});      // linkedinUrl → pipelineStage
@@ -863,7 +872,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   );
   const parseOnly = Boolean(activeData?.parseOnly);
 
-  const CANDIDATES_PER_PAGE = 10;
+  const CANDIDATES_PER_PAGE = 5;
   const totalPages = Math.max(1, Math.ceil(candidates.length / CANDIDATES_PER_PAGE));
   const pageCandidates = candidates.slice(
     (currentPage - 1) * CANDIDATES_PER_PAGE,
@@ -1240,7 +1249,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
 
   return (
     <>
-    <div className={outerShellClass} style={CARD_FONT}>
+    <div ref={outerScrollRef} className={outerShellClass} style={CARD_FONT}>
       <div className={contentShellClass}>
         <div className="bg-[linear-gradient(110deg,#1a1440,#432DD7)] text-white px-6 py-5 flex items-center gap-5">
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 shadow-lg shrink-0">
@@ -2288,7 +2297,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2">
                   <button
-                    onClick={() => { const p = Math.max(1, currentPage - 1); setCurrentPage(p); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    onClick={() => { const p = Math.max(1, currentPage - 1); setCurrentPage(p); scrollToTop(); }}
                     disabled={currentPage === 1}
                     className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
@@ -2307,7 +2316,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       ) : (
                         <button
                           key={item}
-                          onClick={() => { setCurrentPage(item); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          onClick={() => { setCurrentPage(item); scrollToTop(); }}
                           className={`min-w-[32px] rounded-lg border px-2.5 py-1.5 text-sm font-semibold cursor-pointer transition-colors ${
                             currentPage === item
                               ? 'border-[#6B5AF0] bg-[#432DD7] text-white'
@@ -2319,7 +2328,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       )
                     )}
                   <button
-                    onClick={() => { const p = Math.min(totalPages, currentPage + 1); setCurrentPage(p); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    onClick={() => { const p = Math.min(totalPages, currentPage + 1); setCurrentPage(p); scrollToTop(); }}
                     disabled={currentPage === totalPages}
                     className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
