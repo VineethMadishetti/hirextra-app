@@ -883,9 +883,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       if (typeof parsed?.jobDescription === 'string') setJobDescription(parsed.jobDescription);
       if (parsed?.bundle) setBundle(parsed.bundle);
       if (parsed?.parsedDraft) setParsedDraft(parsed.parsedDraft);
-      if (parsed?.internetData) setInternetData(parsed.internetData);
+      // internetData (live results) intentionally NOT restored — live results are per-run only
+      // Use Recent Searches to reload any past search
       if (parsed?.sessionData) setSessionData(parsed.sessionData);
-      if (parsed?.activeResultsSource) setActiveResultsSource(parsed.activeResultsSource);
       if (Array.isArray(parsed?.savedCandidates)) {
         setSavedCandidates(new Set(parsed.savedCandidates));
       }
@@ -904,21 +904,20 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   useEffect(() => {
     try {
       const snapshot = {
-        view,
+        // internetData (live results) intentionally excluded — never persisted
+        view: (view === 'results' && !sessionData) ? 'compose' : view,
         composeStep,
         jobDescription,
         bundle,
         parsedDraft,
-        internetData,
         sessionData,
-        activeResultsSource,
         savedCandidates: Array.from(savedCandidates),
       };
       localStorage.setItem(AI_SOURCE_STATE_KEY, JSON.stringify(snapshot));
     } catch {
       // Ignore persistence errors
     }
-  }, [view, composeStep, jobDescription, bundle, parsedDraft, internetData, sessionData, activeResultsSource, savedCandidates]);
+  }, [view, composeStep, jobDescription, bundle, parsedDraft, sessionData, savedCandidates]);
 
   const handleClose = () => {
     setView('compose');
@@ -1296,21 +1295,35 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               )}
             </button>
           )}
-          {/* Results — Session */}
+          {/* Results — Session (closeable) */}
           {sessionData && (
-            <button
-              onClick={() => { setActiveResultsSource('session'); setView('results'); setCurrentPage(1); }}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-                view === 'results' && activeResultsSource === 'session'
-                  ? 'border-amber-400 text-amber-300'
-                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
-              }`}
-            >
-              <History size={14} /> {sessionData._sessionLabel || 'Session'}
-              {sessionData.candidates?.length > 0 && (
-                <span className="ml-1 rounded-full bg-amber-700/40 px-2 py-0.5 text-[10px] text-amber-200 font-semibold">{sessionData.candidates.length}</span>
-              )}
-            </button>
+            <div className={`flex items-center gap-1 border-b-2 transition-all ${
+              view === 'results' && activeResultsSource === 'session'
+                ? 'border-amber-400'
+                : 'border-transparent'
+            }`}>
+              <button
+                onClick={() => { setActiveResultsSource('session'); setView('results'); setCurrentPage(1); }}
+                className={`flex items-center gap-2 px-3 py-3 text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                  view === 'results' && activeResultsSource === 'session'
+                    ? 'text-amber-300'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <History size={14} />
+                <span className="max-w-[140px] truncate">{sessionData._sessionLabel || 'Session'}</span>
+                {sessionData.candidates?.length > 0 && (
+                  <span className="rounded-full bg-amber-700/40 px-2 py-0.5 text-[10px] text-amber-200 font-semibold">{sessionData.candidates.length}</span>
+                )}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setSessionData(null); if (activeResultsSource === 'session') { setActiveResultsSource('live'); setView(internetData ? 'results' : 'compose'); } }}
+                className="mr-2 text-slate-500 hover:text-red-400 transition-colors cursor-pointer leading-none"
+                title="Close session"
+              >
+                <X size={13} />
+              </button>
+            </div>
           )}
           {/* Recent Searches */}
           <button
