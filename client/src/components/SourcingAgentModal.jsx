@@ -1257,7 +1257,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         <div className="border-b border-slate-800 bg-slate-950/90 px-4 flex items-center gap-1 overflow-x-auto shrink-0">
           {/* New Search */}
           <button
-            onClick={() => { setView('compose'); setComposeStep('input'); }}
+            onClick={() => { setInternetData(null); setActiveResultsSource('live'); setView('compose'); setComposeStep('input'); }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               view === 'compose' && composeStep === 'input'
                 ? 'border-[#6B5AF0] text-white'
