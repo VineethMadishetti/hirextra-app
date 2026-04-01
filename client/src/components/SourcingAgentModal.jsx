@@ -717,12 +717,9 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const scrollContainerRef = useRef(null);
   const outerScrollRef = useRef(null);
   const scrollToTop = () => {
-    // inline mode scrolls the outer shell; modal mode scrolls the inner content div
-    if (outerScrollRef.current?.scrollTop > 0) {
-      outerScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      scrollToTop();
-    }
+    // Try the inner content div first (modal mode), then the outer shell (inline mode)
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    outerScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ── Feature state: outreach ───────────────────────────────────────────────
@@ -910,6 +907,12 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       loadSessions(sessionSearch);
     }
   }, [view, recentSubView]);
+
+  // Scroll to top whenever page changes — covers all scroll containers
+  useEffect(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    outerScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   useEffect(() => {
     try {
