@@ -181,11 +181,20 @@ export function normalizeParsedRequirements(raw = {}) {
   const company_types = uniqueStrings(raw.company_types || raw.companyTypes || [], 5);
   const remote = normalizeRemote(raw.remote, location);
 
+  // Pass through AI-generated dynamic expansions
+  const title_variants    = uniqueStrings(raw.title_variants || [], 5);
+  const linkedin_locations = Array.isArray(raw.linkedin_locations) ? raw.linkedin_locations.filter(Boolean) : [];
+  const skill_aliases     = (raw.skill_aliases && typeof raw.skill_aliases === 'object' && !Array.isArray(raw.skill_aliases))
+    ? raw.skill_aliases
+    : {};
+
   return {
     job_title,
+    title_variants,
     industry,
     duration_type,
     location,
+    linkedin_locations,
     experience_years,
     max_experience_years,
     experience_level,
@@ -196,6 +205,7 @@ export function normalizeParsedRequirements(raw = {}) {
     required_skills,
     preferred_skills,
     must_have_skills,
+    skill_aliases,
     company_types,
     remote,
   };
@@ -254,9 +264,11 @@ export async function parseJobDescription(jobDescription) {
 Return ONLY valid JSON with this exact schema:
 {
   "job_title": { "main": "string", "synonyms": ["string"] },
+  "title_variants": ["string"],
   "industry": "string",
   "duration_type": "string",
   "location": "string",
+  "linkedin_locations": ["string"],
   "experience_years": number,
   "max_experience_years": number,
   "experience_level": "Junior|Mid|Senior|Lead|Executive",
@@ -267,6 +279,7 @@ Return ONLY valid JSON with this exact schema:
   "required_skills": ["string"],
   "preferred_skills": ["string"],
   "must_have_skills": ["string"],
+  "skill_aliases": { "skill_name": ["alias1", "alias2"] },
   "company_types": ["string"],
   "remote": boolean
 }
@@ -279,6 +292,9 @@ Extraction policy:
 - For experience ranges like "4-7 years", set experience_years=4 and max_experience_years=7. For "5+ years", set experience_years=5 and max_experience_years=0 (no upper limit).
 - If experience is given in months only (e.g. "6 months"), set experience_years=0.5. For "6 months – 4 years", set experience_years=0.5 and max_experience_years=4.
 - For availability: output exactly one of "IMMEDIATE", "15_DAYS", "30_DAYS", "ANY". "Immediate joiners only" → "IMMEDIATE". "15 days notice" → "15_DAYS". "30 days / 1 month notice" → "30_DAYS". Not mentioned → "ANY".
+- title_variants: 3-5 natural synonyms/alternate job titles that recruiters actually use on LinkedIn (e.g. for "Ward Sister" → ["Charge Nurse", "Senior Staff Nurse", "Clinical Team Leader"]). Works for ANY role in ANY language or domain.
+- linkedin_locations: for each city/region in the location field, provide the exact "City, State/Region, Country" string that LinkedIn uses — e.g. "Malmö, Skåne County, Sweden", "Cape Town, Western Cape, South Africa". If location is remote or unspecified, return []. If multiple cities, return one entry per city.
+- skill_aliases: for each must_have and required skill, provide 1-3 common alternate names professionals use on LinkedIn (e.g. "Kubernetes": ["k8s", "K8"], "React": ["ReactJS", "React.js"], "SAP HANA": ["HANA", "SAP In-Memory DB"]). Only include aliases that are meaningfully different from the skill name.
 - Return JSON only.
 
 Example:
@@ -286,19 +302,22 @@ User Input: "Seeking a Senior Backend Engineer with 8+ years of experience in Ja
 Your JSON Output:
 {
   "job_title": { "main": "Senior Backend Engineer", "synonyms": ["Senior Java Developer", "Senior Software Engineer"] },
+  "title_variants": ["Senior Java Engineer", "Backend Software Engineer", "Senior API Developer"],
   "industry": "Fintech",
   "duration_type": "Full-time",
   "location": "London",
+  "linkedin_locations": ["London, England, United Kingdom"],
   "experience_years": 8,
   "max_experience_years": 0,
   "experience_level": "Senior",
   "organization_hierarchy": "Not Specified",
   "salary_package": "Not Specified",
-  "availability": "Not Specified",
+  "availability": "ANY",
   "education": "Not Specified",
   "required_skills": ["Java", "Spring Boot", "Microservices", "AWS"],
   "preferred_skills": ["Kafka"],
   "must_have_skills": ["Java", "Spring Boot", "Microservices", "AWS"],
+  "skill_aliases": { "Java": ["Java EE", "J2EE"], "Spring Boot": ["Spring Framework", "Spring"], "AWS": ["Amazon Web Services", "Amazon AWS"] },
   "company_types": [],
   "remote": false
 }`,
@@ -310,7 +329,7 @@ Your JSON Output:
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: 900,
+      max_tokens: 1400,
     });
 
     const raw = JSON.parse(response.choices?.[0]?.message?.content || '{}');
@@ -670,15 +689,27 @@ export function buildLinkedInSearchParams(parsedInput) {
   const aliases = buildAliases(parsed);
 
   // currentJobTitles triggers the Lead search endpoint — returns real profiles with URLs.
-  // Include main title, synonyms, and derived aliases for broad recall.
+  // AI-generated title_variants take priority — they work for any role in any domain/language.
+  // Hardcoded TITLE_ALIAS_MAP aliases are a fallback for common tech titles.
   const currentJobTitles = uniqueStrings(
-    [parsed.job_title.main, ...parsed.job_title.synonyms, ...aliases.titleAliases],
+    [
+      parsed.job_title.main,
+      ...(parsed.title_variants || []),   // AI-generated — works worldwide
+      ...parsed.job_title.synonyms,
+      ...aliases.titleAliases,            // hardcoded map fallback
+    ],
     6
   );
 
-  // Expand each city to full LinkedIn location string so HarvestAPI can resolve it.
-  // "Hyderabad" → "Hyderabad, Telangana, India"  |  "Bangalore, India" → kept as-is
-  const locations = parseMultipleLocations(parsed.location).map(expandLocationForLinkedIn);
+  // Use AI-generated linkedin_locations if available — works for any city on Earth.
+  // Fall back to the hardcoded CITY_TO_LINKEDIN_LOCATION map for common cities.
+  const locations = (parsed.linkedin_locations && parsed.linkedin_locations.length > 0)
+    ? parsed.linkedin_locations
+    : parseMultipleLocations(parsed.location).map(expandLocationForLinkedIn);
+
+  if (locations.length > 0) {
+    logger.info(`[HarvestAPI] Resolved locations: ${locations.join(' | ')}`);
+  }
 
   // Keep actor-side recall broad. Experience and industry are filtered/scored server-side.
   const yearsOfExperienceIds = [];
@@ -704,15 +735,25 @@ export function buildLinkedInSearchParams(parsedInput) {
  */
 export function buildSkillSearchQuery(parsedInput) {
   const parsed = normalizeParsedRequirements(parsedInput);
-  const skills = uniqueStrings(
+  const coreSkills = uniqueStrings(
     [
       ...(parsed.must_have_skills || []),
       ...(parsed.required_skills  || []).slice(0, 4),
     ],
     6
   );
-  if (skills.length === 0) return null;
-  return skills.join(' ');
+  if (coreSkills.length === 0) return null;
+
+  // Append one AI-generated alias per skill to widen LinkedIn free-text recall.
+  // e.g. "Kubernetes k8s React ReactJS" finds more profiles than "Kubernetes React" alone.
+  const aiAliases = parsed.skill_aliases || {};
+  const terms = [];
+  for (const skill of coreSkills) {
+    terms.push(skill);
+    const aliases = aiAliases[skill] || aiAliases[skill.toLowerCase()] || [];
+    if (aliases.length > 0) terms.push(aliases[0]); // just the first alias to keep query short
+  }
+  return uniqueStrings(terms, 10).join(' ');
 }
 
 export function determineTargetCountries(location, isRemote) {

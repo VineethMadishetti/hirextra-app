@@ -714,6 +714,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
   const toggleCard = (key) => setExpandedCards((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const [resumeCandidate, setResumeCandidate] = useState(null);
   const searchAbortRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   // ── Feature state: outreach ───────────────────────────────────────────────
   const [stageMap, setStageMap] = useState({});      // linkedinUrl → pipelineStage
@@ -1338,7 +1339,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
           </button>
         </div>
 
-        <div className="h-[calc(100%-152px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
+        <div ref={scrollContainerRef} className="h-[calc(100%-152px)] overflow-y-auto p-5 md:p-6 bg-[radial-gradient(circle_at_88%_10%,rgba(67,45,215,0.24),transparent_40%),radial-gradient(circle_at_10%_95%,rgba(130,113,255,0.18),transparent_35%)]">
           {error && (
             <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
               <AlertCircle size={16} className="mt-0.5" />
@@ -2287,7 +2288,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2">
                   <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() => { const p = Math.max(1, currentPage - 1); setCurrentPage(p); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     disabled={currentPage === 1}
                     className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
@@ -2306,7 +2307,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       ) : (
                         <button
                           key={item}
-                          onClick={() => setCurrentPage(item)}
+                          onClick={() => { setCurrentPage(item); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                           className={`min-w-[32px] rounded-lg border px-2.5 py-1.5 text-sm font-semibold cursor-pointer transition-colors ${
                             currentPage === item
                               ? 'border-[#6B5AF0] bg-[#432DD7] text-white'
@@ -2318,7 +2319,7 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
                       )
                     )}
                   <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => { const p = Math.min(totalPages, currentPage + 1); setCurrentPage(p); scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     disabled={currentPage === totalPages}
                     className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >

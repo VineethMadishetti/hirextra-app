@@ -131,7 +131,7 @@ function skillAliasSet(skill) {
   return set;
 }
 
-function skillMatches(candidateSkills, requiredSkill) {
+function skillMatches(candidateSkills, requiredSkill, aiAliases = {}) {
   if (!requiredSkill) return false;
 
   const haystack = Array.isArray(candidateSkills)
@@ -140,7 +140,14 @@ function skillMatches(candidateSkills, requiredSkill) {
 
   if (!haystack) return false;
 
+  // Build alias set: hardcoded SKILL_ALIASES first, then AI-generated aliases on top
   const aliases = skillAliasSet(requiredSkill);
+  const aiExtras = aiAliases[requiredSkill] || aiAliases[requiredSkill.toLowerCase()] || [];
+  for (const extra of aiExtras) {
+    const e = String(extra || '').toLowerCase().trim();
+    if (e) aliases.add(e);
+  }
+
   for (const alias of aliases) {
     const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(?:^|[\\s,/|.+#])${escaped}(?:$|[\\s,/|.+#])`, 'i');
@@ -328,9 +335,12 @@ export function scoreCandidate(candidate, requirements) {
   const candidateLocation = String(candidate.location || candidate.locality || '');
   const candidateExp = candidate.experience || candidate.totalExperience || candidate.experienceYears || 0;
 
+  // AI-generated skill aliases from the parsed JD (works for any domain/language)
+  const aiAliases = (req.skill_aliases && typeof req.skill_aliases === 'object') ? req.skill_aliases : {};
+
   // AND gate: ALL must-have skills must appear in strict haystack
-  const matchedMustHave = mustHaveSkills.filter((skill) => skillMatches(strictHaystack, skill));
-  const missingMustHave = mustHaveSkills.filter((skill) => !skillMatches(strictHaystack, skill));
+  const matchedMustHave = mustHaveSkills.filter((skill) => skillMatches(strictHaystack, skill, aiAliases));
+  const missingMustHave = mustHaveSkills.filter((skill) => !skillMatches(strictHaystack, skill, aiAliases));
 
   // Deduplicate required: remove skills already in must_have so they are not double-counted.
   // GPT typically puts must-have skills in both lists; scoring them twice inflates scores
@@ -340,11 +350,11 @@ export function scoreCandidate(candidate, requirements) {
   const dedupPreferred = preferredSkills.filter((s) => !mustHaveSet.has(s.toLowerCase()));
 
   // OR gate: required skills (excluding must-haves)
-  const matchedRequired = dedupRequired.filter((skill) => skillMatches(broadHaystack, skill));
-  const missingRequired = dedupRequired.filter((skill) => !skillMatches(broadHaystack, skill));
+  const matchedRequired = dedupRequired.filter((skill) => skillMatches(broadHaystack, skill, aiAliases));
+  const missingRequired = dedupRequired.filter((skill) => !skillMatches(broadHaystack, skill, aiAliases));
 
   // Preferred: scoring bonus only (also deduplicated)
-  const matchedPreferred = dedupPreferred.filter((skill) => skillMatches(broadHaystack, skill));
+  const matchedPreferred = dedupPreferred.filter((skill) => skillMatches(broadHaystack, skill, aiAliases));
 
   const locMatch = locationMatches(candidateLocation, reqLocation);
   const candExpYears = parseExperienceYears(candidateExp);
