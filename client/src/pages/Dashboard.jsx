@@ -23,6 +23,90 @@ import {
 import LoadingScreen from "../components/LoadingScreen";
 import SourcingAgentModal from "../components/SourcingAgentModal";
 
+// Home page shown to ADMIN role after login
+const AdminHomePage = ({ onNavigate }) => (
+	<div className="flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-full">
+		<p className="text-slate-500 dark:text-slate-400 text-lg leading-relaxed text-center mb-10">
+			Your AI-powered talent platform is ready. Manage users, search talent, and source candidates.
+		</p>
+
+		<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-5xl">
+			{/* Admin Panel Card */}
+			<button
+				onClick={() => onNavigate("admin")}
+				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
+				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-blue-100/50 dark:hover:shadow-blue-900/20
+				hover:border-blue-300 dark:hover:border-blue-600/50 transition-all duration-300 text-left cursor-pointer">
+				<div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 transition-colors">
+					<LayoutDashboard size={22} className="text-blue-600 dark:text-blue-400" />
+				</div>
+				<div className="flex-1">
+					<h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">Admin Panel</h3>
+					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Upload resumes, manage candidate databases and track import history.</p>
+				</div>
+				<ArrowRight size={18} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+			</button>
+
+			{/* User Management Card */}
+			<button
+				onClick={() => onNavigate("users")}
+				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
+				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-violet-100/50 dark:hover:shadow-violet-900/20
+				hover:border-violet-300 dark:hover:border-violet-600/50 transition-all duration-300 text-left cursor-pointer overflow-hidden">
+				<div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-violet-100/60 dark:from-violet-500/10 to-transparent rounded-bl-full pointer-events-none" />
+				<div className="w-12 h-12 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-100 dark:group-hover:bg-violet-500/20 transition-colors">
+					<Users size={22} className="text-violet-600 dark:text-violet-400" />
+				</div>
+				<div className="flex-1">
+					<h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">User Management</h3>
+					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Create, manage and monitor user accounts and permissions.</p>
+				</div>
+				<ArrowRight size={18} className="text-slate-300 group-hover:text-violet-500 group-hover:translate-x-1 transition-all" />
+			</button>
+
+			{/* AI Talent Search Card */}
+			<button
+				onClick={() => onNavigate("search")}
+				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
+				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 dark:hover:shadow-indigo-900/20
+				hover:border-indigo-300 dark:hover:border-indigo-600/50 transition-all duration-300 text-left cursor-pointer overflow-hidden">
+				<div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-indigo-100/60 dark:from-indigo-500/10 to-transparent rounded-bl-full pointer-events-none" />
+				<div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors">
+					<Search size={22} className="text-indigo-600 dark:text-indigo-400" />
+				</div>
+				<div className="flex-1">
+					<h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">AI Talent Search</h3>
+					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Filter by skills, location, title & more from our global talent database.</p>
+				</div>
+				<ArrowRight size={18} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+			</button>
+
+			{/* AI Talent Source Card */}
+			<button
+				onClick={() => onNavigate("ai-source")}
+				className="group relative flex flex-col items-start gap-4 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60
+				bg-white dark:bg-slate-800/60 shadow-sm hover:shadow-xl hover:shadow-emerald-100/50 dark:hover:shadow-emerald-900/20
+				hover:border-emerald-300 dark:hover:border-emerald-600/50 transition-all duration-300 text-left cursor-pointer">
+				<div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 transition-colors">
+					<Zap size={22} className="text-emerald-600 dark:text-emerald-400" />
+				</div>
+				<div className="flex-1">
+					<div className="flex items-center gap-2 mb-1">
+						<h3 className="font-bold text-slate-900 dark:text-white text-base">AI Talent Source</h3>
+						<span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">New</span>
+					</div>
+					<p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Paste a job description — let AI discover matching candidates globally.</p>
+				</div>
+				<ArrowRight size={18} className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+			</button>
+		</div>
+
+		<p className="mt-10 text-xs text-slate-400 dark:text-slate-600">
+			Use the navigation above to switch between tools anytime
+		</p>
+	</div>
+);
+
 // Welcome page shown to USER role after login
 const WelcomePage = ({ user, onNavigate }) => (
 	<div className="flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-full">
@@ -127,7 +211,7 @@ const Dashboard = () => {
 	// State to control which view is shown
 	// If user is ADMIN, default to 'admin', else 'welcome'
 	const [currentView, setCurrentView] = useState(
-		() => (user?.role === "ADMIN" ? "admin" : "welcome"),
+		() => (user?.role === "ADMIN" ? "home" : "welcome"),
 	);
 
 	const { data: statsData } = useQuery({
@@ -154,7 +238,7 @@ const Dashboard = () => {
 
 	useEffect(() => {
 		if (user && user.role === "ADMIN") {
-			setCurrentView("admin");
+			setCurrentView("home");
 		} else {
 			setCurrentView("welcome");
 		}
@@ -186,8 +270,8 @@ const Dashboard = () => {
 				{/* Left: Logo & Navigation */}
 				<div className="flex items-center gap-10">
 					<button
-						onClick={() => user?.role === "USER" && setCurrentView("welcome")}
-						className={`text-xl font-extrabold tracking-tight leading-none select-none ${user?.role === "USER" ? "cursor-pointer hover:opacity-80 transition-opacity" : "cursor-default"}`}>
+						onClick={() => user?.role === "ADMIN" ? setCurrentView("home") : setCurrentView("welcome")}
+						className="text-xl font-extrabold tracking-tight leading-none select-none cursor-pointer hover:opacity-80 transition-opacity">
 						<span className="bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
 							People
 						</span>
@@ -417,6 +501,15 @@ const Dashboard = () => {
 		{user?.role === "ADMIN" && (
 			<div className="md:hidden flex border-b bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-slate-200 dark:border-slate-800 fixed top-16 left-0 right-0 z-40">
 				<button
+					onClick={() => setCurrentView("home")}
+					className={`flex-1 py-3 text-sm font-medium text-center ${
+							currentView === "home"
+								? "text-indigo-600 border-b-2 border-indigo-600"
+								: "text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+						}`}>
+						Home
+					</button>
+				<button
 					onClick={() => setCurrentView("admin")}
 					className={`flex-1 py-3 text-sm font-medium text-center ${
 							currentView === "admin"
@@ -467,7 +560,9 @@ const Dashboard = () => {
 					fallback={
 						<LoadingScreen />
 					}>
-					{currentView === "welcome" ? (
+					{currentView === "home" ? (
+						<AdminHomePage onNavigate={setCurrentView} />
+					) : currentView === "welcome" ? (
 						<WelcomePage user={user} onNavigate={setCurrentView} />
 					) : currentView === "my-databases" ? (
 						<PrivateDatabases />

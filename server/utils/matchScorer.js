@@ -66,9 +66,80 @@ const SKILL_ALIASES = {
   golang: ['go lang', 'go programming'],
   'c#': ['csharp', 'c sharp', '.net c#'],
   '.net': ['dotnet', '.net core', 'asp.net'],
+
+  // ── Healthcare: Nursing credentials ────────────────────────────────────────
+  'registered nurse':             ['rn', 'staff nurse', 'bedside nurse', 'clinical nurse', 'r.n.'],
+  rn:                             ['registered nurse', 'staff nurse', 'clinical nurse'],
+  'nurse practitioner':           ['np', 'aprn', 'advanced practice nurse', 'advanced practice rn'],
+  np:                             ['nurse practitioner', 'aprn', 'advanced practice nurse'],
+  'licensed practical nurse':     ['lpn', 'l.p.n.', 'licensed vocational nurse', 'lvn'],
+  'certified nursing assistant':  ['cna', 'nurse aide', 'nursing assistant'],
+  bsn:                            ['bachelor of science in nursing', 'bachelor nursing'],
+  msn:                            ['master of science in nursing', 'master nursing'],
+
+  // ── Healthcare: Clinical certifications ────────────────────────────────────
+  bls:  ['basic life support', 'bls certification', 'bls certified'],
+  acls: ['advanced cardiac life support', 'acls certification', 'acls certified'],
+  pals: ['pediatric advanced life support', 'pals certification'],
+  nrp:  ['neonatal resuscitation program', 'nrp certification'],
+  tncc: ['trauma nursing core course'],
+  ccrn: ['critical care registered nurse certification'],
+
+  // ── Healthcare: EMR / EHR systems ──────────────────────────────────────────
+  epic:           ['epic emr', 'epic ehr', 'epic systems', 'epiccare'],
+  cerner:         ['cerner emr', 'cerner ehr', 'cerner millennium', 'oracle cerner'],
+  meditech:       ['meditech emr', 'meditech ehr'],
+  allscripts:     ['allscripts ehr', 'allscripts emr'],
+  eclinicalworks: ['ecw', 'eclinical works'],
+  athenahealth:   ['athena ehr', 'athenanet'],
+
+  // ── Healthcare: Interoperability & standards ───────────────────────────────
+  hl7:         ['health level 7', 'hl7 messaging', 'hl7 v2', 'hl7 v2.x'],
+  fhir:        ['fast healthcare interoperability resources', 'hl7 fhir', 'fhir r4'],
+  hipaa:       ['health insurance portability', 'hipaa compliance', 'hipaa regulations'],
+  'icd-10':    ['icd10', 'icd 10', 'international classification of diseases'],
+  'cpt codes': ['current procedural terminology', 'cpt coding', 'procedure codes'],
+  dicom:       ['digital imaging and communications in medicine', 'dicom imaging'],
+
+  // ── Healthcare: Clinical specialties / units ───────────────────────────────
+  icu:                    ['intensive care unit', 'critical care unit', 'ccu', 'icu nurse', 'icu rn'],
+  'emergency department': ['ed', 'er', 'emergency room', 'emergency dept'],
+  er:                     ['emergency room', 'emergency department', 'ed'],
+  nicu:                   ['neonatal intensive care unit', 'nicu nurse', 'neonatal icu'],
+  picu:                   ['pediatric intensive care unit', 'pediatric icu', 'picu nurse'],
+  'operating room':       ['or', 'perioperative', 'surgical suite', 'or nurse'],
+  'med-surg':             ['medical surgical', 'med surg', 'medical-surgical nursing'],
+  telemetry:              ['tele unit', 'cardiac telemetry', 'step-down unit'],
+
+  // ── Healthcare: Diagnostic / lab ──────────────────────────────────────────
+  phlebotomy: ['venipuncture', 'blood draw', 'phlebotomist'],
+
+  // ── Healthcare: Allied health professions ─────────────────────────────────
+  'physical therapist':            ['pt', 'dpt', 'physiotherapist', 'physical therapy'],
+  'occupational therapist':        ['ot', 'certified occupational therapist', 'occupational therapy'],
+  'speech language pathologist':   ['slp', 'speech therapist', 'speech-language therapy'],
+  'radiologic technologist':       ['rad tech', 'x-ray technologist', 'radiographer', 'rt'],
+  'respiratory therapist':         ['rrt', 'crt', 'respiratory care practitioner'],
+  'medical laboratory technician': ['mlt', 'clinical lab technician', 'lab tech'],
+
+  // ── Healthcare: Physician / advanced practice ──────────────────────────────
+  'physician assistant':  ['pa', 'pa-c', 'physician associate'],
+  'medical doctor':       ['md', 'physician', 'attending physician', 'hospitalist'],
+  'clinical pharmacist':  ['pharmd', 'staff pharmacist', 'hospital pharmacist'],
+  'medical social worker':['msw', 'clinical social worker', 'lcsw'],
+
+  // ── Healthcare: Clinical specialties (physician/nursing context) ───────────
+  cardiology:  ['cardiac', 'cardiovascular', 'cath lab', 'electrophysiology'],
+  oncology:    ['hematology oncology', 'hem/onc', 'cancer care'],
+  neurology:   ['neuro', 'neurological', 'neuroscience'],
+  orthopedics: ['ortho', 'orthopedic surgery', 'musculoskeletal'],
+  pediatrics:  ['peds', 'pediatric', 'child health'],
+  psychiatry:  ['behavioral health', 'mental health', 'psych'],
+  radiology:   ['diagnostic imaging', 'interventional radiology', 'ir'],
 };
 
 const LOCATION_SYNONYMS = {
+  // India
   bangalore:   ['bengaluru', 'bangalore'],
   bengaluru:   ['bengaluru', 'bangalore'],
   delhi:       ['delhi', 'new delhi'],
@@ -92,18 +163,44 @@ const LOCATION_SYNONYMS = {
   nagpur:      ['nagpur'],
   indore:      ['indore'],
   chandigarh:  ['chandigarh'],
+  // UK
   london:      ['london'],
+  manchester:  ['manchester'],
+  birmingham:  ['birmingham'],
+  leeds:       ['leeds'],
+  glasgow:     ['glasgow'],
+  edinburgh:   ['edinburgh'],
+  bristol:     ['bristol'],
+  liverpool:   ['liverpool'],
+  // USA
+  'new york':  ['new york', 'nyc', 'new york city'],
+  nyc:         ['new york', 'nyc', 'new york city'],
+  'los angeles':['los angeles', 'la'],
+  la:          ['los angeles', 'la'],
+  chicago:     ['chicago'],
+  houston:     ['houston'],
+  dallas:      ['dallas'],
+  atlanta:     ['atlanta'],
+  boston:      ['boston'],
+  'san francisco': ['san francisco', 'sf', 'bay area'],
+  sf:          ['san francisco', 'sf', 'bay area'],
+  seattle:     ['seattle'],
+  miami:       ['miami'],
+  austin:      ['austin'],
+  // Sweden
+  stockholm:   ['stockholm'],
+  gothenburg:  ['gothenburg', 'göteborg', 'goteborg'],
+  göteborg:    ['gothenburg', 'göteborg', 'goteborg'],
+  malmö:       ['malmö', 'malmo'],
+  malmo:       ['malmö', 'malmo'],
+  uppsala:     ['uppsala'],
+  // Other
   berlin:      ['berlin'],
   toronto:     ['toronto'],
   sydney:      ['sydney'],
   singapore:   ['singapore'],
   dubai:       ['dubai'],
   amsterdam:   ['amsterdam'],
-  'new york':  ['new york', 'nyc'],
-  nyc:         ['new york', 'nyc'],
-  'san francisco': ['san francisco', 'sf', 'bay area'],
-  seattle:     ['seattle'],
-  austin:      ['austin'],
 };
 
 // Weights per matched skill — must-have >> required >> preferred.

@@ -193,18 +193,36 @@ const [userToDelete, setUserToDelete] = useState(null);
 	};
 
 	const formatLastLogin = (dateString) => {
-		if (!dateString) return "Never";
+		if (!dateString) return { display: "Never", tooltip: null };
 		const date = new Date(dateString);
 		const now = new Date();
 		const diffMs = now - date;
 		const diffMins = Math.floor(diffMs / 60000);
-		if (diffMins < 1) return "Just now";
-		if (diffMins < 60) return `${diffMins}m ago`;
-		const diffHrs = Math.floor(diffMins / 60);
-		if (diffHrs < 24) return `${diffHrs}h ago`;
-		const diffDays = Math.floor(diffHrs / 24);
-		if (diffDays < 7) return `${diffDays}d ago`;
-		return formatDate(dateString);
+
+		// Exact datetime: "2 Apr 2026, 3:45 PM"
+		const display = date.toLocaleString('en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: true,
+		});
+
+		// Relative time for tooltip
+		let relative;
+		if (diffMins < 1) relative = "Just now";
+		else if (diffMins < 60) relative = `${diffMins}m ago`;
+		else {
+			const diffHrs = Math.floor(diffMins / 60);
+			if (diffHrs < 24) relative = `${diffHrs}h ago`;
+			else {
+				const diffDays = Math.floor(diffHrs / 24);
+				relative = `${diffDays}d ago`;
+			}
+		}
+
+		return { display, tooltip: relative };
 	};
 
 	return (
@@ -283,9 +301,17 @@ const [userToDelete, setUserToDelete] = useState(null);
 												{/* Last Login */}
 												<div className="md:col-span-2 flex items-center gap-1.5 text-sm">
 													<Clock size={13} className="text-slate-400 shrink-0" />
-													<span className={user.lastLoginAt ? "text-slate-700 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}>
-														{formatLastLogin(user.lastLoginAt)}
-													</span>
+													{(() => {
+														const { display, tooltip } = formatLastLogin(user.lastLoginAt);
+														return (
+															<span
+																className={user.lastLoginAt ? "text-slate-700 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}
+																title={tooltip || undefined}
+															>
+																{display}
+															</span>
+														);
+													})()}
 												</div>
 											{/* Databases */}
 											<div className="md:col-span-2 flex flex-col items-center">

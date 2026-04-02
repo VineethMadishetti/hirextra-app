@@ -10,11 +10,18 @@ const TECH_KEYWORDS = new Set([
   'tableau', 'power bi', 'salesforce', 'sap', 'microservices', 'rest api',
   'fastapi', 'next.js', 'nextjs', 'express', 'nestjs', 'machine learning',
   'deep learning', 'nlp', 'computer vision', 'devops', 'ci/cd', 'agile', 'scrum',
+  // Healthcare domain
+  'epic', 'cerner', 'meditech', 'allscripts', 'eclinicalworks', 'athenahealth',
+  'ehr', 'emr', 'hipaa', 'hl7', 'fhir', 'dicom', 'icd-10', 'icd10',
+  'bls', 'acls', 'pals', 'nrp', 'ccrn', 'tncc',
+  'rn', 'lpn', 'cna', 'np', 'aprn', 'bsn', 'msn',
+  'phlebotomy', 'telemetry', 'icu', 'nicu', 'picu', 'med-surg',
+  'clinical informatics', 'health informatics',
 ]);
 
 const COMPANY_HINT_RE = /\b(inc|corp|corporation|company|co\.?|llc|llp|ltd|limited|pvt|private|technologies|technology|solutions|systems|services|software|consulting|labs|lab|group|studio|works|digital|ventures|partners|gmbh|plc)\b/i;
-const TITLE_HINT_RE = /\b(engineer|developer|architect|manager|lead|principal|staff|consultant|analyst|specialist|recruiter|designer|director|head|officer|administrator|scientist|qa|sdet|tester|product|project|sales|marketing|operations|support|devops|sre|frontend|front-end|backend|back-end|full stack|full-stack|software|programmer|sde|java|python|react|node|data|ml|ai|cloud|security|talent|staffing)\b/i;
-const LOCATION_HINT_RE = /\b(india|usa|united states|us|uk|united kingdom|canada|germany|singapore|australia|uae|united arab emirates|netherlands|bangalore|bengaluru|hyderabad|mumbai|delhi|new delhi|chennai|pune|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|kochi|coimbatore|nagpur|indore|chandigarh|london|berlin|munich|toronto|vancouver|sydney|melbourne|dubai|amsterdam|new york|san francisco|seattle|austin)\b/i;
+const TITLE_HINT_RE = /\b(engineer|developer|architect|manager|lead|principal|staff|consultant|analyst|specialist|recruiter|designer|director|head|officer|administrator|scientist|qa|sdet|tester|product|project|sales|marketing|operations|support|devops|sre|frontend|front-end|backend|back-end|full stack|full-stack|software|programmer|sde|java|python|react|node|data|ml|ai|cloud|security|talent|staffing|nurse|nursing|physician|pharmacist|therapist|clinician|technician|technologist|radiologist|pathologist|anesthesiologist|hospitalist|intensivist|paramedic|phlebotomist|sonographer|dietitian|counselor|practitioner)\b/i;
+const LOCATION_HINT_RE = /\b(india|usa|united states|us|uk|united kingdom|canada|germany|singapore|australia|uae|united arab emirates|netherlands|sweden|sverige|bangalore|bengaluru|hyderabad|mumbai|delhi|new delhi|chennai|pune|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|kochi|coimbatore|nagpur|indore|chandigarh|london|manchester|birmingham|leeds|glasgow|edinburgh|bristol|liverpool|berlin|munich|toronto|vancouver|sydney|melbourne|dubai|amsterdam|new york|los angeles|chicago|houston|dallas|atlanta|boston|san francisco|seattle|miami|austin|stockholm|gothenburg|malmö|malmo|uppsala)\b/i;
 const EXPERIENCE_HINT_RE = /\b\d+(?:\.\d+)?\s*(?:\+|plus)?\s*(?:year|yr|month|mo)s?\b/i;
 const DEGREE_HINT_RE = /\b(b\.?tech|m\.?tech|bachelor|master|mba|ph\.?d|b\.?e|m\.?s|b\.?s|education)\b/i;
 

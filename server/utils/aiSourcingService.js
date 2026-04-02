@@ -15,6 +15,26 @@ const TITLE_ALIAS_MAP = {
   'software engineer': ['software developer', 'application engineer'],
   'data engineer': ['big data engineer', 'etl engineer'],
   'devops engineer': ['site reliability engineer', 'sre', 'platform engineer'],
+
+  // ── Healthcare job titles ──────────────────────────────────────────────────
+  'registered nurse':               ['RN', 'Staff Nurse', 'Bedside Nurse', 'Clinical Nurse'],
+  'nurse practitioner':             ['NP', 'APRN', 'Advanced Practice Nurse', 'Advanced Practice RN'],
+  'physician assistant':            ['PA', 'PA-C', 'Physician Associate'],
+  'medical doctor':                 ['MD', 'Physician', 'Attending Physician', 'Hospitalist'],
+  'clinical pharmacist':            ['PharmD', 'Staff Pharmacist', 'Hospital Pharmacist'],
+  'medical social worker':          ['MSW', 'Clinical Social Worker', 'LCSW'],
+  'occupational therapist':         ['OT', 'Certified Occupational Therapist'],
+  'physical therapist':             ['PT', 'DPT', 'Physiotherapist'],
+  'speech language pathologist':    ['SLP', 'Speech Therapist'],
+  'radiologic technologist':        ['Rad Tech', 'X-Ray Technologist', 'Radiographer'],
+  'respiratory therapist':          ['RRT', 'CRT', 'Respiratory Care Practitioner'],
+  'icu nurse':                      ['Intensive Care Nurse', 'Critical Care Nurse', 'CCRN', 'ICU RN'],
+  'emergency room nurse':           ['ER Nurse', 'ED Nurse', 'Emergency Department Nurse', 'Trauma Nurse'],
+  'nicu nurse':                     ['Neonatal Nurse', 'Neonatal ICU Nurse', 'NICU RN'],
+  'operating room nurse':           ['OR Nurse', 'Perioperative Nurse', 'Scrub Nurse', 'Surgical Nurse'],
+  'medical laboratory technician':  ['MLT', 'Lab Tech', 'Clinical Lab Technician'],
+  'health information manager':     ['HIM', 'Medical Records Manager', 'Clinical Data Manager'],
+  'clinical informatics specialist':['Health IT Specialist', 'EMR Specialist', 'EHR Analyst'],
 };
 
 const SKILL_ALIAS_MAP = {
@@ -320,6 +340,37 @@ Your JSON Output:
   "skill_aliases": { "Java": ["Java EE", "J2EE"], "Spring Boot": ["Spring Framework", "Spring"], "AWS": ["Amazon Web Services", "Amazon AWS"] },
   "company_types": [],
   "remote": false
+}
+
+Example 2:
+User Input: "We are hiring an ICU RN (Registered Nurse) for our Medical ICU at Houston Methodist Hospital. Requirements: Active Texas RN License, BLS and ACLS certifications, minimum 2 years of ICU or critical care experience. Epic EMR experience preferred. This is a full-time night shift position."
+Your JSON Output:
+{
+  "job_title": { "main": "ICU RN", "synonyms": ["ICU Nurse", "Critical Care RN", "Intensive Care Nurse"] },
+  "title_variants": ["Critical Care Nurse", "MICU Nurse", "Intensive Care RN", "CCRN"],
+  "industry": "Healthcare",
+  "duration_type": "Full-time",
+  "location": "Houston",
+  "linkedin_locations": ["Houston, Texas, United States"],
+  "experience_years": 2,
+  "max_experience_years": 0,
+  "experience_level": "Mid",
+  "organization_hierarchy": "Not Specified",
+  "salary_package": "Not Specified",
+  "availability": "ANY",
+  "education": "Not Specified",
+  "required_skills": ["Texas RN License", "BLS", "ACLS", "ICU experience", "Critical Care"],
+  "preferred_skills": ["Epic EMR"],
+  "must_have_skills": ["Texas RN License", "BLS", "ACLS", "ICU experience"],
+  "skill_aliases": {
+    "Texas RN License": ["RN License", "Registered Nurse License", "State RN License"],
+    "BLS": ["Basic Life Support", "BLS Certification", "BLS Certified"],
+    "ACLS": ["Advanced Cardiac Life Support", "ACLS Certification", "ACLS Certified"],
+    "ICU experience": ["Critical Care experience", "Intensive Care experience", "CCU experience"],
+    "Epic EMR": ["Epic", "Epic Systems", "EpicCare"]
+  },
+  "company_types": ["Hospital", "Health System"],
+  "remote": false
 }`,
         },
         {
@@ -595,7 +646,7 @@ function mapIndustryToIds(industry) {
   // 4=Software, 96=IT Services, 6=Internet, 43=Financial Services, 14=Healthcare
   const ind = String(industry || '').toLowerCase();
   if (/fintech|finance|banking|financial/i.test(ind)) return ['43', '4'];
-  if (/health|medical|pharma/i.test(ind)) return ['14'];
+  if (/health|medical|pharma|nursing|clinical|biotech|life science|hospital|healthcare/i.test(ind)) return ['14', '25', '54', '55', '1070'];
   if (/ecommerce|e-commerce|retail/i.test(ind)) return ['27', '4'];
   if (/internet|saas/i.test(ind)) return ['6', '4'];
   if (/tech|software|it |information technology/i.test(ind)) return ['4', '96'];
@@ -647,6 +698,7 @@ export function parseMultipleLocations(locationStr) {
 // Full LinkedIn location strings for common cities.
 // HarvestAPI needs "City, State, Country" to resolve locations unambiguously.
 const CITY_TO_LINKEDIN_LOCATION = {
+  // India
   bangalore:   'Bengaluru, Karnataka, India',
   bengaluru:   'Bengaluru, Karnataka, India',
   hyderabad:   'Hyderabad, Telangana, India',
@@ -666,7 +718,41 @@ const CITY_TO_LINKEDIN_LOCATION = {
   nagpur:      'Nagpur, Maharashtra, India',
   indore:      'Indore, Madhya Pradesh, India',
   chandigarh:  'Chandigarh, India',
+  // UK
   london:      'London, England, United Kingdom',
+  manchester:  'Manchester, England, United Kingdom',
+  birmingham:  'Birmingham, England, United Kingdom',
+  leeds:       'Leeds, England, United Kingdom',
+  glasgow:     'Glasgow, Scotland, United Kingdom',
+  edinburgh:   'Edinburgh, Scotland, United Kingdom',
+  bristol:     'Bristol, England, United Kingdom',
+  liverpool:   'Liverpool, England, United Kingdom',
+  sheffield:   'Sheffield, England, United Kingdom',
+  // USA
+  'new york':      'New York, New York, United States',
+  nyc:             'New York, New York, United States',
+  'los angeles':   'Los Angeles, California, United States',
+  chicago:         'Chicago, Illinois, United States',
+  houston:         'Houston, Texas, United States',
+  dallas:          'Dallas, Texas, United States',
+  atlanta:         'Atlanta, Georgia, United States',
+  boston:          'Boston, Massachusetts, United States',
+  seattle:         'Seattle, Washington, United States',
+  'san francisco': 'San Francisco, California, United States',
+  miami:           'Miami, Florida, United States',
+  phoenix:         'Phoenix, Arizona, United States',
+  denver:          'Denver, Colorado, United States',
+  austin:          'Austin, Texas, United States',
+  // Sweden
+  stockholm:   'Stockholm, Stockholm County, Sweden',
+  gothenburg:  'Gothenburg, Västra Götaland County, Sweden',
+  göteborg:    'Gothenburg, Västra Götaland County, Sweden',
+  malmö:       'Malmö, Skåne County, Sweden',
+  malmo:       'Malmö, Skåne County, Sweden',
+  uppsala:     'Uppsala, Uppsala County, Sweden',
+  linköping:   'Linköping, Östergötland County, Sweden',
+  linkoping:   'Linköping, Östergötland County, Sweden',
+  // Other
   berlin:      'Berlin, Germany',
   toronto:     'Toronto, Ontario, Canada',
   sydney:      'Sydney, New South Wales, Australia',
@@ -764,6 +850,7 @@ export function determineTargetCountries(location, isRemote) {
   }
 
   const countryMap = {
+    // India
     india: ['india'],
     pune: ['india'],
     bangalore: ['india'],
@@ -773,9 +860,45 @@ export function determineTargetCountries(location, isRemote) {
     chennai: ['india'],
     delhi: ['india'],
     gurgaon: ['india'],
+    gurugram: ['india'],
+    noida: ['india'],
+    kolkata: ['india'],
+    ahmedabad: ['india'],
+    // UK
     uk: ['uk'],
-    london: ['uk'],
     'united kingdom': ['uk'],
+    london: ['uk'],
+    manchester: ['uk'],
+    birmingham: ['uk'],
+    leeds: ['uk'],
+    glasgow: ['uk'],
+    edinburgh: ['uk'],
+    bristol: ['uk'],
+    liverpool: ['uk'],
+    // USA
+    us: ['us'],
+    usa: ['us'],
+    'united states': ['us'],
+    'new york': ['us'],
+    'los angeles': ['us'],
+    chicago: ['us'],
+    houston: ['us'],
+    dallas: ['us'],
+    atlanta: ['us'],
+    boston: ['us'],
+    seattle: ['us'],
+    'san francisco': ['us'],
+    miami: ['us'],
+    // Sweden
+    sweden: ['sweden'],
+    sverige: ['sweden'],
+    stockholm: ['sweden'],
+    gothenburg: ['sweden'],
+    göteborg: ['sweden'],
+    malmö: ['sweden'],
+    malmo: ['sweden'],
+    uppsala: ['sweden'],
+    // Other
     germany: ['germany'],
     berlin: ['germany'],
     munich: ['germany'],
@@ -783,9 +906,6 @@ export function determineTargetCountries(location, isRemote) {
     singapore: ['singapore'],
     australia: ['australia'],
     canada: ['canada'],
-    us: ['us'],
-    usa: ['us'],
-    'united states': ['us'],
   };
 
   for (const [key, countries] of Object.entries(countryMap)) {
