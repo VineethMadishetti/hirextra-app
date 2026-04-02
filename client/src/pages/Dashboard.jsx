@@ -24,8 +24,11 @@ import LoadingScreen from "../components/LoadingScreen";
 import SourcingAgentModal from "../components/SourcingAgentModal";
 
 // Home page shown to ADMIN role after login
-const AdminHomePage = ({ onNavigate }) => (
+const AdminHomePage = ({ user, onNavigate }) => (
 	<div className="flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-full">
+		<h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+			Welcome back, {user?.name?.split(' ')[0] || 'Admin'}!
+		</h1>
 		<p className="text-slate-500 dark:text-slate-400 text-lg leading-relaxed text-center mb-10">
 			Your AI-powered talent platform is ready. Manage users, search talent, and source candidates.
 		</p>
@@ -110,6 +113,9 @@ const AdminHomePage = ({ onNavigate }) => (
 // Welcome page shown to USER role after login
 const WelcomePage = ({ user, onNavigate }) => (
 	<div className="flex-1 flex flex-col items-center justify-center px-6 py-16 min-h-full">
+		<h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+			Welcome, {user?.name?.split(' ')[0] || 'there'}!
+		</h1>
 		{/* Subtitle */}
 		<p className="text-slate-500 dark:text-slate-400 text-lg leading-relaxed text-center mb-10">
 			Your AI-powered talent finder is ready. Discover the right people faster than ever.
@@ -561,7 +567,7 @@ const Dashboard = () => {
 						<LoadingScreen />
 					}>
 					{currentView === "home" ? (
-						<AdminHomePage onNavigate={setCurrentView} />
+						<AdminHomePage user={user} onNavigate={setCurrentView} />
 					) : currentView === "welcome" ? (
 						<WelcomePage user={user} onNavigate={setCurrentView} />
 					) : currentView === "my-databases" ? (
