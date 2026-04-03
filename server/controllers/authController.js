@@ -251,13 +251,13 @@ export const toggleLockUser = async (req, res) => {
       return res.status(400).json({ message: 'Cannot lock your own account' });
     }
 
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).select('isLocked');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    user.isLocked = !user.isLocked;
-    await user.save();
+    const newLockState = !user.isLocked;
+    await User.findByIdAndUpdate(req.params.id, { isLocked: newLockState });
 
-    res.json({ message: user.isLocked ? 'User locked' : 'User unlocked', isLocked: user.isLocked });
+    res.json({ message: newLockState ? 'User locked' : 'User unlocked', isLocked: newLockState });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
