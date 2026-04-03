@@ -344,7 +344,8 @@ const [userToDelete, setUserToDelete] = useState(null);
 																toast.success(data.message);
 																queryClient.invalidateQueries({ queryKey: ['users'] });
 															} catch (err) {
-																toast.error(err.response?.data?.message || 'Failed to update lock status');
+																console.error('Lock error status:', err.response?.status, 'data:', err.response?.data, 'msg:', err.message);
+																	toast.error(err.response?.data?.message || `[${err.response?.status ?? 'ERR'}] Failed to update lock status`);
 															}
 														}}
 														title={user.isLocked ? 'Unlock user' : 'Lock user'}
