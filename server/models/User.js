@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
   },
 
   lastLoginAt: { type: Date, default: null },
+  isLocked:    { type: Boolean, default: false },
 
 }, { timestamps: true });
 

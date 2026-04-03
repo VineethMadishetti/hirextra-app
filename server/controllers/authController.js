@@ -127,6 +127,10 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    if (user.isLocked) {
+      return res.status(403).json({ message: 'Your account has been locked. Please contact your administrator.' });
+    }
+
     await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
 
     const accessToken = generateAccessToken(user._id);
@@ -233,9 +237,27 @@ export const deleteUser = async (req, res) => {
     if (req.user._id.toString() === req.params.id) {
       return res.status(400).json({ message: 'Cannot delete your own account' });
     }
-    
+
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const toggleLockUser = async (req, res) => {
+  try {
+    if (req.user._id.toString() === req.params.id) {
+      return res.status(400).json({ message: 'Cannot lock your own account' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.isLocked = !user.isLocked;
+    await user.save();
+
+    res.json({ message: user.isLocked ? 'User locked' : 'User unlocked', isLocked: user.isLocked });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

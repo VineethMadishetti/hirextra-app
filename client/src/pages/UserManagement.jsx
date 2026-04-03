@@ -13,6 +13,8 @@ import {
 	EyeOff,
 	ChevronDown,
 	Database,
+	Lock,
+	Unlock,
 	Users,
 	Upload,
 	Clock,
@@ -334,7 +336,24 @@ const [userToDelete, setUserToDelete] = useState(null);
 													</span>
 												</div>
 												{/* Action */}
-												<div className="md:col-span-1 flex justify-center">
+												<div className="md:col-span-1 flex justify-center items-center gap-1.5">
+													<button
+														onClick={async () => {
+															try {
+																const { data } = await api.patch(`/auth/users/${user._id}/lock`);
+																toast.success(data.message);
+																queryClient.invalidateQueries({ queryKey: ['users'] });
+															} catch (err) {
+																toast.error(err.response?.data?.message || 'Failed to update lock status');
+															}
+														}}
+														title={user.isLocked ? 'Unlock user' : 'Lock user'}
+														className={`p-2 rounded-lg transition cursor-pointer ${user.isLocked
+															? 'bg-amber-50 dark:bg-amber-500/10 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-500/20'
+															: 'bg-slate-100 dark:bg-slate-700/40 text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-500'
+														}`}>
+														{user.isLocked ? <Unlock size={15} /> : <Lock size={15} />}
+													</button>
 													<button
 														onClick={() => {
 															setUserToDelete(user);
