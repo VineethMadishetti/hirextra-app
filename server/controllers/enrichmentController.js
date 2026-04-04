@@ -212,6 +212,9 @@ export const enrichContact = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.status === 402) {
+      return res.status(402).json({ message: error.message, required: error.required, available: error.available });
+    }
     logger.error(`Enrichment error for ${candidateId}:`, error.message);
     return res.status(500).json({
       success: false,

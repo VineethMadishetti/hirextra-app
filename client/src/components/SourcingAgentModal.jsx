@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   Award,
@@ -277,6 +278,7 @@ const AI_SOURCE_STATE_KEY = 'hirextra_ai_source_state';
 
 // ── Per-candidate inline Get Contact component ──────────────────────────────
 function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [contact, setContact] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -296,6 +298,9 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
       if (data?.success && (enriched?.email || enriched?.phone)) {
         setContact(enriched);
         onContactFound?.(linkedInUrl, enriched, candidateId);
+        if (enriched?.source && !enriched.source.includes('pdl') && !enriched.source.includes('cached')) {
+          queryClient.invalidateQueries({ queryKey: ['credits'] });
+        }
       } else {
         setNotFound(true);
         const errMsg = enriched?.error || data?.error || 'No contact found for this candidate.';
@@ -308,6 +313,12 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
       }
     } catch (err) {
       setNotFound(true);
+      if (err.response?.status === 402) {
+        const { required, available } = err.response.data || {};
+        toast.error(`Insufficient credits — need ${required}, you have ${available ?? 0}.`, { id: 'enrich-credits', duration: 5000 });
+        queryClient.invalidateQueries({ queryKey: ['credits'] });
+        return;
+      }
       const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to fetch contact.';
       toast.error(msg, { id: 'enrich-err', duration: 4000 });
     } finally {
@@ -691,6 +702,7 @@ function ResumeModal({ candidate, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, inline = false }) {
+  const queryClient = useQueryClient();
   const [view, setView] = useState('compose'); // compose | sourcing | results | recent
   const [composeStep, setComposeStep] = useState('input'); // input | parsed
   const [jobDescription, setJobDescription] = useState('');
@@ -1125,10 +1137,18 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
         toast('Requirements parsed. Add APOLLO_API_KEY or APIFY_API_KEY to enable candidate discovery.', { icon: 'ℹ️' });
       } else {
         toast.success(`Internet search complete. ${data?.summary?.totalExtracted || 0} candidates found.`);
+        queryClient.invalidateQueries({ queryKey: ['credits'] });
       }
     } catch (err) {
       if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         // User navigated back — silently stop
+        return;
+      }
+      if (err.response?.status === 402) {
+        const { required, available } = err.response.data || {};
+        toast.error(`Insufficient credits — need ${required}, you have ${available ?? 0}. Buy more credits.`, { duration: 5000 });
+        queryClient.invalidateQueries({ queryKey: ['credits'] });
+        setView('compose');
         return;
       }
       const message = err.response?.data?.error || 'Failed to source candidates from internet.';

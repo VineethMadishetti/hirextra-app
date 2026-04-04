@@ -113,6 +113,19 @@ const UserManagement = () => {
 	const [creditsDesc, setCreditsDesc] = useState('');
 	const [creditsError, setCreditsError] = useState('');
 	const [creditsLoading, setCreditsLoading] = useState(false);
+	const [historyPage, setHistoryPage] = useState(1);
+	const [historyTypeFilter, setHistoryTypeFilter] = useState('');
+
+	const { data: creditHistoryData, isLoading: historyLoading } = useQuery({
+		queryKey: ['credit-all-history', historyPage, historyTypeFilter],
+		queryFn: async () => {
+			const params = new URLSearchParams({ page: historyPage, limit: 50 });
+			if (historyTypeFilter) params.set('type', historyTypeFilter);
+			const { data } = await api.get(`/credits/all-history?${params}`);
+			return data;
+		},
+		staleTime: 30 * 1000,
+	});
 const [passwordInput, setPasswordInput] = useState("");
 const [passwordError, setPasswordError] = useState("");
 const [isConfirming, setIsConfirming] = useState(false);
@@ -396,7 +409,121 @@ const [userToDelete, setUserToDelete] = useState(null);
 					</div>
 				</div>
 
-				{/* Create User Modal */}
+			{/* ── Credit History Section ─────────────────────────────────────── */}
+			<div className="mt-8">
+				<div className="flex items-center justify-between mb-4">
+					<div>
+						<h2 className="text-lg font-bold text-slate-900 dark:text-white">Credit History</h2>
+						<p className="text-xs text-slate-400 mt-0.5">All credit additions and deductions across users</p>
+					</div>
+					<select
+						value={historyTypeFilter}
+						onChange={e => { setHistoryTypeFilter(e.target.value); setHistoryPage(1); }}
+						className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+						<option value="">All types</option>
+						<option value="ADD">Added only</option>
+						<option value="DEDUCT">Deducted only</option>
+					</select>
+				</div>
+
+				<div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
+					<div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+						<div className="col-span-2">User</div>
+						<div className="col-span-2">Type / Reason</div>
+						<div className="col-span-1 text-center">Amount</div>
+						<div className="col-span-1 text-center">Balance After</div>
+						<div className="col-span-3">Description</div>
+						<div className="col-span-2">By / Source</div>
+						<div className="col-span-1">When</div>
+					</div>
+
+					{historyLoading ? (
+						<div className="p-10 flex justify-center">
+							<Loader size={20} className="animate-spin text-indigo-500" />
+						</div>
+					) : !creditHistoryData?.transactions?.length ? (
+						<div className="p-10 text-center text-slate-400 dark:text-slate-500 text-sm">No credit transactions yet.</div>
+					) : (
+						<div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+							{creditHistoryData.transactions.map((tx) => {
+								const isAdd = tx.type === 'ADD';
+								const reasonColors = {
+									ADMIN_ADD:       'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+									MOCK_PURCHASE:   'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+									STRIPE_PURCHASE: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+									SIGNUP_BONUS:    'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+									SEARCH:          'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+									ENRICH:          'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
+									AI_SOURCE:       'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400',
+								};
+								const reasonLabel = {
+									ADMIN_ADD: 'Admin Add', MOCK_PURCHASE: 'Purchase', STRIPE_PURCHASE: 'Stripe',
+									SIGNUP_BONUS: 'Signup', SEARCH: 'Search', ENRICH: 'Enrich', AI_SOURCE: 'AI Source',
+								};
+								const when = new Date(tx.createdAt).toLocaleString('en-GB', {
+									day: 'numeric', month: 'short', year: 'numeric',
+									hour: '2-digit', minute: '2-digit', hour12: true,
+								});
+								return (
+									<div key={tx._id} className="grid grid-cols-1 md:grid-cols-12 gap-2 px-5 py-3 items-center text-sm hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+										<div className="md:col-span-2 min-w-0">
+											<p className="font-medium text-slate-800 dark:text-white truncate">{tx.userId?.name || '—'}</p>
+											<p className="text-xs text-slate-400 truncate">{tx.userId?.email || ''}</p>
+										</div>
+										<div className="md:col-span-2 flex items-center gap-1.5 flex-wrap">
+											<span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isAdd ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-500'}`}>
+												{isAdd ? '+ ADD' : '− DEDUCT'}
+											</span>
+											<span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${reasonColors[tx.reason] || 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+												{reasonLabel[tx.reason] || tx.reason}
+											</span>
+										</div>
+										<div className="md:col-span-1 text-center">
+											<span className={`font-bold ${isAdd ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+												{isAdd ? '+' : '−'}{tx.amount}
+											</span>
+										</div>
+										<div className="md:col-span-1 text-center flex items-center justify-center gap-0.5 text-slate-600 dark:text-slate-300 font-medium">
+											<CircleDollarSign size={12} className="text-amber-500" />
+											{tx.balanceAfter}
+										</div>
+										<div className="md:col-span-3 text-xs text-slate-500 dark:text-slate-400 truncate">
+											{tx.description || '—'}
+										</div>
+										<div className="md:col-span-2 text-xs text-slate-500 dark:text-slate-400 min-w-0">
+											{tx.createdBy ? (
+												<span className="text-indigo-500 font-medium truncate block">{tx.createdBy.name}</span>
+											) : (
+												<span className="text-slate-400">System</span>
+											)}
+											{tx.stripeSessionId && <span className="text-slate-400 block text-[10px]">Stripe</span>}
+										</div>
+										<div className="md:col-span-1 text-xs text-slate-400 whitespace-nowrap">{when}</div>
+									</div>
+								);
+							})}
+						</div>
+					)}
+
+					{creditHistoryData?.pages > 1 && (
+						<div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+							<span className="text-slate-400 text-xs">Page {creditHistoryData.page} of {creditHistoryData.pages} · {creditHistoryData.total} total</span>
+							<div className="flex gap-2">
+								<button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
+									className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-700 transition text-xs">
+									Prev
+								</button>
+								<button onClick={() => setHistoryPage(p => Math.min(creditHistoryData.pages, p + 1))} disabled={historyPage === creditHistoryData.pages}
+									className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-700 transition text-xs">
+									Next
+								</button>
+							</div>
+						</div>
+					)}
+				</div>
+			</div>
+
+			{/* Create User Modal */}
 				{showCreateModal && (
 					<div
 						className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
@@ -689,6 +816,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 										});
 										toast.success(data.message);
 										queryClient.invalidateQueries({ queryKey: ['users'] });
+										queryClient.invalidateQueries({ queryKey: ['credit-all-history'] });
 										setShowCreditsModal(false);
 									} catch (err) {
 										setCreditsError(err.response?.data?.message || 'Failed to add credits');

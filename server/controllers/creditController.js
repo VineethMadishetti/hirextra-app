@@ -57,6 +57,32 @@ export const mockPurchase = async (req, res) => {
   }
 };
 
+// GET /api/credits/all-history?page=1&limit=50&type=ADD  — admin only, all users
+export const getAllHistory = async (req, res) => {
+  try {
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip   = (page - 1) * limit;
+    const filter = {};
+    if (req.query.type) filter.type = req.query.type;
+
+    const [transactions, total] = await Promise.all([
+      CreditTransaction.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('userId', 'name email')
+        .populate('createdBy', 'name email')
+        .lean(),
+      CreditTransaction.countDocuments(filter),
+    ]);
+
+    res.json({ transactions, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // POST /api/credits/add  { userId, amount, description }  — admin only
 export const adminAddCredits = async (req, res) => {
   try {

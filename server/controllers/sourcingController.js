@@ -645,6 +645,9 @@ export const sourceCandidates = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.status === 402) {
+      return res.status(402).json({ message: error.message, required: error.required, available: error.available });
+    }
     logger.error(`AI sourcing failed: ${error.message}`);
     return res.status(500).json({
       success: false,
@@ -1220,6 +1223,9 @@ export const searchInternalDb = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.status === 402) {
+      return res.status(402).json({ message: error.message, required: error.required, available: error.available });
+    }
     logger.error(`Internal DB search failed: ${error.message}`);
     return res.status(500).json({
       success: false,
