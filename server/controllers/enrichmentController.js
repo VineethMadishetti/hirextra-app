@@ -2,6 +2,7 @@ import Candidate from '../models/Candidate.js';
 import EnrichedContact from '../models/EnrichedContact.js';
 import contactEnrichmentService from '../utils/contactEnrichmentService.js';
 import logger from '../utils/logger.js';
+import { checkCredits, deductCredits } from '../utils/creditService.js';
 
 const PERSISTENT_CONTACT_EXPIRY = new Date('2999-12-31T00:00:00.000Z');
 
@@ -128,6 +129,7 @@ export const enrichContact = async (req, res) => {
     }
 
     // ── Step 2: External enrichment APIs (paid) ───────────────────────────────
+    await checkCredits(req.user?._id, req.user?.role, 3);
     logger.info(`Starting external enrichment for candidate ${candidateId}`);
     const result = await contactEnrichmentService.enrichCandidate(candidate);
 
@@ -176,6 +178,7 @@ export const enrichContact = async (req, res) => {
         }
       );
 
+      await deductCredits(req.user?._id, 3, 'ENRICH', 'Contact enrichment').catch(() => {});
       logger.info(`Enrichment successful for ${candidateId}: ${result.source}`);
     } else {
       await EnrichedContact.updateOne(

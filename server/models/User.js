@@ -13,8 +13,10 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
 
-  lastLoginAt: { type: Date, default: null },
-  isLocked:    { type: Boolean, default: false },
+  lastLoginAt:      { type: Date, default: null },
+  isLocked:         { type: Boolean, default: false },
+  credits:          { type: Number, default: 50 },
+  stripeCustomerId: { type: String, default: null },
 
 }, { timestamps: true });
 

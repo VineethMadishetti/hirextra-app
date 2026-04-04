@@ -18,6 +18,9 @@ import {
 	Users,
 	Upload,
 	Clock,
+	CircleDollarSign,
+	PlusCircle,
+	Loader,
 } from "lucide-react";
 import toast from 'react-hot-toast';
 
@@ -104,6 +107,12 @@ const UserManagement = () => {
 	});
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
+	const [showCreditsModal, setShowCreditsModal] = useState(false);
+	const [creditsTarget, setCreditsTarget] = useState(null);
+	const [creditsAmount, setCreditsAmount] = useState('');
+	const [creditsDesc, setCreditsDesc] = useState('');
+	const [creditsError, setCreditsError] = useState('');
+	const [creditsLoading, setCreditsLoading] = useState(false);
 const [passwordInput, setPasswordInput] = useState("");
 const [passwordError, setPasswordError] = useState("");
 const [isConfirming, setIsConfirming] = useState(false);
@@ -260,8 +269,9 @@ const [userToDelete, setUserToDelete] = useState(null);
 					<div className="w-full flex flex-col flex-1">
 						<div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#334155_#020617]">
 							<div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-								<div className="col-span-3">User</div>
+								<div className="col-span-2">User</div>
 								<div className="col-span-2">Last Active</div>
+								<div className="col-span-1">Credits</div>
 								<div className="col-span-2 text-center">Databases</div>
 								<div className="col-span-2 text-center">Uploads</div>
 								<div className="col-span-1">Joined</div>
@@ -288,7 +298,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 												key={user._id}
 												className="grid grid-cols-1 md:grid-cols-12 gap-2 px-5 py-4 items-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
 												{/* User Info */}
-												<div className="md:col-span-3 flex items-center gap-3 min-w-0">
+												<div className="md:col-span-2 flex items-center gap-3 min-w-0">
 													<div className="bg-indigo-100 dark:bg-indigo-500/20 p-2 rounded-lg shrink-0">
 														<User size={16} className="text-indigo-500 dark:text-indigo-400" />
 													</div>
@@ -315,6 +325,17 @@ const [userToDelete, setUserToDelete] = useState(null);
 														);
 													})()}
 												</div>
+											{/* Credits */}
+											<div className="md:col-span-1 flex items-center gap-1">
+												<CircleDollarSign size={13} className="text-amber-500 shrink-0" />
+												<span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.credits ?? 0}</span>
+												<button
+													onClick={() => { setCreditsTarget(user); setCreditsAmount(''); setCreditsDesc(''); setCreditsError(''); setShowCreditsModal(true); }}
+													title="Add credits"
+													className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
+													<PlusCircle size={13} />
+												</button>
+											</div>
 											{/* Databases */}
 											<div className="md:col-span-2 flex flex-col items-center">
 													<span className="text-sm font-medium text-slate-500 dark:text-slate-300">{dbCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : dbCount}</span>
@@ -344,8 +365,8 @@ const [userToDelete, setUserToDelete] = useState(null);
 																toast.success(data.message);
 																queryClient.invalidateQueries({ queryKey: ['users'] });
 															} catch (err) {
-																console.error('Lock error status:', err.response?.status, 'data:', err.response?.data, 'msg:', err.message);
-																	toast.error(err.response?.data?.message || `[${err.response?.status ?? 'ERR'}] Failed to update lock status`);
+
+																toast.error(err.response?.data?.message || `[${err.response?.status ?? 'ERR'}] Failed to update lock status`);
 															}
 														}}
 														title={user.isLocked ? 'Unlock user' : 'Lock user'}
@@ -590,6 +611,94 @@ const [userToDelete, setUserToDelete] = useState(null);
 											: "bg-rose-600 hover:bg-rose-500"
 									}`}>
 								{isConfirming ? "Deleting..." : "Confirm"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Add Credits Modal */}
+			{showCreditsModal && creditsTarget && (
+				<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+					<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+						<div className="flex items-center justify-between mb-5">
+							<h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+								Add Credits — <span className="text-indigo-500">{creditsTarget.name}</span>
+							</h3>
+							<button onClick={() => setShowCreditsModal(false)} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+								<X size={18} />
+							</button>
+						</div>
+
+						<div className="space-y-4">
+							<div>
+								<label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Amount (credits)</label>
+								<input
+									type="number"
+									min="1"
+									value={creditsAmount}
+									onChange={e => setCreditsAmount(e.target.value)}
+									placeholder="e.g. 100"
+									className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								/>
+							</div>
+							<div>
+								<label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Description (optional)</label>
+								<input
+									type="text"
+									value={creditsDesc}
+									onChange={e => setCreditsDesc(e.target.value)}
+									placeholder="e.g. Trial bonus"
+									className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								/>
+							</div>
+							<div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between text-sm">
+								<span className="text-slate-500 dark:text-slate-400">Current balance</span>
+								<span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+									<CircleDollarSign size={14} className="text-amber-500" />
+									{creditsTarget.credits ?? 0}
+								</span>
+							</div>
+							{creditsAmount && parseInt(creditsAmount) > 0 && (
+								<div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 px-4 py-3 flex items-center justify-between text-sm">
+									<span className="text-slate-600 dark:text-slate-300">After adding</span>
+									<span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+										<CircleDollarSign size={14} />
+										{(creditsTarget.credits ?? 0) + parseInt(creditsAmount)}
+									</span>
+								</div>
+							)}
+							{creditsError && <p className="text-sm text-red-500">{creditsError}</p>}
+						</div>
+
+						<div className="flex gap-3 mt-6">
+							<button onClick={() => setShowCreditsModal(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-sm font-medium">
+								Cancel
+							</button>
+							<button
+								onClick={async () => {
+									const amt = parseInt(creditsAmount);
+									if (!amt || amt <= 0) { setCreditsError('Enter a positive amount'); return; }
+									setCreditsLoading(true);
+									setCreditsError('');
+									try {
+										const { data } = await api.post('/credits/add', {
+											userId: creditsTarget._id,
+											amount: amt,
+											description: creditsDesc || undefined,
+										});
+										toast.success(data.message);
+										queryClient.invalidateQueries({ queryKey: ['users'] });
+										setShowCreditsModal(false);
+									} catch (err) {
+										setCreditsError(err.response?.data?.message || 'Failed to add credits');
+									} finally {
+										setCreditsLoading(false);
+									}
+								}}
+								disabled={creditsLoading || !creditsAmount || parseInt(creditsAmount) <= 0}
+								className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold shadow transition flex items-center justify-center gap-2">
+								{creditsLoading ? <Loader size={15} className="animate-spin" /> : <><PlusCircle size={15} />Add Credits</>}
 							</button>
 						</div>
 					</div>

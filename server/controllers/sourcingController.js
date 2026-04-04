@@ -21,6 +21,7 @@ import CandidatePool from '../models/CandidatePool.js';
 import SourcingSession from '../models/SourcingSession.js';
 import { scoreCandidates, bucketByMatchCategory, locationMatches } from '../utils/matchScorer.js';
 import { saveToPool, searchPool } from '../utils/candidatePoolService.js';
+import { checkCredits, deductCredits } from '../utils/creditService.js';
 
 const require = createRequire(import.meta.url);
 
@@ -319,6 +320,8 @@ export const sourceCandidates = async (req, res) => {
   const startedAt = Date.now();
 
   try {
+    await checkCredits(userId, req.user?.role, 5);
+
     const parsed = await toInternalParsed({ parsedRequirements, jobDescription });
     const structured = buildStructuredRequirements(parsed);
 
@@ -596,6 +599,8 @@ export const sourceCandidates = async (req, res) => {
       const key = (c.matchCategory || 'weak').toLowerCase();
       if (key in bucketCounts) bucketCounts[key]++;
     }
+
+    await deductCredits(userId, 5, 'AI_SOURCE', 'AI talent sourcing').catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -1089,6 +1094,8 @@ export const searchInternalDb = async (req, res) => {
   const startedAt = Date.now();
 
   try {
+    await checkCredits(req.user?._id, req.user?.role, 1);
+
     const {
       jobDescription,
       parsedRequirements,
@@ -1189,6 +1196,8 @@ export const searchInternalDb = async (req, res) => {
       partial:  (allBucketed.partial  || []).length,
       weak:     (allBucketed.weak     || []).length,
     };
+
+    await deductCredits(req.user?._id, 1, 'SEARCH', 'Internal DB search').catch(() => {});
 
     return res.status(200).json({
       success: true,
