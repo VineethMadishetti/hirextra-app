@@ -129,7 +129,7 @@ export const enrichContact = async (req, res) => {
     }
 
     // ── Step 2: External enrichment APIs (paid) ───────────────────────────────
-    await checkCredits(req.user?._id, req.user?.role, 3);
+    await checkCredits(req.user?._id, req.user?.role, 3, req.user?.creditFree);
     logger.info(`Starting external enrichment for candidate ${candidateId}`);
     const result = await contactEnrichmentService.enrichCandidate(candidate);
 
@@ -178,7 +178,7 @@ export const enrichContact = async (req, res) => {
         }
       );
 
-      await deductCredits(req.user?._id, 3, 'ENRICH', 'Contact enrichment').catch(() => {});
+      if (!req.user?.creditFree) await deductCredits(req.user?._id, 3, 'ENRICH', 'Contact enrichment').catch(() => {});
       logger.info(`Enrichment successful for ${candidateId}: ${result.source}`);
     } else {
       await EnrichedContact.updateOne(

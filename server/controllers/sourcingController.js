@@ -320,7 +320,7 @@ export const sourceCandidates = async (req, res) => {
   const startedAt = Date.now();
 
   try {
-    await checkCredits(userId, req.user?.role, 5);
+    await checkCredits(userId, req.user?.role, 5, req.user?.creditFree);
 
     const parsed = await toInternalParsed({ parsedRequirements, jobDescription });
     const structured = buildStructuredRequirements(parsed);
@@ -600,7 +600,7 @@ export const sourceCandidates = async (req, res) => {
       if (key in bucketCounts) bucketCounts[key]++;
     }
 
-    await deductCredits(userId, 5, 'AI_SOURCE', 'AI talent sourcing').catch(() => {});
+    if (!req.user?.creditFree) await deductCredits(userId, 5, 'AI_SOURCE', 'AI talent sourcing').catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -1097,7 +1097,7 @@ export const searchInternalDb = async (req, res) => {
   const startedAt = Date.now();
 
   try {
-    await checkCredits(req.user?._id, req.user?.role, 1);
+    await checkCredits(req.user?._id, req.user?.role, 1, req.user?.creditFree);
 
     const {
       jobDescription,
@@ -1200,7 +1200,7 @@ export const searchInternalDb = async (req, res) => {
       weak:     (allBucketed.weak     || []).length,
     };
 
-    await deductCredits(req.user?._id, 1, 'SEARCH', 'Internal DB search').catch(() => {});
+    if (!req.user?.creditFree) await deductCredits(req.user?._id, 1, 'SEARCH', 'Internal DB search').catch(() => {});
 
     return res.status(200).json({
       success: true,

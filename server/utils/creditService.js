@@ -6,8 +6,8 @@ import CreditTransaction from '../models/CreditTransaction.js';
  * ADMINs are always exempt — returns true without checking balance.
  * Throws a structured error with status 402 if insufficient.
  */
-export async function checkCredits(userId, userRole, required) {
-  if (userRole === 'ADMIN') return true;
+export async function checkCredits(userId, userRole, required, creditFree = false) {
+  if (userRole === 'ADMIN' || creditFree === true) return true;
 
   const user = await User.findById(userId).select('credits').lean();
   if (!user) throw { status: 404, message: 'User not found' };

@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginUser, logoutUser, getAllUsers, createUser, deleteUser, verifyPassword, toggleLockUser } from '../controllers/authController.js';
+import { loginUser, logoutUser, getAllUsers, createUser, deleteUser, verifyPassword, toggleLockUser, toggleCreditFree } from '../controllers/authController.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 import logger from '../utils/logger.js';
 import { refreshAccessToken } from '../controllers/authController.js';
@@ -25,5 +25,6 @@ router.post('/users', protect, adminOnly, createUser);
 router.post('/verify-password', protect, verifyPassword);
 router.delete('/users/:id', protect, adminOnly, deleteUser);
 router.patch('/users/:id/lock', protect, adminOnly, toggleLockUser);
+router.patch('/users/:id/credit-free', protect, adminOnly, toggleCreditFree);
 
 export default router;

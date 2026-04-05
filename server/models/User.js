@@ -15,7 +15,8 @@ const userSchema = new mongoose.Schema({
 
   lastLoginAt:      { type: Date, default: null },
   isLocked:         { type: Boolean, default: false },
-  credits:          { type: Number, default: 50 },
+  creditFree:       { type: Boolean, default: false }, // employees: unlimited usage, no credit checks
+  credits:          { type: Number, default: 0 },
   stripeCustomerId: { type: String, default: null },
 
 }, { timestamps: true });

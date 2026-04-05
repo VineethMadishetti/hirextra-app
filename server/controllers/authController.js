@@ -262,3 +262,20 @@ export const toggleLockUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const toggleCreditFree = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('creditFree name');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const newState = !user.creditFree;
+    await User.findByIdAndUpdate(req.params.id, { creditFree: newState });
+
+    res.json({
+      message: newState ? `${user.name} is now credit-free` : `Credit system enabled for ${user.name}`,
+      creditFree: newState,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

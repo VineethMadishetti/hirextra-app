@@ -197,6 +197,25 @@ export const handleWebhook = async (req, res) => {
   res.json({ received: true });
 };
 
+// POST /api/credits/reset-all  — admin only
+// Sets all users' credits to 0 and deletes all transaction history
+export const resetAllCredits = async (req, res) => {
+  try {
+    const [userResult, txResult] = await Promise.all([
+      User.updateMany({}, { $set: { credits: 0 } }),
+      CreditTransaction.deleteMany({}),
+    ]);
+
+    res.json({
+      message: 'All credits reset to 0 and transaction history cleared.',
+      usersUpdated: userResult.modifiedCount,
+      transactionsDeleted: txResult.deletedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // POST /api/credits/add  { userId, amount, description }  — admin only
 export const adminAddCredits = async (req, res) => {
   try {

@@ -21,6 +21,10 @@ import {
 	CircleDollarSign,
 	PlusCircle,
 	Loader,
+	Zap,
+	ZapOff,
+	RotateCcw,
+	AlertTriangle,
 } from "lucide-react";
 import toast from 'react-hot-toast';
 
@@ -115,6 +119,8 @@ const UserManagement = () => {
 	const [creditsLoading, setCreditsLoading] = useState(false);
 	const [historyPage, setHistoryPage] = useState(1);
 	const [historyTypeFilter, setHistoryTypeFilter] = useState('');
+	const [showResetConfirm, setShowResetConfirm] = useState(false);
+	const [resetting, setResetting] = useState(false);
 
 	const { data: creditHistoryData, isLoading: historyLoading } = useQuery({
 		queryKey: ['credit-all-history', historyPage, historyTypeFilter],
@@ -264,17 +270,25 @@ const [userToDelete, setUserToDelete] = useState(null);
 							</p>
 						</div>
 
-						<button
-							onClick={() => setShowCreateModal(true)}
-							className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500
+						<div className="flex items-center gap-3 w-full sm:w-auto">
+							<button
+								onClick={() => setShowResetConfirm(true)}
+								className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-sm font-medium transition cursor-pointer">
+								<RotateCcw size={15} />
+								Reset Credits
+							</button>
+							<button
+								onClick={() => setShowCreateModal(true)}
+								className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-500
                  text-white px-5 py-2.5 rounded-xl
                  font-medium shadow-lg
                  hover:shadow-indigo-500/30
                  transition cursor-pointer
                  flex items-center gap-2">
-							<UserPlus size={18} />
-							Create User
-						</button>
+								<UserPlus size={18} />
+								Create User
+							</button>
+						</div>
 					</div>
 				</div>
 
@@ -340,14 +354,22 @@ const [userToDelete, setUserToDelete] = useState(null);
 												</div>
 											{/* Credits */}
 											<div className="md:col-span-1 flex items-center gap-1">
-												<CircleDollarSign size={13} className="text-amber-500 shrink-0" />
-												<span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.credits ?? 0}</span>
-												<button
-													onClick={() => { setCreditsTarget(user); setCreditsAmount(''); setCreditsDesc(''); setCreditsError(''); setShowCreditsModal(true); }}
-													title="Add credits"
-													className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
-													<PlusCircle size={13} />
-												</button>
+												{user.creditFree ? (
+													<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+														<Zap size={9} />FREE
+													</span>
+												) : (
+													<>
+														<CircleDollarSign size={13} className="text-amber-500 shrink-0" />
+														<span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.credits ?? 0}</span>
+														<button
+															onClick={() => { setCreditsTarget(user); setCreditsAmount(''); setCreditsDesc(''); setCreditsError(''); setShowCreditsModal(true); }}
+															title="Add credits"
+															className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
+															<PlusCircle size={13} />
+														</button>
+													</>
+												)}
 											</div>
 											{/* Databases */}
 											<div className="md:col-span-2 flex flex-col items-center">
@@ -371,6 +393,24 @@ const [userToDelete, setUserToDelete] = useState(null);
 												</div>
 												{/* Action */}
 												<div className="md:col-span-1 flex justify-center items-center gap-1.5">
+													{/* Credit-free toggle */}
+													<button
+														onClick={async () => {
+															try {
+																const { data } = await api.patch(`/auth/users/${user._id}/credit-free`);
+																toast.success(data.message);
+																queryClient.invalidateQueries({ queryKey: ['users'] });
+															} catch (err) {
+																toast.error(err.response?.data?.message || 'Failed to update credit-free status');
+															}
+														}}
+														title={user.creditFree ? 'Disable credit-free (re-enable billing)' : 'Enable credit-free (employee / unlimited)'}
+														className={`p-2 rounded-lg transition cursor-pointer ${user.creditFree
+															? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
+															: 'bg-slate-100 dark:bg-slate-700/40 text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-500'
+														}`}>
+														{user.creditFree ? <Zap size={15} /> : <ZapOff size={15} />}
+													</button>
 													<button
 														onClick={async () => {
 															try {
@@ -378,8 +418,7 @@ const [userToDelete, setUserToDelete] = useState(null);
 																toast.success(data.message);
 																queryClient.invalidateQueries({ queryKey: ['users'] });
 															} catch (err) {
-
-																toast.error(err.response?.data?.message || `[${err.response?.status ?? 'ERR'}] Failed to update lock status`);
+																toast.error(err.response?.data?.message || 'Failed to update lock status');
 															}
 														}}
 														title={user.isLocked ? 'Unlock user' : 'Lock user'}
@@ -738,6 +777,51 @@ const [userToDelete, setUserToDelete] = useState(null);
 											: "bg-rose-600 hover:bg-rose-500"
 									}`}>
 								{isConfirming ? "Deleting..." : "Confirm"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Reset Credits Confirm Modal */}
+			{showResetConfirm && (
+				<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+					<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-rose-200 dark:border-rose-500/30">
+						<div className="flex items-start gap-3 mb-4">
+							<div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 shrink-0">
+								<AlertTriangle size={20} className="text-rose-500" />
+							</div>
+							<div>
+								<h3 className="text-lg font-semibold text-slate-900 dark:text-white">Reset All Credits</h3>
+								<p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+									This will set <strong>every user's credits to 0</strong> and permanently delete all credit transaction history. This cannot be undone.
+								</p>
+							</div>
+						</div>
+						<div className="flex gap-3 mt-6">
+							<button
+								onClick={() => setShowResetConfirm(false)}
+								className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-sm font-medium">
+								Cancel
+							</button>
+							<button
+								onClick={async () => {
+									setResetting(true);
+									try {
+										const { data } = await api.post('/credits/reset-all');
+										toast.success(data.message);
+										queryClient.invalidateQueries({ queryKey: ['users'] });
+										queryClient.invalidateQueries({ queryKey: ['credit-all-history'] });
+										setShowResetConfirm(false);
+									} catch (err) {
+										toast.error(err.response?.data?.message || 'Reset failed');
+									} finally {
+										setResetting(false);
+									}
+								}}
+								disabled={resetting}
+								className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-sm font-semibold shadow transition flex items-center justify-center gap-2">
+								{resetting ? <Loader size={15} className="animate-spin" /> : <><RotateCcw size={15} />Yes, Reset All</>}
 							</button>
 						</div>
 					</div>
