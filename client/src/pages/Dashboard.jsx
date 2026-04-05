@@ -265,7 +265,7 @@ const BuyCreditsModal = ({ onClose, user }) => {
 
 	return (
 		<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-			<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+			<div className={`bg-white dark:bg-slate-900 rounded-2xl w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transition-all duration-300 ${step === 'review' ? 'max-w-2xl' : 'max-w-md'}`}>
 
 				{/* Header */}
 				<div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -350,69 +350,75 @@ const BuyCreditsModal = ({ onClose, user }) => {
 
 				{/* Step 2: Review + Payment Method */}
 				{step === 'review' && (
-					<div className="px-6 py-5 space-y-5">
-						{/* Order summary */}
-						<div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
-							<div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-								<p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Order Summary</p>
-							</div>
-							<div className="px-4 py-3 space-y-2.5">
-								<div className="flex justify-between text-sm">
-									<span className="text-slate-500 dark:text-slate-400">Credits</span>
-									<span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-										<CircleDollarSign size={14} /> {credits.toLocaleString()}
-									</span>
-								</div>
-								<div className="flex justify-between text-sm">
-									<span className="text-slate-500 dark:text-slate-400">Rate</span>
-									<span className="font-medium text-slate-700 dark:text-slate-300">$1 = 10 credits</span>
-								</div>
-								<div className="h-px bg-slate-200 dark:bg-slate-700" />
-								<div className="flex justify-between">
-									<span className="font-semibold text-slate-800 dark:text-white">Amount Payable</span>
-									<span className="font-bold text-xl text-indigo-600 dark:text-indigo-400">${parsedAmount.toFixed(2)}</span>
-								</div>
-							</div>
-						</div>
-
-						{/* User details */}
-						<div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
-							<div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-								<p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Billing To</p>
-							</div>
-							<div className="px-4 py-3 space-y-1">
-								<p className="font-semibold text-slate-800 dark:text-white">{user?.name}</p>
-								<p className="text-sm text-slate-500 dark:text-slate-400">{user?.email}</p>
-							</div>
-						</div>
-
-						{/* Payment method */}
-						<div>
-							<p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Choose a Payment Option</p>
-							<div className="space-y-2">
-								{paymentMethods.map(({ id, label, sub, Icon }) => (
-									<button
-										key={id}
-										onClick={() => setPaymentMethod(id)}
-										className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl border-2 transition text-left ${
-											paymentMethod === id
-												? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
-												: 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600/50 bg-white dark:bg-slate-800/40'
-										}`}>
-										<span className={paymentMethod === id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}>
-											<Icon />
-										</span>
-										<div className="flex-1">
-											<p className={`text-sm font-semibold ${paymentMethod === id ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200'}`}>{label}</p>
-											<p className="text-xs text-slate-400">{sub}</p>
+					<div className="px-6 py-5 space-y-4">
+						{/* Two-column horizontal layout */}
+						<div className="flex gap-4">
+							{/* Left column: Order Summary + Billing To */}
+							<div className="flex-1 space-y-3">
+								{/* Order summary */}
+								<div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+									<div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700">
+										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Order Summary</p>
+									</div>
+									<div className="px-4 py-3 space-y-2.5">
+										<div className="flex justify-between text-sm">
+											<span className="text-slate-500 dark:text-slate-400">Credits</span>
+											<span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+												<CircleDollarSign size={14} /> {credits.toLocaleString()}
+											</span>
 										</div>
-										<div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-											paymentMethod === id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 dark:border-slate-600'
-										}`}>
-											{paymentMethod === id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+										<div className="flex justify-between text-sm">
+											<span className="text-slate-500 dark:text-slate-400">Rate</span>
+											<span className="font-medium text-slate-700 dark:text-slate-300">$1 = 10 credits</span>
 										</div>
-									</button>
-								))}
+										<div className="h-px bg-slate-200 dark:bg-slate-700" />
+										<div className="flex justify-between">
+											<span className="font-semibold text-slate-800 dark:text-white">Amount Payable</span>
+											<span className="font-bold text-xl text-indigo-600 dark:text-indigo-400">${parsedAmount.toFixed(2)}</span>
+										</div>
+									</div>
+								</div>
+
+								{/* User details */}
+								<div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+									<div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700">
+										<p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Billing To</p>
+									</div>
+									<div className="px-4 py-3 space-y-0.5">
+										<p className="font-semibold text-slate-800 dark:text-white">{user?.name}</p>
+										<p className="text-sm text-slate-500 dark:text-slate-400">{user?.email}</p>
+									</div>
+								</div>
+							</div>
+
+							{/* Right column: Payment Method */}
+							<div className="flex-1">
+								<p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Choose a Payment Option</p>
+								<div className="space-y-2">
+									{paymentMethods.map(({ id, label, sub, Icon }) => (
+										<button
+											key={id}
+											onClick={() => setPaymentMethod(id)}
+											className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition text-left ${
+												paymentMethod === id
+													? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
+													: 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600/50 bg-white dark:bg-slate-800/40'
+											}`}>
+											<span className={paymentMethod === id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}>
+												<Icon />
+											</span>
+											<div className="flex-1 min-w-0">
+												<p className={`text-sm font-semibold truncate ${paymentMethod === id ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200'}`}>{label}</p>
+												<p className="text-xs text-slate-400 truncate">{sub}</p>
+											</div>
+											<div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+												paymentMethod === id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 dark:border-slate-600'
+											}`}>
+												{paymentMethod === id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+											</div>
+										</button>
+									))}
+								</div>
 							</div>
 						</div>
 
