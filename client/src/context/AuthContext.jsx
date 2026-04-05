@@ -7,84 +7,61 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Add response interceptor for token refresh
+  // Single response interceptor — handles token expiry and auto-refresh
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
 
-        // If token expired, try to refresh
         if (
           error.response?.status === 401 &&
           error.response?.data?.code === 'ACCESS_TOKEN_EXPIRED' &&
           !originalRequest._retry
         ) {
           originalRequest._retry = true;
-
           try {
-            // Try to refresh the token
             await api.post('/auth/refresh', {}, { withCredentials: true });
-            // Retry the original request
             return api(originalRequest);
-          } catch (refreshError) {
-            // Refresh failed - clear user and redirect to login
+          } catch {
             setUser(null);
-            localStorage.removeItem('userInfo');
             window.location.href = '/';
-            return Promise.reject(refreshError);
+            return Promise.reject(error);
           }
         }
 
-        // If no access token, clear user
         if (error.response?.status === 401 && error.response?.data?.code === 'NO_ACCESS_TOKEN') {
           setUser(null);
-          localStorage.removeItem('userInfo');
         }
 
         return Promise.reject(error);
       }
     );
 
-    return () => {
-      api.interceptors.response.eject(interceptor);
-    };
+    return () => api.interceptors.response.eject(interceptor);
   }, []);
 
-  // Verify token on mount
+  // Verify auth on mount — source of truth is the httpOnly cookie + /auth/me
   useEffect(() => {
     const verifyAuth = async () => {
-      const savedUser = localStorage.getItem('userInfo');
-      
-      if (savedUser) {
-        try {
-          // Verify token by calling /auth/me endpoint
-          const { data } = await api.get('/auth/me');
-          setUser(data);
-          localStorage.setItem('userInfo', JSON.stringify(data));
-        } catch (error) {
-          // Token invalid or expired - try refresh first
-          if (error.response?.status === 401) {
-            try {
-              await api.post('auth/refresh', {}, { withCredentials: true });
-              // Retry /auth/me after refresh
-              const { data } = await api.get('/auth/me');
-              setUser(data);
-              localStorage.setItem('userInfo', JSON.stringify(data));
-            } catch (refreshError) {
-              // Refresh failed - clear user
-              setUser(null);
-              localStorage.removeItem('userInfo');
-            }
-          } else {
-            // Other error - clear user
+      try {
+        const { data } = await api.get('/auth/me');
+        setUser(data);
+      } catch (error) {
+        if (error.response?.status === 401) {
+          try {
+            await api.post('/auth/refresh', {}, { withCredentials: true });
+            const { data } = await api.get('/auth/me');
+            setUser(data);
+          } catch {
             setUser(null);
-            localStorage.removeItem('userInfo');
           }
+        } else {
+          setUser(null);
         }
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     verifyAuth();
@@ -92,25 +69,23 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const { data } = await api.post('auth/login', { email, password });
+      const { data } = await api.post('/auth/login', { email, password });
       setUser(data);
-      localStorage.setItem('userInfo', JSON.stringify(data));
       return { success: true };
     } catch (error) {
-      const msg = error.response?.data?.message || error.message || 'Login failed';
-      console.error("Login Error:", msg);
-      return { success: false, message: msg };
+      const msg  = error.response?.data?.message || error.message || 'Login failed';
+      const code = error.response?.data?.code;
+      return { success: false, message: msg, code };
     }
   };
 
   const logout = async () => {
     try {
-      await api.post('auth/logout');
-    } catch (err) {
-      console.error(err);
+      await api.post('/auth/logout');
+    } catch {
+      // ignore — always clear local state
     }
     setUser(null);
-    localStorage.removeItem('userInfo');
   };
 
   return (

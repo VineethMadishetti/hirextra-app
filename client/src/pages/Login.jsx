@@ -39,6 +39,20 @@ const PasswordInput = ({ value, onChange, placeholder = "•••••••�
 	);
 };
 
+// Password strength checker
+function getPasswordStrength(pwd) {
+	if (!pwd) return null;
+	let score = 0;
+	if (pwd.length >= 8) score++;
+	if (/[A-Z]/.test(pwd)) score++;
+	if (/[0-9]/.test(pwd)) score++;
+	if (/[^A-Za-z0-9]/.test(pwd)) score++;
+	if (score <= 1) return { label: 'Weak', color: 'bg-rose-500', width: 'w-1/4' };
+	if (score === 2) return { label: 'Fair', color: 'bg-amber-500', width: 'w-2/4' };
+	if (score === 3) return { label: 'Good', color: 'bg-blue-500', width: 'w-3/4' };
+	return { label: 'Strong', color: 'bg-emerald-500', width: 'w-full' };
+}
+
 const RESEND_COOLDOWN = 60; // seconds
 
 const Login = () => {
@@ -102,7 +116,9 @@ const Login = () => {
 	const handleRegister = async (e) => {
 		e.preventDefault();
 		setError(""); setInfo("");
-		if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
+		if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+		if (!/[A-Z]/.test(password)) { setError("Password must contain at least one uppercase letter"); return; }
+		if (!/[0-9]/.test(password)) { setError("Password must contain at least one number"); return; }
 		if (password !== confirmPassword) { setError("Passwords do not match"); return; }
 		setIsLoading(true);
 		try {
@@ -238,7 +254,18 @@ const Login = () => {
 									</div>
 									<div>
 										<label className={labelCls}>Password</label>
-										<PasswordInput value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 6 characters" />
+										<PasswordInput value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 chars, 1 uppercase, 1 number" />
+										{(() => {
+											const s = getPasswordStrength(password);
+											return s ? (
+												<div className="mt-2">
+													<div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+														<div className={`h-full rounded-full transition-all duration-300 ${s.color} ${s.width}`} />
+													</div>
+													<p className={`text-xs mt-1 font-medium ${s.color.replace('bg-', 'text-')}`}>{s.label}</p>
+												</div>
+											) : null;
+										})()}
 									</div>
 									<div>
 										<label className={labelCls}>Confirm Password</label>
