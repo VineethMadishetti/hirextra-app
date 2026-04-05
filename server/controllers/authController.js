@@ -72,7 +72,8 @@ export const registerUser = async (req, res) => {
       otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    await sendOTPEmail(email, name, otp).catch(e => logger.warn('OTP email failed:', e.message));
+    // Fire-and-forget — don't block registration on email delivery
+    sendOTPEmail(email, name, otp).catch(e => logger.warn('OTP email failed:', e.message));
 
     res.status(201).json({
       message: 'Account created. Check your email for a verification code.',
@@ -98,7 +99,8 @@ export const sendVerificationOTP = async (req, res) => {
       emailVerificationOTP: otp,
       otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
-    await sendOTPEmail(email, user.name, otp).catch(e => logger.warn('OTP email failed:', e.message));
+    // Fire-and-forget
+    sendOTPEmail(email, user.name, otp).catch(e => logger.warn('OTP email failed:', e.message));
 
     res.json({ message: 'Verification code sent' });
   } catch (err) {
@@ -139,8 +141,9 @@ export const approveUser = async (req, res) => {
     const user = await User.findById(req.params.id).select('name email status');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    await User.findByIdAndUpdate(req.params.id, { status: 'active' });
-    await sendAccountApprovedEmail(user.email, user.name).catch(e => logger.warn('Approval email failed:', e.message));
+    // Also mark emailVerified so login check doesn't block them
+    await User.findByIdAndUpdate(req.params.id, { status: 'active', emailVerified: true });
+    sendAccountApprovedEmail(user.email, user.name).catch(e => logger.warn('Approval email failed:', e.message));
 
     res.json({ message: `${user.name} approved`, status: 'active' });
   } catch (err) {
