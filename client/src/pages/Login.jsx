@@ -2,174 +2,253 @@ import { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import LoadingScreen from "../components/LoadingScreen";
+import api from "../api/axios";
 
+// mode: 'login' | 'register' | 'verify-otp'
 const Login = () => {
+	const [mode, setMode] = useState("login");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [name, setName] = useState("");
+	const [otp, setOtp] = useState("");
 	const [error, setError] = useState("");
+	const [info, setInfo] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const { login } = useContext(AuthContext);
 	const navigate = useNavigate();
 
-	const handleSubmit = async (e) => {
+	const switchMode = (m) => { setMode(m); setError(""); setInfo(""); };
+
+	const handleLogin = async (e) => {
 		e.preventDefault();
-		setError("");
+		setError(""); setInfo("");
 		setIsLoading(true);
 		try {
 			const result = await login(email, password);
-
 			if (result.success) {
 				navigate("/dashboard");
+			} else if (result.code === "EMAIL_NOT_VERIFIED") {
+				setInfo("Please verify your email first.");
+				switchMode("verify-otp");
+			} else if (result.code === "PENDING_APPROVAL") {
+				setError("Your account is pending admin approval. You'll receive an email once approved.");
+			} else if (result.code === "ACCOUNT_REJECTED") {
+				setError("Your account request was not approved. Please contact support.");
 			} else {
-				setError(result.message);
+				setError(result.message || "Invalid email or password");
 			}
-		} catch (err) {
+		} catch {
 			setError("An unexpected error occurred. Please try again.");
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	if (isLoading) {
-		return <LoadingScreen message="Verifying credentials..." />;
-	}
+	const handleRegister = async (e) => {
+		e.preventDefault();
+		setError(""); setInfo("");
+		if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
+		setIsLoading(true);
+		try {
+			await api.post("/auth/register", { name, email, password });
+			setInfo("Account created! Check your email for a 6-digit verification code.");
+			switchMode("verify-otp");
+		} catch (err) {
+			setError(err.response?.data?.message || "Registration failed. Please try again.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleVerifyOTP = async (e) => {
+		e.preventDefault();
+		setError(""); setInfo("");
+		if (otp.length !== 6) { setError("Enter the 6-digit code from your email"); return; }
+		setIsLoading(true);
+		try {
+			await api.post("/auth/verify-otp", { email, otp });
+			setInfo("Email verified! Your account is pending admin approval. You'll be notified once it's ready.");
+			setOtp("");
+		} catch (err) {
+			setError(err.response?.data?.message || "Invalid or expired code.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleResendOTP = async () => {
+		setError(""); setInfo("");
+		try {
+			await api.post("/auth/send-otp", { email });
+			setInfo("A new verification code has been sent to your email.");
+		} catch (err) {
+			setError(err.response?.data?.message || "Could not resend code.");
+		}
+	};
+
+	if (isLoading) return <LoadingScreen message={mode === "login" ? "Verifying credentials..." : mode === "register" ? "Creating account..." : "Verifying code..."} />;
 
 	return (
 		<div className="min-h-screen flex relative overflow-hidden font-sans">
-			{/* Background Image */}
+			{/* Background */}
 			<img
 				src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1472&auto=format&fit=crop"
 				alt="Background"
 				className="absolute inset-0 w-full h-full object-cover"
 			/>
-
-			{/* Overlay */}
 			<div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-			{/* Main Content Container */}
 			<div className="relative z-10 w-full flex flex-col lg:flex-row">
-				
-				{/* LEFT SIDE: Branding & Text */}
+				{/* LEFT: Branding */}
 				<div className="lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-24 py-16 sm:py-12 text-white">
 					<h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-none mb-6 text-center lg:text-left">
-						<span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-							People
-						</span>
+						<span className="bg-linear-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">People</span>
 						<span className="text-white">Finder</span>
 					</h1>
 					<p className="text-lg sm:text-xl text-gray-200 mb-8 max-w-lg leading-relaxed text-center lg:text-left">
-  <span className="block font-medium text-white">
-    AI-powered talent intelligence.
-  </span>
-  <span className="block mt-1 text-gray-300">
-    Search global data. Get decision-ready candidates, instantly.
-  </span>
-</p>
-
+						<span className="block font-medium text-white">AI-powered talent intelligence.</span>
+						<span className="block mt-1 text-gray-300">Search global data. Get decision-ready candidates, instantly.</span>
+					</p>
 					<div className="hidden lg:flex items-center gap-4 text-sm text-gray-400">
-						<div className="h-1 w-12 bg-blue-500 rounded-full"></div>
+						<div className="h-1 w-12 bg-blue-500 rounded-full" />
 						<span>Search. Evaluate. Decide.</span>
 					</div>
 				</div>
 
-				{/* RIGHT SIDE: Login Form (No Background) */}
+				{/* RIGHT: Form */}
 				<div className="lg:w-1/2 flex items-center justify-center px-6 sm:px-12 py-12">
 					<div className="w-full max-w-md">
-						
-						{/* Header */}
-						<div className="mb-10 text-center lg:text-left">
-					<h2 className="text-3xl font-bold text-white tracking-tight">
-						Welcome
-					</h2>
-					<p className="text-gray-400 mt-2 text-sm">
-						Sign in to your account
-					</p>
-				</div>
 
-				{error && (
-					<div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-center">
-						{error}
-					</div>
-				)}
-
-				<form onSubmit={handleSubmit} className="space-y-5">
-					{/* Email */}
-					<div>
-						<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">
-							Email address
-						</label>
-						<input
-							type="email"
-							autoComplete="email"
-							required
-							placeholder="user@email.com"
-							className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm
-						text-white placeholder-gray-400
-						focus:border-blue-500 focus:ring-1 focus:ring-blue-500
-						outline-none transition"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							disabled={isLoading}
-						/>
-					</div>
-
-					{/* Password */}
-					<div>
-						<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">
-							Password
-						</label>
-						<input
-							type="password"
-							autoComplete="current-password"
-							required
-							placeholder="••••••••"
-							className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm
-						text-white placeholder-gray-400
-						focus:border-blue-500 focus:ring-1 focus:ring-blue-500
-						outline-none transition"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							disabled={isLoading}
-						/>
-					</div>
-
-					{/* Submit */}
-					<button
-						type="submit"
-						disabled={isLoading}
-						className="w-full flex items-center justify-center rounded-lg
-					bg-blue-600 px-4 py-3 text-white font-semibold
-					hover:bg-blue-500
-					focus:ring-2 focus:ring-blue-500/50
-					transition disabled:opacity-60 disabled:cursor-not-allowed">
-						{isLoading ? (
+						{/* ── LOGIN ── */}
+						{mode === "login" && (
 							<>
-								<svg
-									className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-									xmlns="http://www.w3.org/2000/svg"
-									fill="none"
-									viewBox="0 0 24 24">
-									<circle
-										className="opacity-25"
-										cx="12"
-										cy="12"
-										r="10"
-										stroke="currentColor"
-										strokeWidth="4"
-									/>
-									<path
-										className="opacity-75"
-										fill="currentColor"
-										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-									/>
-								</svg>
-								Signing in…
+								<div className="mb-10 text-center lg:text-left">
+									<h2 className="text-3xl font-bold text-white tracking-tight">Welcome back</h2>
+									<p className="text-gray-400 mt-2 text-sm">Sign in to your account</p>
+								</div>
+
+								{error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-center">{error}</div>}
+								{info  && <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 text-center">{info}</div>}
+
+								<form onSubmit={handleLogin} className="space-y-5">
+									<div>
+										<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">Email address</label>
+										<input type="email" autoComplete="email" required placeholder="user@email.com"
+											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+											value={email} onChange={e => setEmail(e.target.value)} />
+									</div>
+									<div>
+										<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">Password</label>
+										<input type="password" autoComplete="current-password" required placeholder="••••••••"
+											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+											value={password} onChange={e => setPassword(e.target.value)} />
+									</div>
+									<button type="submit"
+										className="w-full flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-500 focus:ring-2 focus:ring-blue-500/50 transition">
+										Sign In
+									</button>
+								</form>
+
+								<p className="mt-6 text-center text-sm text-gray-400">
+									Don't have an account?{" "}
+									<button onClick={() => switchMode("register")} className="text-blue-400 hover:text-blue-300 font-medium transition">
+										Create account
+									</button>
+								</p>
 							</>
-						) : (
-							"Sign In"
 						)}
-					</button>
-				</form>
+
+						{/* ── REGISTER ── */}
+						{mode === "register" && (
+							<>
+								<div className="mb-8 text-center lg:text-left">
+									<h2 className="text-3xl font-bold text-white tracking-tight">Create account</h2>
+									<p className="text-gray-400 mt-2 text-sm">Fill in your details to get started</p>
+								</div>
+
+								{error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-center">{error}</div>}
+								{info  && <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 text-center">{info}</div>}
+
+								<form onSubmit={handleRegister} className="space-y-4">
+									<div>
+										<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">Full Name</label>
+										<input type="text" required placeholder="John Doe"
+											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+											value={name} onChange={e => setName(e.target.value)} />
+									</div>
+									<div>
+										<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">Email address</label>
+										<input type="email" required placeholder="user@email.com"
+											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+											value={email} onChange={e => setEmail(e.target.value)} />
+									</div>
+									<div>
+										<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">Password</label>
+										<input type="password" required placeholder="Min. 6 characters"
+											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+											value={password} onChange={e => setPassword(e.target.value)} />
+									</div>
+									<button type="submit"
+										className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-500 transition">
+										Create Account
+									</button>
+								</form>
+
+								<p className="mt-6 text-center text-sm text-gray-400">
+									Already have an account?{" "}
+									<button onClick={() => switchMode("login")} className="text-blue-400 hover:text-blue-300 font-medium transition">
+										Sign in
+									</button>
+								</p>
+							</>
+						)}
+
+						{/* ── VERIFY OTP ── */}
+						{mode === "verify-otp" && (
+							<>
+								<div className="mb-8 text-center lg:text-left">
+									<h2 className="text-3xl font-bold text-white tracking-tight">Verify your email</h2>
+									<p className="text-gray-400 mt-2 text-sm">
+										We sent a 6-digit code to <span className="text-white font-medium">{email}</span>
+									</p>
+								</div>
+
+								{error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-center">{error}</div>}
+								{info  && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 text-center">{info}</div>}
+
+								<form onSubmit={handleVerifyOTP} className="space-y-5">
+									<div>
+										<label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase">Verification Code</label>
+										<input
+											type="text"
+											inputMode="numeric"
+											maxLength={6}
+											required
+											placeholder="000000"
+											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-2xl font-bold text-white placeholder-gray-600 text-center tracking-widest focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+											value={otp}
+											onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+										/>
+									</div>
+									<button type="submit"
+										className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-500 transition">
+										Verify Email
+									</button>
+								</form>
+
+								<div className="mt-5 text-center space-y-2">
+									<p className="text-sm text-gray-400">
+										Didn't receive the code?{" "}
+										<button onClick={handleResendOTP} className="text-blue-400 hover:text-blue-300 font-medium transition">
+											Resend
+										</button>
+									</p>
+									<button onClick={() => switchMode("login")} className="text-xs text-gray-500 hover:text-gray-300 transition">
+										← Back to sign in
+									</button>
+								</div>
+							</>
+						)}
 
 					</div>
 				</div>

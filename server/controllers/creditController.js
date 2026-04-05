@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import User from '../models/User.js';
 import CreditTransaction from '../models/CreditTransaction.js';
 import { addCredits } from '../utils/creditService.js';
+import { sendOrderConfirmationEmail } from '../utils/emailService.js';
 
 // Lazy-init Stripe — safe to call even if key not set yet (returns null)
 const getStripe = () => {
@@ -104,6 +105,10 @@ export const createCheckout = async (req, res) => {
       return res.status(400).json({ message: 'Minimum purchase is $5' });
     }
 
+    // Map frontend payment method selection to Stripe payment_method_types
+    const methodMap = { card: ['card'], upi: ['upi'], netbanking: ['netbanking'] };
+    const payment_method_types = methodMap[req.body.paymentMethod] ?? ['card'];
+
     const credits = Math.floor(amount * 10); // $1 = 10 credits
     const amountCents = Math.round(amount * 100);
 
@@ -127,6 +132,7 @@ export const createCheckout = async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
+      payment_method_types,
       mode: 'payment',
       line_items: [{
         price_data: {
@@ -186,6 +192,16 @@ export const handleWebhook = async (req, res) => {
           `Stripe purchase: $${session.metadata.amount} → ${credits} credits`,
           { stripeSessionId: session.id }
         );
+        // Send order confirmation email (non-blocking)
+        const user = await User.findById(userId).select('name email').lean();
+        if (user?.email) {
+          sendOrderConfirmationEmail(user.email, user.name, {
+            credits: parseInt(credits),
+            amount: session.metadata.amount,
+            transactionId: session.id,
+            date: new Date(),
+          }).catch(e => console.error('[Webhook] Email failed:', e.message));
+        }
       } catch (err) {
         // Log but always return 200 — Stripe retries on non-2xx
         console.error('[Webhook] Failed to add credits:', err.message);

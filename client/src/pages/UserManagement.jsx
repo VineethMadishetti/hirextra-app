@@ -25,6 +25,8 @@ import {
 	ZapOff,
 	RotateCcw,
 	AlertTriangle,
+	UserCheck,
+	UserX,
 } from "lucide-react";
 import toast from 'react-hot-toast';
 
@@ -299,11 +301,12 @@ const [userToDelete, setUserToDelete] = useState(null);
 								<div className="col-span-2">User</div>
 								<div className="col-span-2">Last Active</div>
 								<div className="col-span-1">Credits</div>
-								<div className="col-span-2 text-center">Databases</div>
-								<div className="col-span-2 text-center">Uploads</div>
+								<div className="col-span-1 text-center">Status</div>
+								<div className="col-span-1 text-center">Databases</div>
+								<div className="col-span-1 text-center">Uploads</div>
 								<div className="col-span-1">Joined</div>
 								<div className="col-span-1 text-center">Role</div>
-								<div className="col-span-1 text-center">Action</div>
+								<div className="col-span-2 text-center">Action</div>
 							</div>
 							{loading ? (
 								<div className="p-12 text-center">
@@ -323,7 +326,11 @@ const [userToDelete, setUserToDelete] = useState(null);
 										return (
 											<div
 												key={user._id}
-												className="grid grid-cols-1 md:grid-cols-12 gap-2 px-5 py-4 items-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+												className={`grid grid-cols-1 md:grid-cols-12 gap-2 px-5 py-4 items-center transition ${
+													user.status === 'pending'
+														? 'hover:bg-amber-50/40 dark:hover:bg-amber-500/5 border-l-2 border-amber-400'
+														: 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
+												}`}>
 												{/* User Info */}
 												<div className="md:col-span-2 flex items-center gap-3 min-w-0">
 													<div className="bg-indigo-100 dark:bg-indigo-500/20 p-2 rounded-lg shrink-0">
@@ -352,31 +359,47 @@ const [userToDelete, setUserToDelete] = useState(null);
 														);
 													})()}
 												</div>
-											{/* Credits */}
-											<div className="md:col-span-1 flex items-center gap-1">
-												{user.creditFree ? (
-													<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-														<Zap size={9} />FREE
-													</span>
-												) : (
-													<>
-														<CircleDollarSign size={13} className="text-amber-500 shrink-0" />
-														<span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.credits ?? 0}</span>
-														<button
-															onClick={() => { setCreditsTarget(user); setCreditsAmount(''); setCreditsDesc(''); setCreditsError(''); setShowCreditsModal(true); }}
-															title="Add credits"
-															className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
-															<PlusCircle size={13} />
-														</button>
-													</>
-												)}
-											</div>
-											{/* Databases */}
-											<div className="md:col-span-2 flex flex-col items-center">
+												{/* Credits */}
+												<div className="md:col-span-1 flex items-center gap-1">
+													{user.creditFree ? (
+														<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+															<Zap size={9} />FREE
+														</span>
+													) : (
+														<>
+															<CircleDollarSign size={13} className="text-amber-500 shrink-0" />
+															<span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.credits ?? 0}</span>
+															<button
+																onClick={() => { setCreditsTarget(user); setCreditsAmount(''); setCreditsDesc(''); setCreditsError(''); setShowCreditsModal(true); }}
+																title="Add credits"
+																className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
+																<PlusCircle size={13} />
+															</button>
+														</>
+													)}
+												</div>
+												{/* Status */}
+												<div className="md:col-span-1 flex justify-center">
+													{user.status === 'pending' ? (
+														<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+															Waiting
+														</span>
+													) : user.status === 'rejected' ? (
+														<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 uppercase tracking-wide">
+															Rejected
+														</span>
+													) : (
+														<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+															Active
+														</span>
+													)}
+												</div>
+												{/* Databases */}
+												<div className="md:col-span-1 flex flex-col items-center">
 													<span className="text-sm font-medium text-slate-500 dark:text-slate-300">{dbCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : dbCount}</span>
 												</div>
 												{/* Uploads */}
-												<div className="md:col-span-2 flex flex-col items-center">
+												<div className="md:col-span-1 flex flex-col items-center">
 													<span className="text-sm font-medium text-slate-500 dark:text-slate-300">{uploadCount === null ? <span className="text-slate-400 dark:text-slate-500 text-base">—</span> : uploadCount}</span>
 												</div>
 												{/* Joined */}
@@ -386,58 +409,94 @@ const [userToDelete, setUserToDelete] = useState(null);
 												</div>
 												{/* Role */}
 												<div className="md:col-span-1 flex justify-center">
-												<span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
+													<span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${getRoleBadge(user.role)}`}>
 														<Shield size={11} />
 														{user.role}
 													</span>
 												</div>
 												{/* Action */}
-												<div className="md:col-span-1 flex justify-center items-center gap-1.5">
-													{/* Credit-free toggle */}
-													<button
-														onClick={async () => {
-															try {
-																const { data } = await api.patch(`/auth/users/${user._id}/credit-free`);
-																toast.success(data.message);
-																queryClient.invalidateQueries({ queryKey: ['users'] });
-															} catch (err) {
-																toast.error(err.response?.data?.message || 'Failed to update credit-free status');
-															}
-														}}
-														title={user.creditFree ? 'Disable credit-free (re-enable billing)' : 'Enable credit-free (employee / unlimited)'}
-														className={`p-2 rounded-lg transition cursor-pointer ${user.creditFree
-															? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
-															: 'bg-slate-100 dark:bg-slate-700/40 text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-500'
-														}`}>
-														{user.creditFree ? <Zap size={15} /> : <ZapOff size={15} />}
-													</button>
-													<button
-														onClick={async () => {
-															try {
-																const { data } = await api.patch(`/auth/users/${user._id}/lock`);
-																toast.success(data.message);
-																queryClient.invalidateQueries({ queryKey: ['users'] });
-															} catch (err) {
-																toast.error(err.response?.data?.message || 'Failed to update lock status');
-															}
-														}}
-														title={user.isLocked ? 'Unlock user' : 'Lock user'}
-														className={`p-2 rounded-lg transition cursor-pointer ${user.isLocked
-															? 'bg-amber-50 dark:bg-amber-500/10 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-500/20'
-															: 'bg-slate-100 dark:bg-slate-700/40 text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-500'
-														}`}>
-														{user.isLocked ? <Unlock size={15} /> : <Lock size={15} />}
-													</button>
-													<button
-														onClick={() => {
-															setUserToDelete(user);
-															setPasswordInput("");
-															setPasswordError("");
-															setShowPasswordModal(true);
-														}}
-														className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 hover:bg-rose-100 dark:hover:bg-rose-500/10 text-rose-500 transition cursor-pointer">
-															<Trash2 size={15} />
-													</button>
+												<div className="md:col-span-2 flex justify-center items-center gap-1.5">
+													{user.status === 'pending' ? (
+														/* Pending: show approve / reject only */
+														<>
+															<button
+																onClick={async () => {
+																	try {
+																		const { data } = await api.patch(`/auth/users/${user._id}/approve`);
+																		toast.success(data.message);
+																		queryClient.invalidateQueries({ queryKey: ['users'] });
+																	} catch (err) {
+																		toast.error(err.response?.data?.message || 'Failed to approve');
+																	}
+																}}
+																title="Approve user"
+																className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-xs font-semibold transition cursor-pointer">
+																<UserCheck size={13} /> Approve
+															</button>
+															<button
+																onClick={async () => {
+																	try {
+																		const { data } = await api.patch(`/auth/users/${user._id}/reject`);
+																		toast(data.message, { icon: '🚫' });
+																		queryClient.invalidateQueries({ queryKey: ['users'] });
+																	} catch (err) {
+																		toast.error(err.response?.data?.message || 'Failed to reject');
+																	}
+																}}
+																title="Reject user"
+																className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-xs font-semibold transition cursor-pointer">
+																<UserX size={13} /> Reject
+															</button>
+														</>
+													) : (
+														/* Active / Rejected: normal action buttons */
+														<>
+															<button
+																onClick={async () => {
+																	try {
+																		const { data } = await api.patch(`/auth/users/${user._id}/credit-free`);
+																		toast.success(data.message);
+																		queryClient.invalidateQueries({ queryKey: ['users'] });
+																	} catch (err) {
+																		toast.error(err.response?.data?.message || 'Failed to update credit-free status');
+																	}
+																}}
+																title={user.creditFree ? 'Disable credit-free (re-enable billing)' : 'Enable credit-free (employee / unlimited)'}
+																className={`p-2 rounded-lg transition cursor-pointer ${user.creditFree
+																	? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
+																	: 'bg-slate-100 dark:bg-slate-700/40 text-slate-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-500'
+																}`}>
+																{user.creditFree ? <Zap size={15} /> : <ZapOff size={15} />}
+															</button>
+															<button
+																onClick={async () => {
+																	try {
+																		const { data } = await api.patch(`/auth/users/${user._id}/lock`);
+																		toast.success(data.message);
+																		queryClient.invalidateQueries({ queryKey: ['users'] });
+																	} catch (err) {
+																		toast.error(err.response?.data?.message || 'Failed to update lock status');
+																	}
+																}}
+																title={user.isLocked ? 'Unlock user' : 'Lock user'}
+																className={`p-2 rounded-lg transition cursor-pointer ${user.isLocked
+																	? 'bg-amber-50 dark:bg-amber-500/10 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-500/20'
+																	: 'bg-slate-100 dark:bg-slate-700/40 text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-500'
+																}`}>
+																{user.isLocked ? <Unlock size={15} /> : <Lock size={15} />}
+															</button>
+															<button
+																onClick={() => {
+																	setUserToDelete(user);
+																	setPasswordInput("");
+																	setPasswordError("");
+																	setShowPasswordModal(true);
+																}}
+																className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 hover:bg-rose-100 dark:hover:bg-rose-500/10 text-rose-500 transition cursor-pointer">
+																<Trash2 size={15} />
+															</button>
+														</>
+													)}
 												</div>
 											</div>
 										);

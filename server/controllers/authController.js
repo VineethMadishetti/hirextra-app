@@ -1,6 +1,11 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
+import { sendOTPEmail, sendAccountApprovedEmail } from '../utils/emailService.js';
+
+function generateOTP() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 const generateToken = (res, userId) => {
   if (!process.env.JWT_SECRET) {
@@ -45,40 +50,114 @@ const generateRefreshToken = (userId) => {
     { expiresIn: '30d' } // 30 days
   );
 };
+// Public self-registration — creates a pending USER account and sends OTP
 export const registerUser = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password } = req.body;
   try {
-    // Check JWT_SECRET is configured
-    if (!process.env.JWT_SECRET) {
-      logger.error('❌ JWT_SECRET is not configured - cannot create tokens');
-      return res.status(500).json({ 
-        message: 'Server configuration error: JWT_SECRET is not set',
-        code: 'JWT_CONFIG_ERROR'
-      });
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email and password are required' });
     }
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ message: 'An account with this email already exists' });
 
-    // Allow admin registration for demo purposes
-    // if (role === 'ADMIN') {
-    //   return res.status(403).json({ message: 'Admin registration not allowed through public API' });
-    // }
+    const otp = generateOTP();
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: 'USER',
+      status: 'pending',
+      emailVerified: false,
+      emailVerificationOTP: otp,
+      otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
 
-    const userExists = await User.findOne({ email });
-    if (userExists) return res.status(400).json({ message: 'User already exists' });
+    await sendOTPEmail(email, name, otp).catch(e => logger.warn('OTP email failed:', e.message));
 
-    // Allow specified role or default to USER
-    const userRole = (role === 'ADMIN' || role === 'USER') ? role : 'USER';
-
-    const user = await User.create({ name, email, password, role: userRole });
-    if (user) {
-      generateToken(res, user._id);
-      res.status(201).json({ _id: user._id, name: user.name, role: user.role });
-    }
+    res.status(201).json({
+      message: 'Account created. Check your email for a verification code.',
+      userId: user._id,
+      email: user.email,
+    });
   } catch (err) {
     logger.error('Registration error:', err);
-    res.status(500).json({ 
-      message: err.message || 'Registration failed',
-      code: err.message?.includes('JWT') ? 'JWT_CONFIG_ERROR' : 'REGISTRATION_ERROR'
+    res.status(500).json({ message: err.message || 'Registration failed' });
+  }
+};
+
+// Send or resend OTP
+export const sendVerificationOTP = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'No account found with this email' });
+    if (user.emailVerified) return res.status(400).json({ message: 'Email already verified' });
+
+    const otp = generateOTP();
+    await User.findByIdAndUpdate(user._id, {
+      emailVerificationOTP: otp,
+      otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
+    await sendOTPEmail(email, user.name, otp).catch(e => logger.warn('OTP email failed:', e.message));
+
+    res.json({ message: 'Verification code sent' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Verify OTP — marks email as verified; account stays pending until admin approves
+export const verifyEmailOTP = async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'Account not found' });
+    if (user.emailVerified) return res.json({ message: 'Email already verified' });
+
+    if (!user.emailVerificationOTP || user.emailVerificationOTP !== String(otp)) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+    if (!user.otpExpiresAt || new Date() > user.otpExpiresAt) {
+      return res.status(400).json({ message: 'Verification code has expired. Request a new one.' });
+    }
+
+    await User.findByIdAndUpdate(user._id, {
+      emailVerified: true,
+      emailVerificationOTP: null,
+      otpExpiresAt: null,
+    });
+
+    res.json({ message: 'Email verified. Your account is pending admin approval.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Admin: approve a pending user
+export const approveUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('name email status');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    await User.findByIdAndUpdate(req.params.id, { status: 'active' });
+    await sendAccountApprovedEmail(user.email, user.name).catch(e => logger.warn('Approval email failed:', e.message));
+
+    res.json({ message: `${user.name} approved`, status: 'active' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Admin: reject a pending user
+export const rejectUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('name status');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    await User.findByIdAndUpdate(req.params.id, { status: 'rejected' });
+    res.json({ message: `${user.name} rejected`, status: 'rejected' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -129,6 +208,18 @@ export const loginUser = async (req, res) => {
 
     if (user.isLocked) {
       return res.status(403).json({ message: 'Your account has been locked. Please contact your administrator.' });
+    }
+
+    if (!user.emailVerified) {
+      return res.status(403).json({ code: 'EMAIL_NOT_VERIFIED', message: 'Please verify your email before signing in.' });
+    }
+
+    if (user.status === 'pending') {
+      return res.status(403).json({ code: 'PENDING_APPROVAL', message: 'Your account is pending admin approval. You\'ll be notified once approved.' });
+    }
+
+    if (user.status === 'rejected') {
+      return res.status(403).json({ code: 'ACCOUNT_REJECTED', message: 'Your account request was not approved. Please contact support.' });
     }
 
     await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
@@ -198,16 +289,20 @@ export const getAllUsers = async (req, res) => {
 
 export const createUser = async (req, res) => {
   const { name, email, password, role } = req.body;
-
-  const user = await User.create({
-    name,
-    email,
-    password,
-    role,
-    createdBy: req.user._id, // ✅ LOGGED-IN ADMIN
-  });
-
-  res.status(201).json(user);
+  try {
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role,
+      status: 'active',       // admin-created users are immediately active
+      emailVerified: true,    // admin vouches for the email
+      createdBy: req.user._id,
+    });
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 

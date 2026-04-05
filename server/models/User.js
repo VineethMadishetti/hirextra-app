@@ -13,6 +13,12 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
 
+  // Account status: 'active' (default/grandfathered), 'pending' (self-registered, awaiting admin approval), 'rejected'
+  status:                 { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' },
+  emailVerified:          { type: Boolean, default: true },  // true for admin-created/grandfathered users
+  emailVerificationOTP:   { type: String,  default: null },
+  otpExpiresAt:           { type: Date,    default: null },
+
   lastLoginAt:      { type: Date, default: null },
   isLocked:         { type: Boolean, default: false },
   creditFree:       { type: Boolean, default: false }, // employees: unlimited usage, no credit checks
