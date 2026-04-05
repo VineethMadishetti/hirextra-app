@@ -152,6 +152,13 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
 /* ---------------------------------------------------
+   STRIPE WEBHOOK — raw body MUST be registered before express.json()
+   Stripe signature verification requires the unmodified raw body.
+--------------------------------------------------- */
+import { handleWebhook } from './controllers/creditController.js';
+app.post('/api/credits/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+
+/* ---------------------------------------------------
    BODY PARSERS & COOKIES
 --------------------------------------------------- */
 app.use(express.json({ limit: '50mb' }));

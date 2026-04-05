@@ -20,6 +20,7 @@ import {
 	ArrowRight,
 	Database,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import LoadingScreen from "../components/LoadingScreen";
 import SourcingAgentModal from "../components/SourcingAgentModal";
 
@@ -200,8 +201,8 @@ const WelcomePage = ({ user, onNavigate }) => (
 	</div>
 );
 
-// Modal for buying credits (mock purchase, no real Stripe yet)
-const BuyCreditsModal = ({ onClose, onSuccess }) => {
+// Modal for buying credits via Stripe Checkout
+const BuyCreditsModal = ({ onClose }) => {
 	const [amount, setAmount] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
@@ -214,12 +215,12 @@ const BuyCreditsModal = ({ onClose, onSuccess }) => {
 		setLoading(true);
 		setError('');
 		try {
-			const { data } = await api.post('/credits/mock-purchase', { amount: parseFloat(amount) });
-			onSuccess(data.credits);
-			onClose();
+			const { data } = await api.post('/credits/create-checkout', { amount: parseFloat(amount) });
+			// Redirect to Stripe hosted checkout
+			window.location.href = data.url;
 		} catch (err) {
-			setError(err.response?.data?.message || 'Purchase failed. Please try again.');
-		} finally {
+			const msg = err.response?.data?.message || 'Could not start checkout. Please try again.';
+			setError(msg);
 			setLoading(false);
 		}
 	};
@@ -228,7 +229,10 @@ const BuyCreditsModal = ({ onClose, onSuccess }) => {
 		<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
 			<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
 				<div className="flex items-center justify-between mb-5">
-					<h3 className="text-lg font-semibold text-slate-900 dark:text-white">Buy Credits</h3>
+					<div>
+						<h3 className="text-lg font-semibold text-slate-900 dark:text-white">Buy Credits</h3>
+						<p className="text-xs text-slate-400 mt-0.5">Secure payment via Stripe</p>
+					</div>
 					<button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 					</button>
@@ -245,11 +249,29 @@ const BuyCreditsModal = ({ onClose, onSuccess }) => {
 								step="1"
 								value={amount}
 								onChange={e => setAmount(e.target.value)}
+								onKeyDown={e => e.key === 'Enter' && handleBuy()}
 								placeholder="0"
+								autoFocus
 								className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
 							/>
 						</div>
 						<p className="text-xs text-slate-400 mt-1">Minimum $5 · Rate: $1 = 10 credits</p>
+					</div>
+
+					{/* Quick-select amounts */}
+					<div className="flex gap-2">
+						{[10, 25, 50, 100].map(preset => (
+							<button
+								key={preset}
+								onClick={() => setAmount(String(preset))}
+								className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition ${
+									parseFloat(amount) === preset
+										? 'bg-indigo-600 text-white border-indigo-600'
+										: 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+								}`}>
+								${preset}
+							</button>
+						))}
 					</div>
 
 					<div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 px-4 py-3 flex items-center justify-between">
@@ -271,9 +293,17 @@ const BuyCreditsModal = ({ onClose, onSuccess }) => {
 						onClick={handleBuy}
 						disabled={!valid || loading}
 						className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold shadow transition flex items-center justify-center gap-2">
-						{loading ? <Loader size={15} className="animate-spin" /> : <><Plus size={15} />Add Credits</>}
+						{loading
+							? <><Loader size={15} className="animate-spin" />Redirecting…</>
+							: <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>Pay with Stripe →</>
+						}
 					</button>
 				</div>
+
+				<p className="text-center text-xs text-slate-400 mt-4 flex items-center justify-center gap-1">
+					<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+					Secured by Stripe · No card data touches our servers
+				</p>
 			</div>
 		</div>
 	);
@@ -338,6 +368,29 @@ const Dashboard = () => {
 			setCurrentView("welcome");
 		}
 	}, [user]);
+
+	// Handle Stripe redirect back from checkout
+	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		const payment = params.get('payment');
+		if (!payment) return;
+
+		// Clean up URL without full page reload
+		window.history.replaceState({}, '', window.location.pathname);
+
+		if (payment === 'success') {
+			const credits = params.get('credits');
+			toast.success(
+				credits
+					? `Payment successful! ${credits} credits added to your account.`
+					: 'Payment successful! Credits added to your account.',
+				{ duration: 6000 }
+			);
+			refetchCredits();
+		} else if (payment === 'cancelled') {
+			toast('Payment cancelled. No charges were made.', { icon: 'ℹ️', duration: 4000 });
+		}
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -683,12 +736,7 @@ const Dashboard = () => {
 
 			{/* Buy Credits Modal */}
 			{showBuyModal && (
-				<BuyCreditsModal
-					onClose={() => setShowBuyModal(false)}
-					onSuccess={(newBalance) => {
-						queryClient.setQueryData(['credits'], { credits: newBalance });
-					}}
-				/>
+				<BuyCreditsModal onClose={() => setShowBuyModal(false)} />
 			)}
 
 			{/* Logout Confirmation Modal */}
