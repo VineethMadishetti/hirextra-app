@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
-import { sendOTPEmail, sendAccountApprovedEmail } from '../utils/emailService.js';
+import { sendOTPEmail, sendAccountApprovedEmail, sendRegistrationReceivedEmail } from '../utils/emailService.js';
 import { body, validationResult } from 'express-validator';
 
 function generateOTP() {
@@ -70,7 +70,7 @@ const generateRefreshToken = (userId) => {
     { expiresIn: '30d' } // 30 days
   );
 };
-// Public self-registration — creates a pending USER account and sends OTP
+// Public self-registration — no OTP required; admin approval is the security gate
 export const registerUser = async (req, res) => {
   const validationError = getValidationError(req);
   if (validationError) return res.status(400).json({ message: validationError });
@@ -80,26 +80,19 @@ export const registerUser = async (req, res) => {
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ message: 'An account with this email already exists' });
 
-    const otp = generateOTP();
-    const user = await User.create({
+    await User.create({
       name,
       email,
       password,
       role: 'USER',
       status: 'pending',
-      emailVerified: false,
-      emailVerificationOTP: otp,
-      otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      emailVerified: true,   // no OTP step — admin approval is the gate
     });
 
-    // Fire-and-forget — don't block registration on email delivery
-    sendOTPEmail(email, name, otp).catch(e => logger.warn('OTP email failed:', e.message));
+    // Send a "request received" notification email (fire-and-forget)
+    sendRegistrationReceivedEmail(email, name).catch(e => logger.warn('Registration email failed:', e.message));
 
-    res.status(201).json({
-      message: 'Account created. Check your email for a verification code.',
-      userId: user._id,
-      email: user.email,
-    });
+    res.status(201).json({ message: 'Account created. You will be notified once an admin approves your account.' });
   } catch (err) {
     logger.error('Registration error:', err);
     res.status(500).json({ message: err.message || 'Registration failed' });

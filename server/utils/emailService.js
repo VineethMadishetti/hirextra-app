@@ -111,3 +111,27 @@ export async function sendAccountApprovedEmail(to, name) {
   });
   logger.info(`[Email] Approval notification sent to ${to}`);
 }
+
+export async function sendRegistrationReceivedEmail(to, name) {
+  const transport = getTransport();
+  if (!transport) {
+    logger.warn(`[Email] SMTP not configured — skipping registration email to ${to}`);
+    return;
+  }
+  await transport.sendMail({
+    from: FROM,
+    to,
+    subject: 'Your HireXtra account request has been received',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f8fafc;border-radius:12px;">
+        <h2 style="color:#1e293b;margin-bottom:8px;">Hi ${name},</h2>
+        <p style="color:#475569;margin-bottom:16px;">Thanks for signing up! Your account request has been received and is currently <strong>pending admin approval</strong>.</p>
+        <p style="color:#475569;margin-bottom:24px;">You'll receive another email as soon as your account is approved and ready to use. This usually happens within 24 hours.</p>
+        <p style="color:#94a3b8;font-size:13px;">If you didn't create this account, you can safely ignore this email.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
+        <p style="color:#cbd5e1;font-size:12px;text-align:center;">HireXtra · AI-powered Talent Intelligence</p>
+      </div>
+    `,
+  });
+  logger.info(`[Email] Registration received email sent to ${to}`);
+}

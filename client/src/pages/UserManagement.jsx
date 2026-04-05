@@ -371,8 +371,9 @@ const [userToDelete, setUserToDelete] = useState(null);
 															<span className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.credits ?? 0}</span>
 															<button
 																onClick={() => { setCreditsTarget(user); setCreditsAmount(''); setCreditsDesc(''); setCreditsError(''); setShowCreditsModal(true); }}
-																title="Add credits"
-																className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
+																title={user.status === 'active' ? 'Add credits' : 'Account must be active to add credits'}
+																disabled={user.status !== 'active'}
+																className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition disabled:opacity-30 disabled:cursor-not-allowed">
 																<PlusCircle size={13} />
 															</button>
 														</>

@@ -61,7 +61,6 @@ const Login = () => {
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [name, setName] = useState("");
-	const [otp, setOtp] = useState("");
 	const [error, setError] = useState("");
 	const [info, setInfo] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
@@ -123,9 +122,7 @@ const Login = () => {
 		setIsLoading(true);
 		try {
 			await api.post("/auth/register", { name, email, password });
-			setInfo("Account created! Check your email for a 6-digit verification code.");
-			startCooldown();
-			switchMode("verify-otp");
+			switchMode("pending");
 		} catch (err) {
 			setError(err.response?.data?.message || "Registration failed. Please try again.");
 		} finally {
@@ -133,35 +130,7 @@ const Login = () => {
 		}
 	};
 
-	const handleVerifyOTP = async (e) => {
-		e.preventDefault();
-		setError(""); setInfo("");
-		if (otp.length !== 6) { setError("Enter the 6-digit code from your email"); return; }
-		setIsLoading(true);
-		try {
-			await api.post("/auth/verify-otp", { email, otp });
-			setInfo("Email verified! Your account is pending admin approval. You'll be notified once it's ready.");
-			setOtp("");
-		} catch (err) {
-			setError(err.response?.data?.message || "Invalid or expired code.");
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const handleResendOTP = async () => {
-		if (resendCooldown > 0) return;
-		setError(""); setInfo("");
-		try {
-			await api.post("/auth/send-otp", { email });
-			setInfo("A new verification code has been sent to your email.");
-			startCooldown();
-		} catch (err) {
-			setError(err.response?.data?.message || "Could not resend code.");
-		}
-	};
-
-	if (isLoading) return <LoadingScreen message={mode === "login" ? "Verifying credentials..." : mode === "register" ? "Creating account..." : "Verifying code..."} />;
+	if (isLoading) return <LoadingScreen message={mode === "login" ? "Verifying credentials..." : "Creating account..."} />;
 
 	const inputCls = "w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition";
 	const labelCls = "block text-xs font-semibold text-gray-300 mb-2 tracking-wide uppercase";
@@ -285,56 +254,27 @@ const Login = () => {
 							</>
 						)}
 
-						{/* ── VERIFY OTP ── */}
-						{mode === "verify-otp" && (
-							<>
-								<div className="mb-8 text-center lg:text-left">
-									<h2 className="text-3xl font-bold text-white tracking-tight">Verify your email</h2>
-									<p className="text-gray-400 mt-2 text-sm">
-										We sent a 6-digit code to <span className="text-white font-medium">{email}</span>
-									</p>
+						{/* ── PENDING APPROVAL ── */}
+						{mode === "pending" && (
+							<div className="text-center">
+								<div className="flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 mx-auto mb-6">
+									<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+									</svg>
 								</div>
-
-								{error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-center">{error}</div>}
-								{info  && <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 text-center">{info}</div>}
-
-								<form onSubmit={handleVerifyOTP} className="space-y-5">
-									<div>
-										<label className={labelCls}>Verification Code</label>
-										<input
-											type="text"
-											inputMode="numeric"
-											maxLength={6}
-											required
-											placeholder="000000"
-											className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-2xl font-bold text-white placeholder-gray-600 text-center tracking-widest focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
-											value={otp}
-											onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-										/>
-									</div>
-									<button type="submit" className={btnPrimary}>Verify Email</button>
-								</form>
-
-								<div className="mt-5 text-center space-y-2">
-									<p className="text-sm text-gray-400">
-										Didn't receive the code?{" "}
-										{resendCooldown > 0 ? (
-											<span className="text-gray-500">
-												Resend in <span className="text-blue-400 font-semibold tabular-nums">{resendCooldown}s</span>
-											</span>
-										) : (
-											<button
-												onClick={handleResendOTP}
-												className="text-blue-400 hover:text-blue-300 font-medium transition cursor-pointer">
-												Resend
-											</button>
-										)}
-									</p>
-									<button onClick={() => switchMode("login")} className="text-xs text-gray-500 hover:text-gray-300 transition cursor-pointer">
-										← Back to sign in
-									</button>
-								</div>
-							</>
+								<h2 className="text-2xl font-bold text-white mb-3">Account Created!</h2>
+								<p className="text-gray-300 mb-2 leading-relaxed">
+									Your account is <span className="text-amber-400 font-semibold">pending admin approval</span>.
+								</p>
+								<p className="text-gray-400 text-sm mb-8 leading-relaxed">
+									You'll receive an email at <span className="text-white font-medium">{email}</span> once your account is approved and ready to use.
+								</p>
+								<button
+									onClick={() => switchMode("login")}
+									className="text-blue-400 hover:text-blue-300 text-sm font-medium transition cursor-pointer">
+									← Back to sign in
+								</button>
+							</div>
 						)}
 
 					</div>
