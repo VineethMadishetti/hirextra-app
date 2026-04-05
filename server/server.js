@@ -32,6 +32,7 @@ import privateDbRoutes from './routes/privateDbRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import shortlistRoutes from './routes/shortlistRoutes.js';
 import creditRoutes from './routes/creditRoutes.js';
+import { handleWebhook } from './controllers/creditController.js';
 
 // Define __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -155,7 +156,6 @@ app.options("*", cors(corsOptions));
    STRIPE WEBHOOK — raw body MUST be registered before express.json()
    Stripe signature verification requires the unmodified raw body.
 --------------------------------------------------- */
-import { handleWebhook } from './controllers/creditController.js';
 app.post('/api/credits/webhook', express.raw({ type: 'application/json' }), handleWebhook);
 
 /* ---------------------------------------------------

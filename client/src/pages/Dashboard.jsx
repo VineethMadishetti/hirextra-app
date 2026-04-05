@@ -201,22 +201,54 @@ const WelcomePage = ({ user, onNavigate }) => (
 	</div>
 );
 
-// Modal for buying credits via Stripe Checkout
-const BuyCreditsModal = ({ onClose }) => {
+// Payment method icons
+const CardIcon = () => (
+	<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+		<rect x="2" y="5" width="20" height="14" rx="2"/>
+		<line x1="2" y1="10" x2="22" y2="10"/>
+		<line x1="6" y1="15" x2="10" y2="15"/>
+	</svg>
+);
+const NetbankingIcon = () => (
+	<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+		<path d="M3 9l9-7 9 7v11a1 1 0 01-1 1H4a1 1 0 01-1-1z"/>
+		<polyline points="9 22 9 12 15 12 15 22"/>
+	</svg>
+);
+const UPIIcon = () => (
+	<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+		<path d="M12 2L2 7l10 5 10-5-10-5z"/>
+		<path d="M2 17l10 5 10-5"/>
+		<path d="M2 12l10 5 10-5"/>
+	</svg>
+);
+
+// Modal for buying credits via Stripe Checkout — two-step: amount → review + payment method
+const BuyCreditsModal = ({ onClose, user }) => {
+	const [step, setStep] = useState('amount'); // 'amount' | 'review'
 	const [amount, setAmount] = useState('');
+	const [paymentMethod, setPaymentMethod] = useState('card');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
 
-	const credits = Math.floor((parseFloat(amount) || 0) * 10);
-	const valid = parseFloat(amount) >= 5;
+	const parsedAmount = parseFloat(amount) || 0;
+	const credits = Math.floor(parsedAmount * 10);
+	const valid = parsedAmount >= 5;
 
-	const handleBuy = async () => {
+	const handleProceed = () => {
 		if (!valid) return;
+		setError('');
+		setStep('review');
+	};
+
+	const handlePay = async () => {
 		setLoading(true);
 		setError('');
 		try {
-			const { data } = await api.post('/credits/create-checkout', { amount: parseFloat(amount) });
-			// Redirect to Stripe hosted checkout
+			const { data } = await api.post('/credits/create-checkout', {
+				amount: parsedAmount,
+				paymentMethod,
+			});
 			window.location.href = data.url;
 		} catch (err) {
 			const msg = err.response?.data?.message || 'Could not start checkout. Please try again.';
@@ -225,85 +257,183 @@ const BuyCreditsModal = ({ onClose }) => {
 		}
 	};
 
+	const paymentMethods = [
+		{ id: 'card',       label: 'Card',       sub: 'Visa, Mastercard, Amex',    Icon: CardIcon },
+		{ id: 'netbanking', label: 'Netbanking',  sub: 'All major banks supported',  Icon: NetbankingIcon },
+		{ id: 'upi',        label: 'UPI',         sub: 'GPay, PhonePe, Paytm & more', Icon: UPIIcon },
+	];
+
 	return (
 		<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-			<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
-				<div className="flex items-center justify-between mb-5">
-					<div>
-						<h3 className="text-lg font-semibold text-slate-900 dark:text-white">Buy Credits</h3>
-						<p className="text-xs text-slate-400 mt-0.5">Secure payment via Stripe</p>
+			<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+
+				{/* Header */}
+				<div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+					<div className="flex items-center gap-3">
+						{step === 'review' && (
+							<button
+								onClick={() => setStep('amount')}
+								className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+							</button>
+						)}
+						<div>
+							<h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+								{step === 'amount' ? 'Buy Credits' : 'Confirm & Pay'}
+							</h3>
+							<div className="flex items-center gap-1.5 mt-0.5">
+								<span className={`w-2 h-2 rounded-full ${step === 'amount' ? 'bg-indigo-500' : 'bg-slateigo-200 dark:bg-slate-700'}`} />
+								<span className={`w-2 h-2 rounded-full ${step === 'review' ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+							</div>
+						</div>
 					</div>
-					<button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+					<button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 					</button>
 				</div>
 
-				<div className="space-y-4">
-					<div>
-						<label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Amount (USD)</label>
-						<div className="relative">
-							<span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">$</span>
-							<input
-								type="number"
-								min="5"
-								step="1"
-								value={amount}
-								onChange={e => setAmount(e.target.value)}
-								onKeyDown={e => e.key === 'Enter' && handleBuy()}
-								placeholder="0"
-								autoFocus
-								className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-							/>
+				{/* Step 1: Amount */}
+				{step === 'amount' && (
+					<div className="px-6 py-5 space-y-4">
+						<div>
+							<label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Amount (USD)</label>
+							<div className="relative">
+								<span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">$</span>
+								<input
+									type="number"
+									min="5"
+									step="1"
+									value={amount}
+									onChange={e => setAmount(e.target.value)}
+									onKeyDown={e => e.key === 'Enter' && handleProceed()}
+									placeholder="0"
+									autoFocus
+									className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								/>
+							</div>
+							<p className="text-xs text-slate-400 mt-1.5">Minimum $5 · Rate: $1 = 10 credits</p>
 						</div>
-						<p className="text-xs text-slate-400 mt-1">Minimum $5 · Rate: $1 = 10 credits</p>
+
+						{/* Quick-select */}
+						<div className="flex gap-2">
+							{[10, 25, 50, 100].map(preset => (
+								<button
+									key={preset}
+									onClick={() => setAmount(String(preset))}
+									className={`flex-1 py-2 rounded-xl text-sm font-bold border-2 transition ${
+										parsedAmount === preset
+											? 'bg-indigo-600 text-white border-indigo-600'
+											: 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400'
+									}`}>
+									${preset}
+								</button>
+							))}
+						</div>
+
+						<div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 px-4 py-3 flex items-center justify-between">
+							<span className="text-sm text-slate-600 dark:text-slate-300">You will receive</span>
+							<span className="text-xl font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+								<CircleDollarSign size={20} />
+								{credits > 0 ? credits.toLocaleString() : '—'} credits
+							</span>
+						</div>
+
+						<button
+							onClick={handleProceed}
+							disabled={!valid}
+							className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold shadow transition flex items-center justify-center gap-2">
+							Proceed to Payment
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+						</button>
 					</div>
+				)}
 
-					{/* Quick-select amounts */}
-					<div className="flex gap-2">
-						{[10, 25, 50, 100].map(preset => (
-							<button
-								key={preset}
-								onClick={() => setAmount(String(preset))}
-								className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition ${
-									parseFloat(amount) === preset
-										? 'bg-indigo-600 text-white border-indigo-600'
-										: 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-								}`}>
-								${preset}
-							</button>
-						))}
+				{/* Step 2: Review + Payment Method */}
+				{step === 'review' && (
+					<div className="px-6 py-5 space-y-5">
+						{/* Order summary */}
+						<div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+							<div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+								<p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Order Summary</p>
+							</div>
+							<div className="px-4 py-3 space-y-2.5">
+								<div className="flex justify-between text-sm">
+									<span className="text-slate-500 dark:text-slate-400">Credits</span>
+									<span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+										<CircleDollarSign size={14} /> {credits.toLocaleString()}
+									</span>
+								</div>
+								<div className="flex justify-between text-sm">
+									<span className="text-slate-500 dark:text-slate-400">Rate</span>
+									<span className="font-medium text-slate-700 dark:text-slate-300">$1 = 10 credits</span>
+								</div>
+								<div className="h-px bg-slate-200 dark:bg-slate-700" />
+								<div className="flex justify-between">
+									<span className="font-semibold text-slate-800 dark:text-white">Amount Payable</span>
+									<span className="font-bold text-xl text-indigo-600 dark:text-indigo-400">${parsedAmount.toFixed(2)}</span>
+								</div>
+							</div>
+						</div>
+
+						{/* User details */}
+						<div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+							<div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+								<p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Billing To</p>
+							</div>
+							<div className="px-4 py-3 space-y-1">
+								<p className="font-semibold text-slate-800 dark:text-white">{user?.name}</p>
+								<p className="text-sm text-slate-500 dark:text-slate-400">{user?.email}</p>
+							</div>
+						</div>
+
+						{/* Payment method */}
+						<div>
+							<p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Choose a Payment Option</p>
+							<div className="space-y-2">
+								{paymentMethods.map(({ id, label, sub, Icon }) => (
+									<button
+										key={id}
+										onClick={() => setPaymentMethod(id)}
+										className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl border-2 transition text-left ${
+											paymentMethod === id
+												? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
+												: 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600/50 bg-white dark:bg-slate-800/40'
+										}`}>
+										<span className={paymentMethod === id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}>
+											<Icon />
+										</span>
+										<div className="flex-1">
+											<p className={`text-sm font-semibold ${paymentMethod === id ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200'}`}>{label}</p>
+											<p className="text-xs text-slate-400">{sub}</p>
+										</div>
+										<div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+											paymentMethod === id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 dark:border-slate-600'
+										}`}>
+											{paymentMethod === id && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+										</div>
+									</button>
+								))}
+							</div>
+						</div>
+
+						{error && <p className="text-sm text-red-500">{error}</p>}
+
+						<button
+							onClick={handlePay}
+							disabled={loading}
+							className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold shadow-lg shadow-green-500/20 transition flex items-center justify-center gap-2">
+							{loading
+								? <><Loader size={15} className="animate-spin" />Redirecting to Stripe…</>
+								: <>Pay ${parsedAmount.toFixed(2)} · Get {credits.toLocaleString()} Credits</>
+							}
+						</button>
+
+						<p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1">
+							<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+							Secured by Stripe · No card data touches our servers
+						</p>
 					</div>
-
-					<div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 px-4 py-3 flex items-center justify-between">
-						<span className="text-sm text-slate-600 dark:text-slate-300">You will receive</span>
-						<span className="text-lg font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-							<CircleDollarSign size={18} />
-							{credits > 0 ? credits.toLocaleString() : '—'} credits
-						</span>
-					</div>
-
-					{error && <p className="text-sm text-red-500">{error}</p>}
-				</div>
-
-				<div className="flex gap-3 mt-6">
-					<button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-sm font-medium">
-						Cancel
-					</button>
-					<button
-						onClick={handleBuy}
-						disabled={!valid || loading}
-						className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold shadow transition flex items-center justify-center gap-2">
-						{loading
-							? <><Loader size={15} className="animate-spin" />Redirecting…</>
-							: <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>Pay with Stripe →</>
-						}
-					</button>
-				</div>
-
-				<p className="text-center text-xs text-slate-400 mt-4 flex items-center justify-center gap-1">
-					<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-					Secured by Stripe · No card data touches our servers
-				</p>
+				)}
 			</div>
 		</div>
 	);
@@ -557,8 +687,8 @@ const Dashboard = () => {
 				)} */}
 
 	
-				{/* Credits Display */}
-				{user && (
+				{/* Credits Display — USER only */}
+				{user?.role === "USER" && (
 					<div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-full shadow-inner">
 						<div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 px-2">
 							<CircleDollarSign size={16} className="text-amber-500" />
@@ -567,14 +697,12 @@ const Dashboard = () => {
 								Credits
 							</span>
 						</div>
-						{user?.role === "USER" && (
-							<button
-								onClick={() => setShowBuyModal(true)}
-								className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full shadow-md transition-all cursor-pointer">
-								<Plus size={14} />
-								BUY
-							</button>
-						)}
+						<button
+							onClick={() => setShowBuyModal(true)}
+							className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-green-500 rounded-full shadow-md transition-all cursor-pointer">
+							<Plus size={14} />
+							BUY
+						</button>
 					</div>
 				)}
 
@@ -736,7 +864,7 @@ const Dashboard = () => {
 
 			{/* Buy Credits Modal */}
 			{showBuyModal && (
-				<BuyCreditsModal onClose={() => setShowBuyModal(false)} />
+				<BuyCreditsModal onClose={() => setShowBuyModal(false)} user={user} />
 			)}
 
 			{/* Logout Confirmation Modal */}
