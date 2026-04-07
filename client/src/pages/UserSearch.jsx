@@ -929,16 +929,26 @@ const UserSearch = ({ focusAiSearch = false }) => {
 		}
 	}, []);
 
+	// Dispatch insufficient-credits event on 402 search error
+	useEffect(() => {
+		if (error?.response?.status === 402) {
+			const { required, available } = error.response.data || {};
+			window.dispatchEvent(new CustomEvent('hirextra:insufficient-credits', {
+				detail: { required, available: available ?? 0, action: 'search' }
+			}));
+		}
+	}, [error]);
+
 	// Effect to notify user of errors without hiding data
 	useEffect(() => {
-		if (status === "error") {
+		if (status === "error" && error?.response?.status !== 402) {
 			toast.error("Try Again...", {
 				id: "search-error", // Prevent duplicates
 			});
 		}
-	}, [status]);
+	}, [status, error]);
 
-	if (status === "error" && !candidates.length) {
+	if (status === "error" && !candidates.length && error?.response?.status !== 402) {
 		return (
 			<div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] space-y-6 text-center p-8 animate-in fade-in zoom-in duration-300">
 				<div className="relative">

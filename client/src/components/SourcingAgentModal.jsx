@@ -315,8 +315,10 @@ function CandidateGetContact({ candidate, onSaveCandidate, onContactFound }) {
       setNotFound(true);
       if (err.response?.status === 402) {
         const { required, available } = err.response.data || {};
-        toast.error(`Insufficient credits — need ${required}, you have ${available ?? 0}.`, { id: 'enrich-credits', duration: 5000 });
         queryClient.invalidateQueries({ queryKey: ['credits'] });
+        window.dispatchEvent(new CustomEvent('hirextra:insufficient-credits', {
+          detail: { required, available: available ?? 0, action: 'enrich' }
+        }));
         return;
       }
       const msg = err.response?.data?.error || err.response?.data?.message || 'Failed to fetch contact.';
@@ -1146,9 +1148,11 @@ export default function SourcingAgentModal({ isOpen = true, onClose = () => {}, 
       }
       if (err.response?.status === 402) {
         const { required, available } = err.response.data || {};
-        toast.error(`Insufficient credits — need ${required}, you have ${available ?? 0}. Buy more credits.`, { duration: 5000 });
         queryClient.invalidateQueries({ queryKey: ['credits'] });
         setView('compose');
+        window.dispatchEvent(new CustomEvent('hirextra:insufficient-credits', {
+          detail: { required, available: available ?? 0, action: 'source' }
+        }));
         return;
       }
       const message = err.response?.data?.error || 'Failed to source candidates from internet.';

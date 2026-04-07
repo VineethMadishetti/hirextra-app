@@ -6,6 +6,7 @@ import EnrichmentLog from "../models/EnrichmentLog.js";
 import ImportEvent from "../models/ImportEvent.js";
 import logger from "../utils/logger.js";
 import { checkRChilliCredits } from "../utils/rchilliService.js";
+import { checkCredits, deductCredits } from "../utils/creditService.js";
 import fs from "fs";
 import DeleteLog from "../models/DeleteLog.js";
 import PrivateDatabase from "../models/PrivateDatabase.js";
@@ -1469,6 +1470,11 @@ export const searchCandidates = async (req, res) => {
         const pageNum = Math.max(1, Number(page) || 1);
         const skip = (pageNum - 1) * limitNum;
 
+        // Charge 1 credit for page 1 searches (not pagination, not ADMIN, not creditFree)
+        if (pageNum === 1) {
+            await checkCredits(req.user._id, req.user.role, 1, req.user.creditFree);
+        }
+
         let query = { isDeleted: false };
 
         // Private DB filtering:
@@ -1780,6 +1786,11 @@ export const searchCandidates = async (req, res) => {
             throw dbError; // Throw error instead of returning wrong data (fallback)
         }
 
+        // Deduct 1 credit after successful page-1 search
+        if (pageNum === 1 && req.user.role !== 'ADMIN' && !req.user.creditFree) {
+            deductCredits(req.user._id, 1, 'SEARCH', 'Internal DB search').catch(() => {});
+        }
+
         res.json({
             candidates,
             hasMore,
@@ -1787,14 +1798,18 @@ export const searchCandidates = async (req, res) => {
             currentPage: pageNum,
             totalCount,
         });
-        
+
     } catch (err) {
         console.error("Search Error:", err);
         console.error("Error stack:", err.stack);
-        
+
+        if (err.status === 402) {
+            return res.status(402).json({ message: err.message, required: err.required, available: err.available });
+        }
+
         // Send a proper error response
-        res.status(500).json({ 
-            message: "Search failed", 
+        res.status(500).json({
+            message: "Search failed",
             error: err.message,
             details: "Please try simplifying your search criteria"
         });

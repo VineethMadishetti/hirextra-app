@@ -223,6 +223,69 @@ const UPIIcon = () => (
 	</svg>
 );
 
+// Popup shown automatically when any action fails with 402 Insufficient Credits
+const InsufficientCreditsModal = ({ onClose, onBuy, required = 0, available = 0, action = '' }) => {
+	const need = required - available;
+	const actionLabel = { search: 'Search (1 credit)', enrich: 'Enrich Contact (3 credits)', source: 'AI Sourcing (5 credits)' }[action] || 'this action';
+	return (
+		<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+			<div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+				{/* Header */}
+				<div className="bg-rose-50 dark:bg-rose-500/10 px-6 py-5 flex items-center gap-4 border-b border-rose-100 dark:border-rose-500/20">
+					<div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center shrink-0">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+							<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+						</svg>
+					</div>
+					<div>
+						<h3 className="text-base font-bold text-slate-900 dark:text-white">Not Enough Credits</h3>
+						<p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Top up to continue using {actionLabel}</p>
+					</div>
+				</div>
+
+				{/* Body */}
+				<div className="px-6 py-5 space-y-4">
+					{/* Credit gap visual */}
+					<div className="grid grid-cols-3 gap-3 text-center">
+						<div className="rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-3">
+							<p className="text-xs text-slate-400 mb-1">Required</p>
+							<p className="text-xl font-bold text-slate-800 dark:text-white">{required}</p>
+						</div>
+						<div className="rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-3">
+							<p className="text-xs text-slate-400 mb-1">You Have</p>
+							<p className="text-xl font-bold text-slate-800 dark:text-white">{available}</p>
+						</div>
+						<div className="rounded-xl bg-rose-50 dark:bg-rose-500/10 px-3 py-3">
+							<p className="text-xs text-rose-400 mb-1">Short by</p>
+							<p className="text-xl font-bold text-rose-500">{need}</p>
+						</div>
+					</div>
+
+					<p className="text-sm text-slate-500 dark:text-slate-400 text-center">
+						Buy at least <span className="font-semibold text-slate-700 dark:text-slate-200">${Math.ceil(need / 10)}</span> worth of credits to continue
+						<span className="text-xs block mt-0.5 text-slate-400">($1 = 10 credits · min purchase $5)</span>
+					</p>
+
+					{/* Actions */}
+					<div className="flex gap-3 pt-1">
+						<button
+							onClick={onClose}
+							className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">
+							Cancel
+						</button>
+						<button
+							onClick={onBuy}
+							className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-green-500 text-white text-sm font-bold shadow transition cursor-pointer flex items-center justify-center gap-2">
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+							Buy Credits
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
+
 // Modal for buying credits via Stripe Checkout — two-step: amount → review + payment method
 const BuyCreditsModal = ({ onClose, user }) => {
 	const [step, setStep] = useState('amount'); // 'amount' | 'review'
@@ -467,6 +530,18 @@ const Dashboard = () => {
 	);
 
 	const [showBuyModal, setShowBuyModal] = useState(false);
+	const [showInsufficientModal, setShowInsufficientModal] = useState(false);
+	const [insufficientData, setInsufficientData] = useState({ required: 0, available: 0, action: '' });
+
+	// Listen for 402 events fired by any page/component
+	useEffect(() => {
+		const handler = (e) => {
+			setInsufficientData(e.detail || {});
+			setShowInsufficientModal(true);
+		};
+		window.addEventListener('hirextra:insufficient-credits', handler);
+		return () => window.removeEventListener('hirextra:insufficient-credits', handler);
+	}, []);
 
 	const { data: creditsData, refetch: refetchCredits } = useQuery({
 		queryKey: ['credits'],
@@ -867,6 +942,15 @@ const Dashboard = () => {
 					)}
 				</Suspense>
 			</main>
+
+			{/* Insufficient Credits Modal — shown automatically on any 402 */}
+			{showInsufficientModal && (
+				<InsufficientCreditsModal
+					{...insufficientData}
+					onClose={() => setShowInsufficientModal(false)}
+					onBuy={() => { setShowInsufficientModal(false); setShowBuyModal(true); }}
+				/>
+			)}
 
 			{/* Buy Credits Modal */}
 			{showBuyModal && (
