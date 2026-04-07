@@ -18,6 +18,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
 import logger from './utils/logger.js';
+import { verifySMTP } from './utils/emailService.js';
 import { requestCache } from './requestCache.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -57,6 +58,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-super-secure-jwt
 }
 
 connectDB();
+verifySMTP(); // logs SMTP status on startup — check Render logs if emails aren't arriving
 
 /* ---------------------------------------------------
    CREATE DEFAULT ADMIN
